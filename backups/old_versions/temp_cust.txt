@@ -1,0 +1,138 @@
+def build_customers_module(self, frame):
+        f_in = tk.LabelFrame(frame, text=" تسجيل عميل جديد والمقاسات ومنصة التواصل الاجتماعي الذكية ", font=("Arial", 11, "bold"), padx=10, pady=10)
+        f_in.pack(fill=tk.X, padx=10, pady=5)
+
+        tk.Label(f_in, text="اسم العميل:").grid(row=0, column=5, padx=5, pady=5, sticky="e")
+        self.ent_c_name = tk.Entry(f_in, font=("Arial", 10), justify="right")
+        self.ent_c_name.grid(row=0, column=4, padx=5, pady=5)
+
+        tk.Label(f_in, text="رقم الهاتف:").grid(row=0, column=3, padx=5, pady=5, sticky="e")
+        self.ent_c_phone = tk.Entry(f_in, font=("Arial", 10), justify="right")
+        self.ent_c_phone.grid(row=0, column=2, padx=5, pady=5)
+
+        tk.Label(f_in, text="منصة التواصل:").grid(row=0, column=1, padx=5, pady=5, sticky="e")
+        self.combo_c_social_platform = ttk.Combobox(f_in, values=["انستغرام (Instagram)", "تيك توك (TikTok)", "فيسبوك (Facebook)", "واتساب (WhatsApp)"], state="readonly", width=18)
+        self.combo_c_social_platform.grid(row=0, column=0, padx=5, pady=5)
+        self.combo_c_social_platform.current(0)
+
+        tk.Label(f_in, text="اسم الحساب/المعرف (@):").grid(row=1, column=5, padx=5, pady=5, sticky="e")
+        self.ent_c_social = tk.Entry(f_in, font=("Arial", 10), justify="right")
+        self.ent_c_social.grid(row=1, column=4, padx=5, pady=5)
+
+        tk.Label(f_in, text="العنوان:").grid(row=1, column=3, padx=5, pady=5, sticky="e")
+        self.ent_c_address = tk.Entry(f_in, font=("Arial", 10), justify="right")
+        self.ent_c_address.grid(row=1, column=2, padx=5, pady=5)
+
+        tk.Label(f_in, text="وحدة القياس:").grid(row=1, column=1, padx=5, pady=5, sticky="e")
+        self.combo_c_unit = ttk.Combobox(f_in, values=["سم (cm)", "إنش (inch)"], state="readonly", width=12)
+        self.combo_c_unit.grid(row=1, column=0, padx=5, pady=5)
+        self.combo_c_unit.current(0)
+
+        tk.Label(f_in, text="الطول الكلي:").grid(row=2, column=5, padx=5, pady=5, sticky="e")
+        self.ent_c_tlen = tk.Entry(f_in, font=("Arial", 10), justify="right", width=15)
+        self.ent_c_tlen.grid(row=2, column=4, padx=5, pady=5)
+
+        tk.Label(f_in, text="عرض الكتف:").grid(row=2, column=3, padx=5, pady=5, sticky="e")
+        self.ent_c_shw = tk.Entry(f_in, font=("Arial", 10), justify="right", width=15)
+        self.ent_c_shw.grid(row=2, column=2, padx=5, pady=5)
+
+        tk.Label(f_in, text="دوران الصدر:").grid(row=2, column=1, padx=5, pady=5, sticky="e")
+        self.ent_c_bust = tk.Entry(f_in, font=("Arial", 10), justify="right", width=12)
+        self.ent_c_bust.grid(row=2, column=0, padx=5, pady=5)
+
+        tk.Label(f_in, text="دوران الخصر:").grid(row=3, column=5, padx=5, pady=5, sticky="e")
+        self.ent_c_waist = tk.Entry(f_in, font=("Arial", 10), justify="right", width=15)
+        self.ent_c_waist.grid(row=3, column=4, padx=5, pady=5)
+
+        tk.Label(f_in, text="طول الكم:").grid(row=3, column=3, padx=5, pady=5, sticky="e")
+        self.ent_c_sleeve = tk.Entry(f_in, font=("Arial", 10), justify="right", width=15)
+        self.ent_c_sleeve.grid(row=3, column=2, padx=5, pady=5)
+
+        tk.Label(f_in, text="طول الصدر:").grid(row=3, column=1, padx=5, pady=5, sticky="e")
+        self.ent_c_chestlen = tk.Entry(f_in, font=("Arial", 10), justify="right", width=12)
+        self.ent_c_chestlen.grid(row=3, column=0, padx=5, pady=5)
+
+        btn_add_c = tk.Button(f_in, text="📐 حفظ العميل والبيانات", bg="#E67E22", fg="white", font=("Arial", 10, "bold"), command=self.save_customer)
+        btn_add_c.grid(row=4, column=3, columnspan=3, pady=10)
+
+        btn_social_msg = tk.Button(f_in, text="📲 فتح حساب العميل / المراسلة الذكية", bg="#8E44AD", fg="white", font=("Arial", 10, "bold"), command=self.open_social_chat)
+        btn_social_msg.grid(row=4, column=0, columnspan=3, pady=10)
+
+        columns = ("id", "name", "phone", "platform", "social", "address", "unit", "tlen", "shw", "bust", "waist", "sleeve", "chestlen")
+        self.tree_cust = ttk.Treeview(frame, columns=columns, show="headings")
+        headings = ["ID", "اسم العميل", "الهاتف", "المنصة", "اسم الحساب", "العنوان", "الوحدة", "الطول الكلي", "عرض الكتف", "دوران الصدر", "دوران الخصر", "طول الكم", "طول الصدر"]
+        for col, h in zip(columns, headings):
+            self.tree_cust.heading(col, text=h)
+            self.tree_cust.column(col, anchor="center", width=90)
+        self.tree_cust.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+
+        self.load_customers()
+
+    def open_social_chat(self):
+        selected_item = self.tree_cust.selection()
+        if not selected_item:
+            messagebox.showwarning("تنبيه", "حدد عميلاً من الجدول لمراسلته أو فتح حسابه!")
+            return
+
+        item_vals = self.tree_cust.item(selected_item)['values']
+        phone = str(item_vals[2]).strip()
+        platform = str(item_vals[3]).strip()
+        social_handle = str(item_vals[4]).replace("@", "").strip()
+
+        if "تيك توك" in platform:
+            if social_handle:
+                webbrowser.open(f"https://www.tiktok.com/@{social_handle}")
+                messagebox.showinfo("توجيه تلقائي", f"تم فتح حساب تيك توك: @{social_handle}")
+            else:
+                messagebox.showwarning("تنبيه", "اسم حساب تيك توك غير مسجل!")
+        elif "فيسبوك" in platform:
+            if social_handle:
+                webbrowser.open(f"https://www.facebook.com/{social_handle}")
+                messagebox.showinfo("توجيه تلقائي", f"تم فتح حساب فيسبوك: {social_handle}")
+            else:
+                messagebox.showwarning("تنبيه", "اسم حساب فيسبوك غير مسجل!")
+        elif "واتساب" in platform:
+            if phone:
+                webbrowser.open(f"https://api.whatsapp.com/send?phone={phone}")
+                messagebox.showinfo("توجيه تلقائي", f"تم فتح المحادثة المباشرة عبر الواتساب مع {phone}")
+            else:
+                messagebox.showwarning("تنبيه", "رقم الهاتف غير مسجل!")
+        else:
+            if social_handle:
+                webbrowser.open(f"https://www.instagram.com/{social_handle}")
+                messagebox.showinfo("توجيه تلقائي", f"تم فتح حساب انستغرام: @{social_handle}")
+            else:
+                messagebox.showwarning("تنبيه", "اسم حساب انستغرام غير مسجل!")
+
+    def save_customer(self):
+        name = self.ent_c_name.get()
+        phone = self.ent_c_phone.get()
+        platform = self.combo_c_social_platform.get()
+        social = self.ent_c_social.get()
+        address = self.ent_c_address.get()
+        unit = self.combo_c_unit.get()
+        tlen = self.ent_c_tlen.get()
+        shw = self.ent_c_shw.get()
+        bust = self.ent_c_bust.get()
+        waist = self.ent_c_waist.get()
+        sleeve = self.ent_c_sleeve.get()
+        chestlen = self.ent_c_chestlen.get()
+
+        if not name:
+            messagebox.showwarning("تنبيه", "ادخل اسم العميل!")
+            return
+
+        conn = sqlite3.connect('little_princesses.db')
+        cursor = conn.cursor()
+        cursor.execute('''INSERT INTO customers 
+            (name, phone, social_platform, social_handle, address, unit, total_length, shoulder_width, bust_circ, waist_circ, sleeve_length, chest_length) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+            (name, phone, platform, social, address, unit, tlen, shw, bust, waist, sleeve, chestlen))
+        conn.commit()
+        conn.close()
+
+        messagebox.showinfo("نجاح", f"تم حفظ العميل '{name}' والمنصة والمقاسات بنجاح!")
+        self.load_customers()
+        self.refresh_sales_dropdowns()
+
+    def load_customers(self):

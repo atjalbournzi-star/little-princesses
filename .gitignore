@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.pyo
+build/
+dist/
+*.exe_extracted/
+error.log
+error_unified.log
+little_princesses.db-shm
+little_princesses.db-wal

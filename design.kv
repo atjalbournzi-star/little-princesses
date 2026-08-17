@@ -1,0 +1,1615 @@
+MDScreenManager:
+    LoginScreen:
+    DashboardScreen:
+    FactoryScreen:
+    SalesScreen:
+    CustomersSmartScreen:
+    InventoryScreen:
+    ModelsCostingScreen:
+    PurchasesScreen:
+    ExpensesScreen:
+    JournalEntriesScreen:
+    VouchersScreen:
+    ReportsScreen:
+    AccountsTreeScreen:
+    SettingsScreen:
+
+# ====================================
+# 0. شاشة تسجيل الدخول
+# ====================================
+<LoginScreen>:
+    name: 'login'
+    MDFloatLayout:
+        md_bg_color: 0.98, 0.97, 0.99, 1
+        MDCard:
+            size_hint: 0.85, 0.6
+            pos_hint: {"center_x": 0.5, "center_y": 0.5}
+            elevation: 4
+            orientation: 'vertical'
+            padding: "20dp"
+            spacing: "15dp"
+            MDLabel:
+                text: app.get_ar("نظام أميرات صغيرات")
+                font_style: "H5"
+                bold: True
+                halign: "center"
+                theme_text_color: "Custom"
+                text_color: 0.05, 0.32, 0.58, 1
+            MDLabel:
+                text: app.get_ar("تسجيل الدخول")
+                font_style: "Subtitle1"
+                halign: "center"
+                theme_text_color: "Secondary"
+            MDTextField:
+                id: login_username
+                mode: "rectangle"
+                hint_text: app.get_ar("اسم المستخدم")
+                icon_left: "account"
+            MDTextField:
+                id: login_password
+                mode: "rectangle"
+                hint_text: app.get_ar("كلمة المرور")
+                password: True
+                icon_left: "key-variant"
+            MDRaisedButton:
+                text: app.get_ar("دخول")
+                size_hint_x: 1
+                height: "48dp"
+                md_bg_color: 0.05, 0.32, 0.58, 1
+                on_release: app.login_user()
+
+# ====================================
+# 1. لوحة القيادة والمؤشرات البصرية
+# ====================================
+<DashboardScreen>:
+    name: 'dashboard'
+    on_enter: app.load_dashboard_stats()
+    MDFloatLayout:
+        md_bg_color: 1, 1, 1, 1
+        MDBoxLayout:
+            orientation: 'horizontal'
+            pos_hint: {"top": 1}
+            size_hint_y: 0.08
+            md_bg_color: 0.05, 0.32, 0.58, 1
+            padding: ["12dp", "0dp"]
+            MDIconButton:
+                icon: "logout"
+                theme_icon_color: "Custom"
+                icon_color: 1, 1, 1, 1
+                pos_hint: {"center_y": 0.5}
+                on_release: app.logout_user()
+            MDLabel:
+                text: app.get_ar("أميرات صغيرات سوفت")
+                font_style: "H6"
+                bold: True
+                halign: "center"
+                theme_text_color: "Custom"
+                text_color: 1, 1, 1, 1
+            MDIconButton:
+                id: btn_settings
+                icon: "cog"
+                theme_icon_color: "Custom"
+                icon_color: 1, 1, 1, 1
+                pos_hint: {"center_y": 0.5}
+                on_release: root.manager.current = 'settings'; app.load_company_profile()
+
+        MDScrollView:
+            pos_hint: {"top": 0.92, "bottom": 0.07}
+            size_hint_y: 0.85
+            MDBoxLayout:
+                orientation: 'vertical'
+                padding: ["12dp", "16dp"]
+                spacing: "10dp"
+                adaptive_height: True
+
+                # المؤشرات الذكية
+                MDGridLayout:
+                    id: dashboard_stats
+                    cols: 2
+                    spacing: "10dp"
+                    adaptive_height: True
+                    padding: ["0dp", "0dp", "0dp", "10dp"]
+                    MDCard:
+                        orientation: 'vertical'
+                        size_hint_y: None
+                        height: "70dp"
+                        padding: "8dp"
+                        md_bg_color: 0.95, 0.98, 1, 1
+                        MDLabel:
+                            text: app.get_ar("مبيعات اليوم")
+                            font_style: "Caption"
+                            theme_text_color: "Secondary"
+                            halign: "center"
+                        MDLabel:
+                            id: dash_sales
+                            text: "$0.00"
+                            bold: True
+                            halign: "center"
+                            theme_text_color: "Custom"
+                            text_color: 0.05, 0.32, 0.58, 1
+                    MDCard:
+                        orientation: 'vertical'
+                        size_hint_y: None
+                        height: "70dp"
+                        padding: "8dp"
+                        md_bg_color: 0.95, 1, 0.95, 1
+                        MDLabel:
+                            text: app.get_ar("الصندوق الرئيسي")
+                            font_style: "Caption"
+                            theme_text_color: "Secondary"
+                            halign: "center"
+                        MDLabel:
+                            id: dash_safe
+                            text: "$0.00"
+                            bold: True
+                            halign: "center"
+                            theme_text_color: "Custom"
+                            text_color: 0.1, 0.6, 0.3, 1
+                    MDCard:
+                        orientation: 'vertical'
+                        size_hint_y: None
+                        height: "70dp"
+                        padding: "8dp"
+                        md_bg_color: 1, 0.95, 0.95, 1
+                        MDLabel:
+                            text: app.get_ar("فساتين متأخرة")
+                            font_style: "Caption"
+                            theme_text_color: "Secondary"
+                            halign: "center"
+                        MDLabel:
+                            id: dash_late
+                            text: "0"
+                            bold: True
+                            halign: "center"
+                            theme_text_color: "Custom"
+                            text_color: 0.8, 0.2, 0.2, 1
+                    MDCard:
+                        orientation: 'vertical'
+                        size_hint_y: None
+                        height: "70dp"
+                        padding: "8dp"
+                        md_bg_color: 1, 0.98, 0.9, 1
+                        MDLabel:
+                            text: app.get_ar("خامات قاربت للنفاذ")
+                            font_style: "Caption"
+                            theme_text_color: "Secondary"
+                            halign: "center"
+                        MDLabel:
+                            id: dash_stock
+                            text: "0"
+                            bold: True
+                            halign: "center"
+                            theme_text_color: "Custom"
+                            text_color: 0.9, 0.45, 0.1, 1
+
+                # أزرار النظام الأساسية
+                MDCard:
+                    id: card_factory
+                    size_hint_y: None
+                    height: "50dp"
+                    radius: [0, 0, 0, 0]
+                    md_bg_color: 0.9, 0.45, 0.1, 1
+                    ripple_behavior: True
+                    on_release: root.manager.current = 'factory'
+                    padding: ["12dp", "0dp"]
+                    MDBoxLayout:
+                        MDIcon:
+                            icon: "sewing-machine"
+                            theme_text_color: "Custom"
+                            text_color: 1, 1, 1, 1
+                            pos_hint: {"center_y": 0.5}
+                        MDLabel:
+                            text: app.get_ar("إدارة معمل الإنتاج وأوامر الشغل")
+                            bold: True
+                            halign: "right"
+                            theme_text_color: "Custom"
+                            text_color: 1, 1, 1, 1
+
+                MDGridLayout:
+                    id: box_core_ops
+                    cols: 2
+                    spacing: "10dp"
+                    adaptive_height: True
+                    padding: ["5dp", "2dp"]
+                    MDBoxLayout:
+                        orientation: 'vertical'
+                        spacing: "2dp"
+                        adaptive_height: True
+                        MDIconButton:
+                            icon: "account-group"
+                            user_font_size: "28sp"
+                            theme_icon_color: "Custom"
+                            icon_color: 0.05, 0.32, 0.58, 1
+                            pos_hint: {"center_x": 0.5}
+                            on_release: root.manager.current = 'customers_smart'
+                        MDFillRoundFlatIconButton:
+                            text: app.get_ar("العملاء والمقاسات")
+                            icon: "plus-circle"
+                            md_bg_color: 0.05, 0.32, 0.58, 1
+                            font_size: "11sp"
+                            pos_hint: {"center_x": 0.5}
+                            on_release: root.manager.current = 'customers_smart'
+                    MDBoxLayout:
+                        orientation: 'vertical'
+                        spacing: "2dp"
+                        adaptive_height: True
+                        MDIconButton:
+                            icon: "scissors-cutting"
+                            user_font_size: "28sp"
+                            theme_icon_color: "Custom"
+                            icon_color: 0.05, 0.32, 0.58, 1
+                            pos_hint: {"center_x": 0.5}
+                            on_release: root.manager.current = 'inventory'; app.load_inventory_table()
+                        MDFillRoundFlatIconButton:
+                            text: app.get_ar("مخزون الأقمشة")
+                            icon: "plus-circle"
+                            md_bg_color: 0.05, 0.32, 0.58, 1
+                            font_size: "11sp"
+                            pos_hint: {"center_x": 0.5}
+                            on_release: root.manager.current = 'inventory'; app.load_inventory_table()
+                    MDBoxLayout:
+                        orientation: 'vertical'
+                        spacing: "2dp"
+                        adaptive_height: True
+                        MDIconButton:
+                            icon: "hanger"
+                            user_font_size: "28sp"
+                            theme_icon_color: "Custom"
+                            icon_color: 0.05, 0.32, 0.58, 1
+                            pos_hint: {"center_x": 0.5}
+                            on_release: root.manager.current = 'models_costing'; app.load_models_table()
+                        MDFillRoundFlatIconButton:
+                            text: app.get_ar("منتجات وتكاليف")
+                            icon: "plus-circle"
+                            md_bg_color: 0.05, 0.32, 0.58, 1
+                            font_size: "11sp"
+                            pos_hint: {"center_x": 0.5}
+                            on_release: root.manager.current = 'models_costing'; app.load_models_table()
+                    MDBoxLayout:
+                        orientation: 'vertical'
+                        spacing: "2dp"
+                        adaptive_height: True
+                        MDIconButton:
+                            icon: "cart-arrow-down"
+                            user_font_size: "28sp"
+                            theme_icon_color: "Custom"
+                            icon_color: 0.05, 0.32, 0.58, 1
+                            pos_hint: {"center_x": 0.5}
+                            on_release: root.manager.current = 'purchases'; app.load_purchases_table()
+                        MDFillRoundFlatIconButton:
+                            text: app.get_ar("فواتير الشراء")
+                            icon: "plus-circle"
+                            md_bg_color: 0.05, 0.32, 0.58, 1
+                            font_size: "10sp"
+                            pos_hint: {"center_x": 0.5}
+                            on_release: root.manager.current = 'purchases'; app.load_purchases_table()
+
+                MDCard:
+                    id: card_sales
+                    size_hint_y: None
+                    height: "48dp"
+                    radius: [0, 0, 0, 0]
+                    md_bg_color: 0.05, 0.32, 0.58, 1
+                    ripple_behavior: True
+                    on_release: root.manager.current = 'sales'; app.load_sales_table()
+                    padding: ["12dp", "0dp"]
+                    MDBoxLayout:
+                        MDIcon:
+                            icon: "cart-arrow-right"
+                            theme_text_color: "Custom"
+                            text_color: 1, 1, 1, 1
+                            pos_hint: {"center_y": 0.5}
+                        MDLabel:
+                            text: app.get_ar("المبيعات والحجوزات وإصدار الفواتير")
+                            bold: True
+                            halign: "right"
+                            theme_text_color: "Custom"
+                            text_color: 1, 1, 1, 1
+
+                MDCard:
+                    id: card_expenses
+                    size_hint_y: None
+                    height: "48dp"
+                    radius: [0, 0, 0, 0]
+                    md_bg_color: 0.8, 0.2, 0.3, 1
+                    ripple_behavior: True
+                    on_release: root.manager.current = 'expenses'; app.load_expenses_table()
+                    padding: ["12dp", "0dp"]
+                    MDBoxLayout:
+                        MDIcon:
+                            icon: "cash-minus"
+                            theme_text_color: "Custom"
+                            text_color: 1, 1, 1, 1
+                            pos_hint: {"center_y": 0.5}
+                        MDLabel:
+                            text: app.get_ar("إضافة مصروفات يومية سريعة")
+                            bold: True
+                            halign: "right"
+                            theme_text_color: "Custom"
+                            text_color: 1, 1, 1, 1
+
+                MDBoxLayout:
+                    id: box_accounting
+                    orientation: 'vertical'
+                    spacing: "2dp"
+                    adaptive_height: True
+                    MDCard:
+                        size_hint_y: None
+                        height: "44dp"
+                        radius: [0, 0, 0, 0]
+                        md_bg_color: 0.05, 0.32, 0.58, 1
+                        ripple_behavior: True
+                        on_release: root.manager.current = 'journal_entries'; app.load_journal_entries_table()
+                        padding: ["12dp", "0dp"]
+                        MDBoxLayout:
+                            MDIcon:
+                                icon: "book-open-page-variant"
+                                theme_text_color: "Custom"
+                                text_color: 1, 1, 1, 1
+                                pos_hint: {"center_y": 0.5}
+                            MDLabel:
+                                text: app.get_ar("قيود اليومية العامة والتسويات")
+                                bold: True
+                                halign: "right"
+                                theme_text_color: "Custom"
+                                text_color: 1, 1, 1, 1
+                    MDCard:
+                        size_hint_y: None
+                        height: "44dp"
+                        radius: [0, 0, 0, 0]
+                        md_bg_color: 0.05, 0.32, 0.58, 1
+                        ripple_behavior: True
+                        on_release: root.manager.current = 'accounts_tree'; app.load_accounts_tree()
+                        padding: ["12dp", "0dp"]
+                        MDBoxLayout:
+                            MDIcon:
+                                icon: "sitemap"
+                                theme_text_color: "Custom"
+                                text_color: 1, 1, 1, 1
+                                pos_hint: {"center_y": 0.5}
+                            MDLabel:
+                                text: app.get_ar("شجرة الحسابات المالية الخماسية")
+                                bold: True
+                                halign: "right"
+                                theme_text_color: "Custom"
+                                text_color: 1, 1, 1, 1
+                    MDCard:
+                        size_hint_y: None
+                        height: "44dp"
+                        radius: [0, 0, 0, 0]
+                        md_bg_color: 0.05, 0.32, 0.58, 1
+                        ripple_behavior: True
+                        on_release: root.manager.current = 'vouchers'; app.load_vouchers_table()
+                        padding: ["12dp", "0dp"]
+                        MDBoxLayout:
+                            MDIcon:
+                                icon: "cash-register"
+                                theme_text_color: "Custom"
+                                text_color: 1, 1, 1, 1
+                                pos_hint: {"center_y": 0.5}
+                            MDLabel:
+                                text: app.get_ar("سندات القبض والصرف والتحويلات")
+                                bold: True
+                                halign: "right"
+                                theme_text_color: "Custom"
+                                text_color: 1, 1, 1, 1
+                    MDCard:
+                        size_hint_y: None
+                        height: "44dp"
+                        radius: [0, 0, 0, 0]
+                        md_bg_color: 0.05, 0.32, 0.58, 1
+                        ripple_behavior: True
+                        on_release: root.manager.current = 'reports'
+                        padding: ["12dp", "0dp"]
+                        MDBoxLayout:
+                            MDIcon:
+                                icon: "chart-box-outline"
+                                theme_text_color: "Custom"
+                                text_color: 1, 1, 1, 1
+                                pos_hint: {"center_y": 0.5}
+                            MDLabel:
+                                text: app.get_ar("التقارير والمركز المالي والأرباح")
+                                bold: True
+                                halign: "right"
+                                theme_text_color: "Custom"
+                                text_color: 1, 1, 1, 1
+
+        MDBoxLayout:
+            orientation: 'horizontal'
+            pos_hint: {"bottom": 1}
+            size_hint_y: 0.07
+            md_bg_color: 0.05, 0.32, 0.58, 1
+            padding: ["12dp", "0dp"]
+            MDLabel:
+                id: lbl_logged_user
+                text: app.get_ar("معمل الخياطة والإنتاج")
+                bold: True
+                halign: "center"
+                theme_text_color: "Custom"
+                text_color: 1, 1, 1, 1
+
+# ====================================
+# 2. شاشة معمل الخياطة المعزولة
+# ====================================
+<FactoryScreen>:
+    name: 'factory'
+    on_enter: app.load_factory_orders()
+    MDFloatLayout:
+        md_bg_color: 0.98, 0.97, 0.99, 1
+        MDBoxLayout:
+            orientation: 'horizontal'
+            pos_hint: {"top": 1}
+            size_hint_y: 0.08
+            md_bg_color: 0.9, 0.45, 0.1, 1
+            padding: "8dp"
+            MDIconButton:
+                icon: "arrow-left"
+                theme_icon_color: "Custom"
+                icon_color: 1, 1, 1, 1
+                on_release: root.manager.current = 'dashboard'
+            MDLabel:
+                text: app.get_ar("معمل الإنتاج - أوامر الشغل")
+                font_style: "Subtitle1"
+                bold: True
+                theme_text_color: "Custom"
+                text_color: 1, 1, 1, 1
+        MDScrollView:
+            pos_hint: {"top": 0.92}
+            size_hint_y: 0.92
+            MDBoxLayout:
+                orientation: 'vertical'
+                padding: "10dp"
+                spacing: "10dp"
+                adaptive_height: True
+                MDBoxLayout:
+                    orientation: 'horizontal'
+                    size_hint_y: None
+                    height: "48dp"
+                    spacing: "8dp"
+                    ArabicTextField:
+                        id: search_factory
+                        mode: "rectangle"
+                        hint_text: app.get_ar("بحث برقم الطلب أو اسم العميلة...")
+                    MDIconButton:
+                        icon: "magnify"
+                        md_bg_color: 0.9, 0.45, 0.1, 1
+                        theme_text_color: "Custom"
+                        text_color: 1, 1, 1, 1
+                        on_release: app.load_factory_orders()
+                MDBoxLayout:
+                    id: factory_orders_box
+                    orientation: 'vertical'
+                    spacing: "10dp"
+                    adaptive_height: True
+
+# ====================================
+# 3. شاشة المبيعات
+# ====================================
+<SalesScreen>:
+    name: 'sales'
+    MDFloatLayout:
+        md_bg_color: 0.98, 0.97, 0.99, 1
+        MDBoxLayout:
+            orientation: 'horizontal'
+            pos_hint: {"top": 1}
+            size_hint_y: 0.08
+            md_bg_color: 0.05, 0.32, 0.58, 1
+            padding: "8dp"
+            MDIconButton:
+                icon: "arrow-left"
+                theme_icon_color: "Custom"
+                icon_color: 1, 1, 1, 1
+                on_release: root.manager.current = 'dashboard'
+            MDLabel:
+                text: app.get_ar("المبيعات وحجوزات التفصيل")
+                font_style: "Subtitle1"
+                bold: True
+                theme_text_color: "Custom"
+                text_color: 1, 1, 1, 1
+        MDScrollView:
+            pos_hint: {"top": 0.92}
+            size_hint_y: 0.92
+            MDBoxLayout:
+                orientation: 'vertical'
+                padding: "10dp"
+                spacing: "8dp"
+                adaptive_height: True
+                MDTextField:
+                    id: s_order_date
+                    mode: "rectangle"
+                    hint_text: app.get_ar("التاريخ")
+                    text: app.get_today_date()
+                ArabicTextField:
+                    id: s_customer
+                    mode: "rectangle"
+                    hint_text: app.get_ar("اسم العميلة (انقر للسحب)")
+                    on_focus: if self.focus: app.open_sales_cust_menu(self)
+                MDTextField:
+                    id: s_phone
+                    mode: "rectangle"
+                    hint_text: app.get_ar("رقم الجوال")
+                MDTextField:
+                    id: s_currency
+                    mode: "rectangle"
+                    hint_text: app.get_ar("العملة")
+                    readonly: True
+                    text: app.get_ar("دولار أمريكي (USD)")
+                    on_focus: if self.focus: app.open_currency_menu(self)
+                ArabicTextField:
+                    id: s_product
+                    mode: "rectangle"
+                    hint_text: app.get_ar("نوع الموديل")
+                ArabicTextField:
+                    id: s_fabric
+                    mode: "rectangle"
+                    hint_text: app.get_ar("نوع القماش المستخدم")
+                MDGridLayout:
+                    cols: 2
+                    spacing: "8dp"
+                    adaptive_height: True
+                    MDTextField:
+                        id: s_total
+                        mode: "rectangle"
+                        hint_text: app.get_ar("الإجمالي")
+                        input_filter: "float"
+                    MDTextField:
+                        id: s_paid
+                        mode: "rectangle"
+                        hint_text: app.get_ar("المدفوع")
+                        input_filter: "float"
+                MDTextField:
+                    id: s_status
+                    mode: "rectangle"
+                    hint_text: app.get_ar("حالة الخياطة")
+                    readonly: True
+                    text: app.get_ar("في الانتظار ⏳")
+                    on_focus: if self.focus: app.open_status_menu(self)
+                MDGridLayout:
+                    cols: 2
+                    spacing: "8dp"
+                    adaptive_height: True
+                    MDTextField:
+                        id: s_delivery_date
+                        mode: "rectangle"
+                        hint_text: app.get_ar("تاريخ الاستلام")
+                        text: "2026-07-30"
+                    MDTextField:
+                        id: s_delivery_fees
+                        mode: "rectangle"
+                        hint_text: app.get_ar("أجور التوصيل")
+                        text: "3.0"
+                        input_filter: "float"
+                ArabicTextField:
+                    id: s_notes
+                    mode: "rectangle"
+                    multiline: True
+                    hint_text: app.get_ar("ملاحظات")
+                MDGridLayout:
+                    cols: 2
+                    spacing: "6dp"
+                    adaptive_height: True
+                    MDRaisedButton:
+                        text: app.get_ar("حفظ الفاتورة")
+                        md_bg_color: 0.1, 0.45, 0.75, 1
+                        height: "44dp"
+                        on_release: app.save_sale_order()
+                    MDRaisedButton:
+                        text: app.get_ar("طباعة الفاتورة + PDF")
+                        md_bg_color: 0.5, 0.2, 0.6, 1
+                        height: "44dp"
+                        on_release: app.generate_pdf_invoice()
+                    MDRaisedButton:
+                        text: app.get_ar("أمر التوصيل للموصل")
+                        md_bg_color: 0.9, 0.45, 0.1, 1
+                        height: "44dp"
+                        on_release: app.send_driver_order()
+                    MDRaisedButton:
+                        text: app.get_ar("إرسال للمعمل")
+                        md_bg_color: 0.1, 0.55, 0.3, 1
+                        height: "44dp"
+                        on_release: app.send_workshop_order()
+                MDBoxLayout:
+                    orientation: 'horizontal'
+                    size_hint_y: None
+                    height: "48dp"
+                    spacing: "8dp"
+                    ArabicTextField:
+                        id: search_sales
+                        mode: "rectangle"
+                        hint_text: app.get_ar("بحث في الفواتير...")
+                    MDIconButton:
+                        icon: "magnify"
+                        md_bg_color: 0.05, 0.32, 0.58, 1
+                        theme_text_color: "Custom"
+                        text_color: 1, 1, 1, 1
+                        on_release: app.load_sales_table()
+                MDBoxLayout:
+                    id: sales_list_box
+                    orientation: 'vertical'
+                    spacing: "2dp"
+                    adaptive_height: True
+
+# ====================================
+# 4. شاشة العملاء والمقاسات (الكاملة المحدثة بالسلة)
+# ====================================
+<CustomersSmartScreen>:
+    name: 'customers_smart'
+    MDFloatLayout:
+        md_bg_color: 0.98, 0.97, 0.99, 1
+        MDBoxLayout:
+            orientation: 'horizontal'
+            pos_hint: {"top": 1}
+            size_hint_y: 0.08
+            md_bg_color: 0.05, 0.32, 0.58, 1
+            padding: "8dp"
+            MDIconButton:
+                icon: "arrow-left"
+                theme_icon_color: "Custom"
+                icon_color: 1, 1, 1, 1
+                on_release: root.manager.current = 'dashboard'
+            MDLabel:
+                text: app.get_ar("العملاء والمقاسات (سلة متعددة)")
+                font_style: "Subtitle1"
+                bold: True
+                theme_text_color: "Custom"
+                text_color: 1, 1, 1, 1
+        MDScrollView:
+            pos_hint: {"top": 0.92}
+            size_hint_y: 0.92
+            MDBoxLayout:
+                orientation: 'vertical'
+                padding: "12dp"
+                spacing: "8dp"
+                adaptive_height: True
+                
+                # --- 1. بيانات العميل التفصيلية ---
+                ArabicTextField:
+                    id: cust_name
+                    mode: "rectangle"
+                    hint_text: app.get_ar("اسم العميل")
+                MDTextField:
+                    id: cust_phone
+                    mode: "rectangle"
+                    hint_text: app.get_ar("رقم الهاتف")
+                MDGridLayout:
+                    cols: 2
+                    spacing: "8dp"
+                    adaptive_height: True
+                    MDTextField:
+                        id: cust_purchases_count
+                        mode: "rectangle"
+                        hint_text: app.get_ar("مرات الشراء")
+                        text: "1"
+                        input_filter: "int"
+                    MDTextField:
+                        id: cust_type
+                        mode: "rectangle"
+                        hint_text: app.get_ar("نوع الزبون")
+                        readonly: True
+                        text: app.get_ar("زبون جديد")
+                        on_focus: if self.focus: app.open_cust_type_menu(self)
+                MDTextField:
+                    id: cust_platform
+                    mode: "rectangle"
+                    hint_text: app.get_ar("منصة التواصل")
+                    readonly: True
+                    text: app.get_ar("انستغرام (Instagram)")
+                    on_focus: if self.focus: app.open_platform_menu(self)
+                ArabicTextField:
+                    id: cust_handle
+                    mode: "rectangle"
+                    hint_text: app.get_ar("اسم الحساب / المعرف (@)")
+                ArabicTextField:
+                    id: cust_address
+                    mode: "rectangle"
+                    hint_text: app.get_ar("العنوان")
+                MDGridLayout:
+                    cols: 2
+                    spacing: "8dp"
+                    adaptive_height: True
+                    MDTextField:
+                        id: cust_dress_count
+                        mode: "rectangle"
+                        hint_text: app.get_ar("عدد الفساتين المطلوبة")
+                        text: "1"
+                        input_filter: "int"
+                    MDTextField:
+                        id: cust_unit
+                        mode: "rectangle"
+                        hint_text: app.get_ar("وحدة القياس")
+                        readonly: True
+                        text: app.get_ar("(cm) سم")
+                        on_focus: if self.focus: app.open_unit_menu_full(self)
+                
+                # --- 2. مقاسات الفساتين وسلة الإضافة ---
+                MDLabel:
+                    text: app.get_ar("أدخل مقاسات الفستان:")
+                    bold: True
+                    font_size: "12sp"
+                    theme_text_color: "Custom"
+                    text_color: 0.05, 0.32, 0.58, 1
+                
+                MDGridLayout:
+                    cols: 3
+                    spacing: "6dp"
+                    adaptive_height: True
+                    MDTextField:
+                        id: sz_total_len
+                        mode: "rectangle"
+                        hint_text: app.get_ar("الطول")
+                        input_filter: "float"
+                    MDTextField:
+                        id: sz_shoulder_w
+                        mode: "rectangle"
+                        hint_text: app.get_ar("الكتف")
+                        input_filter: "float"
+                    MDTextField:
+                        id: sz_chest_c
+                        mode: "rectangle"
+                        hint_text: app.get_ar("الصدر")
+                        input_filter: "float"
+                    MDTextField:
+                        id: sz_waist_c
+                        mode: "rectangle"
+                        hint_text: app.get_ar("الخصر")
+                        input_filter: "float"
+                    MDTextField:
+                        id: sz_sleeve_l
+                        mode: "rectangle"
+                        hint_text: app.get_ar("الكم")
+                        input_filter: "float"
+                    MDTextField:
+                        id: sz_chest_l
+                        mode: "rectangle"
+                        hint_text: app.get_ar("طول الصدر")
+                        input_filter: "float"
+                
+                MDRaisedButton:
+                    text: app.get_ar("إضافة الفستان للسلة ➕")
+                    md_bg_color: 0.1, 0.6, 0.3, 1
+                    size_hint_x: 1
+                    height: "40dp"
+                    on_release: app.add_dress_to_basket()
+                
+                MDBoxLayout:
+                    id: dresses_basket_box
+                    orientation: 'vertical'
+                    spacing: "4dp"
+                    adaptive_height: True
+
+                MDBoxLayout:
+                    orientation: 'horizontal'
+                    spacing: "8dp"
+                    adaptive_height: True
+                    MDRaisedButton:
+                        text: app.get_ar("حفظ العميل والفساتين")
+                        md_bg_color: 0.9, 0.45, 0.1, 1
+                        size_hint_x: 0.5
+                        height: "46dp"
+                        on_release: app.save_full_customer_data()
+                    MDRaisedButton:
+                        text: app.get_ar("مراسلة ذكية")
+                        md_bg_color: 0.5, 0.2, 0.6, 1
+                        size_hint_x: 0.5
+                        height: "46dp"
+                        on_release: app.open_smart_chat()
+
+# ====================================
+# 5. التكاليف والموديلات
+# ====================================
+<ModelsCostingScreen>:
+    name: 'models_costing'
+    MDFloatLayout:
+        md_bg_color: 0.98, 0.97, 0.99, 1
+        MDBoxLayout:
+            orientation: 'horizontal'
+            pos_hint: {"top": 1}
+            size_hint_y: 0.08
+            md_bg_color: 0.05, 0.32, 0.58, 1
+            padding: "8dp"
+            MDIconButton:
+                icon: "arrow-left"
+                theme_icon_color: "Custom"
+                icon_color: 1, 1, 1, 1
+                on_release: root.manager.current = 'dashboard'
+            MDLabel:
+                text: app.get_ar("إضافة موديل وحساب التكلفة")
+                font_style: "Subtitle1"
+                bold: True
+                theme_text_color: "Custom"
+                text_color: 1, 1, 1, 1
+        MDScrollView:
+            pos_hint: {"top": 0.92}
+            size_hint_y: 0.92
+            MDBoxLayout:
+                orientation: 'vertical'
+                padding: "10dp"
+                spacing: "8dp"
+                adaptive_height: True
+                ArabicTextField:
+                    id: mod_name
+                    mode: "rectangle"
+                    hint_text: app.get_ar("اسم الموديل / الفستان")
+                MDTextField:
+                    id: mod_category
+                    mode: "rectangle"
+                    hint_text: app.get_ar("التصنيف")
+                    readonly: True
+                    text: app.get_ar("فستان أميرة")
+                    on_focus: if self.focus: app.open_mod_category_menu(self)
+                MDTextField:
+                    id: mod_currency
+                    mode: "rectangle"
+                    hint_text: app.get_ar("عملة التكلفة والبيع")
+                    readonly: True
+                    text: app.get_ar("دولار أمريكي (USD)")
+                    on_focus: if self.focus: app.open_currency_menu(self)
+                MDLabel:
+                    text: app.get_ar("احتساب تكلفة الأقمشة:")
+                    bold: True
+                    font_size: "12sp"
+                    theme_text_color: "Custom"
+                    text_color: 0.05, 0.32, 0.58, 1
+                ArabicTextField:
+                    id: mod_fabric_name
+                    mode: "rectangle"
+                    hint_text: app.get_ar("اسم القماش (انقر للسحب)")
+                    on_focus: if self.focus: app.open_inventory_fabric_menu(self)
+                MDGridLayout:
+                    cols: 3
+                    spacing: "6dp"
+                    adaptive_height: True
+                    MDTextField:
+                        id: mod_fabric_qty
+                        mode: "rectangle"
+                        hint_text: app.get_ar("الكمية")
+                        input_filter: "float"
+                    MDTextField:
+                        id: mod_fabric_unit
+                        mode: "rectangle"
+                        hint_text: app.get_ar("الوحدة")
+                        readonly: True
+                        text: app.get_ar("متر")
+                        on_focus: if self.focus: app.open_inv_unit_menu(self)
+                    MDTextField:
+                        id: mod_fabric_unit_cost
+                        mode: "rectangle"
+                        hint_text: app.get_ar("السعر")
+                        input_filter: "float"
+                MDLabel:
+                    text: app.get_ar("التكاليف المباشرة:")
+                    bold: True
+                    font_size: "12sp"
+                    theme_text_color: "Custom"
+                    text_color: 0.9, 0.45, 0.1, 1
+                MDGridLayout:
+                    cols: 2
+                    spacing: "8dp"
+                    adaptive_height: True
+                    MDTextField:
+                        id: mod_packaging_cost
+                        mode: "rectangle"
+                        hint_text: app.get_ar("التغليف")
+                        input_filter: "float"
+                    MDTextField:
+                        id: mod_labor_cost
+                        mode: "rectangle"
+                        hint_text: app.get_ar("الأجور")
+                        input_filter: "float"
+                MDTextField:
+                    id: mod_sell_price
+                    mode: "rectangle"
+                    hint_text: app.get_ar("سعر البيع المقترح")
+                    input_filter: "float"
+                MDRaisedButton:
+                    text: app.get_ar("احسب واعتمد الموديل")
+                    md_bg_color: 0.5, 0.2, 0.6, 1
+                    size_hint_x: 1
+                    height: "46dp"
+                    on_release: app.add_model_product()
+                MDBoxLayout:
+                    id: models_list_box
+                    orientation: 'vertical'
+                    spacing: "2dp"
+                    adaptive_height: True
+
+# ====================================
+# 6. المخزون
+# ====================================
+<InventoryScreen>:
+    name: 'inventory'
+    MDFloatLayout:
+        md_bg_color: 0.98, 0.97, 0.99, 1
+        MDBoxLayout:
+            orientation: 'horizontal'
+            pos_hint: {"top": 1}
+            size_hint_y: 0.08
+            md_bg_color: 0.05, 0.32, 0.58, 1
+            padding: "8dp"
+            MDIconButton:
+                icon: "arrow-left"
+                theme_icon_color: "Custom"
+                icon_color: 1, 1, 1, 1
+                on_release: root.manager.current = 'dashboard'
+            MDLabel:
+                text: app.get_ar("مخزون الأقمشة")
+                font_style: "Subtitle1"
+                bold: True
+                theme_text_color: "Custom"
+                text_color: 1, 1, 1, 1
+        MDScrollView:
+            pos_hint: {"top": 0.92}
+            size_hint_y: 0.92
+            MDBoxLayout:
+                orientation: 'vertical'
+                padding: "10dp"
+                spacing: "8dp"
+                adaptive_height: True
+                ArabicTextField:
+                    id: inv_item_name
+                    mode: "rectangle"
+                    hint_text: app.get_ar("اسم القماش")
+                MDTextField:
+                    id: inv_category
+                    mode: "rectangle"
+                    hint_text: app.get_ar("التصنيف")
+                    readonly: True
+                    text: app.get_ar("قماش ساتان")
+                    on_focus: if self.focus: app.open_inv_category_menu(self)
+                MDGridLayout:
+                    cols: 2
+                    spacing: "8dp"
+                    adaptive_height: True
+                    MDTextField:
+                        id: inv_unit_type
+                        mode: "rectangle"
+                        hint_text: app.get_ar("الوحدة")
+                        readonly: True
+                        text: app.get_ar("متر")
+                        on_focus: if self.focus: app.open_inv_unit_menu(self)
+                    MDTextField:
+                        id: inv_currency
+                        mode: "rectangle"
+                        hint_text: app.get_ar("العملة")
+                        readonly: True
+                        text: app.get_ar("دولار أمريكي (USD)")
+                        on_focus: if self.focus: app.open_currency_menu(self)
+                MDGridLayout:
+                    cols: 2
+                    spacing: "8dp"
+                    adaptive_height: True
+                    MDTextField:
+                        id: inv_qty
+                        mode: "rectangle"
+                        hint_text: app.get_ar("الكمية")
+                        input_filter: "float"
+                    MDTextField:
+                        id: inv_cost
+                        mode: "rectangle"
+                        hint_text: app.get_ar("التكلفة")
+                        input_filter: "float"
+                MDTextField:
+                    id: inv_min_alert
+                    mode: "rectangle"
+                    hint_text: app.get_ar("تنبيه النفاذ")
+                    text: "5.0"
+                    input_filter: "float"
+                MDRaisedButton:
+                    text: app.get_ar("إضافة للمخزون")
+                    md_bg_color: 0.08, 0.52, 0.35, 1
+                    size_hint_x: 1
+                    height: "46dp"
+                    on_release: app.add_inventory_item()
+                MDBoxLayout:
+                    id: inventory_list_box
+                    orientation: 'vertical'
+                    spacing: "2dp"
+                    adaptive_height: True
+
+# ====================================
+# 7. المشتريات
+# ====================================
+<PurchasesScreen>:
+    name: 'purchases'
+    MDFloatLayout:
+        md_bg_color: 0.98, 0.97, 0.99, 1
+        MDBoxLayout:
+            orientation: 'horizontal'
+            pos_hint: {"top": 1}
+            size_hint_y: 0.08
+            md_bg_color: 0.05, 0.32, 0.58, 1
+            padding: "8dp"
+            MDIconButton:
+                icon: "arrow-left"
+                theme_icon_color: "Custom"
+                icon_color: 1, 1, 1, 1
+                on_release: root.manager.current = 'dashboard'
+            MDLabel:
+                text: app.get_ar("فواتير الشراء")
+                font_style: "Subtitle1"
+                bold: True
+                theme_text_color: "Custom"
+                text_color: 1, 1, 1, 1
+        MDScrollView:
+            pos_hint: {"top": 0.92}
+            size_hint_y: 0.92
+            MDBoxLayout:
+                orientation: 'vertical'
+                padding: "10dp"
+                spacing: "8dp"
+                adaptive_height: True
+                MDTextField:
+                    id: pur_date
+                    mode: "rectangle"
+                    hint_text: app.get_ar("التاريخ")
+                    text: app.get_today_date()
+                ArabicTextField:
+                    id: pur_supplier
+                    mode: "rectangle"
+                    hint_text: app.get_ar("المورد")
+                ArabicTextField:
+                    id: pur_item
+                    mode: "rectangle"
+                    hint_text: app.get_ar("الصنف")
+                MDTextField:
+                    id: pur_pay_source
+                    mode: "rectangle"
+                    hint_text: app.get_ar("طريقة الدفع")
+                    readonly: True
+                    text: app.get_ar("الصندوق الرئيسي (101)")
+                    on_focus: if self.focus: app.open_pay_source_menu(self)
+                MDGridLayout:
+                    cols: 2
+                    spacing: "8dp"
+                    adaptive_height: True
+                    MDTextField:
+                        id: pur_qty
+                        mode: "rectangle"
+                        hint_text: app.get_ar("الكمية")
+                        input_filter: "float"
+                    MDTextField:
+                        id: pur_unit_price
+                        mode: "rectangle"
+                        hint_text: app.get_ar("السعر")
+                        input_filter: "float"
+                MDGridLayout:
+                    cols: 2
+                    spacing: "8dp"
+                    adaptive_height: True
+                    MDTextField:
+                        id: pur_transport_cost
+                        mode: "rectangle"
+                        hint_text: app.get_ar("النقل")
+                        input_filter: "float"
+                        text: "0"
+                    MDTextField:
+                        id: pur_transfer_fee
+                        mode: "rectangle"
+                        hint_text: app.get_ar("رسوم التحويل")
+                        input_filter: "float"
+                        text: "0"
+                MDRaisedButton:
+                    text: app.get_ar("حفظ فاتورة الشراء")
+                    md_bg_color: 0.05, 0.32, 0.58, 1
+                    size_hint_x: 1
+                    height: "46dp"
+                    on_release: app.save_purchase_invoice()
+                MDBoxLayout:
+                    id: purchases_list_box
+                    orientation: 'vertical'
+                    spacing: "2dp"
+                    adaptive_height: True
+
+# ====================================
+# 8. المصروفات السريعة
+# ====================================
+<ExpensesScreen>:
+    name: 'expenses'
+    MDFloatLayout:
+        md_bg_color: 0.98, 0.97, 0.99, 1
+        MDBoxLayout:
+            orientation: 'horizontal'
+            pos_hint: {"top": 1}
+            size_hint_y: 0.08
+            md_bg_color: 0.8, 0.2, 0.3, 1
+            padding: "8dp"
+            MDIconButton:
+                icon: "arrow-left"
+                theme_icon_color: "Custom"
+                icon_color: 1, 1, 1, 1
+                on_release: root.manager.current = 'dashboard'
+            MDLabel:
+                text: app.get_ar("المصروفات اليومية")
+                font_style: "Subtitle1"
+                bold: True
+                theme_text_color: "Custom"
+                text_color: 1, 1, 1, 1
+        MDScrollView:
+            pos_hint: {"top": 0.92}
+            size_hint_y: 0.92
+            MDBoxLayout:
+                orientation: 'vertical'
+                padding: "10dp"
+                spacing: "12dp"
+                adaptive_height: True
+                MDTextField:
+                    id: exp_date
+                    mode: "rectangle"
+                    hint_text: app.get_ar("التاريخ")
+                    text: app.get_today_date()
+                MDTextField:
+                    id: exp_type
+                    mode: "rectangle"
+                    hint_text: app.get_ar("بند المصروف")
+                    readonly: True
+                    text: app.get_ar("مصاريف ضيافة ونثريات")
+                    on_focus: if self.focus: app.open_exp_type_menu(self)
+                MDGridLayout:
+                    cols: 2
+                    spacing: "8dp"
+                    adaptive_height: True
+                    MDTextField:
+                        id: exp_amount
+                        mode: "rectangle"
+                        hint_text: app.get_ar("المبلغ")
+                        input_filter: "float"
+                    MDTextField:
+                        id: exp_currency
+                        mode: "rectangle"
+                        hint_text: app.get_ar("العملة")
+                        readonly: True
+                        text: app.get_ar("دولار أمريكي (USD)")
+                        on_focus: if self.focus: app.open_currency_menu(self)
+                MDTextField:
+                    id: exp_source
+                    mode: "rectangle"
+                    hint_text: app.get_ar("سحب المبلغ من:")
+                    readonly: True
+                    text: app.get_ar("الصندوق الرئيسي (101)")
+                    on_focus: if self.focus: app.open_pay_source_menu(self)
+                ArabicTextField:
+                    id: exp_statement
+                    mode: "rectangle"
+                    multiline: True
+                    hint_text: app.get_ar("شرح المصروف")
+                MDRaisedButton:
+                    text: app.get_ar("حفظ المصروف وتوليد القيد")
+                    md_bg_color: 0.8, 0.2, 0.3, 1
+                    size_hint_x: 1
+                    height: "46dp"
+                    on_release: app.save_expense()
+
+# ====================================
+# 9. القيود اليومية (يدوي)
+# ====================================
+<JournalEntriesScreen>:
+    name: 'journal_entries'
+    MDFloatLayout:
+        md_bg_color: 0.98, 0.97, 0.99, 1
+        MDBoxLayout:
+            orientation: 'horizontal'
+            pos_hint: {"top": 1}
+            size_hint_y: 0.08
+            md_bg_color: 0.05, 0.32, 0.58, 1
+            padding: "8dp"
+            MDIconButton:
+                icon: "arrow-left"
+                theme_icon_color: "Custom"
+                icon_color: 1, 1, 1, 1
+                on_release: root.manager.current = 'dashboard'
+            MDLabel:
+                text: app.get_ar("قيود اليومية")
+                font_style: "Subtitle1"
+                bold: True
+                theme_text_color: "Custom"
+                text_color: 1, 1, 1, 1
+        MDScrollView:
+            pos_hint: {"top": 0.92}
+            size_hint_y: 0.92
+            MDBoxLayout:
+                orientation: 'vertical'
+                padding: "10dp"
+                spacing: "8dp"
+                adaptive_height: True
+                MDTextField:
+                    id: j_entry_date
+                    mode: "rectangle"
+                    hint_text: app.get_ar("التاريخ")
+                    text: app.get_today_date()
+                MDTextField:
+                    id: j_debit_acc
+                    mode: "rectangle"
+                    hint_text: app.get_ar("من حـ (مدين)")
+                    readonly: True
+                    on_focus: if self.focus: app.open_account_select_menu(self, is_debit=True)
+                MDTextField:
+                    id: j_credit_acc
+                    mode: "rectangle"
+                    hint_text: app.get_ar("إلى حـ (دائن)")
+                    readonly: True
+                    on_focus: if self.focus: app.open_account_select_menu(self, is_debit=False)
+                MDGridLayout:
+                    cols: 2
+                    spacing: "8dp"
+                    adaptive_height: True
+                    MDTextField:
+                        id: j_amount
+                        mode: "rectangle"
+                        hint_text: app.get_ar("المبلغ")
+                        input_filter: "float"
+                    MDTextField:
+                        id: j_currency
+                        mode: "rectangle"
+                        hint_text: app.get_ar("العملة")
+                        readonly: True
+                        text: app.get_ar("دولار أمريكي (USD)")
+                        on_focus: if self.focus: app.open_currency_menu(self)
+                ArabicTextField:
+                    id: j_statement
+                    mode: "rectangle"
+                    multiline: True
+                    hint_text: app.get_ar("البيان")
+                MDRaisedButton:
+                    text: app.get_ar("ترحيل القيد")
+                    md_bg_color: 0.05, 0.32, 0.58, 1
+                    size_hint_x: 1
+                    height: "46dp"
+                    on_release: app.save_manual_journal_entry()
+                MDBoxLayout:
+                    id: journal_list_box
+                    orientation: 'vertical'
+                    spacing: "2dp"
+                    adaptive_height: True
+
+# ====================================
+# 10. سندات القبض والصرف
+# ====================================
+<VouchersScreen>:
+    name: 'vouchers'
+    MDFloatLayout:
+        md_bg_color: 0.98, 0.97, 0.99, 1
+        MDBoxLayout:
+            orientation: 'horizontal'
+            pos_hint: {"top": 1}
+            size_hint_y: 0.08
+            md_bg_color: 0.05, 0.32, 0.58, 1
+            padding: "8dp"
+            MDIconButton:
+                icon: "arrow-left"
+                theme_icon_color: "Custom"
+                icon_color: 1, 1, 1, 1
+                on_release: root.manager.current = 'dashboard'
+            MDLabel:
+                text: app.get_ar("سندات القبض والصرف")
+                font_style: "Subtitle1"
+                bold: True
+                theme_text_color: "Custom"
+                text_color: 1, 1, 1, 1
+        MDScrollView:
+            pos_hint: {"top": 0.92}
+            size_hint_y: 0.92
+            MDBoxLayout:
+                orientation: 'vertical'
+                padding: "10dp"
+                spacing: "8dp"
+                adaptive_height: True
+                MDTextField:
+                    id: v_date
+                    mode: "rectangle"
+                    hint_text: app.get_ar("التاريخ")
+                    text: app.get_today_date()
+                MDTextField:
+                    id: v_type
+                    mode: "rectangle"
+                    hint_text: app.get_ar("نوع السند")
+                    readonly: True
+                    text: app.get_ar("سند قبض")
+                    on_focus: if self.focus: app.open_voucher_menu(self)
+                MDTextField:
+                    id: v_currency
+                    mode: "rectangle"
+                    hint_text: app.get_ar("العملة")
+                    readonly: True
+                    text: app.get_ar("ريال يمني (YER)")
+                    on_focus: if self.focus: app.open_currency_menu(self)
+                MDTextField:
+                    id: v_amount
+                    mode: "rectangle"
+                    hint_text: app.get_ar("المبلغ")
+                    input_filter: "float"
+                ArabicTextField:
+                    id: v_account
+                    mode: "rectangle"
+                    hint_text: app.get_ar("الحساب / الشخص")
+                ArabicTextField:
+                    id: v_statement
+                    mode: "rectangle"
+                    multiline: True
+                    hint_text: app.get_ar("البيان")
+                MDRaisedButton:
+                    text: app.get_ar("حفظ السند")
+                    md_bg_color: 0.05, 0.32, 0.58, 1
+                    size_hint_x: 1
+                    height: "46dp"
+                    on_release: app.save_voucher()
+                MDBoxLayout:
+                    id: vouchers_list_box
+                    orientation: 'vertical'
+                    spacing: "2dp"
+                    adaptive_height: True
+
+# ====================================
+# 11. شجرة الحسابات
+# ====================================
+<AccountsTreeScreen>:
+    name: 'accounts_tree'
+    MDFloatLayout:
+        md_bg_color: 0.98, 0.97, 0.99, 1
+        MDBoxLayout:
+            orientation: 'horizontal'
+            pos_hint: {"top": 1}
+            size_hint_y: 0.08
+            md_bg_color: 0.05, 0.32, 0.58, 1
+            padding: "8dp"
+            MDIconButton:
+                icon: "arrow-left"
+                theme_icon_color: "Custom"
+                icon_color: 1, 1, 1, 1
+                on_release: root.manager.current = 'dashboard'
+            MDLabel:
+                text: app.get_ar("شجرة الحسابات المالية")
+                font_style: "Subtitle1"
+                bold: True
+                theme_text_color: "Custom"
+                text_color: 1, 1, 1, 1
+        MDBoxLayout:
+            orientation: 'horizontal'
+            pos_hint: {"top": 0.92}
+            size_hint_y: 0.06
+            md_bg_color: 0.85, 0.88, 0.92, 1
+            padding: ["6dp", "0dp"]
+            MDLabel:
+                text: app.get_ar("الرصيد")
+                bold: True
+                font_size: "11sp"
+                size_hint_x: 0.22
+                halign: "center"
+            MDLabel:
+                text: app.get_ar("النوع")
+                bold: True
+                font_size: "11sp"
+                size_hint_x: 0.23
+                halign: "center"
+            MDLabel:
+                text: app.get_ar("الاسم")
+                bold: True
+                font_size: "11sp"
+                size_hint_x: 0.4
+                halign: "right"
+            MDLabel:
+                text: app.get_ar("الرمز")
+                bold: True
+                font_size: "11sp"
+                size_hint_x: 0.15
+                halign: "center"
+        MDScrollView:
+            pos_hint: {"top": 0.86}
+            size_hint_y: 0.86
+            MDBoxLayout:
+                id: accounts_list_box
+                orientation: 'vertical'
+                padding: ["4dp", "4dp"]
+                spacing: "2dp"
+                adaptive_height: True
+
+# ====================================
+# 12. التقارير الختامية
+# ====================================
+<ReportsScreen>:
+    name: 'reports'
+    MDFloatLayout:
+        md_bg_color: 0.98, 0.97, 0.99, 1
+        MDBoxLayout:
+            orientation: 'horizontal'
+            pos_hint: {"top": 1}
+            size_hint_y: 0.08
+            md_bg_color: 0.05, 0.32, 0.58, 1
+            padding: "8dp"
+            MDIconButton:
+                icon: "arrow-left"
+                theme_icon_color: "Custom"
+                icon_color: 1, 1, 1, 1
+                on_release: root.manager.current = 'dashboard'
+            MDLabel:
+                text: app.get_ar("التقارير المحاسبية")
+                font_style: "Subtitle1"
+                bold: True
+                theme_text_color: "Custom"
+                text_color: 1, 1, 1, 1
+        MDScrollView:
+            pos_hint: {"top": 0.92}
+            size_hint_y: 0.92
+            MDBoxLayout:
+                orientation: 'vertical'
+                padding: "10dp"
+                spacing: "8dp"
+                adaptive_height: True
+                MDCard:
+                    size_hint_y: None
+                    height: "55dp"
+                    radius: [0, 0, 0, 0]
+                    line_color: 0.85, 0.85, 0.85, 1
+                    padding: "8dp"
+                    on_release: app.show_dialog("ميزان المراجعة", "الأرصدة متوازنة بنسبة 100%.")
+                    MDBoxLayout:
+                        MDLabel:
+                            text: app.get_ar("ميزان المراجعة")
+                            bold: True
+                        MDIconButton:
+                            icon: "scale-balance"
+                MDCard:
+                    size_hint_y: None
+                    height: "55dp"
+                    radius: [0, 0, 0, 0]
+                    line_color: 0.85, 0.85, 0.85, 1
+                    padding: "8dp"
+                    on_release: app.show_dialog("المركز المالي", "كشف الأصول والخصوم.")
+                    MDBoxLayout:
+                        MDLabel:
+                            text: app.get_ar("المركز المالي")
+                            bold: True
+                        MDIconButton:
+                            icon: "bank-outline"
+                MDCard:
+                    size_hint_y: None
+                    height: "55dp"
+                    radius: [0, 0, 0, 0]
+                    line_color: 0.85, 0.85, 0.85, 1
+                    padding: "8dp"
+                    on_release: app.show_dialog("قائمة الدخل", "كشف الأرباح الصافية.")
+                    MDBoxLayout:
+                        MDLabel:
+                            text: app.get_ar("قائمة الدخل")
+                            bold: True
+                        MDIconButton:
+                            icon: "chart-line"
+
+# ====================================
+# 13. الإعدادات، التصدير، والإقفال
+# ====================================
+<SettingsScreen>:
+    name: 'settings'
+    MDFloatLayout:
+        md_bg_color: 0.98, 0.97, 0.99, 1
+        MDBoxLayout:
+            orientation: 'horizontal'
+            pos_hint: {"top": 1}
+            size_hint_y: 0.08
+            md_bg_color: 0.05, 0.32, 0.58, 1
+            padding: "8dp"
+            MDIconButton:
+                icon: "arrow-left"
+                theme_icon_color: "Custom"
+                icon_color: 1, 1, 1, 1
+                on_release: root.manager.current = 'dashboard'
+            MDLabel:
+                text: app.get_ar("الإعدادات والتصدير")
+                font_style: "Subtitle1"
+                bold: True
+                theme_text_color: "Custom"
+                text_color: 1, 1, 1, 1
+        MDScrollView:
+            pos_hint: {"top": 0.92}
+            size_hint_y: 0.92
+            MDBoxLayout:
+                orientation: 'vertical'
+                padding: "12dp"
+                spacing: "16dp"
+                adaptive_height: True
+                MDLabel:
+                    text: app.get_ar("بيانات المنشأة (Company Profile)")
+                    bold: True
+                    theme_text_color: "Custom"
+                    text_color: 0.05, 0.32, 0.58, 1
+                ArabicTextField:
+                    id: cmp_name
+                    mode: "rectangle"
+                    hint_text: app.get_ar("اسم المنشأة")
+                MDTextField:
+                    id: cmp_phone
+                    mode: "rectangle"
+                    hint_text: app.get_ar("الهاتف")
+                ArabicTextField:
+                    id: cmp_address
+                    mode: "rectangle"
+                    hint_text: app.get_ar("العنوان")
+                MDTextField:
+                    id: cmp_email
+                    mode: "rectangle"
+                    hint_text: app.get_ar("الإيميل")
+                MDBoxLayout:
+                    orientation: 'horizontal'
+                    spacing: "8dp"
+                    size_hint_y: None
+                    height: "56dp"
+                    MDTextField:
+                        id: cmp_logo
+                        mode: "rectangle"
+                        hint_text: app.get_ar("مسار الشعار (Logo)")
+                        readonly: True
+                    MDIconButton:
+                        icon: "folder-image"
+                        pos_hint: {"center_y": 0.5}
+                        on_release: app.open_logo_chooser()
+                MDRaisedButton:
+                    text: app.get_ar("حفظ بيانات المنشأة")
+                    size_hint_x: 1
+                    height: "46dp"
+                    md_bg_color: 0.05, 0.32, 0.58, 1
+                    on_release: app.save_company_profile()
+                MDLabel:
+                    text: app.get_ar("العملات والإقفال")
+                    bold: True
+                    theme_text_color: "Custom"
+                    text_color: 0.05, 0.32, 0.58, 1
+                MDGridLayout:
+                    cols: 2
+                    spacing: "8dp"
+                    adaptive_height: True
+                    MDTextField:
+                        id: cfg_yer_rate
+                        mode: "rectangle"
+                        hint_text: app.get_ar("صرف الدولار")
+                        text: "530"
+                    MDTextField:
+                        id: cfg_sar_rate
+                        mode: "rectangle"
+                        hint_text: app.get_ar("صرف السعودي")
+                        text: "140"
+                MDRaisedButton:
+                    text: app.get_ar("إجراء الإقفال السنوي")
+                    size_hint_x: 1
+                    height: "46dp"
+                    md_bg_color: 0.7, 0.2, 0.2, 1
+                    on_release: app.process_year_end_closing()
+                MDLabel:
+                    text: app.get_ar("النسخ الاحتياطي والتصدير")
+                    bold: True
+                    theme_text_color: "Custom"
+                    text_color: 0.05, 0.32, 0.58, 1
+                MDGridLayout:
+                    cols: 2
+                    spacing: "8dp"
+                    adaptive_height: True
+                    MDRaisedButton:
+                        text: app.get_ar("تصدير (PDF)")
+                        size_hint_x: 1
+                        md_bg_color: 0.8, 0.2, 0.2, 1
+                        on_release: app.open_export_dialog('pdf')
+                    MDRaisedButton:
+                        text: app.get_ar("تصدير (Excel)")
+                        size_hint_x: 1
+                        md_bg_color: 0.1, 0.6, 0.3, 1
+                        on_release: app.export_data('excel')
+                    MDRaisedButton:
+                        text: app.get_ar("تصدير (Word)")
+                        size_hint_x: 1
+                        md_bg_color: 0.1, 0.3, 0.8, 1
+                        on_release: app.export_data('word')
+                    MDRaisedButton:
+                        text: app.get_ar("إرسال البيانات")
+                        size_hint_x: 1
+                        md_bg_color: 0.5, 0.2, 0.6, 1
+                        on_release: app.send_database()
+                MDRaisedButton:
+                    text: app.get_ar("إنشاء نسخة احتياطية")
+                    size_hint_x: 1
+                    height: "46dp"
+                    md_bg_color: 0.4, 0.4, 0.4, 1
+                    on_release: app.backup_database()
+                MDRaisedButton:
+                    text: app.get_ar("استيراد قاعدة البيانات")
+                    size_hint_x: 1
+                    height: "46dp"
+                    md_bg_color: 0.9, 0.45, 0.1, 1
+                    on_release: app.import_database()

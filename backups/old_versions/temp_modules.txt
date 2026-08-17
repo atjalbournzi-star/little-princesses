@@ -1,0 +1,45 @@
+def create_modules(self):
+        tab1 = ttk.Frame(self.notebook)
+        self.notebook.add(tab1, text="📊 لوحة التحكم والاشتراطات")
+        self.build_dashboard(tab1)
+
+        tab_vouchers = ttk.Frame(self.notebook)
+        self.notebook.add(tab_vouchers, text="📄 السندات المالية وصور الحوالات")
+        self.build_vouchers_module(tab_vouchers)
+
+        tab_sales = ttk.Frame(self.notebook)
+        self.notebook.add(tab_sales, text="🧾 المبيعات والـ QR Code 🛵")
+        self.build_sales_module(tab_sales)
+
+        if self.role in ["المدير العام"]:
+            tab_journal = ttk.Frame(self.notebook)
+            self.notebook.add(tab_journal, text="📝 قيود اليومية")
+            self.build_journal_module(tab_journal)
+
+        tab_prod = ttk.Frame(self.notebook)
+        self.notebook.add(tab_prod, text="👗 المنتجات والتكاليف")
+        self.build_products_module(tab_prod)
+
+        tab_inv = ttk.Frame(self.notebook)
+        self.notebook.add(tab_inv, text="🧵 مخزون الأقمشة والمستلزمات ✂️")
+        self.build_inventory_module(tab_inv)
+
+        tab_cust = ttk.Frame(self.notebook)
+        self.notebook.add(tab_cust, text="👥 العملاء والمقاسات والتواصل الذكي 📲")
+        self.build_customers_module(tab_cust)
+
+        tab_stmt = ttk.Frame(self.notebook)
+        self.notebook.add(tab_stmt, text="📜 كشوفات الحسابات")
+        self.build_statements_module(tab_stmt)
+
+        if self.role in ["المدير العام"]:
+            tab_acc = ttk.Frame(self.notebook)
+            self.notebook.add(tab_acc, text="🏦 شجرة الحسابات")
+            self.build_accounts_module(tab_acc)
+
+        if self.role in ["المدير العام"]:
+            tab_sett = ttk.Frame(self.notebook)
+            self.notebook.add(tab_sett, text="⚙️ إعدادات النظام والصلاحيات")
+            self.build_settings_module(tab_sett)
+
+    def check_daily_alerts

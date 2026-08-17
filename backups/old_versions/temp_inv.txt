@@ -1,0 +1,40 @@
+def build_inventory_module(self, frame):
+        f_in = tk.LabelFrame(frame, text=" إضافة قماش / مستلزم جديد إلى الورشة ", font=("Arial", 11, "bold"), padx=10, pady=10)
+        f_in.pack(fill=tk.X, padx=10, pady=5)
+
+        tk.Label(f_in, text="اسم القماش/الصنف:").grid(row=0, column=5, padx=5, pady=5, sticky="e")
+        self.ent_inv_name = tk.Entry(f_in, font=("Arial", 10), justify="right")
+        self.ent_inv_name.grid(row=0, column=4, padx=5, pady=5)
+
+        tk.Label(f_in, text="التصنيف:").grid(row=0, column=3, padx=5, pady=5, sticky="e")
+        self.combo_inv_cat = ttk.Combobox(f_in, values=["قماش ساتان", "قماش تول", "قماش جوبير/دانتيل", "قماش زي مدرسي", "خيوط وسحابات", "إكسسوارات وخرز"], state="readonly", width=18)
+        self.combo_inv_cat.grid(row=0, column=2, padx=5, pady=5)
+        self.combo_inv_cat.current(0)
+
+        tk.Label(f_in, text="الكمية المتاحة (بالأمتار):").grid(row=0, column=1, padx=5, pady=5, sticky="e")
+        self.ent_inv_qty = tk.Entry(f_in, font=("Arial", 10), justify="right", width=12)
+        self.ent_inv_qty.grid(row=0, column=0, padx=5, pady=5)
+
+        tk.Label(f_in, text="تكلفة المتر ($):").grid(row=1, column=5, padx=5, pady=5, sticky="e")
+        self.ent_inv_cost = tk.Entry(f_in, font=("Arial", 10), justify="right")
+        self.ent_inv_cost.grid(row=1, column=4, padx=5, pady=5)
+
+        tk.Label(f_in, text="حد التنبيه بالنفاذ (متر):").grid(row=1, column=3, padx=5, pady=5, sticky="e")
+        self.ent_inv_min = tk.Entry(f_in, font=("Arial", 10), justify="right", width=18)
+        self.ent_inv_min.insert(0, "5.0")
+        self.ent_inv_min.grid(row=1, column=2, padx=5, pady=5)
+
+        btn_add_inv = tk.Button(f_in, text="🧵 إضافة للمخزون", bg="#16A085", fg="white", font=("Arial", 10, "bold"), command=self.save_inventory_item)
+        btn_add_inv.grid(row=1, column=0, columnspan=2, pady=5)
+
+        columns = ("id", "name", "cat", "qty", "cost", "min")
+        self.tree_inv = ttk.Treeview(frame, columns=columns, show="headings")
+        headings = ["ID", "اسم القماش/الصنف", "التصنيف", "الكمية بالمخزون (متر)", "تكلفة المتر ($)", "حد التنبيه بالنفاذ"]
+        for col, h in zip(columns, headings):
+            self.tree_inv.heading(col, text=h)
+            self.tree_inv.column(col, anchor="center")
+        self.tree_inv.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+
+        self.load_inventory()
+
+    def 
