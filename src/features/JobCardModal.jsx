@@ -66,35 +66,35 @@ function JobCardModal({ customer, onClose }) {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 text-center">
                   <div className="bg-white p-3 rounded-lg shadow-sm border border-slate-200">
                     <p className="text-xs text-slate-500 mb-1">الطول الكلي</p>
-                    <p className="font-bold text-lg">{m.total_height || '-'} {m.unit}</p>
+                    <p className="font-bold text-lg font-mono tabular-nums">{m.total_height || '-'} <span className="text-xs font-sans font-normal text-slate-500">{m.unit}</span></p>
                   </div>
                   <div className="bg-white p-3 rounded-lg shadow-sm border border-slate-200">
                     <p className="text-xs text-slate-500 mb-1">طول الفستان</p>
-                    <p className="font-bold text-lg">{m.dress_length || '-'} {m.unit}</p>
+                    <p className="font-bold text-lg font-mono tabular-nums">{m.dress_length || '-'} <span className="text-xs font-sans font-normal text-slate-500">{m.unit}</span></p>
                   </div>
                   <div className="bg-white p-3 rounded-lg shadow-sm border border-slate-200">
                     <p className="text-xs text-slate-500 mb-1">محيط الصدر</p>
-                    <p className="font-bold text-lg">{m.chest_circ || '-'} {m.unit}</p>
+                    <p className="font-bold text-lg font-mono tabular-nums">{m.chest_circ || '-'} <span className="text-xs font-sans font-normal text-slate-500">{m.unit}</span></p>
                   </div>
                   <div className="bg-white p-3 rounded-lg shadow-sm border border-slate-200">
                     <p className="text-xs text-slate-500 mb-1">محيط الخصر</p>
-                    <p className="font-bold text-lg">{m.waist_circ || '-'} {m.unit}</p>
+                    <p className="font-bold text-lg font-mono tabular-nums">{m.waist_circ || '-'} <span className="text-xs font-sans font-normal text-slate-500">{m.unit}</span></p>
                   </div>
                   <div className="bg-white p-3 rounded-lg shadow-sm border border-slate-200">
                     <p className="text-xs text-slate-500 mb-1">طول الصدر</p>
-                    <p className="font-bold text-lg">{m.chest_length || '-'} {m.unit}</p>
+                    <p className="font-bold text-lg font-mono tabular-nums">{m.chest_length || '-'} <span className="text-xs font-sans font-normal text-slate-500">{m.unit}</span></p>
                   </div>
                   <div className="bg-white p-3 rounded-lg shadow-sm border border-slate-200">
                     <p className="text-xs text-slate-500 mb-1">طول التنورة</p>
-                    <p className="font-bold text-lg">{m.skirt_length || '-'} {m.unit}</p>
+                    <p className="font-bold text-lg font-mono tabular-nums">{m.skirt_length || '-'} <span className="text-xs font-sans font-normal text-slate-500">{m.unit}</span></p>
                   </div>
                   <div className="bg-white p-3 rounded-lg shadow-sm border border-slate-200">
                     <p className="text-xs text-slate-500 mb-1">طول الكم</p>
-                    <p className="font-bold text-lg">{m.sleeve_length || '-'} {m.unit}</p>
+                    <p className="font-bold text-lg font-mono tabular-nums">{m.sleeve_length || '-'} <span className="text-xs font-sans font-normal text-slate-500">{m.unit}</span></p>
                   </div>
                   <div className="bg-white p-3 rounded-lg shadow-sm border border-slate-200">
                     <p className="text-xs text-slate-500 mb-1">عرض الكتفين</p>
-                    <p className="font-bold text-lg">{m.shoulder_width || '-'} {m.unit}</p>
+                    <p className="font-bold text-lg font-mono tabular-nums">{m.shoulder_width || '-'} <span className="text-xs font-sans font-normal text-slate-500">{m.unit}</span></p>
                   </div>
                 </div>
 

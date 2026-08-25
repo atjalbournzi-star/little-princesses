@@ -3,48 +3,65 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>👑 Little Princesses ERP - النظام المحاسبي والإنتاجي الموحد</title>
+  <title>👑 Little Princesses ERP - Fashion ERP & Haute Couture SaaS</title>
   
-  <!-- Google Fonts: Tajawal & Cairo -->
+  <!-- Google Fonts: Cairo (Primary Arabic), Tajawal & Inter (Western Numerals & UI) -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800&family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet" />
   
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
+      darkMode: 'class',
       theme: {
         extend: {
           fontFamily: {
-            sans: ['Tajawal', 'Cairo', 'sans-serif'],
+            sans: ['Cairo', 'Tajawal', 'sans-serif'],
+            mono: ['Inter', 'Cairo', 'monospace'],
+            numeric: ['Inter', 'Cairo', 'sans-serif'],
           },
           colors: {
             brand: {
-              50: '#fdf2f8',
-              100: '#fce7f3',
-              200: '#fbcfe8',
-              500: '#ec4899',
-              600: '#d81b60',
-              700: '#c2185b',
-              800: '#ad1457',
-              900: '#880e4f',
-              950: '#4a042e',
+              50: '#FCE8F2',
+              100: '#F8D1E5',
+              200: '#F2A4CB',
+              500: '#D00070',
+              600: '#B0005A', // Primary Magenta
+              700: '#8E0049', // Primary Dark
+              800: '#700039',
+              900: '#52002A',
             },
-            cyan: {
-              50: '#e0f7fa',
-              100: '#b2ebf2',
-              200: '#80deea',
-              500: '#00bcd4',
-              600: '#00acc1',
-              700: '#0097a7',
-              800: '#00838f',
-              900: '#006064',
+            purple: {
+              50: '#F2E7F3',
+              100: '#E5CEE7',
+              500: '#A946A0',
+              600: '#8F2A87', // Creative Purple
+              700: '#73216C',
             },
-            accent: {
-              500: '#fb8c00',
-              600: '#f57c00',
-              700: '#ef6c00',
+            teal: {
+              50: '#E2F5F7',
+              100: '#C5ECF0',
+              500: '#19B7C3',
+              600: '#009FAE', // Financial Teal
+              700: '#007F8C', // Teal Dark
+              800: '#00616B',
+            },
+            orange: {
+              50: '#FFF1DC',
+              100: '#FFE4B9',
+              500: '#FFA126',
+              600: '#F28A00', // Operational Orange
+              700: '#C97300',
+            },
+            neutral: {
+              canvas: '#FAFAFB',
+              surface: '#FFFFFF',
+              border: '#E8E5EA',
+              title: '#25232A',
+              muted: '#6F6B75',
+              error: '#D64545',
             }
           }
         }
@@ -60,7 +77,7 @@
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-    <!-- React Global Hooks Shim -->
+  <!-- React Global Hooks Shim -->
   <script>
     if (typeof React !== 'undefined') {
       window.useState = React.useState;
@@ -76,10 +93,61 @@
   <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
 
   <style>
-    body {
-      font-family: 'Tajawal', 'Cairo', sans-serif;
-      letter-spacing: -0.01em;
+    @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800&family=Tajawal:wght@400;500;700&display=swap');
+
+    body, * {
+      font-family: 'Cairo', 'Tajawal', sans-serif;
     }
+
+    body {
+      letter-spacing: -0.01em;
+      background-color: #FAFAFB;
+      color: #25232A;
+    }
+
+    /* ── Western Tabular Numerals & Monetary Formatting ── */
+    .numeric, .amount, .price, .kpi-value, .tabular-nums, .font-mono, .font-numeric {
+      font-family: 'Inter', 'Cairo', sans-serif !important;
+      font-feature-settings: "tnum" 1, "lnum" 1;
+      font-variant-numeric: tabular-nums;
+      direction: ltr;
+      display: inline-block;
+    }
+
+    /* ── Hierarchy & Metric Classes ── */
+    .currency-symbol {
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: #6F6B75;
+      margin-right: 0.25rem;
+      margin-left: 0.25rem;
+      display: inline-block;
+      direction: rtl;
+    }
+
+    .kpi-header {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #25232A;
+    }
+
+    .kpi-title {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: #6F6B75;
+    }
+
+    .kpi-number {
+      font-size: 1.75rem;
+      font-weight: 800;
+      line-height: 1.2;
+      font-family: 'Inter', 'Cairo', sans-serif !important;
+      font-feature-settings: "tnum" 1, "lnum" 1;
+      font-variant-numeric: tabular-nums;
+      direction: ltr;
+      display: inline-block;
+    }
+
     .no-scrollbar::-webkit-scrollbar {
       display: none;
     }
@@ -95,12 +163,12 @@
       animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
     }
     *:focus-visible {
-      outline: 2px solid #00acc1;
+      outline: 2px solid #B0005A;
       outline-offset: 1px;
     }
   </style>
 </head>
-<body class="bg-slate-50/90 text-slate-900 antialiased selection:bg-pink-100 selection:text-pink-900">
+<body class="bg-[#FAFAFB] text-[#25232A] antialiased selection:bg-[#FCE8F2] selection:text-[#B0005A]">
   <div id="root"></div>
 
   <script>
@@ -113,34 +181,40 @@
   </script>
 
   <!-- 1. Config & Services -->
-  <script type="text/babel" src="./src/config/constants.js?v=29"></script>
-  <script type="text/babel" src="./src/services/api.js?v=29"></script>
+  <script src="./src/services/currencyService.js?v=67"></script>
+  <script src="./src/services/accountingEngine.js?v=67"></script>
+  <script type="text/babel" src="./src/config/constants.js?v=67"></script>
+  <script type="text/babel" src="./src/config/useCurrency.js?v=67"></script>
+  <script type="text/babel" src="./src/services/api.js?v=67"></script>
 
   <!-- 2. UI Components -->
-  <script type="text/babel" src="./src/components/Icons.jsx?v=29"></script>
-  <script type="text/babel" src="./src/components/Toast.jsx?v=29"></script>
-  <script type="text/babel" src="./src/components/Header.jsx?v=29"></script>
-  <script type="text/babel" src="./src/components/MobileNav.jsx?v=29"></script>
+  <script type="text/babel" src="./src/components/Icons.jsx?v=67"></script>
+  <script type="text/babel" src="./src/components/Toast.jsx?v=67"></script>
+  <script type="text/babel" src="./src/components/LoginModal.jsx?v=67"></script>
+  <script type="text/babel" src="./src/components/UsersModal.jsx?v=67"></script>
+  <script type="text/babel" src="./src/components/Sidebar.jsx?v=67"></script>
+  <script type="text/babel" src="./src/components/Header.jsx?v=67"></script>
+  <script type="text/babel" src="./src/components/MobileNav.jsx?v=67"></script>
 
   <!-- 3. Feature Modules -->
-  <script type="text/babel" src="./src/features/Dashboard.jsx?v=29"></script>
-  <script type="text/babel" src="./src/features/Customers.jsx?v=29"></script>
-  <script type="text/babel" src="./src/features/Products.jsx?v=29"></script>
-  <script type="text/babel" src="./src/features/Orders.jsx?v=29"></script>
-  <script type="text/babel" src="./src/features/Purchases.jsx?v=29"></script>
-  <script type="text/babel" src="./src/features/Inventory.jsx?v=29"></script>
-  <script type="text/babel" src="./src/features/Accounts.jsx?v=29"></script>
-  <script type="text/babel" src="./src/features/Factory.jsx?v=29"></script>
-  <script type="text/babel" src="./src/features/Vouchers.jsx?v=29"></script>
-  <script type="text/babel" src="./src/features/Expenses.jsx?v=29"></script>
-  <script type="text/babel" src="./src/features/Journal.jsx?v=29"></script>
-  <script type="text/babel" src="./src/features/Reports.jsx?v=29"></script>
-  <script type="text/babel" src="./src/features/Marketing.jsx?v=29"></script>
-  <script type="text/babel" src="./src/features/HR.jsx?v=29"></script>
-  <script type="text/babel" src="./src/features/Feedback.jsx?v=29"></script>
-  <script type="text/babel" src="./src/features/Settings.jsx?v=29"></script>
+  <script type="text/babel" src="./src/features/Dashboard.jsx?v=67"></script>
+  <script type="text/babel" src="./src/features/Customers.jsx?v=67"></script>
+  <script type="text/babel" src="./src/features/Products.jsx?v=67"></script>
+  <script type="text/babel" src="./src/features/Orders.jsx?v=67"></script>
+  <script type="text/babel" src="./src/features/Purchases.jsx?v=67"></script>
+  <script type="text/babel" src="./src/features/Inventory.jsx?v=67"></script>
+  <script type="text/babel" src="./src/features/Accounts.jsx?v=67"></script>
+  <script type="text/babel" src="./src/features/Factory.jsx?v=67"></script>
+  <script type="text/babel" src="./src/features/Vouchers.jsx?v=67"></script>
+  <script type="text/babel" src="./src/features/Expenses.jsx?v=67"></script>
+  <script type="text/babel" src="./src/features/Journal.jsx?v=67"></script>
+  <script type="text/babel" src="./src/features/Reports.jsx?v=67"></script>
+  <script type="text/babel" src="./src/features/Marketing.jsx?v=67"></script>
+  <script type="text/babel" src="./src/features/HR.jsx?v=67"></script>
+  <script type="text/babel" src="./src/features/Feedback.jsx?v=67"></script>
+  <script type="text/babel" src="./src/features/Settings.jsx?v=67"></script>
 
   <!-- 4. Main App Entry Point -->
-  <script type="text/babel" src="./src/App.jsx?v=29"></script>
+  <script type="text/babel" src="./src/App.jsx?v=67"></script>
 </body>
 </html>

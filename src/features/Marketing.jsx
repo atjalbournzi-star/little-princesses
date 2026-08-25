@@ -43,10 +43,10 @@ function Marketing({ campaigns = [], setCampaigns, products = [], accounts = [],
   ]);
   const [chatLoading, setChatLoading] = useState(false);
 
-  // Dynamic Weights State
+  // Dynamic Weights State (Clean & Zeroed)
   const [weightsMap, setWeightsMap] = useState({
-    like: 1.0, comment: 3.0, save: 5.0, share: 6.0, profile_visit: 7.0, message: 10.0, lead: 15.0, order: 25.0,
-    hot_lead_min: 90.0, high_intent_min: 70.0, med_intent_min: 40.0, low_intent_min: 20.0
+    like: '', comment: '', save: '', share: '', profile_visit: '', message: '', lead: '', order: '',
+    hot_lead_min: '', high_intent_min: '', med_intent_min: '', low_intent_min: ''
   });
 
   // Phase 3 SaaS Executive States
@@ -273,7 +273,7 @@ function Marketing({ campaigns = [], setCampaigns, products = [], accounts = [],
   const activeCampaignsCount = (localCampaigns || []).filter(c => c.status === 'نشط').length;
   const connectedPlatformsCount = (platformsData || []).filter(p => p.status === 'connected').length;
 
-  const currLabel = typeof currency === 'object' ? (currency.display || currency.symbol || 'USD $') : (currency || 'USD $');
+  const currLabel = typeof currency === 'object' ? (currency.display || currency.symbol || 'YER ﷼') : (currency || 'YER ﷼');
 
   return (
     <div className="space-y-5 animate-fadeIn">
@@ -386,25 +386,28 @@ function Marketing({ campaigns = [], setCampaigns, products = [], accounts = [],
           {/* 📊 شبكة المؤشرات التنفيذية الـ 13 (Executive KPIs Grid) */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
             {[
-              { label: 'الإنفاق الإعلاني Ad Spend', val: `${(executiveKPIs.ad_spend || 500).toLocaleString()} ${currLabel}`, icon: '💸', color: 'text-rose-600', bg: 'bg-rose-50' },
-              { label: 'الوصول Reach', val: (executiveKPIs.reach || 12500).toLocaleString(), icon: '🌐', color: 'text-indigo-600', bg: 'bg-indigo-50' },
-              { label: 'التفاعل Engagement', val: (executiveKPIs.engagement || 2400).toLocaleString(), icon: '❤️', color: 'text-pink-600', bg: 'bg-pink-50' },
-              { label: 'الرسائل Messages', val: (executiveKPIs.messages || 180).toLocaleString(), icon: '💬', color: 'text-purple-600', bg: 'bg-purple-50' },
-              { label: 'عملاء محتملون Leads', val: (executiveKPIs.leads || 95).toLocaleString(), icon: '🎯', color: 'text-amber-600', bg: 'bg-amber-50' },
-              { label: 'الطلبات Orders', val: (executiveKPIs.orders || 42).toLocaleString(), icon: '🛍️', color: 'text-emerald-600', bg: 'bg-emerald-50' },
-              { label: 'الإيرادات Revenue', val: `${(executiveKPIs.revenue || 10500).toLocaleString()} ${currLabel}`, icon: '💰', color: 'text-emerald-700', bg: 'bg-emerald-50' },
-              { label: 'الربح الصافي Profit', val: `${(executiveKPIs.gross_profit || 5400).toLocaleString()} ${currLabel}`, icon: '💎', color: 'text-teal-700', bg: 'bg-teal-50' },
-              { label: 'عائد الإعلان ROAS', val: `${executiveKPIs.roas || 8.5}x`, icon: '📈', color: 'text-indigo-700', bg: 'bg-indigo-50' },
-              { label: 'العائد على الاستثمار ROI', val: `${executiveKPIs.roi || 1080}%`, icon: '🚀', color: 'text-purple-700', bg: 'bg-purple-50' },
-              { label: 'تكلفة الاستحواذ CAC', val: `${executiveKPIs.cac || 11.9} ${currLabel}`, icon: '🏷️', color: 'text-slate-700', bg: 'bg-slate-100' },
-              { label: 'معدل التحويل Conv. Rate', val: `${executiveKPIs.conversion_rate || 0.34}%`, icon: '🎯', color: 'text-blue-700', bg: 'bg-blue-50' }
+              { label: 'الإنفاق الإعلاني Ad Spend', val: (executiveKPIs.ad_spend ?? 0).toLocaleString('en-US'), unit: currLabel, icon: '💸', color: 'text-rose-600', bg: 'bg-rose-50' },
+              { label: 'الوصول Reach', val: (executiveKPIs.reach ?? 0).toLocaleString('en-US'), icon: '🌐', color: 'text-indigo-600', bg: 'bg-indigo-50' },
+              { label: 'التفاعل Engagement', val: (executiveKPIs.engagement ?? 0).toLocaleString('en-US'), icon: '❤️', color: 'text-pink-600', bg: 'bg-pink-50' },
+              { label: 'الرسائل Messages', val: (executiveKPIs.messages ?? 0).toLocaleString('en-US'), icon: '💬', color: 'text-purple-600', bg: 'bg-purple-50' },
+              { label: 'عملاء محتملون Leads', val: (executiveKPIs.leads ?? 0).toLocaleString('en-US'), icon: '🎯', color: 'text-amber-600', bg: 'bg-amber-50' },
+              { label: 'الطلبات Orders', val: (executiveKPIs.orders ?? 0).toLocaleString('en-US'), icon: '🛍️', color: 'text-emerald-600', bg: 'bg-emerald-50' },
+              { label: 'الإيرادات Revenue', val: (executiveKPIs.revenue ?? 0).toLocaleString('en-US'), unit: currLabel, icon: '💰', color: 'text-emerald-700', bg: 'bg-emerald-50' },
+              { label: 'الربح الصافي Profit', val: (executiveKPIs.gross_profit ?? 0).toLocaleString('en-US'), unit: currLabel, icon: '💎', color: 'text-teal-700', bg: 'bg-teal-50' },
+              { label: 'عائد الإعلان ROAS', val: `${executiveKPIs.roas ?? 0}x`, icon: '📈', color: 'text-indigo-700', bg: 'bg-indigo-50' },
+              { label: 'العائد على الاستثمار ROI', val: `${executiveKPIs.roi ?? 0}%`, icon: '🚀', color: 'text-purple-700', bg: 'bg-purple-50' },
+              { label: 'تكلفة الاستحواذ CAC', val: (executiveKPIs.cac ?? 0).toLocaleString('en-US'), unit: currLabel, icon: '🏷️', color: 'text-slate-700', bg: 'bg-slate-100' },
+              { label: 'معدل التحويل Conv. Rate', val: `${executiveKPIs.conversion_rate ?? 0}%`, icon: '🎯', color: 'text-blue-700', bg: 'bg-blue-50' }
             ].map((kpi, idx) => (
               <div key={idx} className="bg-white rounded-2xl border border-slate-200 p-3.5 shadow-xs space-y-1 hover:border-rose-300 transition">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-black text-slate-500 truncate">{kpi.label}</span>
+                  <span className="text-[10px] font-bold text-slate-500 truncate">{kpi.label}</span>
                   <span className={`w-7 h-7 ${kpi.bg} ${kpi.color} rounded-xl flex items-center justify-center font-bold text-xs`}>{kpi.icon}</span>
                 </div>
-                <h4 className={`text-base font-black ${kpi.color}`}>{kpi.val}</h4>
+                <h4 className={`text-base font-extrabold font-mono tabular-nums ${kpi.color} flex items-baseline`}>
+                  <span>{kpi.val}</span>
+                  {kpi.unit && <span className="text-[10px] font-medium text-slate-500 mr-1 select-none font-sans">{kpi.unit}</span>}
+                </h4>
               </div>
             ))}
           </div>
@@ -427,22 +430,22 @@ function Marketing({ campaigns = [], setCampaigns, products = [], accounts = [],
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
               <div className="bg-white/10 p-4 rounded-2xl space-y-1.5 backdrop-blur-sm">
                 <h4 className="font-black text-amber-300 flex items-center gap-1.5">❓ ماذا حدث؟</h4>
-                <p className="text-slate-200 leading-relaxed text-[11px]">حقق فيديو فستان السهرة اللؤلؤي أعلى نسبة حفظ (Save Rate 9.2%) وزيادة في المبيعات بنسبة 28%.</p>
+                <p className="text-slate-200 leading-relaxed text-[11px]">{dailyBriefData.brief.what_happened || 'بانتظار تسجيل بيانات تسويقية لتحليلها آلياً.'}</p>
               </div>
 
               <div className="bg-white/10 p-4 rounded-2xl space-y-1.5 backdrop-blur-sm">
                 <h4 className="font-black text-indigo-300 flex items-center gap-1.5">💡 لماذا؟</h4>
-                <p className="text-slate-200 leading-relaxed text-[11px]">عرض تفاصيل التطريز في فيديوهات قصيرة (Reels) أدى لرفع نية الشراء واقتناع أمهات الفتيات للجودة.</p>
+                <p className="text-slate-200 leading-relaxed text-[11px]">{dailyBriefData.brief.why_happened || 'يتم تجميع الأسباب والمؤشرات عند إدخال حملات جديدة.'}</p>
               </div>
 
               <div className="bg-emerald-500/20 border border-emerald-400/30 p-4 rounded-2xl space-y-1.5 backdrop-blur-sm">
                 <h4 className="font-black text-emerald-300 flex items-center gap-1.5">✨ أهم فرصة:</h4>
-                <p className="text-emerald-100 leading-relaxed text-[11px]">إعادة استهداف 14 عميلاً صامتاً بعرض شحن مجاني للمحافظات (تعز وعدن) لتحويلهم لمبيعات فورية.</p>
+                <p className="text-emerald-100 leading-relaxed text-[11px]">{dailyBriefData.brief.top_opportunity || 'لا توجد فرص معلقة حالياً.'}</p>
               </div>
 
               <div className="bg-rose-500/20 border border-rose-400/30 p-4 rounded-2xl space-y-1.5 backdrop-blur-sm">
                 <h4 className="font-black text-rose-300 flex items-center gap-1.5">⚠️ أهم مشكلة:</h4>
-                <p className="text-rose-100 leading-relaxed text-[11px]">65% من الاعتراضات تدور حول السعر والتخوف من تأخر الشحن. التوصية: توفير توصيل سريع خلال 48 ساعة.</p>
+                <p className="text-rose-100 leading-relaxed text-[11px]">{dailyBriefData.brief.critical_issue || 'لا توجد مشكلات تسويقية مرصودة.'}</p>
               </div>
             </div>
           </div>
@@ -494,12 +497,18 @@ function Marketing({ campaigns = [], setCampaigns, products = [], accounts = [],
                 🔔 التنبيهات الذكية المباشرة (Smart Alerts)
               </h3>
               <div className="space-y-2 text-xs">
-                {(smartAlerts || []).map(alt => (
-                  <div key={alt.id || alt.title} className="p-3 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 space-y-1">
-                    <p className="font-black text-[11px]">{alt.title}</p>
-                    <p className="text-[10px] opacity-90">{alt.msg}</p>
+                {(!smartAlerts || smartAlerts.length === 0) ? (
+                  <div className="text-center py-6 text-slate-400 text-xs font-bold bg-slate-50 rounded-2xl border border-slate-100">
+                    لا توجد تنبيهات تسويقية نشطة حالياً 🟢
                   </div>
-                ))}
+                ) : (
+                  smartAlerts.map(alt => (
+                    <div key={alt.id || alt.title} className="p-3 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 space-y-1">
+                      <p className="font-black text-[11px]">{alt.title}</p>
+                      <p className="text-[10px] opacity-90">{alt.msg}</p>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
 
@@ -522,25 +531,29 @@ function Marketing({ campaigns = [], setCampaigns, products = [], accounts = [],
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-semibold">
-                    {(productsAIData || []).slice(0, 3).map((p, i) => (
-                      <tr key={i} className="hover:bg-slate-50 transition">
-                        <td className="px-3 py-2 font-black text-slate-900">{p.model_name}</td>
-                        <td className="px-3 py-2 text-center font-bold text-indigo-600">{p.orders || 5}</td>
-                        <td className="px-3 py-2 font-black text-emerald-600">{Number(p.revenue || 0).toLocaleString()} {currLabel}</td>
-                        <td className="px-3 py-2 text-center font-black text-indigo-700">{p.roas}x</td>
-                        <td className="px-3 py-2 text-center">
-                          <span className="bg-rose-100 text-rose-800 px-2 py-0.5 rounded text-[10px] font-black">{p.overall_score}</span>
-                        </td>
-                        <td className="px-3 py-2">
-                          <button
-                            onClick={() => setSelectedProductDetail(p)}
-                            className="px-2.5 py-1 bg-slate-900 text-white rounded-lg text-[10px] font-bold hover:bg-slate-800 transition"
-                          >
-                            عرض التفاصيل 🔍
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                    {(!productsAIData || productsAIData.length === 0) ? (
+                      <tr><td colSpan="6" className="px-3 py-6 text-center text-slate-400 font-bold">لا توجد مبيعات أو منتجات مسجلة بعد 👑</td></tr>
+                    ) : (
+                      productsAIData.slice(0, 3).map((p, i) => (
+                        <tr key={i} className="hover:bg-slate-50 transition">
+                          <td className="px-3 py-2 font-black text-slate-900">{p.model_name}</td>
+                          <td className="px-3 py-2 text-center font-bold text-indigo-600">{p.orders || 0}</td>
+                          <td className="px-3 py-2 font-black text-emerald-600">{Number(p.revenue || 0).toLocaleString()} {currLabel}</td>
+                          <td className="px-3 py-2 text-center font-black text-indigo-700">{p.roas}x</td>
+                          <td className="px-3 py-2 text-center">
+                            <span className="bg-rose-100 text-rose-800 px-2 py-0.5 rounded text-[10px] font-black">{p.overall_score}</span>
+                          </td>
+                          <td className="px-3 py-2">
+                            <button
+                              onClick={() => setSelectedProductDetail(p)}
+                              className="px-2.5 py-1 bg-slate-900 text-white rounded-lg text-[10px] font-bold hover:bg-slate-800 transition"
+                            >
+                              عرض التفاصيل 🔍
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -560,34 +573,40 @@ function Marketing({ campaigns = [], setCampaigns, products = [], accounts = [],
               <p className="text-[11px] text-slate-500 font-semibold mt-0.5">تصنيف العقول الشرائية للعملاء واستخراج النية المباشرة من الرسائل والمحادثات</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {Object.entries(customerSegments || {}).map(([segKey, segList]) => (
-                <div key={segKey} className="bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-3">
-                  <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                    <h4 className="font-black text-slate-900 text-xs uppercase">{segKey.replace('_', ' ')}</h4>
-                    <span className="bg-rose-100 text-rose-800 font-black text-[10px] px-2 py-0.5 rounded">{segList.length} عملاء</span>
-                  </div>
+            {(!customerSegments || Object.keys(customerSegments).length === 0 || Object.values(customerSegments).every(list => !list || list.length === 0)) ? (
+              <div className="text-center py-10 text-slate-400 text-xs font-bold bg-slate-50 rounded-2xl border border-slate-200">
+                لا توجد شرائح عملاء مسجلة بعد • سيتم تصنيف العملاء آلياً عند تسجيل أولى المحادثات والطلبيات 👥
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {Object.entries(customerSegments || {}).map(([segKey, segList]) => (
+                  <div key={segKey} className="bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-3">
+                    <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                      <h4 className="font-black text-slate-900 text-xs uppercase">{segKey.replace('_', ' ')}</h4>
+                      <span className="bg-rose-100 text-rose-800 font-black text-[10px] px-2 py-0.5 rounded">{segList.length} عملاء</span>
+                    </div>
 
-                  <div className="space-y-2">
-                    {segList.map(c => (
-                      <div key={c.id} className="bg-white p-3 rounded-xl border border-slate-100 space-y-1.5">
-                        <div className="flex items-center justify-between">
-                          <span className="font-black text-slate-900 text-xs">{c.name}</span>
-                          <span className="text-[10px] font-mono font-bold text-indigo-600">نية {c.intent_score}/100</span>
+                    <div className="space-y-2">
+                      {segList.map(c => (
+                        <div key={c.id} className="bg-white p-3 rounded-xl border border-slate-100 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="font-black text-slate-900 text-xs">{c.name}</span>
+                            <span className="text-[10px] font-mono font-bold text-indigo-600">نية {c.intent_score}/100</span>
+                          </div>
+                          <p className="text-[11px] text-slate-600 font-bold">{c.notes}</p>
+                          <button
+                            onClick={() => setSelectedCustomerDetail(c)}
+                            className="w-full mt-1 py-1.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-black text-[10px] rounded-lg transition"
+                          >
+                            💬 فتح سجل المحادثة والتحليل Conversation Intelligence
+                          </button>
                         </div>
-                        <p className="text-[11px] text-slate-600 font-bold">{c.notes}</p>
-                        <button
-                          onClick={() => setSelectedCustomerDetail(c)}
-                          className="w-full mt-1 py-1.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-black text-[10px] rounded-lg transition"
-                        >
-                          💬 فتح سجل المحادثة والتحليل Conversation Intelligence
-                        </button>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -652,7 +671,7 @@ function Marketing({ campaigns = [], setCampaigns, products = [], accounts = [],
               <div className="bg-emerald-50 p-3 rounded-2xl border border-emerald-100 space-y-1">
                 <p className="font-black text-emerald-900">🤖 الرد الذكي المقترح مقدماً من AI:</p>
                 <p className="text-emerald-800 text-[11px] leading-relaxed">
-                  "أهلاً بك يا {selectedCustomerDetail.name}! فستان السهرة اللؤلؤي متوفر بمقاس 4 سنوات، ولدينا عرض حصري بتوصيل سريع لـ {selectedCustomerDetail.name.includes('تعز') ? 'تعز' : 'محافظتك'} خلال 48 ساعة مع شحن مجاني."
+                  {selectedCustomerDetail.suggested_reply || `أهلاً بك يا ${selectedCustomerDetail.name}! يسعدنا خدمتك وتلبية استفساراتك حول تشكيلات وتفصيل فساتين دار الأميرات الصغيرات.`}
                 </p>
               </div>
             </div>
@@ -710,7 +729,7 @@ function Marketing({ campaigns = [], setCampaigns, products = [], accounts = [],
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <div>
                   <label className={labelCls}>اسم الحملة <span className="text-rose-600">*</span></label>
-                  <input value={campaignName} onChange={e => setCampaignName(e.target.value)} className={inputCls} placeholder="مثال: حملة فساتين عيد الفطر" />
+                  <input value={campaignName} onChange={e => setCampaignName(e.target.value)} className={inputCls} placeholder="" />
                 </div>
 
                 <div>
@@ -838,16 +857,16 @@ function Marketing({ campaigns = [], setCampaigns, products = [], accounts = [],
                       <p className="text-[10px] text-slate-400 font-semibold">{p.platform_type.toUpperCase()}</p>
                     </div>
                   </div>
-                  <span className={`text-[10px] font-black px-2.5 py-1 rounded-lg border ${statusColor(p.status)}`}>
+                  <span className={`text-[10px] font-black px-2.5 py-1 rounded-lg border ${p.status === 'connected' ? 'bg-emerald-50 text-emerald-700 border-emerald-300' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>
                     {p.status === 'connected' ? '🟢 متصل' : '🔴 غير متصل'}
                   </span>
                 </div>
 
                 <div className="space-y-1.5 text-xs text-slate-600 border-t border-slate-100 pt-3">
-                  <p><span className="font-extrabold text-slate-500">اسم الحساب:</span> {p.account_name || '—'}</p>
-                  <p><span className="font-extrabold text-slate-500">حالة Webhook:</span> <span className="font-bold text-emerald-600">{p.webhook_status || 'inactive'}</span></p>
+                  <p><span className="font-extrabold text-slate-500">اسم الحساب:</span> {p.account_name || '— (غير مرتبط)'}</p>
+                  <p><span className="font-extrabold text-slate-500">حالة Webhook:</span> <span className={`font-bold ${p.webhook_status === 'active' ? 'text-emerald-600' : 'text-slate-400'}`}>{p.webhook_status === 'active' ? 'نشط 🟢' : 'غير نشط'}</span></p>
                   <p><span className="font-extrabold text-slate-500">آخر مزامنة:</span> {p.last_sync || 'لم تتم بعد'}</p>
-                  <p><span className="font-extrabold text-slate-500">الصلاحيات:</span> <span className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded font-mono">{p.permissions || '[]'}</span></p>
+                  <p><span className="font-extrabold text-slate-500">الصلاحيات:</span> <span className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded font-mono">{p.status === 'connected' ? (p.permissions || '[]') : 'بانتظار المصادقة'}</span></p>
                 </div>
               </div>
 
@@ -1062,19 +1081,19 @@ function Marketing({ campaigns = [], setCampaigns, products = [], accounts = [],
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs pt-2">
               <div className="bg-white/10 p-3.5 rounded-2xl backdrop-blur-sm">
                 <p className="text-[10px] text-amber-300 font-bold mb-1">👑 المنتج الأعلى أداءً</p>
-                <p className="font-black text-white truncate">{dailyBriefData.brief.top_product || 'فستان سهرة لؤلؤي ملكي'}</p>
+                <p className="font-black text-white truncate">{dailyBriefData.brief.top_product || '—'}</p>
               </div>
               <div className="bg-white/10 p-3.5 rounded-2xl backdrop-blur-sm">
                 <p className="text-[10px] text-indigo-300 font-bold mb-1">🎬 المنشور الأعلى تحويلاً</p>
-                <p className="font-black text-white truncate">{dailyBriefData.brief.top_content || 'CNT-901 (Reel)'}</p>
+                <p className="font-black text-white truncate">{dailyBriefData.brief.top_content || '—'}</p>
               </div>
               <div className="bg-white/10 p-3.5 rounded-2xl backdrop-blur-sm">
                 <p className="text-[10px] text-emerald-300 font-bold mb-1">📢 الحملة الأعلى عائداً</p>
-                <p className="font-black text-white truncate">{dailyBriefData.brief.top_campaign || 'CMP-1001'}</p>
+                <p className="font-black text-white truncate">{dailyBriefData.brief.top_campaign || '—'}</p>
               </div>
               <div className="bg-white/10 p-3.5 rounded-2xl backdrop-blur-sm">
                 <p className="text-[10px] text-rose-300 font-bold mb-1">👥 الطلب السائد من العملاء</p>
-                <p className="font-black text-white truncate">{dailyBriefData.brief.customer_demand || 'أعمار 4-6 سنوات'}</p>
+                <p className="font-black text-white truncate">{dailyBriefData.brief.customer_demand || '—'}</p>
               </div>
             </div>
 
@@ -1124,8 +1143,8 @@ function Marketing({ campaigns = [], setCampaigns, products = [], accounts = [],
               <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-2">
                 <h4 className="font-black text-amber-800 text-xs">👻 الجمهور الصامت والفرص المفقودة</h4>
                 <div className="space-y-1.5 text-[11px] text-slate-700">
-                  <p><span className="font-black text-amber-900">الجمهور الصامت (Silent High Intent):</span> <span className="font-bold text-indigo-700">{dailyBriefData.trends.silent_audience_count || 14} عميل</span> يتردد ويحفظ المنشورات دون إرسال رسائل.</p>
-                  <p><span className="font-black text-amber-900">الفرص المفقودة (Lost Opportunities):</span> <span className="font-bold text-rose-700">{dailyBriefData.trends.lost_opportunities_count || 5} عملاء</span> انسحبوا عند السؤال عن السعر والتوصيل.</p>
+                  <p><span className="font-black text-amber-900">الجمهور الصامت (Silent High Intent):</span> <span className="font-bold text-indigo-700">{dailyBriefData.trends.silent_audience_count || 0} عميل</span> يتردد ويحفظ المنشورات دون إرسال رسائل.</p>
+                  <p><span className="font-black text-amber-900">الفرص المفقودة (Lost Opportunities):</span> <span className="font-bold text-rose-700">{dailyBriefData.trends.lost_opportunities_count || 0} عملاء</span> انسحبوا عند السؤال عن السعر والتوصيل.</p>
                 </div>
               </div>
             </div>
@@ -1165,25 +1184,29 @@ function Marketing({ campaigns = [], setCampaigns, products = [], accounts = [],
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-semibold">
-                  {(productsAIData || []).map((p, idx) => (
-                    <tr key={p.id || idx} className="hover:bg-slate-50 transition">
-                      <td className="px-4 py-3 font-black text-slate-900">{p.model_name}</td>
-                      <td className="px-3 py-3 text-center text-slate-600">{Number(p.reach || 0).toLocaleString()}</td>
-                      <td className="px-3 py-3 text-center text-slate-600">🔖 {p.saves || 0} / 🔁 {p.shares || 0}</td>
-                      <td className="px-3 py-3 text-center font-bold text-indigo-600">{p.orders || 0} طلبات</td>
-                      <td className="px-3 py-3 font-black text-emerald-600">{Number(p.revenue || 0).toLocaleString()} {currLabel}</td>
-                      <td className="px-3 py-3 text-slate-500">{Number(p.cogs || 0).toLocaleString()} {currLabel}</td>
-                      <td className="px-3 py-3 text-rose-600">{Number(p.ad_spend || 0).toLocaleString()} {currLabel}</td>
-                      <td className="px-3 py-3 font-black text-emerald-700">{Number(p.profit || 0).toLocaleString()} {currLabel}</td>
-                      <td className="px-3 py-3 text-center font-black text-indigo-700 bg-indigo-50/50">{p.roas}x</td>
-                      <td className="px-3 py-3 text-center text-slate-600">{p.cac} {currLabel}</td>
-                      <td className="px-3 py-3 text-center">
-                        <span className="bg-rose-100 text-rose-800 px-2.5 py-1 rounded-lg font-black text-xs">
-                          {p.overall_score} / 100
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
+                  {(productsAIData || []).length === 0 ? (
+                    <tr><td colSpan="11" className="px-4 py-8 text-center text-slate-400 font-bold">لا توجد منتجات أو بيانات تسويقية مسجلة بعد 📈</td></tr>
+                  ) : (
+                    (productsAIData || []).map((p, idx) => (
+                      <tr key={p.id || idx} className="hover:bg-slate-50 transition">
+                        <td className="px-4 py-3 font-black text-slate-900">{p.model_name}</td>
+                        <td className="px-3 py-3 text-center text-slate-600">{Number(p.reach || 0).toLocaleString()}</td>
+                        <td className="px-3 py-3 text-center text-slate-600">🔖 {p.saves || 0} / 🔁 {p.shares || 0}</td>
+                        <td className="px-3 py-3 text-center font-bold text-indigo-600">{p.orders || 0} طلبات</td>
+                        <td className="px-3 py-3 font-black text-emerald-600">{Number(p.revenue || 0).toLocaleString()} {currLabel}</td>
+                        <td className="px-3 py-3 text-slate-500">{Number(p.cogs || 0).toLocaleString()} {currLabel}</td>
+                        <td className="px-3 py-3 text-rose-600">{Number(p.ad_spend || 0).toLocaleString()} {currLabel}</td>
+                        <td className="px-3 py-3 font-black text-emerald-700">{Number(p.profit || 0).toLocaleString()} {currLabel}</td>
+                        <td className="px-3 py-3 text-center font-black text-indigo-700 bg-indigo-50/50">{p.roas}x</td>
+                        <td className="px-3 py-3 text-center text-slate-600">{p.cac} {currLabel}</td>
+                        <td className="px-3 py-3 text-center">
+                          <span className="bg-rose-100 text-rose-800 px-2.5 py-1 rounded-lg font-black text-xs">
+                            {p.overall_score} / 100
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -1196,34 +1219,40 @@ function Marketing({ campaigns = [], setCampaigns, products = [], accounts = [],
               <p className="text-[11px] text-slate-500 font-semibold mt-0.5">تقسيم العائد والطلبات وفقاً للنماذج دون اختلاق أرقام، مع توضيح مصدر البيانات</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {(campaignAttrData || []).map(cmp => (
-                <div key={cmp.campaign_id} className="bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-3">
-                  <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                    <div>
-                      <h4 className="font-black text-slate-900 text-xs">{cmp.campaign_name}</h4>
-                      <p className="text-[10px] text-slate-500 font-bold">{cmp.platform} • ميزانية: {cmp.budget} {currLabel}</p>
-                    </div>
-                    <span className="text-[10px] font-mono font-bold bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded">{cmp.campaign_id}</span>
-                  </div>
-
-                  <div className="space-y-1.5 text-xs">
-                    {Object.entries(cmp.attribution_models || {}).map(([mName, mVal]) => (
-                      <div key={mName} className="flex items-center justify-between bg-white p-2 rounded-xl border border-slate-100">
-                        <span className="font-bold text-slate-700 text-[11px]">{mName}</span>
-                        <div className="flex items-center gap-2">
-                          <span className="font-black text-emerald-600">{mVal.attributed_revenue} {currLabel}</span>
-                          <span className="text-[9px] text-slate-400">({mVal.attributed_orders} طلبات)</span>
-                          <span className={`text-[9px] px-1.5 py-0.5 rounded font-black ${mVal.data_source === 'Actual' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
-                            {mVal.data_source}
-                          </span>
-                        </div>
+            {(!campaignAttrData || campaignAttrData.length === 0) ? (
+              <div className="text-center py-8 text-slate-400 text-xs font-bold bg-slate-50 rounded-2xl border border-slate-200">
+                لا توجد حملات إسناد مسجلة بعد • ستظهر النماذج متعددة الممسات عند إطلاق الحملات 🎯
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {(campaignAttrData || []).map(cmp => (
+                  <div key={cmp.campaign_id} className="bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-3">
+                    <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                      <div>
+                        <h4 className="font-black text-slate-900 text-xs">{cmp.campaign_name}</h4>
+                        <p className="text-[10px] text-slate-500 font-bold">{cmp.platform} • ميزانية: {cmp.budget} {currLabel}</p>
                       </div>
-                    ))}
+                      <span className="text-[10px] font-mono font-bold bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded">{cmp.campaign_id}</span>
+                    </div>
+
+                    <div className="space-y-1.5 text-xs">
+                      {Object.entries(cmp.attribution_models || {}).map(([mName, mVal]) => (
+                        <div key={mName} className="flex items-center justify-between bg-white p-2 rounded-xl border border-slate-100">
+                          <span className="font-bold text-slate-700 text-[11px]">{mName}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-black text-emerald-600">{mVal.attributed_revenue} {currLabel}</span>
+                            <span className="text-[9px] text-slate-400">({mVal.attributed_orders} طلبات)</span>
+                            <span className={`text-[9px] px-1.5 py-0.5 rounded font-black ${mVal.data_source === 'Actual' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                              {mVal.data_source}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1237,18 +1266,18 @@ function Marketing({ campaigns = [], setCampaigns, products = [], accounts = [],
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="bg-emerald-500 text-white rounded-3xl p-5 shadow-sm space-y-1">
               <p className="text-[11px] font-bold opacity-80">المشاعر الإيجابية (Positive Sentiment)</p>
-              <h3 className="text-3xl font-black">{nlpCommentsData.summary.positive_pct || 65}%</h3>
-              <p className="text-[10px] bg-white/20 inline-block px-2 py-0.5 rounded mt-1">السبب الرئيس: إعجاب شديد بدقة التطريز والفخامة</p>
+              <h3 className="text-3xl font-black">{nlpCommentsData.summary.positive_pct !== undefined ? nlpCommentsData.summary.positive_pct : 0}%</h3>
+              <p className="text-[10px] bg-white/20 inline-block px-2 py-0.5 rounded mt-1">السبب الرئيس: إعجاب بدقة التطريز والفخامة</p>
             </div>
             <div className="bg-slate-700 text-white rounded-3xl p-5 shadow-sm space-y-1">
               <p className="text-[11px] font-bold opacity-80">المشاعر المحايدة والاستفسارات</p>
-              <h3 className="text-3xl font-black">{nlpCommentsData.summary.neutral_pct || 25}%</h3>
+              <h3 className="text-3xl font-black">{nlpCommentsData.summary.neutral_pct !== undefined ? nlpCommentsData.summary.neutral_pct : 0}%</h3>
               <p className="text-[10px] bg-white/20 inline-block px-2 py-0.5 rounded mt-1">السبب الرئيس: أسئلة عن المقاسات وأماكن التوصيل</p>
             </div>
             <div className="bg-rose-600 text-white rounded-3xl p-5 shadow-sm space-y-1">
               <p className="text-[11px] font-bold opacity-80">المشاعر السلبية والاعتراضات</p>
-              <h3 className="text-3xl font-black">{nlpCommentsData.summary.negative_pct || 10}%</h3>
-              <p className="text-[10px] bg-white/20 inline-block px-2 py-0.5 rounded mt-1">السبب الرئيس: اعتراض على السعر وتخوف من الشحن البعيد</p>
+              <h3 className="text-3xl font-black">{nlpCommentsData.summary.negative_pct !== undefined ? nlpCommentsData.summary.negative_pct : 0}%</h3>
+              <p className="text-[10px] bg-white/20 inline-block px-2 py-0.5 rounded mt-1">السبب الرئيس: اعتراض على السعر أو مدة الشحن</p>
             </div>
           </div>
 
@@ -1271,31 +1300,35 @@ function Marketing({ campaigns = [], setCampaigns, products = [], accounts = [],
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-semibold">
-                  {(nlpCommentsData.data || []).map((c, idx) => (
-                    <tr key={c.comment_id || idx} className="hover:bg-slate-50 transition">
-                      <td className="px-4 py-3">
-                        <p className="font-black text-slate-900">{c.text}</p>
-                        <p className="text-[10px] text-slate-400 font-bold">{c.customer_name || 'عميل'} • {c.platform}</p>
-                      </td>
-                      <td className="px-3 py-3 whitespace-nowrap">
-                        <span className="bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded text-[10px] font-bold">
-                          {c.dialect}
-                        </span>
-                      </td>
-                      <td className="px-3 py-3 whitespace-nowrap">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-black ${
-                          c.sentiment === 'Positive' ? 'bg-emerald-100 text-emerald-800' : (c.sentiment === 'Negative' ? 'bg-rose-100 text-rose-800' : 'bg-slate-100 text-slate-700')
-                        }`}>
-                          {c.sentiment} ({c.sentiment_cause})
-                        </span>
-                      </td>
-                      <td className="px-3 py-3 whitespace-nowrap text-indigo-700 font-bold">{c.intent_category}</td>
-                      <td className="px-3 py-3 whitespace-nowrap text-slate-600 text-[11px]">
-                        {c.extracted_product || '—'} {c.extracted_color ? `• لون ${c.extracted_color}` : ''} {c.extracted_age ? `• سن ${c.extracted_age}` : ''}
-                      </td>
-                      <td className="px-3 py-3 whitespace-nowrap font-bold text-amber-700">{c.extracted_location || 'غير محدد'}</td>
-                    </tr>
-                  ))}
+                  {(!nlpCommentsData.data || nlpCommentsData.data.length === 0) ? (
+                    <tr><td colSpan="6" className="px-4 py-8 text-center text-slate-400 font-bold">لا توجد تعليقات أو تحليلات مشاعر NLP مسجلة بعد 💬</td></tr>
+                  ) : (
+                    (nlpCommentsData.data || []).map((c, idx) => (
+                      <tr key={c.comment_id || idx} className="hover:bg-slate-50 transition">
+                        <td className="px-4 py-3">
+                          <p className="font-black text-slate-900">{c.text}</p>
+                          <p className="text-[10px] text-slate-400 font-bold">{c.customer_name || 'عميل'} • {c.platform}</p>
+                        </td>
+                        <td className="px-3 py-3 whitespace-nowrap">
+                          <span className="bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded text-[10px] font-bold">
+                            {c.dialect}
+                          </span>
+                        </td>
+                        <td className="px-3 py-3 whitespace-nowrap">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-black ${
+                            c.sentiment === 'Positive' ? 'bg-emerald-100 text-emerald-800' : (c.sentiment === 'Negative' ? 'bg-rose-100 text-rose-800' : 'bg-slate-100 text-slate-700')
+                          }`}>
+                            {c.sentiment} ({c.sentiment_cause})
+                          </span>
+                        </td>
+                        <td className="px-3 py-3 whitespace-nowrap text-indigo-700 font-bold">{c.intent_category}</td>
+                        <td className="px-3 py-3 whitespace-nowrap text-slate-600 text-[11px]">
+                          {c.extracted_product || '—'} {c.extracted_color ? `• لون ${c.extracted_color}` : ''} {c.extracted_age ? `• سن ${c.extracted_age}` : ''}
+                        </td>
+                        <td className="px-3 py-3 whitespace-nowrap font-bold text-amber-700">{c.extracted_location || 'غير محدد'}</td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -1305,37 +1338,43 @@ function Marketing({ campaigns = [], setCampaigns, products = [], accounts = [],
           <div className="bg-white rounded-3xl border border-slate-200 p-5 shadow-sm space-y-4">
             <h3 className="font-black text-slate-800 text-sm">🎯 تقييم نية الشراء للمحادثات (Purchase Intent Scoring & Brackets)</h3>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {(intentConvsData || []).map(conv => (
-                <div key={conv.conversation_id} className="bg-slate-50 rounded-2xl p-4 border border-slate-200 flex flex-col justify-between space-y-3">
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="font-black text-slate-900 text-xs">{conv.customer_name || 'محادثة جديدة'}</span>
-                      <span className={`text-[10px] font-black px-2.5 py-1 rounded-lg border ${
-                        conv.intent_score >= 90 ? 'bg-rose-100 text-rose-800 border-rose-300' : 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                      }`}>
-                        {conv.intent_bracket}
-                      </span>
-                    </div>
-
-                    <div className="space-y-1 text-xs text-slate-600">
-                      <p><span className="font-bold text-slate-500">المنصة:</span> {conv.platform}</p>
-                      <p><span className="font-bold text-slate-500">الفرص المفقودة:</span> <span className="font-bold text-rose-600">{conv.lost_opportunity_reason}</span></p>
-                      {conv.silent_high_intent === 1 && (
-                        <span className="inline-block bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded text-[10px] font-black mt-1">
-                          👻 عميل صامت عالي النية (Silent High Intent)
+            {(!intentConvsData || intentConvsData.length === 0) ? (
+              <div className="text-center py-8 text-slate-400 text-xs font-bold bg-slate-50 rounded-2xl border border-slate-200">
+                لا توجد محادثات مسجلة لتحليل نية الشراء بعد • سيتم استنتاج النوايا لحظياً عند ورود الرسائل 💬
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {(intentConvsData || []).map(conv => (
+                  <div key={conv.conversation_id} className="bg-slate-50 rounded-2xl p-4 border border-slate-200 flex flex-col justify-between space-y-3">
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-black text-slate-900 text-xs">{conv.customer_name || 'محادثة جديدة'}</span>
+                        <span className={`text-[10px] font-black px-2.5 py-1 rounded-lg border ${
+                          conv.intent_score >= 90 ? 'bg-rose-100 text-rose-800 border-rose-300' : 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                        }`}>
+                          {conv.intent_bracket}
                         </span>
-                      )}
+                      </div>
+
+                      <div className="space-y-1 text-xs text-slate-600">
+                        <p><span className="font-bold text-slate-500">المنصة:</span> {conv.platform}</p>
+                        <p><span className="font-bold text-slate-500">الفرص المفقودة:</span> <span className="font-bold text-rose-600">{conv.lost_opportunity_reason}</span></p>
+                        {conv.silent_high_intent === 1 && (
+                          <span className="inline-block bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded text-[10px] font-black mt-1">
+                            👻 عميل صامت عالي النية (Silent High Intent)
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between border-t border-slate-200 pt-3">
+                      <span className="text-xs font-bold text-slate-500">درجة النية الحالية:</span>
+                      <span className="text-base font-black text-indigo-700">{conv.intent_score} / 100</span>
                     </div>
                   </div>
-
-                  <div className="flex items-center justify-between border-t border-slate-200 pt-3">
-                    <span className="text-xs font-bold text-slate-500">درجة النية الحالية:</span>
-                    <span className="text-base font-black text-indigo-700">{conv.intent_score} / 100</span>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1352,47 +1391,53 @@ function Marketing({ campaigns = [], setCampaigns, products = [], accounts = [],
               <p className="text-[11px] text-slate-500 font-semibold mt-0.5">لن يتم تنفيذ أي إجراء مالي تلقائياً إلا بعد ضغط زر الموافقة البشرية الصريحة</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {(aiRecsData || []).map(rec => (
-                <div key={rec.rec_id} className="bg-slate-50 rounded-2xl p-5 border border-slate-200 space-y-3 flex flex-col justify-between">
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="font-black text-slate-900 text-xs">{rec.title}</span>
-                      <span className="text-[10px] font-black bg-indigo-100 text-indigo-800 px-2.5 py-1 rounded-lg">
-                        ثقة: {rec.confidence}% 🎯
+            {(!aiRecsData || aiRecsData.length === 0) ? (
+              <div className="text-center py-8 text-slate-400 text-xs font-bold bg-slate-50 rounded-2xl border border-slate-200">
+                لا توجد توصيات معلقة حالياً • ستظهر التوصيات الذكية تلقائياً عند تسجيل حملات ومبيعات 💡
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {(aiRecsData || []).map(rec => (
+                  <div key={rec.rec_id} className="bg-slate-50 rounded-2xl p-5 border border-slate-200 space-y-3 flex flex-col justify-between">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="font-black text-slate-900 text-xs">{rec.title}</span>
+                        <span className="text-[10px] font-black bg-indigo-100 text-indigo-800 px-2.5 py-1 rounded-lg">
+                          ثقة: {rec.confidence}% 🎯
+                        </span>
+                      </div>
+
+                      <p className="text-xs font-bold text-indigo-700 bg-white p-3 rounded-xl border border-slate-200">
+                        👉 {rec.recommendation}
+                      </p>
+
+                      <div className="space-y-1 text-[11px] text-slate-600">
+                        <p><span className="font-black text-slate-700">السبب العلمي:</span> {rec.reason}</p>
+                        <p><span className="font-black text-emerald-700">الأثر المتوقع:</span> {rec.expected_impact}</p>
+                        <p><span className="font-black text-slate-500">الدليل القاطع:</span> {rec.evidence}</p>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-200 flex items-center justify-between">
+                      <span className={`text-[10px] font-black px-2.5 py-1 rounded-lg border ${
+                        rec.status === 'approved' ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-amber-100 text-amber-800 border-amber-300'
+                      }`}>
+                        {rec.status === 'approved' ? '🟢 تمت الموافقة والتنفيذ' : '⏳ قيد الانتظار'}
                       </span>
-                    </div>
 
-                    <p className="text-xs font-bold text-indigo-700 bg-white p-3 rounded-xl border border-slate-200">
-                      👉 {rec.recommendation}
-                    </p>
-
-                    <div className="space-y-1 text-[11px] text-slate-600">
-                      <p><span className="font-black text-slate-700">السبب العلمي:</span> {rec.reason}</p>
-                      <p><span className="font-black text-emerald-700">الأثر المتوقع:</span> {rec.expected_impact}</p>
-                      <p><span className="font-black text-slate-500">الدليل القاطع:</span> {rec.evidence}</p>
+                      {rec.status !== 'approved' && (
+                        <button
+                          onClick={() => handleApproveRec(rec.rec_id)}
+                          className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 text-white font-black text-xs hover:opacity-90 transition shadow-sm"
+                        >
+                          ✔ إقرار وتنفيذ الموافقة البشرية
+                        </button>
+                      )}
                     </div>
                   </div>
-
-                  <div className="pt-2 border-t border-slate-200 flex items-center justify-between">
-                    <span className={`text-[10px] font-black px-2.5 py-1 rounded-lg border ${
-                      rec.status === 'approved' ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-amber-100 text-amber-800 border-amber-300'
-                    }`}>
-                      {rec.status === 'approved' ? '🟢 تمت الموافقة والتنفيذ' : '⏳ قيد الانتظار'}
-                    </span>
-
-                    {rec.status !== 'approved' && (
-                      <button
-                        onClick={() => handleApproveRec(rec.rec_id)}
-                        className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 text-white font-black text-xs hover:opacity-90 transition shadow-sm"
-                      >
-                        ✔ إقرار وتنفيذ الموافقة البشرية
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* لوحة تعديل أوزان التفاعل وحساب الأرقام (Configurable Weight Engine) */}
@@ -1408,10 +1453,11 @@ function Marketing({ campaigns = [], setCampaigns, products = [], accounts = [],
                   <label className="block text-[10px] font-extrabold text-slate-600">{wKey.toUpperCase()}</label>
                   <input
                     type="number"
-                    step="0.5"
-                    value={wVal}
-                    onChange={e => setWeightsMap({ ...weightsMap, [wKey]: parseFloat(e.target.value) || 0 })}
-                    className="w-full p-2 rounded-xl border border-slate-300 bg-white font-black text-slate-800 outline-none focus:border-rose-400"
+                    step="any"
+                    value={wVal !== undefined && wVal !== null ? wVal : ''}
+                    placeholder="0"
+                    onChange={e => setWeightsMap({ ...weightsMap, [wKey]: e.target.value })}
+                    className="w-full p-2 rounded-xl border border-slate-300 bg-white font-black text-slate-800 outline-none focus:border-rose-400 font-mono text-center"
                   />
                 </div>
               ))}
@@ -1499,7 +1545,7 @@ function Marketing({ campaigns = [], setCampaigns, products = [], accounts = [],
               value={chatInput}
               onChange={e => setChatInput(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleSendAIChat()}
-              placeholder="اسأل مدير التسويق AI (مثال: ما هي التوصية لحملة فساتين العيد؟)..."
+              placeholder="اسأل مدير التسويق AI..."
               className="flex-1 p-3.5 rounded-2xl border border-slate-200 bg-slate-50 text-xs font-bold outline-none focus:bg-white focus:border-rose-400 transition"
             />
             <button

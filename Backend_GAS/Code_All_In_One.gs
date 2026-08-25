@@ -1,1200 +1,1740 @@
 /**
- * 👑 Little Princesses ERP - Google Apps Script (GAS) Unified Master Backend
- * All modular controllers combined into a single production file for 1-click paste.
+ * ==========================================================================
+ * 👑 LITTLE PRINCESSES ERP — MASTER CLOUD GOOGLE APPS SCRIPT BACKEND v6.0
+ * 100% STANDARDIZED ARABIC DATABASE SCHEMA & BIDIRECTIONAL RELATIONAL ENGINE
+ * ==========================================================================
  */
 
-// ==========================================
-// SECTION: config.gs
-// ==========================================
+var MASTER_SCHEMA_MAP = {
+  "customers": {
+    arabicSheet: "العملاء",
+    prefix: "CUST",
+    fields: [
+      { key: "id", header: "المعرف" },
+      { key: "name", header: "اسم العميل" },
+      { key: "phone", header: "رقم الهاتف" },
+      { key: "phone_alt", header: "هاتف بديل" },
+      { key: "platform", header: "منصة التواصل" },
+      { key: "handle", header: "معرف الحساب" },
+      { key: "category", header: "تصنيف العميل" },
+      { key: "city", header: "المدينة" },
+      { key: "street", header: "العنوان التفصيلي" },
+      { key: "children_count", header: "عدد الأطفال" },
+      { key: "notes", header: "ملاحظات" },
+      { key: "status", header: "الحالة" },
+      { key: "created_at", header: "تاريخ التسجيل" },
+      { key: "updated_at", header: "تاريخ التحديث" },
+      { key: "created_by", header: "أنشأ بواسطة" }
+    ]
+  },
 
-const SHEET_CUSTOMERS = 'العملاء';
-const SHEET_MEASUREMENTS = 'مقاسات_الأطفال';
-const SHEET_CUSTOMER_LEDGER = 'كشف_حساب_العملاء';
-const SHEET_ORDERS = 'الطلبات';
-const SHEET_INVENTORY = 'المخزون';
-const SHEET_ACCOUNTS = 'شجرة الحسابات';
-const SHEET_VOUCHERS = 'السندات المالية';
-const SHEET_PURCHASES = 'المشتريات';
-const SHEET_EXPENSES = 'المصاريف';
-const SHEET_FACTORY = 'متابعة الخياطة';
-const SHEET_PRODUCTS = 'المنتجات';
-const SHEET_JOURNAL = 'القيود اليومية';
+  "children": {
+    arabicSheet: "الأطفال",
+    prefix: "CHLD",
+    fields: [
+      { key: "id", header: "المعرف" },
+      { key: "customer_id", header: "معرف العميل" },
+      { key: "child_name", header: "اسم الطفل" },
+      { key: "gender", header: "الجنس" },
+      { key: "birth_date", header: "تاريخ الميلاد" },
+      { key: "age", header: "العمر" },
+      { key: "notes", header: "ملاحظات الطفل" },
+      { key: "status", header: "الحالة" },
+      { key: "created_at", header: "تاريخ الإضافة" },
+      { key: "updated_at", header: "تاريخ التحديث" }
+    ]
+  },
+
+  "measurements": {
+    arabicSheet: "المقاسات",
+    prefix: "MEAS",
+    fields: [
+      { key: "id", header: "المعرف" },
+      { key: "customer_id", header: "معرف العميل" },
+      { key: "child_id", header: "معرف الطفل" },
+      { key: "child_name", header: "اسم الطفل" },
+      { key: "date", header: "تاريخ أخذ القياس" },
+      { key: "unit", header: "وحدة القياس" },
+      { key: "total_len", header: "الطول الكلي" },
+      { key: "dress_len", header: "طول الفستان" },
+      { key: "chest_len", header: "طول الصدر" },
+      { key: "skirt_len", header: "طول التنورة" },
+      { key: "sleeve_len", header: "طول الكم" },
+      { key: "chest_circ", header: "محيط الصدر" },
+      { key: "waist_circ", header: "محيط الخصر" },
+      { key: "shoulder_w", header: "عرض الكتف" },
+      { key: "armpit_circ", header: "محيط الإبط" },
+      { key: "neck_circ", header: "محيط الرقبة" },
+      { key: "model_name", header: "اسم الموديل المطلوب" },
+      { key: "model_img", header: "صورة الموديل" },
+      { key: "comfort_profile", header: "مستوى الراحة والتوسيع" },
+      { key: "notes", header: "ملاحظات الخياطة" },
+      { key: "status", header: "الحالة" },
+      { key: "created_at", header: "تاريخ التسجيل" },
+      { key: "updated_at", header: "تاريخ آخر تحديث" }
+    ]
+  },
+
+  "products": {
+    arabicSheet: "المنتجات",
+    prefix: "PROD",
+    fields: [
+      { key: "id", header: "المعرف" },
+      { key: "sku", header: "رمز المنتج" },
+      { key: "model_name", header: "اسم الموديل" },
+      { key: "model_no", header: "رقم الموديل" },
+      { key: "category", header: "التصنيف" },
+      { key: "subcategory", header: "التصنيف الفرعي" },
+      { key: "collection", header: "المجموعة" },
+      { key: "design_code", header: "رمز التصميم" },
+      { key: "designer_id", header: "معرف المصمم" },
+      { key: "fabric_id", header: "معرف القماش" },
+      { key: "base_price", header: "سعر البيع" },
+      { key: "cost_price", header: "تكلفة الإنتاج" },
+      { key: "currency", header: "العملة" },
+      { key: "image_url", header: "الصورة" },
+      { key: "description", header: "الوصف" },
+      { key: "min_stock", header: "الحد الأدنى للمخزون" },
+      { key: "status", header: "الحالة" },
+      { key: "created_at", header: "تاريخ الإنشاء" },
+      { key: "updated_at", header: "تاريخ آخر تحديث" },
+      { key: "created_by", header: "أنشأ بواسطة" }
+    ]
+  },
+
+  "orders": {
+    arabicSheet: "الطلبات",
+    prefix: "ORD",
+    fields: [
+      { key: "id", header: "المعرف" },
+      { key: "order_no", header: "رقم الفاتورة" },
+      { key: "customer_id", header: "معرف العميل" },
+      { key: "child_id", header: "معرف الطفل" },
+      { key: "product_id", header: "معرف المنتج" },
+      { key: "variant_id", header: "معرف الصنف" },
+      { key: "quantity", header: "الكمية" },
+      { key: "order_date", header: "تاريخ الطلب" },
+      { key: "delivery_date", header: "تاريخ التسليم المتوقع" },
+      { key: "total_amount", header: "الإجمالي" },
+      { key: "discount", header: "الخصم" },
+      { key: "tax", header: "الضريبة" },
+      { key: "paid_amount", header: "المبلغ المدفوع" },
+      { key: "remaining_amount", header: "المبلغ المتبقي" },
+      { key: "currency", header: "العملة" },
+      { key: "exchange_rate", header: "سعر الصرف" },
+      { key: "base_amount", header: "المبلغ بالريال اليمني" },
+      { key: "payment_status", header: "حالة الدفع" },
+      { key: "production_status", header: "حالة الإنتاج" },
+      { key: "payment_method", header: "طريقة الدفع" },
+      { key: "status", header: "الحالة" },
+      { key: "notes", header: "ملاحظات" },
+      { key: "created_at", header: "تاريخ الإنشاء" },
+      { key: "updated_at", header: "تاريخ آخر تحديث" },
+      { key: "created_by", header: "أنشأ بواسطة" }
+    ]
+  },
+
+  "payments": {
+    arabicSheet: "السندات_المالية",
+    prefix: "PAY",
+    fields: [
+      { key: "id", header: "المعرف" },
+      { key: "payment_no", header: "رقم السند" },
+      { key: "order_id", header: "معرف الطلب" },
+      { key: "invoice_id", header: "معرف الفاتورة" },
+      { key: "customer_id", header: "معرف العميل" },
+      { key: "supplier_id", header: "معرف المورد" },
+      { key: "payment_type", header: "نوع السند" },
+      { key: "amount", header: "المبلغ" },
+      { key: "currency", header: "العملة" },
+      { key: "exchange_rate", header: "سعر الصرف" },
+      { key: "base_amount", header: "المبلغ بالريال اليمني" },
+      { key: "payment_method", header: "طريقة الدفع" },
+      { key: "reference_no", header: "رقم المرجع" },
+      { key: "account_id", header: "الحساب المالي" },
+      { key: "date", header: "تاريخ الدفع" },
+      { key: "status", header: "الحالة" },
+      { key: "notes", header: "ملاحظات" },
+      { key: "created_at", header: "تاريخ الإنشاء" },
+      { key: "created_by", header: "أنشأ بواسطة" }
+    ]
+  },
+
+  "inventory": {
+    arabicSheet: "المخزون_والمستودعات",
+    prefix: "INV",
+    fields: [
+      { key: "id", header: "المعرف" },
+      { key: "item_code", header: "رمز الصنف" },
+      { key: "item_name", header: "اسم الصنف / القماش" },
+      { key: "category", header: "التصنيف" },
+      { key: "unit", header: "وحدة القياس" },
+      { key: "stock_qty", header: "الكمية المتوفرة" },
+      { key: "reserved_qty", header: "الكمية المحجوزة" },
+      { key: "available_qty", header: "الكمية القابلة للاستخدام" },
+      { key: "min_limit", header: "حد إعادة الطلب" },
+      { key: "unit_cost", header: "سعر التكلفة" },
+      { key: "total_cost", header: "إجمالي التكلفة" },
+      { key: "selling_price", header: "سعر البيع" },
+      { key: "location", header: "موقع التخزين" },
+      { key: "color", header: "اللون" },
+      { key: "pattern", header: "النقشة" },
+      { key: "material_type", header: "نوع الخامة" },
+      { key: "barcode", header: "الباركود" },
+      { key: "image_url", header: "رابط الصورة" },
+      { key: "status", header: "الحالة" },
+      { key: "notes", header: "ملاحظات" },
+      { key: "created_at", header: "تاريخ الإضافة" },
+      { key: "updated_at", header: "تاريخ آخر تحديث" }
+    ]
+  },
+
+  "inventory_movements": {
+    arabicSheet: "حركات_المخزون",
+    prefix: "MOV",
+    fields: [
+      { key: "id", header: "المعرف" },
+      { key: "movement_no", header: "رقم الحركة" },
+      { key: "movement_type", header: "نوع الحركة" },
+      { key: "item_id", header: "معرف الصنف" },
+      { key: "quantity", header: "الكمية" },
+      { key: "unit_cost", header: "سعر الوحدة" },
+      { key: "total_cost", header: "التكلفة الإجمالية" },
+      { key: "source_location", header: "من موقع" },
+      { key: "destination_location", header: "إلى موقع" },
+      { key: "reference_type", header: "نوع المرجع" },
+      { key: "reference_id", header: "معرف المرجع" },
+      { key: "date", header: "تاريخ الحركة" },
+      { key: "notes", header: "ملاحظات" },
+      { key: "created_at", header: "تاريخ الإنشاء" },
+      { key: "created_by", header: "أنشأ بواسطة" }
+    ]
+  },
+
+  "production_orders": {
+    arabicSheet: "أوامر_الإنتاج",
+    prefix: "PRD",
+    fields: [
+      { key: "id", header: "المعرف" },
+      { key: "order_no", header: "رقم أمر الإنتاج" },
+      { key: "sales_order_id", header: "معرف طلب المبيعات" },
+      { key: "product_id", header: "معرف المنتج" },
+      { key: "quantity", header: "الكمية" },
+      { key: "current_stage", header: "المرحلة الحالية" },
+      { key: "tailor_id", header: "معرف الخياط" },
+      { key: "priority", header: "الأولوية" },
+      { key: "start_date", header: "تاريخ البدء" },
+      { key: "due_date", header: "تاريخ التسليم" },
+      { key: "actual_finish_date", header: "تاريخ الانتهاء الفعلي" },
+      { key: "status", header: "الحالة" },
+      { key: "notes", header: "ملاحظات" },
+      { key: "created_at", header: "تاريخ الإنشاء" },
+      { key: "updated_at", header: "تاريخ التحديث" }
+    ]
+  },
+
+  "accounts": {
+    arabicSheet: "دليل_الحسابات",
+    prefix: "ACC",
+    fields: [
+      { key: "id", header: "المعرف" },
+      { key: "account_code", header: "رمز الحساب" },
+      { key: "account_name", header: "اسم الحساب" },
+      { key: "account_name_en", header: "اسم الحساب بالإنجليزية" },
+      { key: "account_type", header: "نوع الحساب" },
+      { key: "account_category", header: "تصنيف الحساب" },
+      { key: "parent_account_id", header: "معرف الحساب الرئيسي" },
+      { key: "parent_account_code", header: "رمز الحساب الرئيسي" },
+      { key: "level", header: "المستوى" },
+      { key: "account_path", header: "المسار الهيكلي" },
+      { key: "is_group", header: "حساب تجميعي" },
+      { key: "is_postable", header: "يقبل الترحيل" },
+      { key: "is_active", header: "الحالة" },
+      { key: "normal_balance", header: "طبيعة الحساب" },
+      { key: "opening_balance", header: "الرصيد الافتتاحي" },
+      { key: "current_balance", header: "الرصيد الحالي" },
+      { key: "balance_type", header: "نوع الرصيد" },
+      { key: "currency", header: "العملة" },
+      { key: "establishment_date", header: "تاريخ التأسيس" },
+      { key: "notes", header: "ملاحظات" },
+      { key: "created_at", header: "تاريخ الإنشاء" },
+      { key: "created_by", header: "أنشأ بواسطة" }
+    ]
+  },
+
+  "journal_entries": {
+    arabicSheet: "القيود_اليومية",
+    prefix: "JV",
+    fields: [
+      { key: "id", header: "المعرف" },
+      { key: "entry_no", header: "رقم القيد" },
+      { key: "entry_date", header: "تاريخ القيد" },
+      { key: "debit_account_id", header: "معرف حساب المدين" },
+      { key: "credit_account_id", header: "معرف حساب الدائن" },
+      { key: "amount", header: "المبلغ" },
+      { key: "currency", header: "العملة" },
+      { key: "exchange_rate", header: "سعر الصرف" },
+      { key: "base_amount", header: "المبلغ بالريال اليمني" },
+      { key: "ref_type", header: "نوع المرجع" },
+      { key: "ref_id", header: "معرف المرجع" },
+      { key: "notes", header: "البيان والوصف" },
+      { key: "status", header: "الحالة" },
+      { key: "created_by", header: "أنشأ بواسطة" },
+      { key: "created_at", header: "تاريخ الإنشاء" }
+    ]
+  },
+
+  "purchases": {
+    arabicSheet: "المشتريات_والموردون",
+    prefix: "PUR",
+    fields: [
+      { key: "id", header: "المعرف" },
+      { key: "purchase_no", header: "رقم فاتورة الشراء" },
+      { key: "supplier_name", header: "اسم المورد" },
+      { key: "currency", header: "العملة" },
+      { key: "exchange_rate", header: "سعر الصرف" },
+      { key: "base_amount", header: "المبلغ بالريال اليمني" },
+      { key: "transaction_id", header: "معرف المعاملة" },
+      { key: "pay_type", header: "طريقة الدفع" },
+      { key: "payment_source", header: "حساب الدفع" },
+      { key: "date", header: "تاريخ الفاتورة" },
+      { key: "transfer_no", header: "رقم الحوالة" },
+      { key: "freight_cost", header: "تكلفة النقل والتوصيل" },
+      { key: "transfer_fees", header: "رسوم التحويل" },
+      { key: "receipt_url", header: "رابط صورة السند" },
+      { key: "fabric_name", header: "اسم الصنف / القماش" },
+      { key: "unit", header: "وحدة القياس" },
+      { key: "quantity", header: "الكمية" },
+      { key: "cost_per_unit", header: "السعر الإفرادي" },
+      { key: "total", header: "الإجمالي" },
+      { key: "payment_status", header: "حالة الدفع" },
+      { key: "status", header: "حالة الاستلام" },
+      { key: "notes", header: "ملاحظات" },
+      { key: "created_at", header: "تاريخ الإنشاء" },
+      { key: "created_by", header: "أُنشئ بواسطة" }
+    ]
+  },
+
+  "expenses": {
+    arabicSheet: "المصروفات",
+    prefix: "EXP",
+    fields: [
+      { key: "id", header: "المعرف" },
+      { key: "expense_no", header: "رقم السند" },
+      { key: "category", header: "بند المصروف" },
+      { key: "amount", header: "المبلغ" },
+      { key: "currency", header: "العملة" },
+      { key: "exchange_rate", header: "سعر الصرف" },
+      { key: "base_amount", header: "المبلغ بالريال اليمني" },
+      { key: "transaction_id", header: "معرف المعاملة" },
+      { key: "date", header: "تاريخ الصرف" },
+      { key: "payment_method", header: "طريقة الدفع" },
+      { key: "recipient", header: "المستلم" },
+      { key: "account_id", header: "الحساب المالي" },
+      { key: "status", header: "الحالة" },
+      { key: "notes", header: "البيان" },
+      { key: "created_at", header: "تاريخ الإنشاء" },
+      { key: "created_by", header: "أنشأ بواسطة" }
+    ]
+  },
+
+  "employees": {
+    arabicSheet: "الموظفون",
+    prefix: "EMP",
+    fields: [
+      { key: "id", header: "المعرف" },
+      { key: "name", header: "اسم الموظف" },
+      { key: "role", header: "المسمى الوظيفي" },
+      { key: "phone", header: "رقم الهاتف" },
+      { key: "salary", header: "الراتب الأساسي" },
+      { key: "currency", header: "العملة" },
+      { key: "hire_date", header: "تاريخ التعيين" },
+      { key: "status", header: "الحالة" },
+      { key: "notes", header: "ملاحظات" },
+      { key: "created_at", header: "تاريخ الإنشاء" },
+      { key: "updated_at", header: "تاريخ آخر تحديث" }
+    ]
+  },
+
+  "payroll": {
+    arabicSheet: "الرواتب",
+    prefix: "PAYROLL",
+    fields: [
+      { key: "id", header: "المعرف" },
+      { key: "payroll_no", header: "رقم المسير" },
+      { key: "employee_id", header: "معرف الموظف" },
+      { key: "employee_name", header: "اسم الموظف" },
+      { key: "month", header: "الشهر" },
+      { key: "basic_salary", header: "الراتب الأساسي" },
+      { key: "allowances", header: "البدلات" },
+      { key: "deductions", header: "الخصومات" },
+      { key: "net_salary", header: "صافي الراتب" },
+      { key: "currency", header: "العملة" },
+      { key: "payment_date", header: "تاريخ الصرف" },
+      { key: "status", header: "الحالة" },
+      { key: "notes", header: "ملاحظات" },
+      { key: "created_at", header: "تاريخ الإنشاء" }
+    ]
+  },
+
+  "users": {
+    arabicSheet: "المستخدمون",
+    prefix: "USR",
+    fields: [
+      { key: "id", header: "المعرف" },
+      { key: "username", header: "اسم المستخدم" },
+      { key: "password_hash", header: "كلمة المرور المشفرة" },
+      { key: "role", header: "الدور الوظيفي" },
+      { key: "full_name", header: "الاسم الكامل" },
+      { key: "is_active", header: "حالة التفعيل" },
+      { key: "created_at", header: "تاريخ الإنشاء" }
+    ]
+  },
+
+  "audit_logs": {
+    arabicSheet: "سجل_التدقيق",
+    prefix: "AUD",
+    fields: [
+      { key: "id", header: "المعرف" },
+      { key: "entity_type", header: "نوع الكيان" },
+      { key: "entity_id", header: "معرف الكيان" },
+      { key: "action", header: "الإجراء" },
+      { key: "old_values", header: "القيم السابقة" },
+      { key: "new_values", header: "القيم الجديدة" },
+      { key: "user_id", header: "معرف المستخدم" },
+      { key: "timestamp", header: "التوقيت الزمني" }
+    ]
+  },
+
+  "number_sequences": {
+    arabicSheet: "تسلسلات_الأرقام",
+    prefix: "SEQ",
+    fields: [
+      { key: "id", header: "المعرف" },
+      { key: "entity", header: "اسم الكيان" },
+      { key: "prefix", header: "البادئة" },
+      { key: "current_number", header: "الرقم الحالي" },
+      { key: "padding", header: "طول التعبئة" },
+      { key: "updated_at", header: "تاريخ آخر تحديث" }
+    ]
+  },
+
+  // --- QUALITY SUITE SCHEMAS ---
+  "quality_inspections": {
+    arabicSheet: "فحوصات_الجودة",
+    prefix: "INSP",
+    fields: [
+      { key: "id", header: "المعرف" },
+      { key: "inspection_date", header: "تاريخ الفحص" },
+      { key: "product_id", header: "معرف المنتج" },
+      { key: "product_name", header: "اسم المنتج" },
+      { key: "sku", header: "رمز المنتج" },
+      { key: "model_id", header: "رقم الموديل" },
+      { key: "color", header: "اللون" },
+      { key: "size", header: "المقاس" },
+      { key: "production_order_id", header: "معرف أمر الإنتاج" },
+      { key: "production_stage", header: "مرحلة الإنتاج" },
+      { key: "batch_id", header: "رقم الدفعة" },
+      { key: "quantity_checked", header: "الكمية المفحوصة" },
+      { key: "quantity_passed", header: "الكمية المقبولة" },
+      { key: "quantity_failed", header: "الكمية المرفوضة" },
+      { key: "inspection_result", header: "نتيجة الفحص" },
+      { key: "inspector_id", header: "معرف الفاحص" },
+      { key: "inspector_name", header: "اسم الفاحص" },
+      { key: "notes", header: "ملاحظات" },
+      { key: "attachment_url", header: "رابط المرفقات" },
+      { key: "created_at", header: "تاريخ الإنشاء" },
+      { key: "updated_at", header: "تاريخ آخر تحديث" }
+    ]
+  },
+
+  "quality_defects": {
+    arabicSheet: "عيوب_الجودة",
+    prefix: "DEF",
+    fields: [
+      { key: "id", header: "المعرف" },
+      { key: "defect_date", header: "تاريخ تسجيل العيب" },
+      { key: "inspection_id", header: "معرف الفحص" },
+      { key: "product_id", header: "معرف المنتج" },
+      { key: "sku", header: "رمز المنتج" },
+      { key: "model_id", header: "رقم الموديل" },
+      { key: "color", header: "اللون" },
+      { key: "size", header: "المقاس" },
+      { key: "production_order_id", header: "معرف أمر الإنتاج" },
+      { key: "production_stage", header: "مرحلة الإنتاج" },
+      { key: "defect_type", header: "نوع العيب" },
+      { key: "defect_category", header: "تصنيف العيب" },
+      { key: "severity", header: "درجة الخطورة" },
+      { key: "affected_quantity", header: "الكمية المتأثرة" },
+      { key: "root_cause", header: "السبب الجذري" },
+      { key: "corrective_action", header: "الإجراء التصحيحي" },
+      { key: "preventive_action", header: "الإجراء الوقائي" },
+      { key: "status", header: "الحالة" },
+      { key: "assigned_to", header: "المسؤول عن المعالجة" },
+      { key: "due_date", header: "تاريخ الاستحقاق" },
+      { key: "resolved_date", header: "تاريخ الحل" },
+      { key: "rework_cost", header: "تكلفة إعادة العمل" },
+      { key: "waste_cost", header: "تكلفة الهدر" },
+      { key: "return_cost", header: "تكلفة المرتجع" },
+      { key: "total_cost", header: "إجمالي التكلفة" },
+      { key: "notes", header: "ملاحظات" },
+      { key: "created_at", header: "تاريخ الإنشاء" },
+      { key: "updated_at", header: "تاريخ آخر تحديث" }
+    ]
+  },
+
+  "quality_feedback": {
+    arabicSheet: "تقييمات_واستبيانات_العملاء",
+    prefix: "FB",
+    fields: [
+      { key: "id", header: "المعرف" },
+      { key: "feedback_date", header: "تاريخ التقييم" },
+      { key: "customer_id", header: "معرف العميل" },
+      { key: "customer_name", header: "اسم العميل" },
+      { key: "order_id", header: "معرف الطلب" },
+      { key: "product_id", header: "معرف المنتج" },
+      { key: "rating", header: "التقييم" },
+      { key: "csat_score", header: "مؤشر الرضا" },
+      { key: "nps_score", header: "مؤشر صافي الترويج" },
+      { key: "feedback_category", header: "تصنيف التقييم" },
+      { key: "feedback_comment", header: "تعليق العميل" },
+      { key: "channel", header: "قناة التقييم" },
+      { key: "status", header: "الحالة" },
+      { key: "created_at", header: "تاريخ الإنشاء" }
+    ]
+  },
+
+  "quality_complaints": {
+    arabicSheet: "شكاوى_الجودة",
+    prefix: "CMPL",
+    fields: [
+      { key: "id", header: "المعرف" },
+      { key: "complaint_date", header: "تاريخ الشكوى" },
+      { key: "customer_id", header: "معرف العميل" },
+      { key: "order_id", header: "معرف الطلب" },
+      { key: "complaint_type", header: "نوع الشكوى" },
+      { key: "severity", header: "درجة الخطورة" },
+      { key: "description", header: "تفاصيل الشكوى" },
+      { key: "assigned_to", header: "المسؤول عن المتابعة" },
+      { key: "response_date", header: "تاريخ الرد" },
+      { key: "compensation_cost", header: "تكلفة التعويض" },
+      { key: "status", header: "الحالة" },
+      { key: "created_at", header: "تاريخ الإنشاء" }
+    ]
+  },
+
+  "quality_returns": {
+    arabicSheet: "مرتجعات_الجودة",
+    prefix: "RET",
+    fields: [
+      { key: "id", header: "المعرف" },
+      { key: "return_date", header: "تاريخ الإرجاع" },
+      { key: "order_id", header: "معرف الطلب" },
+      { key: "customer_id", header: "معرف العميل" },
+      { key: "product_id", header: "معرف المنتج" },
+      { key: "return_reason", header: "سبب الإرجاع" },
+      { key: "condition", header: "حالة الفستان المرتجع" },
+      { key: "action_taken", header: "الإجراء المتخذ" },
+      { key: "refund_amount", header: "المبلغ المسترد" },
+      { key: "replacement_cost", header: "تكلفة الاستبدال" },
+      { key: "status", header: "الحالة" },
+      { key: "created_at", header: "تاريخ الإنشاء" }
+    ]
+  },
+
+  "quality_actions": {
+    arabicSheet: "الإجراءات_التصحيحية_والوقائية",
+    prefix: "CAPA",
+    fields: [
+      { key: "id", header: "المعرف" },
+      { key: "action_type", header: "نوع الإجراء" },
+      { key: "defect_id", header: "معرف العيب" },
+      { key: "complaint_id", header: "معرف الشكوى" },
+      { key: "problem_statement", header: "المشكلة" },
+      { key: "root_cause", header: "السبب الجذري" },
+      { key: "action_description", header: "وصف الإجراء" },
+      { key: "responsible_person", header: "المسؤول" },
+      { key: "due_date", header: "تاريخ الاستحقاق" },
+      { key: "completion_date", header: "تاريخ الإنجاز" },
+      { key: "priority", header: "الأولوية" },
+      { key: "status", header: "الحالة" },
+      { key: "created_at", header: "تاريخ الإنشاء" }
+    ]
+  },
+
+  "quality_checkpoints": {
+    arabicSheet: "نقاط_ومعايير_الفحص",
+    prefix: "CHK",
+    fields: [
+      { key: "id", header: "المعرف" },
+      { key: "checkpoint_name", header: "اسم نقطة الفحص" },
+      { key: "production_stage", header: "مرحلة الإنتاج" },
+      { key: "description", header: "الوصف" },
+      { key: "required", header: "إلزامي" },
+      { key: "criteria", header: "معايير القبول" },
+      { key: "tolerance", header: "نسبة التفاوت المسموحة" },
+      { key: "active", header: "الحالة" },
+      { key: "created_at", header: "تاريخ الإنشاء" }
+    ]
+  },
+
+  "quality_settings": {
+    arabicSheet: "إعدادات_ومعايير_الجودة",
+    prefix: "QSET",
+    fields: [
+      { key: "id", header: "المعرف" },
+      { key: "metric_name", header: "اسم المؤشر" },
+      { key: "metric_code", header: "رمز المؤشر" },
+      { key: "formula", header: "طريقة الحساب" },
+      { key: "target", header: "الهدف المطلوب" },
+      { key: "warning_threshold", header: "حد التحذير" },
+      { key: "critical_threshold", header: "الحد الحرج" },
+      { key: "weight", header: "الوزن النسبي" },
+      { key: "active", header: "الحالة" },
+      { key: "created_at", header: "تاريخ الإنشاء" }
+    ]
+  },
+
+  "currencies": {
+    arabicSheet: "العملات",
+    prefix: "CURR",
+    fields: [
+      { key: "id", header: "المعرف" },
+      { key: "currency_code", header: "رمز العملة" },
+      { key: "name", header: "اسم العملة" },
+      { key: "symbol", header: "الرمز" },
+      { key: "exchange_rate", header: "سعر الصرف" },
+      { key: "is_base", header: "عملة أساسية" },
+      { key: "is_active", header: "الحالة" },
+      { key: "last_updated", header: "آخر تحديث" }
+    ]
+  }
+};
 
 /**
- * Helper to return a JSON response for the Web App
- * @param {Object} dataObj The object to serialize
- * @returns {TextOutput} The TextOutput object with JSON MIME type
+ * UTILITY & COMMON SERVICES
  */
-function responseJSON(dataObj) {
-  return ContentService.createTextOutput(JSON.stringify(dataObj))
+function getSpreadsheet() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (ss) return ss;
+
+  try {
+    var files = DriveApp.getFilesByName("Little Princesses ERP Database");
+    if (files.hasNext()) {
+      return SpreadsheetApp.open(files.next());
+    }
+    var allSheets = DriveApp.getFilesByType(MimeType.GOOGLE_SHEETS);
+    while (allSheets.hasNext()) {
+      var f = allSheets.next();
+      if (f.getName().indexOf("Little Princesses") !== -1) {
+        return SpreadsheetApp.open(f);
+      }
+    }
+  } catch(e) {
+    Logger.log("DriveApp lookup error: " + e.message);
+  }
+
+  throw new Error("لم يتم العثور على ملف جدول بيانات Little Princesses ERP Database.");
+}
+
+function todayISO() {
+  return Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
+}
+
+function responseJSON(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
 }
 
-
-// ==========================================
-// SECTION: utils.gs
-// ==========================================
-
 /**
- * Gets a sheet by name. If it doesn't exist, it creates it and sets the headers.
- * @param {string} sheetName 
- * @param {Array<string>} headers 
- * @returns {Sheet}
+ * SCHEMA MAPPER ENGINE
  */
-function getOrCreateSheet(sheetName, headers) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  let sheet = ss.getSheetByName(sheetName);
-  
-  if (!sheet) {
-    sheet = ss.insertSheet(sheetName);
-  }
-  
-  if (headers && headers.length > 0) {
-    const headerRange = sheet.getRange(1, 1, 1, headers.length);
-    headerRange.setValues([headers]);
-    headerRange.setFontWeight("bold");
-    headerRange.setBackground("#4c1130"); // Thematic dark pink/plum
-    headerRange.setFontColor("#ffffff");
-    sheet.setFrozenRows(1);
-  }
-  
-  return sheet;
-}
+var SchemaMapper = {
+  getOrCreateSheet: function(entityKey) {
+    var ss = getSpreadsheet();
+    var schema = MASTER_SCHEMA_MAP[entityKey];
+    if (!schema) throw new Error("Entity schema not found for: " + entityKey);
 
-/**
- * Reads all rows from a sheet and maps the Arabic headers to English keys.
- * @param {string} sheetName 
- * @param {Array<string>} arabicHeaders 
- * @param {Object} headerToKeyMap 
- * @returns {Array<Object>}
- */
-function getRowsMapped(sheetName, arabicHeaders, headerToKeyMap) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName(sheetName);
-  
-  if (!sheet) return [];
-  
-  const data = sheet.getDataRange().getValues();
-  if (data.length <= 1) return []; // Empty or only headers
-
-  const sheetHeaders = data[0];
-  const rows = data.slice(1);
-  const result = [];
-
-  // Map column index to English keys
-  const colIndexMap = {};
-  sheetHeaders.forEach((header, index) => {
-    const hStr = String(header).trim();
-    if (headerToKeyMap[hStr]) {
-      colIndexMap[index] = headerToKeyMap[hStr];
-    } else if (headerToKeyMap[header]) {
-      colIndexMap[index] = headerToKeyMap[header];
+    var sheet = ss.getSheetByName(schema.arabicSheet);
+    if (!sheet) {
+      sheet = ss.insertSheet(schema.arabicSheet);
+      var headers = schema.fields.map(function(f) { return f.header; });
+      sheet.appendRow(headers);
+      sheet.getRange(1, 1, 1, headers.length).setFontWeight("bold").setBackground("#2B0024").setFontColor("#FFFFFF");
+      sheet.setFrozenRows(1);
     }
-  });
+    return sheet;
+  },
 
-  for (let i = 0; i < rows.length; i++) {
-    const rowObj = {};
-    const row = rows[i];
-    let hasData = false;
-    
-    for (let j = 0; j < row.length; j++) {
-      if (colIndexMap[j] !== undefined) {
-        rowObj[colIndexMap[j]] = row[j];
-        if (row[j] !== "") hasData = true;
+  readRows: function(entityKey) {
+    var sheet = this.getOrCreateSheet(entityKey);
+    var schema = MASTER_SCHEMA_MAP[entityKey];
+    var lastRow = sheet.getLastRow();
+    var lastCol = sheet.getLastColumn();
+    if (lastRow < 2 || lastCol < 1) return [];
+
+    var values = sheet.getRange(1, 1, lastRow, lastCol).getValues();
+    var headerRow = values[0];
+    var fieldMap = {};
+
+    schema.fields.forEach(function(f) {
+      var colIdx = -1;
+      for (var c = 0; c < headerRow.length; c++) {
+        var h = String(headerRow[c]).trim();
+        if (h === f.header || h === f.key || h === f.header.replace(/\s+/g, '_') || h.indexOf(f.header) !== -1) {
+          colIdx = c;
+          break;
+        }
+      }
+      if (colIdx !== -1) {
+        fieldMap[f.key] = colIdx;
+      }
+    });
+
+    if (fieldMap["id"] === undefined && headerRow.length > 0) {
+      fieldMap["id"] = 0;
+    }
+
+    var records = [];
+    for (var r = 1; r < values.length; r++) {
+      var row = values[r];
+      var empty = row.every(function(val) { return val === "" || val === null || val === undefined; });
+      if (empty) continue;
+
+      var obj = {};
+      schema.fields.forEach(function(f) {
+        var idx = fieldMap[f.key];
+        var cellVal = (idx !== undefined && idx < row.length) ? row[idx] : "";
+        if (cellVal instanceof Date) {
+          cellVal = Utilities.formatDate(cellVal, Session.getScriptTimeZone(), "yyyy-MM-dd");
+        }
+        obj[f.key] = cellVal;
+      });
+
+      if (!obj.id) {
+        obj.id = String(row[0] || (schema.prefix + "-" + (r)));
+      }
+      records.push(obj);
+    }
+    return records;
+  },
+
+  buildRowArray: function(entityKey, dataObj) {
+    var schema = MASTER_SCHEMA_MAP[entityKey];
+    if (!schema) throw new Error("Entity schema not found for: " + entityKey);
+
+    return schema.fields.map(function(f) {
+      var val = dataObj[f.key];
+      if (val === undefined || val === null) {
+        val = dataObj[f.header] !== undefined ? dataObj[f.header] : "";
+      }
+      if (val instanceof Date) {
+        val = Utilities.formatDate(val, Session.getScriptTimeZone(), "yyyy-MM-dd");
+      }
+      // 🛡️ Google Sheets 50,000 character limit protection (e.g. large base64 images)
+      if (typeof val === "string" && val.length > 45000) {
+        val = val.substring(0, 45000);
+      }
+      return val;
+    });
+  },
+
+  findRowIndexById: function(sheet, idVal) {
+    if (!idVal) return -1;
+    var lastRow = sheet.getLastRow();
+    if (lastRow < 2) return -1;
+    var ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+    for (var i = 0; i < ids.length; i++) {
+      if (String(ids[i][0]).trim() === String(idVal).trim()) {
+        return i + 2;
       }
     }
+    return -1;
+  },
+
+  appendOrUpdateRow: function(entityKey, dataObj) {
+    var sheet = this.getOrCreateSheet(entityKey);
+    var idVal = dataObj.id || dataObj.transaction_id || dataObj.entry_no || dataObj.payment_no || dataObj.purchase_no || dataObj.order_no;
+    var rowIdx = this.findRowIndexById(sheet, idVal);
+    var rowArray = this.buildRowArray(entityKey, dataObj);
     
-    if (hasData) {
-      result.push(rowObj);
+    if (rowIdx !== -1) {
+      // Row already exists -> Update row to prevent duplicates (Idempotent Zero-Duplicate)
+      sheet.getRange(rowIdx, 1, 1, rowArray.length).setValues([rowArray]);
+      return { isUpdate: true, rowIndex: rowIdx };
+    } else {
+      // Row does not exist -> Append new row
+      sheet.appendRow(rowArray);
+      return { isUpdate: false, rowIndex: sheet.getLastRow() };
     }
   }
-  
-  return result;
-}
+};
 
 /**
- * Returns today's date in YYYY-MM-DD ISO format.
- * @returns {string}
+ * NUMBER SEQUENCES SERVICE
  */
-function todayISO() {
-  const d = new Date();
-  return Utilities.formatDate(d, Session.getScriptTimeZone(), "yyyy-MM-dd");
-}
+var SequenceService = {
+  getNextId: function(entityKey, prefixOverride) {
+    var schema = MASTER_SCHEMA_MAP[entityKey];
+    var prefix = prefixOverride || (schema ? schema.prefix : "REC");
+    var sheet = SchemaMapper.getOrCreateSheet("number_sequences");
+    var records = SchemaMapper.readRows("number_sequences");
 
+    var seqRecord = null;
+    var rowIndex = -1;
+    for (var i = 0; i < records.length; i++) {
+      if (records[i].entity === entityKey || records[i].prefix === prefix) {
+        seqRecord = records[i];
+        rowIndex = SchemaMapper.findRowIndexById(sheet, seqRecord.id);
+        break;
+      }
+    }
 
-// ==========================================
-// SECTION: main.gs
-// ==========================================
+    var nextNum = 1;
+    var padding = 6;
+    if (seqRecord) {
+      nextNum = Number(seqRecord.current_number || 0) + 1;
+      padding = Number(seqRecord.padding || 6);
+      seqRecord.current_number = nextNum;
+      seqRecord.updated_at = todayISO();
+      var rowArray = SchemaMapper.buildRowArray("number_sequences", seqRecord);
+      sheet.getRange(rowIndex, 1, 1, rowArray.length).setValues([rowArray]);
+    } else {
+      var newSeqId = "SEQ-" + prefix;
+      var newSeq = {
+        id: newSeqId,
+        entity: entityKey,
+        prefix: prefix,
+        current_number: 1,
+        padding: 6,
+        updated_at: todayISO()
+      };
+      sheet.appendRow(SchemaMapper.buildRowArray("number_sequences", newSeq));
+    }
+
+    var numStr = String(nextNum);
+    while (numStr.length < padding) {
+      numStr = "0" + numStr;
+    }
+    return prefix + "-" + numStr;
+  }
+};
 
 /**
- * Handles GET requests (for testing or lightweight fetching)
+ * AUDIT LOGGING SERVICE
+ */
+var AuditService = {
+  log: function(entityType, entityId, action, oldVal, newVal, userId) {
+    try {
+      var sheet = SchemaMapper.getOrCreateSheet("audit_logs");
+      var newId = SequenceService.getNextId("audit_logs", "AUD");
+      var auditRecord = {
+        id: newId,
+        entity_type: entityType,
+        entity_id: entityId,
+        action: action,
+        old_values: typeof oldVal === "object" ? JSON.stringify(oldVal) : String(oldVal || ""),
+        new_values: typeof newVal === "object" ? JSON.stringify(newVal) : String(newVal || ""),
+        user_id: userId || "system",
+        timestamp: new Date().toISOString()
+      };
+      sheet.appendRow(SchemaMapper.buildRowArray("audit_logs", auditRecord));
+    } catch (e) {
+      Logger.log("Audit log warning: " + e.message);
+    }
+  }
+};
+
+/**
+ * INVENTORY MOVEMENT SERVICE
+ */
+var InventoryMovementService = {
+  recordMovement: function(params) {
+    try {
+      var sheet = SchemaMapper.getOrCreateSheet("inventory_transactions");
+      var newId = SequenceService.getNextId("inventory_transactions", "INV-TXN");
+      var txn = {
+        id: newId,
+        product_id: params.product_id || "",
+        variant_id: params.variant_id || "",
+        fabric_id: params.fabric_id || "",
+        warehouse_id: params.warehouse_id || "WH-MAIN",
+        transaction_type: params.transaction_type || "PURCHASE_RECEIPT",
+        quantity: Number(params.quantity || 0),
+        unit_cost: Number(params.unit_cost || 0),
+        reference_type: params.reference_type || "PURCHASE",
+        reference_id: params.reference_id || "",
+        notes: params.notes || "",
+        created_at: todayISO(),
+        created_by: params.created_by || "system"
+      };
+      sheet.appendRow(SchemaMapper.buildRowArray("inventory_transactions", txn));
+    } catch (e) {
+      Logger.log("Inventory Movement warning: " + e.message);
+    }
+  }
+};
+
+/**
+ * CONTROLLERS
+ */
+var CustomerController = {
+  getCustomers: function() { return SchemaMapper.readRows("customers"); },
+  addCustomer: function(payload) {
+    var data = payload.data || payload;
+    var sheet = SchemaMapper.getOrCreateSheet("customers");
+    var newId = data.id || SequenceService.getNextId("customers", "CUST");
+    data.id = newId;
+    data.created_at = data.created_at || todayISO();
+    data.updated_at = todayISO();
+    sheet.appendRow(SchemaMapper.buildRowArray("customers", data));
+    AuditService.log("customer", newId, "CREATE", null, data, data.created_by);
+    return { id: newId, message: "تم تسجيل العميل بنجاح", data: data };
+  }
+};
+
+var OrderController = {
+  getOrders: function() { return SchemaMapper.readRows("orders"); },
+  addOrder: function(payload) {
+    var data = payload.data || payload;
+    var sheet = SchemaMapper.getOrCreateSheet("orders");
+    var newId = data.id || SequenceService.getNextId("orders", "ORD");
+    data.id = newId;
+    data.order_no = data.order_no || ("INV-" + newId.replace("ORD-", ""));
+    data.order_date = data.order_date || todayISO();
+    data.created_at = todayISO();
+    data.updated_at = todayISO();
+    sheet.appendRow(SchemaMapper.buildRowArray("orders", data));
+    AuditService.log("sales_order", newId, "CREATE", null, data, data.created_by);
+    return { id: newId, order_no: data.order_no, message: "تم إصدار الفاتورة بنجاح", data: data };
+  }
+};
+
+var InventoryController = {
+  getInventory: function() {
+    var raw = SchemaMapper.readRows("inventory");
+    return raw.map(function(r) {
+      var q = Number(r.quantity !== undefined && r.quantity !== "" ? r.quantity : (r.qty !== undefined && r.qty !== "" ? r.qty : 0));
+      var c = Number(r.unit_cost !== undefined && r.unit_cost !== "" ? r.unit_cost : (r.cost !== undefined && r.cost !== "" ? r.cost : 0));
+      var tot = Number(r.total_value || (q * c));
+      var name = r.name || r.item_name || "";
+      return {
+        id: r.id,
+        item_code: r.item_code || r.id,
+        name: name,
+        item_name: name,
+        category: r.category || "أقمشة وخامات",
+        type: r.type || "خامة",
+        unit: r.unit || "متر",
+        quantity: q,
+        quantity_meters: q,
+        qty: q,
+        unit_cost: c,
+        cost_per_meter: c,
+        cost: c,
+        cost_per_unit: c,
+        total_value: tot,
+        min_limit: Number(r.min_limit || 5),
+        status: r.status || "متوفر",
+        supplier_id: r.supplier_id || "",
+        location: r.location || "المستودع الرئيسي",
+        created_at: r.created_at || todayISO(),
+        updated_at: r.updated_at || todayISO()
+      };
+    });
+  },
+
+  addOrUpdateItem: function(payload) {
+    var data = payload.data || payload;
+    var sheet = SchemaMapper.getOrCreateSheet("inventory");
+    var records = SchemaMapper.readRows("inventory");
+    var itemName = String(data.name || data.item_name || "").trim();
+    var itemCode = String(data.item_code || "").trim();
+    var existing = null;
+    var existingRowIdx = -1;
+
+    for (var i = 0; i < records.length; i++) {
+      var rName = String(records[i].name || records[i].item_name || "").trim();
+      var rCode = String(records[i].item_code || "").trim();
+      if ((itemName && rName === itemName) || (itemCode && rCode === itemCode) || (data.id && String(records[i].id) === String(data.id))) {
+        existing = records[i];
+        existingRowIdx = SchemaMapper.findRowIndexById(sheet, existing.id);
+        break;
+      }
+    }
+
+    var addQty = Number(data.quantity !== undefined ? data.quantity : (data.qty !== undefined ? data.qty : (data.quantity_meters || 0)));
+    var unitPrice = Number(data.unit_cost !== undefined ? data.unit_cost : (data.cost_per_unit !== undefined ? data.cost_per_unit : (data.cost_per_meter !== undefined ? data.cost_per_meter : (data.cost || data.price || 0))));
+
+    if (existing && existingRowIdx !== -1) {
+      var currentQty = Number(existing.quantity !== undefined ? existing.quantity : (existing.qty || 0));
+      var currentCost = Number(existing.unit_cost !== undefined ? existing.unit_cost : (existing.cost || 0));
+      var newQty = currentQty + addQty;
+      var newCost = newQty > 0 ? (((currentQty * currentCost) + (addQty * (unitPrice || currentCost))) / newQty) : (unitPrice || currentCost);
+      var curAvail = Number(existing.available_qty !== undefined ? existing.available_qty : currentQty);
+      existing.name = itemName || existing.name;
+      existing.quantity = newQty;
+      existing.available_qty = curAvail + addQty;
+      existing.unit_cost = Number(newCost.toFixed(2));
+      existing.total_value = Number((newQty * newCost).toFixed(2));
+      if (data.supplier_id) existing.supplier_id = data.supplier_id;
+      if (data.location) existing.location = data.location;
+      existing.updated_at = todayISO();
+
+      var rowArray = SchemaMapper.buildRowArray("inventory", existing);
+      sheet.getRange(existingRowIdx, 1, 1, rowArray.length).setValues([rowArray]);
+      try {
+        sheet.getRange(existingRowIdx, 7, 1, 3).setNumberFormat("0.##");
+        sheet.getRange(existingRowIdx, 11, 1, 2).setNumberFormat("0.##");
+      } catch(e) {}
+      return { id: existing.id, updated: true, data: existing };
+    } else {
+      var newId = data.id || SequenceService.getNextId("inventory", "MAT");
+      var newItem = {
+        id: newId,
+        item_code: itemCode || newId,
+        name: itemName || "خامة جديدة",
+        type: data.type || "خامة",
+        category: data.category || "أقمشة وخامات",
+        unit: data.unit || "متر",
+        quantity: addQty,
+        available_qty: addQty,
+        reserved_qty: 0,
+        min_limit: Number(data.min_limit || 5),
+        unit_cost: unitPrice,
+        total_value: Number((addQty * unitPrice).toFixed(2)),
+        supplier_id: data.supplier_id || "",
+        location: data.location || "المستودع الرئيسي",
+        status: "متوفر",
+        created_at: todayISO(),
+        updated_at: todayISO()
+      };
+
+      sheet.appendRow(SchemaMapper.buildRowArray("inventory", newItem));
+      try {
+        var lastRow = sheet.getLastRow();
+        sheet.getRange(lastRow, 7, 1, 3).setNumberFormat("0.##");
+        sheet.getRange(lastRow, 11, 1, 2).setNumberFormat("0.##");
+      } catch(e) {}
+      return { id: newId, created: true, data: newItem };
+    }
+  },
+
+  updateInventoryQty: function(payload) {
+    var data = payload.data || payload;
+    var sheet = SchemaMapper.getOrCreateSheet("inventory");
+    var itemName = String(data.item_name || data.name || "").trim();
+    var qtyToDeduct = Number(data.qty_to_deduct || data.quantity || 0);
+
+    if (!itemName || qtyToDeduct <= 0) return { success: false, error: "اسم الخامة والكمية مطلوبان" };
+
+    var records = SchemaMapper.readRows("inventory");
+    for (var i = 0; i < records.length; i++) {
+      var rName = String(records[i].name || records[i].item_name || "").trim();
+      if (rName === itemName) {
+        var existing = records[i];
+        var rowIdx = SchemaMapper.findRowIndexById(sheet, existing.id);
+        var currentQty = Number(existing.quantity || 0);
+        var currentAvail = Number(existing.available_qty !== undefined ? existing.available_qty : currentQty);
+        var newQty = Math.max(0, currentQty - qtyToDeduct);
+        var newAvail = Math.max(0, currentAvail - qtyToDeduct);
+        var unitCost = Number(existing.unit_cost || 0);
+
+        existing.quantity = newQty;
+        existing.available_qty = newAvail;
+        existing.total_value = Number((newQty * unitCost).toFixed(2));
+        existing.updated_at = todayISO();
+
+        var rowArray = SchemaMapper.buildRowArray("inventory", existing);
+        sheet.getRange(rowIdx, 1, 1, rowArray.length).setValues([rowArray]);
+        try {
+          sheet.getRange(rowIdx, 7, 1, 3).setNumberFormat("0.##");
+          sheet.getRange(rowIdx, 11, 1, 2).setNumberFormat("0.##");
+        } catch(e) {}
+        return { success: true, id: existing.id, new_quantity: newQty };
+      }
+    }
+    return { success: false, error: "لم يتم العثور على الخامة في المخزون" };
+  },
+
+  deleteItem: function(payload) {
+    var data = payload.data || payload;
+    return SchemaMapper.softDelete("inventory", data.id);
+  }
+};
+
+var PurchaseController = {
+  getPurchases: function() { return SchemaMapper.readRows("purchases"); },
+
+  removeDuplicates: function() {
+    var sheet = SchemaMapper.getOrCreateSheet("purchases");
+    var records = SchemaMapper.readRows("purchases");
+    var seen = {};
+    var uniqueRows = [];
+    var removedCount = 0;
+
+    for (var i = 0; i < records.length; i++) {
+      var r = records[i];
+      var purNo = String(r.purchase_no || "").trim();
+      var fabric = String(r.fabric_name || r.item_name || r.item || "").trim();
+      var q = String(r.quantity || r.qty || "");
+      var key = purNo && fabric ? (purNo + "___" + fabric + "___" + q) : r.id;
+
+      if (!seen[key]) {
+        seen[key] = true;
+        uniqueRows.push(SchemaMapper.buildRowArray("purchases", r));
+      } else {
+        removedCount++;
+      }
+    }
+
+    if (removedCount > 0 && uniqueRows.length > 0) {
+      for (var rIdx = 0; rIdx < uniqueRows.length; rIdx++) {
+        for (var cIdx = 0; cIdx < uniqueRows[rIdx].length; cIdx++) {
+          if (typeof uniqueRows[rIdx][cIdx] === "string" && uniqueRows[rIdx][cIdx].length > 45000) {
+            uniqueRows[rIdx][cIdx] = uniqueRows[rIdx][cIdx].substring(0, 45000);
+          }
+        }
+      }
+      sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).clearContent();
+      sheet.getRange(2, 1, uniqueRows.length, uniqueRows[0].length).setValues(uniqueRows);
+    }
+    return { count: uniqueRows.length, removed: removedCount };
+  },
+
+  addPurchase: function(payload) {
+    var data = payload.data || payload;
+    var sheet = SchemaMapper.getOrCreateSheet("purchases");
+    var purchaseNo = String(data.purchase_no || data.bill_no || "").trim();
+    var fabricName = String(data.fabric_name || data.item || data.item_name || data.name || "").trim();
+    var qty = Number(data.quantity || data.qty || 1);
+    var cost = Number(data.cost_per_unit || data.cost || data.price || 0);
+
+    // 🛡️ Deduplication Guard
+    if (purchaseNo && fabricName) {
+      var records = SchemaMapper.readRows("purchases");
+      for (var i = 0; i < records.length; i++) {
+        var rPurNo = String(records[i].purchase_no || "").trim();
+        var rFabric = String(records[i].fabric_name || records[i].item_name || records[i].item || "").trim();
+        var rQty = Number(records[i].quantity || records[i].qty || 0);
+        if (rPurNo === purchaseNo && rFabric === fabricName && Math.abs(rQty - qty) < 0.001) {
+          return { id: records[i].id, duplicate: true, message: "تم تسجيل الصنف مسبقاً في هذه الفاتورة", data: records[i] };
+        }
+      }
+    }
+
+    var newId = data.id || SequenceService.getNextId("purchases", "PUR");
+    var now = todayISO();
+    var total = Number(data.total || (qty * cost));
+    var freight = Number(data.freight_cost || 0);
+    var fees = Number(data.transfer_fees || 0);
+    var grandPayTotal = total + freight + fees;
+
+    data.id = newId;
+    data.purchase_no = purchaseNo || newId;
+    data.supplier_name = data.supplier_name || data.supplier || "مورد عام";
+    data.currency = data.currency || "YER ﷼";
+    data.exchange_rate = Number(data.exchange_rate) > 0 ? Number(data.exchange_rate) : 1.0;
+    data.base_amount = Number(data.base_amount) > 0 ? Number(data.base_amount) : Number((total * data.exchange_rate).toFixed(2));
+    data.transaction_id = data.transaction_id || ("TX-" + (purchaseNo || newId));
+    data.pay_type = data.pay_type || "نقدي";
+    data.payment_source = data.payment_source || "101 - الصندوق الرئيسي";
+    data.date = data.date || now;
+    data.transfer_no = data.transfer_no || "";
+    data.freight_cost = freight;
+    data.transfer_fees = fees;
+    data.receipt_url = data.receipt_url || "";
+    data.fabric_name = fabricName || "قماش / خامة";
+    data.unit = data.unit || "متر";
+    data.quantity = qty;
+    data.cost_per_unit = cost;
+    data.total = total;
+    data.payment_status = data.payment_status || "مدفوع";
+    data.status = data.status || "تم الاستلام";
+    data.notes = data.notes || "";
+    data.created_at = now;
+    data.created_by = data.created_by || "system";
+
+    var newRow = SchemaMapper.buildRowArray("purchases", data);
+    sheet.appendRow(newRow);
+    try {
+      var lastRow = sheet.getLastRow();
+      sheet.getRange(lastRow, 14, 1, 3).setNumberFormat("0.##");
+    } catch(e) {}
+
+    // 1. Inventory Auto-increment & Weighted Average Costing & Warehouses location
+    InventoryController.addOrUpdateItem({
+      name: data.fabric_name,
+      quantity: qty,
+      unit_cost: cost,
+      unit: data.unit,
+      supplier_id: data.supplier_name,
+      location: data.location || "المستودع الرئيسي"
+    });
+
+    // 2. Record inventory movement
+    InventoryMovementService.recordMovement({
+      fabric_id: data.fabric_name,
+      transaction_type: "PURCHASE_RECEIPT",
+      quantity: qty,
+      unit_cost: cost,
+      reference_type: "PURCHASE",
+      reference_id: data.purchase_no,
+      notes: "توريد مخزون من فاتورة شراء " + data.purchase_no + " - " + data.supplier_name,
+      created_by: data.created_by
+    });
+
+    // 3. Generate Payment Voucher if cash/bank
+    if (data.pay_type !== "آجل") {
+      var grandPayTotal = total + freight + fees;
+      VoucherController.addVoucher({
+        voucher_no: "PV-" + data.purchase_no,
+        payment_type: "سند صرف",
+        amount: grandPayTotal,
+        currency: data.currency,
+        payment_method: data.pay_type,
+        supplier_id: data.supplier_name,
+        reference_no: data.transfer_no || data.purchase_no,
+        account_id: data.payment_source,
+        date: data.date,
+        notes: "سند صرف مشتريات للفاتورة " + data.purchase_no + " - " + data.supplier_name
+      });
+
+      // 4. Balanced Journal Entry (Cash/Bank)
+      JournalController.addJournalEntry({
+        entry_no: "JV-PUR-" + data.purchase_no,
+        debit_account_id: "1103 - مخزون خامات وأقمشة",
+        credit_account_id: data.payment_source || "1101 - الصندوق الرئيسي",
+        amount: grandPayTotal,
+        currency: data.currency,
+        ref_type: "PURCHASE",
+        ref_id: data.purchase_no,
+        notes: "قيد إثبات مشتريات نقداً للفاتورة " + data.purchase_no + " - " + data.supplier_name
+      });
+    } else {
+      // 4. Balanced Journal Entry (Credit / آجل)
+      JournalController.addJournalEntry({
+        entry_no: "JV-PUR-" + data.purchase_no,
+        debit_account_id: "1103 - مخزون خامات وأقمشة",
+        credit_account_id: "2101 - ذمم الموردين ومحلات الأقمشة (" + data.supplier_name + ")",
+        amount: grandPayTotal,
+        currency: data.currency,
+        ref_type: "PURCHASE",
+        ref_id: data.purchase_no,
+        notes: "قيد إثبات مشتريات آجلة للفاتورة " + data.purchase_no + " - المورد: " + data.supplier_name
+      });
+    }
+
+    AuditService.log("purchase", newId, "CREATE", null, data, data.created_by);
+    return { id: newId, message: "تم تسجيل فاتورة الشراء وتوريد الأصناف وتوليد السندات بنجاح", data: data };
+  }
+};
+
+var VoucherController = {
+  getVouchers: function() { 
+    var raw = SchemaMapper.readRows("payments"); 
+    return raw.map(function(r) {
+      var rawNo = r.payment_no || r.voucher_no || r.v_no || r.id || "";
+      var rawType = r.payment_type || r.voucher_type || r.v_type || (String(rawNo).indexOf("PV") !== -1 ? "سند صرف" : "سند قبض");
+      var isReceipt = rawType === "سند قبض" || rawType === "RECEIPT" || rawType === "قبض";
+      var party = r.customer_id || r.supplier_id || r.party_name || r.party || "";
+      return {
+        id: r.id,
+        v_no: rawNo,
+        voucher_no: rawNo,
+        payment_no: rawNo,
+        v_type: isReceipt ? "سند قبض" : "سند صرف",
+        voucher_type: isReceipt ? "سند قبض" : "سند صرف",
+        payment_type: isReceipt ? "سند قبض" : "سند صرف",
+        party: party || (isReceipt ? "عميلة عامة" : "مورد عام"),
+        party_name: party || (isReceipt ? "عميلة عامة" : "مورد عام"),
+        customer_id: isReceipt ? party : (r.customer_id || ""),
+        supplier_id: !isReceipt ? party : (r.supplier_id || ""),
+        amount: Number(r.amount || 0),
+        currency: r.currency || "YER ﷼",
+        pay_method: r.payment_method || r.pay_method || "نقدي",
+        payment_method: r.payment_method || r.pay_method || "نقدي",
+        reference_no: r.reference_no || r.order_id || r.invoice_id || "",
+        account_id: r.account_id || "101 - الصندوق الرئيسي",
+        date: r.date || r.created_at || todayISO(),
+        date_created: r.date || r.created_at || todayISO(),
+        status: r.status || "posted",
+        notes: r.notes || ""
+      };
+    });
+  },
+  addVoucher: function(payload) {
+    var data = payload.data || payload;
+    var newId = data.id || SequenceService.getNextId("payments", "PAY");
+    data.id = newId;
+    data.payment_no = data.payment_no || data.voucher_no || data.v_no || newId;
+    var isReceipt = data.v_type === 'سند قبض' || data.payment_type === 'سند قبض' || data.voucher_type === 'سند قبض';
+    data.payment_type = isReceipt ? "سند قبض" : "سند صرف";
+    data.voucher_type = data.payment_type;
+    data.customer_id = data.customer_id || (isReceipt ? (data.party || data.party_name || "") : "");
+    data.supplier_id = data.supplier_id || (!isReceipt ? (data.party || data.party_name || "") : "");
+    data.party_name = data.party || data.party_name || data.supplier_id || data.customer_id || "";
+    data.payment_method = data.payment_method || data.pay_method || data.pay_type || "نقدي";
+    data.account_id = data.account_id || data.acc_code || data.payment_source || "101 - الصندوق الرئيسي";
+    data.date = data.date || data.date_created || todayISO();
+    data.status = "posted";
+    data.created_at = data.created_at || todayISO();
+    data.created_by = data.created_by || "system";
+    var result = SchemaMapper.appendOrUpdateRow("payments", data);
+    AuditService.log("voucher", newId, result.isUpdate ? "UPDATE" : "CREATE", null, data, data.created_by);
+    return { id: newId, message: result.isUpdate ? "تم تحديث السند المالي بنجاح" : "تم حفظ السند المالي بنجاح", data: data };
+  }
+};
+
+var JournalController = {
+  getJournalEntries: function() { return SchemaMapper.readRows("journal_entries"); },
+  addJournalEntry: function(payload) {
+    var data = payload.data || payload;
+    var newId = data.id || SequenceService.getNextId("journal_entries", "JV");
+    data.id = newId;
+    data.entry_no = data.entry_no || newId;
+    data.entry_date = data.entry_date || data.date || todayISO();
+    data.status = "posted";
+    data.created_at = data.created_at || todayISO();
+    data.created_by = data.created_by || "system";
+    var result = SchemaMapper.appendOrUpdateRow("journal_entries", data);
+    AuditService.log("journal_entry", newId, result.isUpdate ? "UPDATE" : "POST", null, data, data.created_by);
+    return { id: newId, message: result.isUpdate ? "تم تحديث القيد اليومي بنجاح" : "تم ترحيل القيد اليومي بنجاح", data: data };
+  }
+};
+
+var ProductController = {
+  getProducts: function() { return SchemaMapper.readRows("products"); },
+  addProduct: function(payload) {
+    var data = payload.data || payload;
+    var sheet = SchemaMapper.getOrCreateSheet("products");
+    var newId = data.id || SequenceService.getNextId("products", "PROD");
+    data.id = newId;
+    data.sku = data.sku || ("DRS-" + newId.replace("PROD-", ""));
+    data.created_at = todayISO();
+    data.updated_at = todayISO();
+    sheet.appendRow(SchemaMapper.buildRowArray("products", data));
+    AuditService.log("product", newId, "CREATE", null, data, data.created_by);
+    return { id: newId, sku: data.sku, message: "تم إضافة المنتج بنجاح", data: data };
+  }
+};
+
+var ExpenseController = {
+  getExpenses: function() { return SchemaMapper.readRows("expenses"); },
+  addExpense: function(payload) {
+    var data = payload.data || payload;
+    var sheet = SchemaMapper.getOrCreateSheet("expenses");
+    var newId = data.id || SequenceService.getNextId("expenses", "EXP");
+    var now = todayISO();
+    var amount = Number(data.amount || 0);
+    var rate = Number(data.exchange_rate) > 0 ? Number(data.exchange_rate) : 1.0;
+    var baseAmount = Number(data.base_amount) > 0 ? Number(data.base_amount) : Number((amount * rate).toFixed(2));
+
+    data.id = newId;
+    data.expense_no = data.expense_no || newId;
+    data.category = data.category || "مصروفات عامة";
+    data.amount = amount;
+    data.currency = data.currency || "YER ﷼";
+    data.exchange_rate = rate;
+    data.base_amount = baseAmount;
+    data.transaction_id = data.transaction_id || ("TX-" + (data.expense_no || newId));
+    data.date = data.date || now;
+    data.payment_method = data.payment_method || data.pay_method || "نقدي";
+    data.recipient = data.recipient || "";
+    data.account_id = data.account_id || "501 - مصروفات تشغيلية";
+    data.status = "posted";
+    data.notes = data.notes || "";
+    data.created_at = now;
+    data.created_by = data.created_by || "system";
+
+    var result = SchemaMapper.appendOrUpdateRow("expenses", data);
+    AuditService.log("expense", newId, result.isUpdate ? "UPDATE" : "CREATE", null, data, data.created_by);
+    return { id: newId, message: result.isUpdate ? "تم تحديث المصروف بنجاح" : "تم تسجيل المصروف بنجاح", data: data };
+  }
+};
+
+var QualityController = {
+  getInspections: function() { return SchemaMapper.readRows("quality_inspections"); },
+  getDefects: function() { return SchemaMapper.readRows("quality_defects"); },
+  getFeedback: function() { return SchemaMapper.readRows("quality_feedback"); },
+  getComplaints: function() { return SchemaMapper.readRows("quality_complaints"); },
+  getReturns: function() { return SchemaMapper.readRows("quality_returns"); },
+  getCorrectiveActions: function() { return SchemaMapper.readRows("quality_actions"); },
+  getCheckpoints: function() { return SchemaMapper.readRows("quality_checkpoints"); },
+  getSettings: function() { return SchemaMapper.readRows("quality_settings"); },
+
+  addInspection: function(payload) {
+    var data = payload.data || payload;
+    var sheet = SchemaMapper.getOrCreateSheet("quality_inspections");
+    var newId = data.id || SequenceService.getNextId("quality_inspections", "INSP");
+    data.id = newId;
+    data.inspection_date = data.inspection_date || todayISO();
+    data.created_at = todayISO();
+    data.updated_at = todayISO();
+    sheet.appendRow(SchemaMapper.buildRowArray("quality_inspections", data));
+    return { id: newId, message: "تم حفظ فحص الجودة بنجاح", data: data };
+  }
+};
+
+/**
+ * CURRENCY CONTROLLER & EXCHANGE RATE SERVICE
+ */
+var CurrencyController = {
+  getCurrencies: function() {
+    var sheet = SchemaMapper.getOrCreateSheet("currencies");
+    var lastRow = sheet.getLastRow();
+    if (lastRow < 2) {
+      var now = todayISO();
+      var defaultRows = [
+        { id: "CURR-YER", currency_code: "YER", name: "ريال يمني", symbol: "﷼", exchange_rate: 1.0, is_base: true, is_active: true, last_updated: now },
+        { id: "CURR-SAR", currency_code: "SAR", name: "ريال سعودي", symbol: "﷼", exchange_rate: 142.5, is_base: false, is_active: true, last_updated: now },
+        { id: "CURR-USD", currency_code: "USD", name: "دولار أمريكي", symbol: "$", exchange_rate: 535.0, is_base: false, is_active: true, last_updated: now }
+      ];
+      defaultRows.forEach(function(r) {
+        sheet.appendRow(SchemaMapper.buildRowArray("currencies", r));
+      });
+    }
+    return SchemaMapper.readRows("currencies");
+  },
+
+  updateExchangeRate: function(payload) {
+    var data = payload.data || payload;
+    var code = String(data.currency_code || data.code || "").trim().toUpperCase();
+    var rate = parseFloat(data.exchange_rate || data.rate);
+    if (!code) throw new Error("Missing currency_code.");
+    if (isNaN(rate) || rate <= 0) throw new Error("Invalid exchange rate value.");
+    if (code === "YER") throw new Error("Base currency (YER) rate is locked to 1.0.");
+
+    var sheet = SchemaMapper.getOrCreateSheet("currencies");
+    var rows = SchemaMapper.readRows("currencies");
+    var target = rows.find(function(r) { return String(r.currency_code).trim().toUpperCase() === code; });
+    var now = todayISO();
+
+    var updatedObj = {
+      id: target ? target.id : ("CURR-" + code),
+      currency_code: code,
+      name: target ? target.name : (code === "SAR" ? "ريال سعودي" : "دولار أمريكي"),
+      symbol: target ? target.symbol : (code === "SAR" ? "﷼" : "$"),
+      exchange_rate: rate,
+      is_base: false,
+      is_active: true,
+      last_updated: now
+    };
+
+    SchemaMapper.appendOrUpdateRow("currencies", updatedObj);
+    return { success: true, currency_code: code, exchange_rate: rate, last_updated: now };
+  }
+};
+
+/**
+ * APPENDS EXCHANGE GAIN / LOSS ACCOUNTS SAFELY
+ */
+function appendExchangeDiffAccounts() {
+  var ss = getSpreadsheet();
+  var sheet = ss.getSheetByName("دليل_الحسابات") || ss.getSheetByName("Accounts") || ss.getSheetByName("chart_of_accounts");
+  if (!sheet) return { success: false, message: "Accounts sheet not found" };
+
+  var lastRow = sheet.getLastRow();
+  var existingData = lastRow > 1 ? sheet.getRange(2, 1, lastRow - 1, 3).getValues() : [];
+  var hasGain = false;
+  var hasLoss = false;
+
+  for (var i = 0; i < existingData.length; i++) {
+    var code = String(existingData[i][1] || existingData[i][0]);
+    var name = String(existingData[i][2] || existingData[i][1]);
+    if (code === "402" || name.indexOf("أرباح فروق") !== -1) hasGain = true;
+    if (code === "506" || name.indexOf("خسائر فروق") !== -1) hasLoss = true;
+  }
+
+  var now = todayISO();
+  if (!hasGain) {
+    sheet.appendRow([
+      "ACC-402", "402", "أرباح فروق أسعار صرف العملات", "Foreign Exchange Gain",
+      "إيرادات", "إيرادات أخرى", "4", "4", 2, "4 > 402",
+      0, 1, 1, "credit", 0, 0, "credit", "YER", now, "حساب آلي لفروق العملات الإيجابية", now, "system"
+    ]);
+  }
+  if (!hasLoss) {
+    sheet.appendRow([
+      "ACC-506", "506", "خسائر فروق أسعار صرف العملات", "Foreign Exchange Loss",
+      "مصروفات", "مصروفات أخرى", "6", "6", 2, "6 > 506",
+      0, 1, 1, "debit", 0, 0, "debit", "YER", now, "حساب آلي لفروق العملات السلبية", now, "system"
+    ]);
+  }
+  return { success: true, message: "تم إضافة وتحديث حسابات فروق العملات بنجاح" };
+}
+
+/**
+ * AUTOMATED DATABASE MIGRATION ENGINE
+ */
+function migrateToMasterArabicDatabase() {
+  var ss = getSpreadsheet();
+  var legacyToCanonicalMap = {
+    "customers": "العملاء",
+    "children": "الأطفال",
+    "measurements": "المقاسات",
+    "measurement_profiles": "المقاسات",
+    "products": "المنتجات",
+    "orders": "الطلبات",
+    "sales_orders": "الطلبات",
+    "invoices": "الطلبات",
+    "payments": "السندات_المالية",
+    "vouchers": "السندات_المالية",
+    "السندات المالية": "السندات_المالية",
+    "inventory": "المخزون_والمستودعات",
+    "المخزون": "المخزون_والمستودعات",
+    "inventory_transactions": "حركات_المخزون",
+    "حركات المخزون": "حركات_المخزون",
+    "production_orders": "أوامر_الإنتاج",
+    "أوامر الإنتاج": "أوامر_الإنتاج",
+    "chart_of_accounts": "دليل_الحسابات",
+    "شجرة الحسابات": "دليل_الحسابات",
+    "دليل الحسابات": "دليل_الحسابات",
+    "journal_entries": "القيود_اليومية",
+    "القيود اليومية": "القيود_اليومية",
+
+    // 🛒 PURCHASES CANONICAL MAPPING
+    "purchases": "المشتريات_والموردون",
+    "Purchases": "المشتريات_والموردون",
+    "المشتريات": "المشتريات_والموردون",
+    "المشتريات والموردون": "المشتريات_والموردون",
+    "طلبات الشراء": "المشتريات_والموردون",
+    "طلبات_الشراء": "المشتريات_والموردون",
+
+    "expenses": "المصروفات",
+    "employees": "الموظفون",
+    "payroll": "الرواتب",
+    "users": "المستخدمون",
+    "audit_logs": "سجل_التدقيق",
+    "number_sequences": "تسلسلات_الأرقام",
+
+    // QUALITY SUITE
+    "quality_inspections": "فحوصات_الجودة",
+    "فحوصات الجودة": "فحوصات_الجودة",
+    "quality_defects": "عيوب_الجودة",
+    "عيوب الجودة": "عيوب_الجودة",
+    "quality_feedback": "تقييمات_واستبيانات_العملاء",
+    "تقييمات واستبيانات العملاء": "تقييمات_واستبيانات_العملاء",
+    "quality_complaints": "شكاوى_الجودة",
+    "شكاوى الجودة": "شكاوى_الجودة",
+    "quality_returns": "مرتجعات_الجودة",
+    "مرتجعات الجودة": "مرتجعات_الجودة",
+    "quality_actions": "الإجراءات_التصحيحية_والوقائية",
+    "الإجراءات التصحيحية والوقائية": "الإجراءات_التصحيحية_والوقائية",
+    "quality_checkpoints": "نقاط_ومعايير_الفحص",
+    "نقاط ومعايير الفحص": "نقاط_ومعايير_الفحص",
+    "quality_settings": "إعدادات_ومعايير_الجودة",
+    "إعدادات ومعايير الجودة": "إعدادات_ومعايير_الجودة"
+  };
+
+  // 1. Rename existing legacy sheets safely
+  for (var legacyName in legacyToCanonicalMap) {
+    var targetName = legacyToCanonicalMap[legacyName];
+    var sheet = ss.getSheetByName(legacyName);
+    if (sheet && legacyName !== targetName) {
+      var existingTarget = ss.getSheetByName(targetName);
+      if (!existingTarget) {
+        sheet.setName(targetName);
+        Logger.log("Renamed sheet: " + legacyName + " -> " + targetName);
+      }
+    }
+  }
+
+  // 2. Standardize headers and Column A = المعرف
+  for (var entityKey in MASTER_SCHEMA_MAP) {
+    var schema = MASTER_SCHEMA_MAP[entityKey];
+    var sheet = ss.getSheetByName(schema.arabicSheet);
+    if (sheet) {
+      var headers = schema.fields.map(function(f) { return f.header; });
+      sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+      sheet.getRange(1, 1, 1, headers.length).setFontWeight("bold").setBackground("#2B0024").setFontColor("#FFFFFF");
+      sheet.setFrozenRows(1);
+
+      var lastRow = sheet.getLastRow();
+      if (lastRow > 1) {
+        var idColValues = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+        var needsIdUpdate = false;
+        for (var r = 0; r < idColValues.length; r++) {
+          if (!idColValues[r][0] || String(idColValues[r][0]).trim() === "") {
+            var num = String(r + 1);
+            while (num.length < 6) num = "0" + num;
+            idColValues[r][0] = schema.prefix + "-" + num;
+            needsIdUpdate = true;
+          }
+        }
+        if (needsIdUpdate) {
+          sheet.getRange(2, 1, lastRow - 1, 1).setValues(idColValues);
+        }
+      }
+    } else {
+      SchemaMapper.getOrCreateSheet(entityKey);
+    }
+  }
+
+  // 3. Deduplicate purchases sheet if any duplicates exist
+  try {
+    var purSheet = ss.getSheetByName("المشتريات_والموردون");
+    if (purSheet && purSheet.getLastRow() > 2) {
+      var purRows = purSheet.getRange(2, 1, purSheet.getLastRow() - 1, purSheet.getLastColumn()).getValues();
+      var seenKeys = {};
+      var uniqueRows = [];
+      for (var pIdx = 0; pIdx < purRows.length; pIdx++) {
+        var row = purRows[pIdx];
+        var pBill = String(row[1] || "").trim(); // purchase_no
+        var pItem = String(row[11] || row[2] || "").trim(); // fabric_name
+        var pQty = String(row[13] || "").trim();
+        var key = pBill + "_" + pItem + "_" + pQty;
+        if (!key || key === "__" || !seenKeys[key]) {
+          if (key && key !== "__") seenKeys[key] = true;
+          uniqueRows.push(row);
+        }
+      }
+      if (uniqueRows.length <= purRows.length && uniqueRows.length > 0) {
+        // 🛡️ Sanitize cells against Google Sheets 50,000 character limit (base64 image URLs)
+        for (var rIdx = 0; rIdx < uniqueRows.length; rIdx++) {
+          for (var cIdx = 0; cIdx < uniqueRows[rIdx].length; cIdx++) {
+            if (typeof uniqueRows[rIdx][cIdx] === "string" && uniqueRows[rIdx][cIdx].length > 45000) {
+              uniqueRows[rIdx][cIdx] = uniqueRows[rIdx][cIdx].substring(0, 45000);
+            }
+          }
+        }
+        var totalRowsToClear = purSheet.getLastRow() - 1;
+        if (totalRowsToClear > 0) {
+          purSheet.getRange(2, 1, totalRowsToClear, purSheet.getLastColumn()).clearContent();
+        }
+        purSheet.getRange(2, 1, uniqueRows.length, uniqueRows[0].length).setValues(uniqueRows);
+        Logger.log("Cleaned up " + (purRows.length - uniqueRows.length) + " duplicate purchase rows and sanitized cells.");
+      }
+    }
+  } catch(e) { Logger.log("Deduplicate warning: " + e.message); }
+
+  // 3. Ensure Currencies Sheet & Exchange Difference Accounts Exist
+  try {
+    CurrencyController.getCurrencies();
+    appendExchangeDiffAccounts();
+    Logger.log("Currencies sheet and exchange accounts verified.");
+  } catch(e) {
+    Logger.log("Currency migration warning: " + e.message);
+  }
+
+  return { success: true, message: "تمت الهيكلة والتعريب وإنشاء جدول العملات وحسابات فروق الصرف بنجاح 100% 👑" };
+}
+
+/**
+ * HTTP HANDLERS
  */
 function doGet(e) {
-  return handleRequest(e);
+  var action = (e && e.parameter && e.parameter.action) ? e.parameter.action : "getDashboardStats";
+  return handleAction(action, e ? e.parameter : {});
 }
 
-/**
- * Handles POST requests (for data submission and fetching)
- */
 function doPost(e) {
-  return handleRequest(e);
+  var requestData = {};
+  if (e && e.postData && e.postData.contents) {
+    try { requestData = JSON.parse(e.postData.contents); } catch (err) { requestData = {}; }
+  }
+  var action = requestData.action || (e && e.parameter && e.parameter.action) || "getDashboardStats";
+  return handleAction(action, requestData);
 }
 
-/**
- * Core request router
- */
-function handleRequest(e) {
+function handleAction(action, payload) {
   try {
-    let params = {};
-    
-    if (e.postData && e.postData.contents) {
-      try {
-        params = JSON.parse(e.postData.contents);
-      } catch (err) {
-        params = e.parameter || {};
-      }
-    } else {
-      params = e.parameter || {};
-    }
-
-    const action = params.action;
-    const data = (params.data && typeof params.data === 'object' && Object.keys(params.data).length > 0) ? params.data : params;
-
-    let result = { success: false, message: "Unknown action" };
-
     switch (action) {
-      case 'addCustomer': result = CustomerController.addCustomer(data); break;
-      case 'addOrUpdateCustomer': result = CustomerController.addOrUpdateCustomer(data); break;
-      case 'getCustomers': result = { success: true, data: CustomerController.getCustomers() }; break;
+      case "migrateToMasterArabicDatabase":
+        return responseJSON({ status: "success", data: migrateToMasterArabicDatabase() });
 
-      case 'addOrder':
-      case 'createInvoice': result = OrderController.addOrder(data); break;
-      case 'getOrders': result = { success: true, data: OrderController.getOrders() }; break;
+      case "getCustomers":
+        return responseJSON({ status: "success", data: CustomerController.getCustomers() });
+      case "addCustomer":
+        return responseJSON({ status: "success", data: CustomerController.addCustomer(payload) });
 
-      case 'addInventory': result = InventoryController.addInventory(data); break;
-      case 'getInventory': result = { success: true, data: InventoryController.getInventory() }; break;
+      case "getOrders":
+        return responseJSON({ status: "success", data: OrderController.getOrders() });
+      case "addOrder":
+        return responseJSON({ status: "success", data: OrderController.addOrder(payload) });
 
-      case 'addAccount': result = AccountingController.addAccount(data); break;
-      case 'getAccounts': result = { success: true, data: AccountingController.getAccounts() }; break;
+      case "getProducts":
+        return responseJSON({ status: "success", data: ProductController.getProducts() });
+      case "addProduct":
+        return responseJSON({ status: "success", data: ProductController.addProduct(payload) });
 
-      case 'addVoucher': result = VoucherController.addVoucher(data); break;
-      case 'getVouchers': result = { success: true, data: VoucherController.getVouchers() }; break;
+      case "getPurchases":
+        return responseJSON({ status: "success", data: PurchaseController.getPurchases() });
+      case "deduplicatePurchases":
+        return responseJSON({ status: "success", data: PurchaseController.deduplicatePurchases() });
+      case "addPurchase":
+        return responseJSON({ status: "success", data: PurchaseController.addPurchase(payload) });
 
-      case 'addPurchase': result = PurchaseController.addPurchase(data); break;
-      case 'getPurchases': result = { success: true, data: PurchaseController.getPurchases() }; break;
-      case 'updatePurchase': result = PurchaseController.updatePurchase(data); break;
-      case 'deletePurchase': result = PurchaseController.deletePurchase(data); break;
+      case "getInventory":
+        return responseJSON({ status: "success", data: InventoryController.getInventory() });
+      case "addOrUpdateItem":
+      case "addInventory":
+        return responseJSON({ status: "success", data: InventoryController.addOrUpdateItem(payload) });
+      case "updateInventoryQty":
+        return responseJSON({ status: "success", data: InventoryController.updateInventoryQty(payload) });
 
-      case 'addExpense': result = ExpenseController.addExpense(data); break;
-      case 'getExpenses': result = { success: true, data: ExpenseController.getExpenses() }; break;
+      case "getVouchers":
+      case "getPayments":
+        return responseJSON({ status: "success", data: VoucherController.getVouchers() });
+      case "addVoucher":
+      case "addPayment":
+        return responseJSON({ status: "success", data: VoucherController.addVoucher(payload) });
 
-      case 'updateFactory': result = FactoryController.updateFactory(data); break;
-      case 'getFactory': result = { success: true, data: FactoryController.getFactory() }; break;
+      case "getJournalEntries":
+        return responseJSON({ status: "success", data: JournalController.getJournalEntries() });
+      case "addJournalEntry":
+        return responseJSON({ status: "success", data: JournalController.addJournalEntry(payload) });
 
-      case 'addProduct': result = ProductController.addProduct(data); break;
-      case 'getProducts': result = { success: true, data: ProductController.getProducts() }; break;
+      case "getExpenses":
+        return responseJSON({ status: "success", data: ExpenseController.getExpenses() });
+      case "addExpense":
+        return responseJSON({ status: "success", data: ExpenseController.addExpense(payload) });
 
-      case 'addJournalEntry': result = JournalController.addJournalEntry(data); break;
-      case 'getJournalEntries': result = { success: true, data: JournalController.getJournalEntries() }; break;
+      case "getQualityInspections":
+        return responseJSON({ status: "success", data: QualityController.getInspections() });
+      case "addQualityInspection":
+        return responseJSON({ status: "success", data: QualityController.addInspection(payload) });
+      case "getQualityDefects":
+        return responseJSON({ status: "success", data: QualityController.getDefects() });
+      case "getQualityFeedback":
+        return responseJSON({ status: "success", data: QualityController.getFeedback() });
+      case "getQualityComplaints":
+        return responseJSON({ status: "success", data: QualityController.getComplaints() });
+      case "getQualityReturns":
+        return responseJSON({ status: "success", data: QualityController.getReturns() });
+      case "getQualityCorrectiveActions":
+        return responseJSON({ status: "success", data: QualityController.getCorrectiveActions() });
+      case "getQualityCheckpoints":
+        return responseJSON({ status: "success", data: QualityController.getCheckpoints() });
+      case "getCurrencies":
+        return responseJSON({ status: "success", data: CurrencyController.getCurrencies() });
+      case "updateExchangeRate":
+        return responseJSON({ status: "success", data: CurrencyController.updateExchangeRate(payload) });
+      case "appendExchangeDiffAccounts":
+        return responseJSON(appendExchangeDiffAccounts());
 
-      case 'getDashboardStats': result = { success: true, data: DashboardController.getStats() }; break;
-
+      case "getDashboardStats":
       default:
-        result = { success: false, message: "Action not supported: " + action };
-    }
-    
-    return responseJSON(result);
-
-  } catch (error) {
-    return responseJSON({ success: false, message: error.toString() });
-  }
-}
-
-
-
-/**
- * Saves a base64 encoded image to a specific Google Drive folder.
- * @param {string} base64Data
- * @param {string} fileName
- * @param {string} folderName
- * @returns {string} The public view URL of the uploaded image
- */
-function saveImageToDrive(base64Data, fileName, folderName) {
-  if (!base64Data) return '';
-  try {
-    let folders = DriveApp.getFoldersByName(folderName);
-    let folder = folders.hasNext() ? folders.next() : DriveApp.createFolder(folderName);
-    
-    // Strip metadata like 'data:image/png;base64,'
-    let data = base64Data;
-    let mimeType = 'image/png';
-    if (base64Data.indexOf('data:') === 0) {
-      let parts = base64Data.split(';base64,');
-      mimeType = parts[0].split(':')[1];
-      data = parts[1];
-    }
-    
-    let blob = Utilities.newBlob(Utilities.base64Decode(data), mimeType, fileName);
-    let file = folder.createFile(blob);
-    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-    return file.getUrl();
-  } catch (e) {
-    Logger.log('Drive Upload Error: ' + e.toString());
-    return '';
-  }
-}
-
-// ==========================================
-// SECTION: customerController.gs
-// ==========================================
-
-
-const CustomerController = {
-  HEADERS_CUSTOMERS: ["Customer_ID", "اسم_العميل", "الهاتف_الرئيسي", "الهاتف_الخطي_البديل", "منصة_التواصل", "اسم_الحساب", "المدينة_المنطقة", "الشارع_المبنى", "فئة_العميل", "تاريخ_التسجيل", "عدد_المشتريات", "عدد_القطع", "ملاحظات"],
-  HEADERS_MEASUREMENTS: ["Measurement_ID", "Customer_ID", "اسم_الطفلة", "تاريخ_تحديث_المقاس", "وحدة_القياس", "الطول_الكلي", "طول_الفستان", "طول_الصدر", "طول_التنورة", "طول_الكم", "محيط_الصدر", "محيط_الخصر", "عرض_الكتفين", "محيط_الإبط", "محيط_الرقبة", "تفضيلات_الراحة", "ملاحظات_الخياطة", "صورة_الموديل", "لون_الفستان"],
-  HEADERS_LEDGER: ["Ledger_ID", "Customer_ID", "رقم_الطلب", "إجمالي_المبيعات_التاريخية", "إجمالي_المدفوعات", "العربون_المدفوع", "طريقة_الدفع", "رابط_صورة_السند", "المبلغ_المتبقي", "كلفة_التوصيل", "تاريخ_التحديث"],
-  
-  KEY_MAP: {
-    "Customer_ID": "customer_id",
-    "اسم_العميل": "name",
-    "الهاتف_الرئيسي": "phone",
-    "تاريخ_التسجيل": "reg_date"
-  },
-
-  getCustomers: function() {
-    getOrCreateSheet(SHEET_CUSTOMERS, this.HEADERS_CUSTOMERS);
-    return getRowsMapped(SHEET_CUSTOMERS, this.HEADERS_CUSTOMERS, this.KEY_MAP);
-  },
-
-  addCustomer: function(data) {
-    return this.addOrUpdateCustomer(data);
-  },
-
-  addOrUpdateCustomer: function(data) {
-    try {
-      const sheetCust = getOrCreateSheet(SHEET_CUSTOMERS, this.HEADERS_CUSTOMERS);
-      const sheetMeas = getOrCreateSheet(SHEET_MEASUREMENTS, this.HEADERS_MEASUREMENTS);
-      const sheetLedger = getOrCreateSheet(SHEET_CUSTOMER_LEDGER, this.HEADERS_LEDGER);
-
-      const custId = data.customer_id || "CUST-" + Math.floor(Math.random() * 10000);
-      const date = data.reg_date || todayISO();
-
-      // 1. Handle Customer Basic Info
-      sheetCust.appendRow([
-        custId, data.name || "", data.phone || "", data.phone_alt || "", data.platform || "",
-        data.handle || "", data.city || "", data.street || "", data.category || "جديد",
-        date, data.purchase_count || 0, data.items_count || 0, data.notes || ""
-      ]);
-
-      // 2. Handle Measurements
-      if (data.measurements && Array.isArray(data.measurements)) {
-        data.measurements.forEach(m => {
-          if (m.child_name) {
-            let modelUrl = '';
-            if (m.model_image && m.model_image.startsWith('data:image')) {
-              modelUrl = saveImageToDrive(m.model_image, 'Model_' + custId + '_' + m.child_name + '.png', 'Little_Princesses_ERP_Attachments');
-            } else if (m.model_image) {
-               modelUrl = m.model_image; // Already a URL
-            }
-
-            let comfort = Array.isArray(m.comfort_profile) ? m.comfort_profile.join(" | ") : (m.comfort_profile || "");
-            
-            sheetMeas.appendRow([
-              Utilities.getUuid(), custId, m.child_name, m.meas_date || date, m.unit || "سم",
-              m.total_height || "", m.dress_length || "", m.chest_length || "", m.skirt_length || "",
-              m.sleeve_length || "", m.chest_circ || "", m.waist_circ || "", m.shoulder_width || "",
-              m.armhole_circ || "", m.neck_circ || "", comfort, m.sewing_notes || "", modelUrl, m.dress_color || ""
-            ]);
+        var custs = CustomerController.getCustomers();
+        var ords = OrderController.getOrders();
+        var prods = ProductController.getProducts();
+        var purs = PurchaseController.getPurchases();
+        var invs = InventoryController.getInventory();
+        var voucs = VoucherController.getVouchers();
+        return responseJSON({
+          status: "success",
+          data: {
+            customersCount: custs.length,
+            ordersCount: ords.length,
+            productsCount: prods.length,
+            purchasesCount: purs.length,
+            inventoryCount: invs.length,
+            vouchersCount: voucs.length,
+            systemHealth: "Optimal 100% 👑"
           }
         });
-      }
-
-      // 3. Handle Ledger
-      if (data.ledger) {
-        let receiptUrl = '';
-        if (data.ledger.receipt_b64) {
-          receiptUrl = saveImageToDrive(data.ledger.receipt_b64, 'Receipt_' + custId + '.png', 'Little_Princesses_ERP_Attachments');
-        }
-
-        sheetLedger.appendRow([
-          Utilities.getUuid(), custId, data.ledger.order_no || "", data.ledger.total_sales || 0,
-          data.ledger.paid || 0, data.ledger.paid || 0, data.ledger.payment_method || "", receiptUrl,
-          data.ledger.remaining || 0, data.ledger.delivery || 0, date
-        ]);
-      }
-
-      return { success: true, message: "Customer and measurements saved successfully", id: custId };
-    } catch (e) {
-      Logger.log("Save Error: " + e.toString());
-      return { success: false, message: e.toString() };
     }
+  } catch (err) {
+    return responseJSON({ status: "error", message: err.message, stack: err.stack });
   }
-};
-// ==========================================
-// SECTION: orderController.gs
-// ==========================================
-
-const OrderController = {
-  HEADERS: ["ID", "رقم الفاتورة", "اسم العميل", "اسم المنتج", "الكمية", "تاريخ الحجز", "موعد التسليم", "الإجمالي", "المدفوع", "المتبقي", "العملة", "الحالة"],
-  
-  KEY_MAP: {
-    "ID": "id",
-    "رقم الفاتورة": "order_no",
-    "اسم العميل": "customer_name",
-    "اسم المنتج": "product_name",
-    "الكمية": "qty",
-    "تاريخ الحجز": "order_date",
-    "موعد التسليم": "delivery_date",
-    "الإجمالي": "total",
-    "المدفوع": "paid",
-    "المتبقي": "remaining",
-    "العملة": "currency",
-    "الحالة": "status"
-  },
-
-  getOrders: function() {
-    getOrCreateSheet(SHEET_ORDERS, this.HEADERS);
-    return getRowsMapped(SHEET_ORDERS, this.HEADERS, this.KEY_MAP);
-  },
-
-  addOrder: function(data) {
-    const sheet = getOrCreateSheet(SHEET_ORDERS, this.HEADERS);
-    const newId = Utilities.getUuid();
-    
-    const total = parseFloat(data.total) || 0;
-    const paid = parseFloat(data.paid) || 0;
-    const remaining = total - paid;
-    const date = data.order_date || todayISO();
-
-    const rowData = [
-      newId,
-      data.order_no || "",
-      data.customer_name || "",
-      data.product_name || "",
-      data.qty || 1,
-      date,
-      data.delivery_date || "",
-      total,
-      paid,
-      remaining,
-      data.currency || "USD",
-      data.status || "New"
-    ];
-    
-    sheet.appendRow(rowData);
-    return { success: true, message: "Order added successfully", id: newId };
-  }
-};
-
-
-// ==========================================
-// SECTION: inventoryController.gs
-// ==========================================
-
-const InventoryController = {
-  HEADERS: ["ID", "اسم القماش", "التصنيف", "الكمية بالمتر", "تكلفة المتر", "العملة", "حد التنبيه", "تاريخ التوريد"],
-  
-  KEY_MAP: {
-    "ID": "id",
-    "اسم القماش": "item_name",
-    "التصنيف": "category",
-    "الكمية بالمتر": "qty",
-    "تكلفة المتر": "cost_per_meter",
-    "العملة": "currency",
-    "حد التنبيه": "min_alert",
-    "تاريخ التوريد": "supply_date"
-  },
-
-  getInventory: function() {
-    getOrCreateSheet(SHEET_INVENTORY, this.HEADERS);
-    return getRowsMapped(SHEET_INVENTORY, this.HEADERS, this.KEY_MAP);
-  },
-
-  addInventory: function(data) {
-    const sheet = getOrCreateSheet(SHEET_INVENTORY, this.HEADERS);
-    const newId = Utilities.getUuid();
-    const date = data.supply_date || todayISO();
-
-    const rowData = [
-      newId,
-      data.item_name || "",
-      data.category || "",
-      data.qty || 0,
-      data.cost_per_meter || 0,
-      data.currency || "USD",
-      data.min_alert || 0,
-      date
-    ];
-    
-    sheet.appendRow(rowData);
-    return { success: true, message: "Inventory item added successfully", id: newId };
-  }
-};
-
-
-// ==========================================
-// SECTION: financialController.gs
-// ==========================================
-
-const AccountingController = {
-  HEADERS: ["رمز الحساب", "اسم الحساب", "نوع الحساب", "الرصيد", "تاريخ التأسيس"],
-  KEY_MAP: { "رمز الحساب": "acc_code", "اسم الحساب": "acc_name", "نوع الحساب": "acc_type", "الرصيد": "balance", "تاريخ التأسيس": "created_date" },
-  
-  getAccounts: function() {
-    getOrCreateSheet(SHEET_ACCOUNTS, this.HEADERS);
-    return getRowsMapped(SHEET_ACCOUNTS, this.HEADERS, this.KEY_MAP);
-  },
-  
-  addAccount: function(data) {
-    const sheet = getOrCreateSheet(SHEET_ACCOUNTS, this.HEADERS);
-    sheet.appendRow([data.acc_code || "", data.acc_name || "", data.acc_type || "", data.balance || 0, data.created_date || todayISO()]);
-    return { success: true, message: "Account added successfully" };
-  }
-};
-
-const VoucherController = {
-  HEADERS: ["رقم السند", "نوع السند", "الجهة / العميل", "المبلغ", "العملة", "طريقة الدفع", "رقم الحوالة", "الحساب المرتبط", "التاريخ", "البيان"],
-  KEY_MAP: { "رقم السند": "voucher_no", "نوع السند": "type", "الجهة / العميل": "party_name", "المبلغ": "amount", "العملة": "currency", "طريقة الدفع": "pay_method", "رقم الحوالة": "transfer_no", "الحساب المرتبط": "acc_code", "التاريخ": "date", "البيان": "notes" },
-  
-  getVouchers: function() {
-    getOrCreateSheet(SHEET_VOUCHERS, this.HEADERS);
-    return getRowsMapped(SHEET_VOUCHERS, this.HEADERS, this.KEY_MAP);
-  },
-  
-  addVoucher: function(data) {
-    const sheet = getOrCreateSheet(SHEET_VOUCHERS, this.HEADERS);
-    sheet.appendRow([data.voucher_no || "", data.type || "", data.party_name || "", data.amount || 0, data.currency || "USD", data.pay_method || "", data.transfer_no || "", data.acc_code || "", data.date || todayISO(), data.notes || ""]);
-    return { success: true, message: "Voucher added successfully" };
-  }
-};
-
-const PurchaseController = {
-  HEADERS: ["ID", "رقم الفاتورة", "اسم المورد", "الصنف / القماش", "وحدة القياس", "الكمية", "السعر الإفرادي", "الإجمالي", "العملة", "طريقة الدفع", "رقم الحوالة", "حساب الدفع", "صورة السند", "تاريخ الفاتورة"],
-  KEY_MAP: {
-    "ID": "id",
-    "رقم الفاتورة": "bill_no",
-    "اسم المورد": "supplier",
-    "الصنف / القماش": "item",
-    "الصنف": "item",
-    "وحدة القياس": "unit",
-    "الكمية": "qty",
-    "الكمية بالمتر": "qty",
-    "السعر الإفرادي": "price",
-    "السعر": "price",
-    "الإجمالي": "total",
-    "إجمالي المبلغ": "total",
-    "العملة": "currency",
-    "طريقة الدفع": "pay_type",
-    "رقم الحوالة": "transfer_no",
-    "حساب الدفع": "payment_source",
-    "صورة السند": "receipt_url",
-    "رابط صورة السند": "receipt_url",
-    "رابط/صورة السند": "receipt_url",
-    "تاريخ الفاتورة": "date",
-    "التاريخ": "date"
-  },
-  
-  getPurchases: function() {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    let sheet = ss.getSheetByName(SHEET_PURCHASES);
-    if (!sheet) {
-      sheet = ss.insertSheet(SHEET_PURCHASES);
-      const hr = sheet.getRange(1, 1, 1, this.HEADERS.length);
-      hr.setValues([this.HEADERS]);
-      hr.setFontWeight("bold").setBackground("#4c1130").setFontColor("#ffffff");
-      sheet.setFrozenRows(1);
-    }
-    return getRowsMapped(SHEET_PURCHASES, this.HEADERS, this.KEY_MAP);
-  },
-  
-  addPurchase: function(data) {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    let sheet = ss.getSheetByName(SHEET_PURCHASES);
-    if (!sheet) {
-      sheet = ss.insertSheet(SHEET_PURCHASES);
-      const hr = sheet.getRange(1, 1, 1, this.HEADERS.length);
-      hr.setValues([this.HEADERS]);
-      hr.setFontWeight("bold").setBackground("#4c1130").setFontColor("#ffffff");
-      sheet.setFrozenRows(1);
-    }
-
-    const newId = data.id ? String(data.id) : Utilities.getUuid();
-    const item = (data.item && String(data.item).trim()) || (data.item_name && String(data.item_name).trim()) || "";
-    const qty = parseFloat(data.qty) || 0;
-    const price = parseFloat(data.price) || 0;
-    const total = data.total ? parseFloat(data.total) : (qty * price);
-    const unit = (data.unit && String(data.unit).trim()) || "متر";
-    const billNo = data.bill_no ? String(data.bill_no) : "";
-    const transfer = data.transfer_no ? String(data.transfer_no) : "";
-    const paymentSrc = data.payment_source ? String(data.payment_source) : "";
-
-    // Get current row 1 to know which column order the sheet uses
-    const currentHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-    const newHeaders = this.HEADERS;
-
-    // If headers mismatch (old sheet), use positional append based on current headers
-    const colMap = {};
-    currentHeaders.forEach(function(h, i) { colMap[String(h).trim()] = i; });
-
-    const rowData = new Array(newHeaders.length).fill("");
-    // Map by header name to position in newHeaders
-    const hIdx = {};
-    newHeaders.forEach(function(h, i) { hIdx[h] = i; });
-
-    if (colMap["ID"] !== undefined) {
-      // Sheet already has structured headers - write using current column positions
-      const writeRow = new Array(Math.max(currentHeaders.length, newHeaders.length)).fill("");
-      const fieldMap = {
-        "ID": newId, "رقم الفاتورة": billNo, "اسم المورد": data.supplier || "",
-        "الصنف / القماش": item, "الصنف": item,
-        "وحدة القياس": unit, "الكمية": qty, "الكمية بالمتر": qty,
-        "السعر الإفرادي": price, "السعر": price,
-        "الإجمالي": total, "إجمالي المبلغ": total,
-        "العملة": data.currency || "YER ﷼",
-        "طريقة الدفع": data.pay_type || "نقدي",
-        "رقم الحوالة": transfer, "حساب الدفع": paymentSrc,
-        "صورة السند": data.receipt_url || "", "رابط صورة السند": data.receipt_url || "",
-        "تاريخ الفاتورة": data.date || todayISO(), "التاريخ": data.date || todayISO()
-      };
-      currentHeaders.forEach(function(h, i) {
-        const key = String(h).trim();
-        if (fieldMap[key] !== undefined) writeRow[i] = fieldMap[key];
-      });
-      sheet.appendRow(writeRow);
-    } else {
-      // Fresh sheet - write in new order
-      sheet.appendRow([newId, billNo, data.supplier || "", item, unit, qty, price, total,
-        data.currency || "YER ﷼", data.pay_type || "نقدي", transfer, paymentSrc,
-        data.receipt_url || "", data.date || todayISO()]);
-    }
-
-    return { success: true, message: "تم تسجيل فاتورة الشراء", id: newId };
-  },
-
-  updatePurchase: function(data) {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const sheet = ss.getSheetByName(SHEET_PURCHASES);
-    if (!sheet) return { success: false, message: "الشيت غير موجود" };
-
-    const targetId = String(data.id || "");
-    if (!targetId) return { success: false, message: "ID مطلوب للتعديل" };
-
-    const sheetData = sheet.getDataRange().getValues();
-    const headers = sheetData[0];
-
-    // Build header→colIndex map
-    const hMap = {};
-    headers.forEach(function(h, i) { hMap[String(h).trim()] = i; });
-
-    // Build fieldMap from incoming data
-    const item = (data.item && String(data.item).trim()) || (data.item_name && String(data.item_name).trim()) || "";
-    const qty = data.qty !== undefined ? parseFloat(data.qty) : null;
-    const price = data.price !== undefined ? parseFloat(data.price) : null;
-    const total = data.total ? parseFloat(data.total) : (qty !== null && price !== null ? qty * price : null);
-    const unit = (data.unit && String(data.unit).trim()) || "";
-
-    const fieldMap = {
-      "رقم الفاتورة": data.bill_no || null,
-      "اسم المورد": data.supplier || null,
-      "الصنف / القماش": item || null, "الصنف": item || null,
-      "وحدة القياس": unit || null,
-      "الكمية": qty, "الكمية بالمتر": qty,
-      "السعر الإفرادي": price, "السعر": price,
-      "الإجمالي": total, "إجمالي المبلغ": total,
-      "العملة": data.currency || null,
-      "طريقة الدفع": data.pay_type || null,
-      "رقم الحوالة": data.transfer_no !== undefined ? String(data.transfer_no) : null,
-      "حساب الدفع": data.payment_source !== undefined ? String(data.payment_source) : null,
-      "صورة السند": data.receipt_url !== undefined ? data.receipt_url : null,
-      "تاريخ الفاتورة": data.date || null, "التاريخ": data.date || null
-    };
-
-    // Find the row with matching ID
-    for (let r = 1; r < sheetData.length; r++) {
-      if (String(sheetData[r][hMap["ID"] || 0]).trim() === targetId) {
-        const rowNum = r + 1;
-        // Update only non-null fields
-        Object.keys(fieldMap).forEach(function(headerName) {
-          const val = fieldMap[headerName];
-          const colIdx = hMap[headerName];
-          if (val !== null && val !== undefined && colIdx !== undefined) {
-            sheet.getRange(rowNum, colIdx + 1).setValue(val);
-          }
-        });
-        return { success: true, message: "تم تحديث سجل المشتريات بنجاح", id: targetId };
-      }
-    }
-    return { success: false, message: "السجل غير موجود - ID: " + targetId };
-  },
-
-  deletePurchase: function(data) {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const sheet = ss.getSheetByName(SHEET_PURCHASES);
-    if (!sheet) return { success: false, message: "الشيت غير موجود" };
-    const targetId = String(data.id || "");
-    if (!targetId) return { success: false, message: "ID مطلوب للحذف" };
-    const sheetData = sheet.getDataRange().getValues();
-    const idColIdx = 0; // ID is always column A
-    for (let r = 1; r < sheetData.length; r++) {
-      if (String(sheetData[r][idColIdx]).trim() === targetId) {
-        sheet.deleteRow(r + 1);
-        return { success: true, message: "تم حذف السجل بنجاح" };
-      }
-    }
-    return { success: false, message: "السجل غير موجود" };
-  }
-};
-
-
-const ExpenseController = {
-  HEADERS: ["ID", "نوع المصروف", "المبلغ", "العملة", "طريقة الدفع", "حساب الدفع", "التاريخ", "ملاحظات"],
-  KEY_MAP: { "ID": "id", "نوع المصروف": "exp_type", "المبلغ": "amount", "العملة": "currency", "طريقة الدفع": "pay_method", "حساب الدفع": "source_acc", "التاريخ": "date", "ملاحظات": "notes" },
-  
-  getExpenses: function() {
-    getOrCreateSheet(SHEET_EXPENSES, this.HEADERS);
-    return getRowsMapped(SHEET_EXPENSES, this.HEADERS, this.KEY_MAP);
-  },
-  
-  addExpense: function(data) {
-    const sheet = getOrCreateSheet(SHEET_EXPENSES, this.HEADERS);
-    const newId = Utilities.getUuid();
-    sheet.appendRow([newId, data.exp_type || "", data.amount || 0, data.currency || "USD", data.pay_method || "", data.source_acc || "", data.date || todayISO(), data.notes || ""]);
-    return { success: true, message: "Expense added successfully", id: newId };
-  }
-};
-
-const JournalController = {
-  HEADERS: ["ID", "رقم القيد", "المدين", "الدائن", "المبلغ", "العملة", "نوع المرجع", "التاريخ", "الشرح"],
-  KEY_MAP: { "ID": "id", "رقم القيد": "entry_no", "المدين": "debit", "الدائن": "credit", "المبلغ": "amount", "العملة": "currency", "نوع المرجع": "ref_type", "التاريخ": "date", "الشرح": "notes" },
-  
-  getJournalEntries: function() {
-    getOrCreateSheet(SHEET_JOURNAL, this.HEADERS);
-    return getRowsMapped(SHEET_JOURNAL, this.HEADERS, this.KEY_MAP);
-  },
-  
-  addJournalEntry: function(data) {
-    const sheet = getOrCreateSheet(SHEET_JOURNAL, this.HEADERS);
-    const newId = Utilities.getUuid();
-    sheet.appendRow([newId, data.entry_no || "", data.debit || "", data.credit || "", data.amount || 0, data.currency || "USD", data.ref_type || "", data.date || todayISO(), data.notes || ""]);
-    return { success: true, message: "Journal entry added successfully", id: newId };
-  }
-};
-
-
-// ==========================================
-// SECTION: productController.gs
-// ==========================================
-
-const ProductController = {
-  HEADERS: ["ID", "اسم الموديل", "التصنيف", "اسم القماش", "الأمتار", "تكلفة القماش", "أجرة الخياطة", "التغليف", "إجمالي التكلفة", "سعر البيع", "العملة", "الربح", "تاريخ الحساب"],
-  
-  KEY_MAP: {
-    "ID": "id",
-    "اسم الموديل": "name",
-    "التصنيف": "category",
-    "اسم القماش": "fabric_name",
-    "الأمتار": "yards_used",
-    "تكلفة القماش": "fabric_cost",
-    "أجرة الخياطة": "labor_cost",
-    "التغليف": "packaging_cost",
-    "إجمالي التكلفة": "total_cost",
-    "سعر البيع": "sell_price",
-    "العملة": "currency",
-    "الربح": "profit",
-    "تاريخ الحساب": "calc_date"
-  },
-
-  getProducts: function() {
-    getOrCreateSheet(SHEET_PRODUCTS, this.HEADERS);
-    return getRowsMapped(SHEET_PRODUCTS, this.HEADERS, this.KEY_MAP);
-  },
-
-  addProduct: function(data) {
-    const sheet = getOrCreateSheet(SHEET_PRODUCTS, this.HEADERS);
-    const newId = Utilities.getUuid();
-    
-    const fabric_cost = parseFloat(data.fabric_cost) || 0;
-    const labor_cost = parseFloat(data.labor_cost) || 0;
-    const packaging_cost = parseFloat(data.packaging_cost) || 0;
-    const total_cost = fabric_cost + labor_cost + packaging_cost;
-    
-    const sell_price = parseFloat(data.sell_price) || 0;
-    const profit = sell_price - total_cost;
-    const date = data.calc_date || todayISO();
-
-    const rowData = [
-      newId,
-      data.name || "",
-      data.category || "",
-      data.fabric_name || "",
-      data.yards_used || 0,
-      fabric_cost,
-      labor_cost,
-      packaging_cost,
-      total_cost,
-      sell_price,
-      data.currency || "USD",
-      profit,
-      date
-    ];
-    
-    sheet.appendRow(rowData);
-    return { success: true, message: "Product added successfully", id: newId };
-  }
-};
-
-
-// ==========================================
-// SECTION: productionController.gs
-// ==========================================
-
-const FactoryController = {
-  HEADERS: ["ID", "رقم الطلب", "اسم العميلة", "اسم الفستان", "الخياط", "المرحلة", "نسبة الإنجاز", "تاريخ البدء", "تاريخ التسليم", "ملاحظات"],
-  
-  KEY_MAP: {
-    "ID": "id",
-    "رقم الطلب": "order_no",
-    "اسم العميلة": "customer_name",
-    "اسم الفستان": "product_name",
-    "الخياط": "tailor",
-    "المرحلة": "stage",
-    "نسبة الإنجاز": "progress",
-    "تاريخ البدء": "start_date",
-    "تاريخ التسليم": "due_date",
-    "ملاحظات": "notes"
-  },
-
-  getFactory: function() {
-    getOrCreateSheet(SHEET_FACTORY, this.HEADERS);
-    return getRowsMapped(SHEET_FACTORY, this.HEADERS, this.KEY_MAP);
-  },
-
-  updateFactory: function(data) {
-    const sheet = getOrCreateSheet(SHEET_FACTORY, this.HEADERS);
-    const date = data.start_date || todayISO();
-    
-    if (data.id) {
-       const dataRange = sheet.getDataRange();
-       const values = dataRange.getValues();
-       
-       for (let i = 1; i < values.length; i++) {
-         if (values[i][0] == data.id) {
-           sheet.getRange(i + 1, 2, 1, 9).setValues([[
-             data.order_no || values[i][1],
-             data.customer_name || values[i][2],
-             data.product_name || values[i][3],
-             data.tailor || values[i][4],
-             data.stage || values[i][5],
-             data.progress || values[i][6],
-             data.start_date || values[i][7],
-             data.due_date || values[i][8],
-             data.notes || values[i][9]
-           ]]);
-           return { success: true, message: "Factory record updated successfully" };
-         }
-       }
-    }
-
-    const newId = Utilities.getUuid();
-    const rowData = [
-      newId,
-      data.order_no || "",
-      data.customer_name || "",
-      data.product_name || "",
-      data.tailor || "",
-      data.stage || "جديد",
-      data.progress || "0%",
-      date,
-      data.due_date || "",
-      data.notes || ""
-    ];
-    
-    sheet.appendRow(rowData);
-    return { success: true, message: "Factory record added successfully", id: newId };
-  }
-};
-
-
-// ==========================================
-// SECTION: dashboardController.gs
-// ==========================================
-
-const DashboardController = {
-  getStats: function() {
-    const customers = CustomerController.getCustomers();
-    const orders = OrderController.getOrders();
-    const inventory = InventoryController.getInventory();
-    const expenses = ExpenseController.getExpenses();
-
-    let total_sales = 0;
-    let total_paid = 0;
-    let total_remaining = 0;
-    let active_tailoring = 0;
-
-    orders.forEach(o => {
-      total_sales += parseFloat(o.total) || 0;
-      total_paid += parseFloat(o.paid) || 0;
-      total_remaining += parseFloat(o.remaining) || 0;
-      
-      const statusStr = (o.status || "").toLowerCase();
-      if (statusStr.includes('خياطة') || statusStr.includes('قص') || statusStr.includes('تطريز')) {
-        active_tailoring++;
-      }
-    });
-
-    let low_stock_alerts = 0;
-    inventory.forEach(i => {
-      if (parseFloat(i.qty) <= parseFloat(i.min_alert)) {
-        low_stock_alerts++;
-      }
-    });
-
-    let total_expenses = 0;
-    expenses.forEach(e => {
-      total_expenses += parseFloat(e.amount) || 0;
-    });
-
-    // Dummy values for unimplemented features that were requested in requirements
-    let total_purchases = 0; 
-    let total_inventory = inventory.length;
-
-    const net_profit = total_sales - (total_expenses + total_purchases);
-
-    return {
-      total_customers: customers.length,
-      total_orders: orders.length,
-      total_sales: total_sales,
-      total_paid: total_paid,
-      total_remaining: total_remaining,
-      low_stock_alerts: low_stock_alerts,
-      active_tailoring: active_tailoring,
-      total_expenses: total_expenses,
-      total_purchases: total_purchases,
-      total_inventory: total_inventory,
-      net_profit: net_profit
-    };
-  }
-};
-
-
-
-
-// ==========================================
-// SECTION: Setup Utility (إنشاء كافة الجداول الـ 10 بضغطة زر)
-// ==========================================
-
-/**
- * 👑 دالة التأسيس والإنشاء التلقائي لجميع الأوراق والجداول الـ 10 بالأسماء العربية الموحدة
- * اختر هذه الدالة من القائمة المنسدلة في أعلى المحرر واضغط "تنفيذ" (Run)
- */
-function setupAllSheets() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-
-  // 1. العملاء
-  const sheetCustomers = getOrCreateSheet(SHEET_CUSTOMERS, [
-    "ID", "اسم العميل", "رقم الهاتف", "منصة التواصل", "اسم الحساب", "العنوان", "الوحدة", 
-    "الطول الكلي", "عرض الكتف", "دوران الصدر", "دوران الخصر", "طول الكم", "طول الصدر", "تاريخ التسجيل"
-  ]);
-
-  // 2. مقاسات الأطفال (الجديد)
-  const sheetMeasurements = getOrCreateSheet(SHEET_MEASUREMENTS, CustomerController.HEADERS_MEASUREMENTS);
-
-  // 3. كشف حساب العملاء (الجديد)
-  const sheetCustomerLedger = getOrCreateSheet(SHEET_CUSTOMER_LEDGER, CustomerController.HEADERS_LEDGER);
-
-  // 4. الطلبات
-  const sheetOrders = getOrCreateSheet(SHEET_ORDERS, OrderController.HEADERS);
-
-  // 5. المخزون
-  const sheetInventory = getOrCreateSheet(SHEET_INVENTORY, [
-    "رمز المادة", "اسم المادة / القماش", "التصنيف", "الوحدة", "الكمية المتوفرة", "كلفة الوحدة", "إجمالي الكلفة", "تاريخ آخر شراء", "المورد المفضل"
-  ]);
-
-  // 6. شجرة الحسابات
-  const sheetAccounts = getOrCreateSheet(SHEET_ACCOUNTS, [
-    "رمز الحساب", "اسم الحساب", "نوع الحساب", "الرصيد", "تاريخ التأسيس"
-  ]);
-  // إضافة الحسابات الافتراضية إذا كانت الورقة جديدة
-  if (sheetAccounts.getLastRow() === 1) {
-    sheetAccounts.appendRow(["101", "الصندوق / الخزينة الرئيسية", "أصول", 0.0, "2026-07-31"]);
-    sheetAccounts.appendRow(["102", "مخزون الأقمشة والمستلزمات", "أصول", 0.0, "2026-07-31"]);
-    sheetAccounts.appendRow(["103", "الحساب البنكي / الحوالات والمحافظ", "أصول", 0.0, "2026-07-31"]);
-    sheetAccounts.appendRow(["104", "ذمم العملاء (مستحقات خارجية)", "أصول", 0.0, "2026-07-31"]);
-    sheetAccounts.appendRow(["201", "ذمم الموردين ومحلات الأقمشة (آجل)", "خصوم", 0.0, "2026-07-31"]);
-    sheetAccounts.appendRow(["301", "رأس المال المباشر لمؤسسة Little Princesses", "حقوق ملكية", 0.0, "2026-07-31"]);
-    sheetAccounts.appendRow(["401", "إيرادات مبيعات الفساتين والزي", "إيرادات", 0.0, "2026-07-31"]);
-    sheetAccounts.appendRow(["501", "أجور ورواتب الخياطين والمطرزين", "مصاريف", 0.0, "2026-07-31"]);
-    sheetAccounts.appendRow(["502", "إيجار الورشة والمعمل والمحل الرئيسي", "مصاريف", 0.0, "2026-07-31"]);
-  }
-
-  // 7. السندات المالية
-  const sheetVouchers = getOrCreateSheet(SHEET_VOUCHERS, [
-    "رقم السند", "نوع السند", "الجهة / العميل", "المبلغ", "العملة", "طريقة الدفع", "رقم الحوالة", "الحساب المرتبط", "التاريخ", "البيان"
-  ]);
-
-  // 8. المشتريات
-  const sheetPurchases = getOrCreateSheet(SHEET_PURCHASES, PurchaseController.HEADERS);
-
-  // 9. المصاريف
-  const sheetExpenses = getOrCreateSheet(SHEET_EXPENSES, [
-    "ID", "نوع المصروف", "المبلغ", "العملة", "طريقة الدفع", "حساب الدفع", "التاريخ", "ملاحظات"
-  ]);
-
-  // 10. متابعة الخياطة
-  const sheetFactory = getOrCreateSheet(SHEET_FACTORY, [
-    "ID", "رقم الطلب", "اسم العميلة", "اسم الفستان", "الخياط", "المرحلة", "نسبة الإنجاز", "تاريخ البدء", "تاريخ التسليم", "ملاحظات"
-  ]);
-
-  // 11. المنتجات
-  const sheetProducts = getOrCreateSheet(SHEET_PRODUCTS, [
-    "ID", "اسم الموديل", "التصنيف", "اسم القماش", "الأمتار", "تكلفة القماش", "أجرة الخياطة", "التغليف", "إجمالي التكلفة", "سعر البيع", "العملة", "الربح", "تاريخ الحساب"
-  ]);
-
-  // 12. القيود اليومية
-  const sheetJournal = getOrCreateSheet(SHEET_JOURNAL, [
-    "ID", "رقم القيد", "المدين", "الدائن", "المبلغ", "العملة", "نوع المرجع", "التاريخ", "الشرح"
-  ]);
-
-  Logger.log("✨ تم التأسيس والتجهيز لكافة الأوراق والجداول الـ 12 بنجاح!");
 }
-
-
-/**
- * 👑 دالة الشحن والتطهير الكامل: حذف جميع الأوراق القديمة وتأسيس الجداول الـ 12 الجديدة كلياً
- * اختر هذه الدالة من القائمة المنسدلة في أعلى المحرر واضغط "تنفيذ" (Run)
- */
-function resetAndSetupAllSheets() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const officialSheets = [
-    SHEET_CUSTOMERS, SHEET_MEASUREMENTS, SHEET_CUSTOMER_LEDGER, SHEET_ORDERS, SHEET_INVENTORY, SHEET_ACCOUNTS, 
-    SHEET_VOUCHERS, SHEET_PURCHASES, SHEET_EXPENSES, SHEET_FACTORY, 
-    SHEET_PRODUCTS, SHEET_JOURNAL
-  ];
-
-  // 1. التأسيس والإنشاء للجداول الـ 12 بالأسماء العربية والترويسات
-  setupAllSheets();
-
-  // 2. فحص وحذف أي ورقة قديمة ليست ضمن الجداول الـ 12 الأساسية
-  const sheets = ss.getSheets();
-  sheets.forEach(sheet => {
-    const sName = sheet.getName();
-    if (!officialSheets.includes(sName)) {
-      try {
-        ss.deleteSheet(sheet);
-        Logger.log("🗑️ تم حذف الورقة القديمة: " + sName);
-      } catch(e) {
-        Logger.log("⚠️ يتعذر حذف الورقة: " + sName);
-      }
-    }
-  });
-
-  Logger.log("✨ تم إعادة الضبط بالكامل وإنشاء الجداول الـ 12 الجديدة بنجاح!");
-}
-
-/**
- * 👑 دالة إعادة مسح وتأسيس أوراق قسم العملاء من الصفر
- */
-function recreateCustomersModuleFresh() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  
-  [
-    { name: SHEET_CUSTOMERS, headers: CustomerController.HEADERS_CUSTOMERS },
-    { name: SHEET_MEASUREMENTS, headers: CustomerController.HEADERS_MEASUREMENTS },
-    { name: SHEET_CUSTOMER_LEDGER, headers: CustomerController.HEADERS_LEDGER }
-  ].forEach(sheetInfo => {
-    let sheet = ss.getSheetByName(sheetInfo.name);
-    if (sheet) {
-      sheet.clear();
-    } else {
-      sheet = ss.insertSheet(sheetInfo.name);
-    }
-    const hr = sheet.getRange(1, 1, 1, sheetInfo.headers.length);
-    hr.setValues([sheetInfo.headers]);
-    hr.setFontWeight("bold").setBackground("#4c1130").setFontColor("#ffffff");
-    sheet.setFrozenRows(1);
-  });
-  
-  Logger.log("✅ تم إعادة إنشاء شيتات العملاء من الصفر بنجاح!");
-}
-
-/**
- * 👑 دالة إعادة مسح وتأسيس ورقة المشتريات من الصفر (حذف كل البيانات القديمة وإنشاء الهيكل الجديد الخالي 100%)
- */
-function recreatePurchasesSheetFresh() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  let sheet = ss.getSheetByName(SHEET_PURCHASES);
-  if (sheet) {
-    sheet.clear();
-  } else {
-    sheet = ss.insertSheet(SHEET_PURCHASES);
-  }
-  const headers = PurchaseController.HEADERS;
-  const hr = sheet.getRange(1, 1, 1, headers.length);
-  hr.setValues([headers]);
-  hr.setFontWeight("bold").setBackground("#4c1130").setFontColor("#ffffff");
-  sheet.setFrozenRows(1);
-  Logger.log("✅ تم إعادة إنشاء شيت المشتريات من الصفر بنجاح!");
-}
-
-
-/**
- * 👑 دالة إصلاح وتحديث ورقة المشتريات فقط لتحديث رؤوس الأعمدة الـ 14 المحدثة
- */
-function fixAndAlignPurchaseSheet() {
-  migratePurchaseSheet();
-}
-
-/**
- * 👑 دالة ترحيل البيانات القديمة وإعادة بناء شيت المشتريات بالأعمدة الـ 14 الصحيحة
- * قم بتشغيلها مرة واحدة من محرر Apps Script لإصلاح البيانات القديمة
- */
-function migratePurchaseSheet() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  let sheet = ss.getSheetByName(SHEET_PURCHASES);
-  if (!sheet) {
-    sheet = ss.insertSheet(SHEET_PURCHASES);
-    const hr = sheet.getRange(1, 1, 1, PurchaseController.HEADERS.length);
-    hr.setValues([PurchaseController.HEADERS]);
-    hr.setFontWeight("bold").setBackground("#4c1130").setFontColor("#ffffff");
-    sheet.setFrozenRows(1);
-    Logger.log("✅ ورقة المشتريات جديدة - تم التأسيس بنجاح");
-    return;
-  }
-
-  const newHeaders = PurchaseController.HEADERS;
-  const data = sheet.getDataRange().getValues();
-  if (data.length <= 1) {
-    // Empty - just update headers
-    const hr = sheet.getRange(1, 1, 1, newHeaders.length);
-    hr.setValues([newHeaders]);
-    hr.setFontWeight("bold").setBackground("#4c1130").setFontColor("#ffffff");
-    sheet.setFrozenRows(1);
-    Logger.log("✅ تم تحديث رؤوس الجدول (لا توجد بيانات)");
-    return;
-  }
-
-  const oldHeaders = data[0];
-  const rows = data.slice(1);
-
-  // Build old->new column mapping
-  // Old possible formats - detect by checking if col count < 14
-  const isOldFormat = oldHeaders.length < newHeaders.length;
-  Logger.log("🔍 الأعمدة الحالية: " + oldHeaders.length + " | مطلوبة: " + newHeaders.length + " | صيغة قديمة: " + isOldFormat);
-
-  // Map each old header to a key
-  const KEY_MAP = PurchaseController.KEY_MAP;
-  const oldColToKey = {};
-  oldHeaders.forEach(function(h, i) {
-    const key = KEY_MAP[String(h).trim()];
-    if (key) oldColToKey[i] = key;
-    Logger.log("  عمود " + i + ": '" + h + "' → " + (key || "غير محدد"));
-  });
-
-  // Map new header to key
-  const newHeaderToKey = {};
-  newHeaders.forEach(function(h, i) {
-    const key = KEY_MAP[h];
-    if (key) newHeaderToKey[key] = i;
-  });
-
-  // Rebuild rows in new format
-  const newRows = rows.map(function(row) {
-    const newRow = new Array(newHeaders.length).fill("");
-    // Extract values by old column key
-    Object.keys(oldColToKey).forEach(function(colIdx) {
-      const key = oldColToKey[colIdx];
-      const newIdx = newHeaderToKey[key];
-      if (newIdx !== undefined && row[colIdx] !== "") {
-        newRow[newIdx] = row[colIdx];
-      }
-    });
-    return newRow;
-  });
-
-  // Clear the sheet and rewrite
-  sheet.clearContents();
-  const headerRange = sheet.getRange(1, 1, 1, newHeaders.length);
-  headerRange.setValues([newHeaders]);
-  headerRange.setFontWeight("bold").setBackground("#4c1130").setFontColor("#ffffff");
-  sheet.setFrozenRows(1);
-
-  if (newRows.length > 0) {
-    sheet.getRange(2, 1, newRows.length, newHeaders.length).setValues(newRows);
-  }
-
-  Logger.log("✨ تم ترحيل " + newRows.length + " سجل بنجاح إلى البنية الجديدة الـ 14 أعمدة!");
-}
-
-/**
- * 🔧 cleanPurchaseData - شغّلها مرة واحدة لإصلاح البيانات الفاسدة
- * تقوم بـ:
- * 1. حذف الصفوف الفارغة (UUID + كمية=0)
- * 2. نقل التاريخ من خانة "رقم الحوالة" إلى "تاريخ الفاتورة"
- * 3. نقل كود الحساب من "طريقة الدفع" إلى "حساب الدفع"
- */
-function cleanPurchaseData() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName(SHEET_PURCHASES);
-  if (!sheet || sheet.getLastRow() <= 1) { Logger.log("لا توجد بيانات"); return; }
-
-  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-  function ci(name) { for (let i=0;i<headers.length;i++) if(String(headers[i]).trim()===name) return i; return -1; }
-
-  const idC = ci("ID"), itemC = ci("الصنف / القماش"), qtyC = ci("الكمية");
-  const trnC = ci("رقم الحوالة"), dateC = ci("تاريخ الفاتورة");
-  const payTC = ci("طريقة الدفع"), payPC = ci("حساب الدفع");
-
-  Logger.log("أعمدة: ID="+idC+" صنف="+itemC+" كمية="+qtyC+" حوالة="+trnC+" تاريخ="+dateC);
-
-  function isDateLike(v) { if(!v) return false; const s=String(v); return /^\d{4}-\d{2}-\d{2}/.test(s)||s.includes("T"); }
-  function fmtDate(v) { if(v instanceof Date) return Utilities.formatDate(v, Session.getScriptTimeZone(),"yyyy-MM-dd"); const m=String(v).match(/^(\d{4}-\d{2}-\d{2})/); return m?m[1]:String(v); }
-
-  const lastRow = sheet.getLastRow();
-  const toDelete = [];
-  let fixed = 0;
-
-  for (let r = lastRow; r >= 2; r--) {
-    const row = sheet.getRange(r, 1, 1, sheet.getLastColumn()).getValues()[0];
-    const idVal = String(row[idC]||"");
-    const qtyVal = parseFloat(row[qtyC]||0);
-    const itemVal = String(row[itemC]||"").trim();
-
-    // حذف الصفوف الفارغة (UUID + صفر)
-    const isUUID = idVal.includes("-") && idVal.length > 20;
-    if (isUUID && qtyVal === 0 && (itemVal==="" || itemVal==="متر")) {
-      sheet.deleteRow(r);
-      Logger.log("🗑️ حذف صف فارغ: "+r);
-      continue;
-    }
-
-    // إصلاح: رقم الحوالة يحتوي تاريخ → نقل إلى تاريخ الفاتورة
-    if (trnC>=0 && dateC>=0) {
-      const trnVal = row[trnC];
-      const dtVal  = row[dateC];
-      if (isDateLike(trnVal)) {
-        if (!dtVal || dtVal==="") sheet.getRange(r, dateC+1).setValue(fmtDate(trnVal));
-        sheet.getRange(r, trnC+1).setValue("");
-        Logger.log("📅 صف "+r+": نقل التاريخ "+fmtDate(trnVal)+" من حوالة إلى تاريخ");
-        fixed++;
-      }
-    }
-
-    // إصلاح: طريقة الدفع تحتوي كود حساب → نقل إلى حساب الدفع
-    if (payTC>=0 && payPC>=0) {
-      const pt = String(row[payTC]||"").trim();
-      const pp = String(row[payPC]||"").trim();
-      if (/^\d+$/.test(pt) && pp==="") {
-        sheet.getRange(r, payPC+1).setValue(pt);
-        sheet.getRange(r, payTC+1).setValue("نقدي");
-        Logger.log("🔧 صف "+r+": نقل كود الحساب "+pt+" إلى حساب الدفع");
-        fixed++;
-      }
-    }
-  }
-
-  Logger.log("✅ الانتهاء! أُصلح "+fixed+" صف");
-  try { SpreadsheetApp.getUi().alert("✅ تم التنظيف!\nأُصلح: "+fixed+" صف"); } catch(e){}
-}
-
-
-

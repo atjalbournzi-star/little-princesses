@@ -67,17 +67,38 @@ def init_full_erp_db():
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL,
-            role TEXT NOT NULL
+            password_hash TEXT DEFAULT '',
+            password TEXT DEFAULT '',
+            role TEXT NOT NULL DEFAULT 'data_entry',
+            full_name TEXT DEFAULT '',
+            is_active INTEGER DEFAULT 1,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     ''')
 
+    # التأكد من وجود كافة الأعمدة
+    cursor.execute("PRAGMA table_info(users)")
+    u_cols = set(r[1] if isinstance(r, (list, tuple)) else r['name'] for r in cursor.fetchall())
+    if 'password_hash' not in u_cols:
+        try: cursor.execute("ALTER TABLE users ADD COLUMN password_hash TEXT DEFAULT ''")
+        except Exception: pass
+    if 'full_name' not in u_cols:
+        try: cursor.execute("ALTER TABLE users ADD COLUMN full_name TEXT DEFAULT ''")
+        except Exception: pass
+    if 'is_active' not in u_cols:
+        try: cursor.execute("ALTER TABLE users ADD COLUMN is_active INTEGER DEFAULT 1")
+        except Exception: pass
+    if 'created_at' not in u_cols:
+        try: cursor.execute("ALTER TABLE users ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP")
+        except Exception: pass
+
     cursor.execute("SELECT COUNT(*) FROM users")
     if cursor.fetchone()[0] == 0:
-        cursor.executemany("INSERT INTO users (username, password, role) VALUES (?, ?, ?)", [
-            ('admin', '1234', 'المدير العام'),
-            ('cashier', '1234', 'كاشير ومبيعات'),
-            ('workshop', '1234', 'مديرة الورشة')
+        cursor.executemany("INSERT INTO users (username, password, password_hash, role, full_name, is_active) VALUES (?, ?, ?, ?, ?, ?)", [
+            ('admin', '1234', 'admin', 'admin', 'المدير العام 👑', 1),
+            ('accountant', '1234', '1234', 'accountant', 'أحمد المحاسب 💼', 1),
+            ('workshop', '1234', '1234', 'workshop_manager', 'سارة مديرة الورشة ✂️', 1),
+            ('cashier', '1234', '1234', 'data_entry', 'فاطمة مدخلة البيانات 📝', 1)
         ])
 
     cursor.execute('''

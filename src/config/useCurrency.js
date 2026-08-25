@@ -6,9 +6,9 @@ var CURRENCY_STORAGE_KEY = 'erp_system_currency';
 var CURRENCY_CHANGE_EVENT = 'erp:currencyChanged';
 
 var SYSTEM_CURRENCY_OPTIONS = [
-  { code: 'USD', symbol: '$',  label: 'دولار أمريكي',  display: 'USD $' },
-  { code: 'YER', symbol: '﷼', label: 'ريال يمني',    display: 'YER ﷼' },
-  { code: 'SAR', symbol: '﷼', label: 'ريال سعودي',   display: 'SAR ﷼' }
+  { code: 'YER', symbol: '﷼', label: 'ريال يمني',    display: 'YER ﷼', is_base: true },
+  { code: 'SAR', symbol: '﷼', label: 'ريال سعودي',   display: 'SAR ﷼', is_base: false },
+  { code: 'USD', symbol: '$',  label: 'دولار أمريكي',  display: 'USD $', is_base: false }
 ];
 
 function getStoredCurrency() {
@@ -19,7 +19,7 @@ function getStoredCurrency() {
       if (found) return found;
     }
   } catch (e) {}
-  return SYSTEM_CURRENCY_OPTIONS[0];
+  return SYSTEM_CURRENCY_OPTIONS[0]; // Default to YER
 }
 
 function setStoredCurrency(code) {

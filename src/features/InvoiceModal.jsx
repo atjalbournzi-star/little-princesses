@@ -80,8 +80,8 @@ function InvoiceModal({ customer, onClose }) {
                     </td>
                     <td className="py-4 px-4 text-center font-black text-slate-700">1</td>
                     {idx === 0 ? (
-                      <td rowSpan={measurements.length} className="py-4 px-4 text-right font-black text-lg text-slate-800 align-top border-r border-slate-100">
-                        {ledger.total_sales || 0} <span className="text-xs text-slate-500">YER</span>
+                      <td rowSpan={measurements.length} className="py-4 px-4 text-right font-black font-mono tabular-nums text-lg text-slate-800 align-top border-r border-slate-100">
+                        {(parseFloat(ledger.total_sales) || 0).toLocaleString('en-US')} <span className="text-xs text-slate-500 font-sans">YER</span>
                       </td>
                     ) : null}
                   </tr>
@@ -100,19 +100,21 @@ function InvoiceModal({ customer, onClose }) {
               <div className="space-y-3 text-sm font-bold">
                 <div className="flex justify-between">
                   <span className="text-slate-300 print:text-slate-600">إجمالي الفساتين:</span>
-                  <span>{ledger.total_sales || 0}</span>
+                  <span className="font-mono tabular-nums">{(parseFloat(ledger.total_sales) || 0).toLocaleString('en-US')}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-300 print:text-slate-600">رسوم التوصيل:</span>
-                  <span>{ledger.delivery || 0}</span>
+                  <span className="font-mono tabular-nums">{(parseFloat(ledger.delivery) || 0).toLocaleString('en-US')}</span>
                 </div>
                 <div className="flex justify-between border-b border-slate-700 print:border-slate-200 pb-3">
                   <span className="text-slate-300 print:text-slate-600">العربون المدفوع:</span>
-                  <span className="text-emerald-400 print:text-emerald-700">-{ledger.deposit || 0}</span>
+                  <span className="text-emerald-400 print:text-emerald-700 font-mono tabular-nums">-{(parseFloat(ledger.deposit) || 0).toLocaleString('en-US')}</span>
                 </div>
                 <div className="flex justify-between items-center pt-2">
                   <span className="text-base text-rose-200 print:text-rose-900 font-black">المبلغ المتبقي:</span>
-                  <span className="text-2xl font-black text-white print:text-black">{ledger.remaining || 0} <span className="text-xs font-bold">YER</span></span>
+                  <span className="text-2xl font-black font-mono tabular-nums text-white print:text-black">
+                    {(parseFloat(ledger.remaining) || 0).toLocaleString('en-US')} <span className="text-xs font-bold font-sans">YER</span>
+                  </span>
                 </div>
               </div>
             </div>

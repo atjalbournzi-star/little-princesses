@@ -1084,12 +1084,12 @@ function Customers({ customers = [], setCustomers, showToast }) {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               <div>
                 <label className={labelCls}>اسم العميل (الأب / الأم) <span className="text-rose-600">*</span></label>
-                <input required value={name} onChange={e => setName(e.target.value)} className={inputCls} placeholder="مثال: أم محمد الأهدل" />
+                <input required value={name} onChange={e => setName(e.target.value)} className={inputCls} placeholder="" />
               </div>
               <div>
                 <label className={labelCls}>الهاتف الرئيسي (واتساب) <span className="text-rose-600">*</span></label>
                 <div className="relative">
-                  <input required value={phone} onChange={e => setPhone(e.target.value)} className={inputCls + " pr-10 pl-2"} placeholder="77XXXXXXX" type="tel" dir="ltr" style={{textAlign:'right'}} />
+                  <input required value={phone} onChange={e => setPhone(e.target.value)} className={inputCls + " pr-10 pl-2"} placeholder="" type="tel" dir="ltr" style={{textAlign:'right'}} />
                   {phone && (
                     <a href={`https://wa.me/${String(phone).replace(/^0+/, '967').replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" 
                        className="absolute right-1.5 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center bg-emerald-100 hover:bg-emerald-200 text-emerald-600 rounded-xl transition" title="مراسلة واتساب">
@@ -1100,7 +1100,7 @@ function Customers({ customers = [], setCustomers, showToast }) {
               </div>
               <div>
                 <label className={labelCls}>الهاتف البديل الخطي</label>
-                <input value={phoneAlt} onChange={e => setPhoneAlt(e.target.value)} className={inputCls} placeholder="71XXXXXXX (اختياري)" type="tel" />
+                <input value={phoneAlt} onChange={e => setPhoneAlt(e.target.value)} className={inputCls} placeholder="" type="tel" />
               </div>
               <div>
                 <label className={labelCls}>منصة التواصل الاجتماعي</label>

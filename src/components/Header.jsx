@@ -1,206 +1,216 @@
-const { useState, useEffect, useMemo, useCallback, useRef } = React;
-function Header({ activeTab, setActiveTab, allTabs, menuDrawer, setMenuDrawer }) {
-  const [openDropdown, setOpenDropdown] = useState(null);
+const { useState, useEffect, useMemo, useRef } = React;
 
-  const toggleDropdown = (name) => setOpenDropdown(prev => prev === name ? null : name);
-  const closeDropdowns = () => setOpenDropdown(null);
+window.Header = function Header({
+  activeTab,
+  setActiveTab,
+  allTabs,
+  currentUser,
+  onOpenLogin,
+  onOpenUsersModal,
+  onLogout,
+  onToggleSidebar,
+  isSidebarCollapsed
+}) {
+  const [userDropdown, setUserDropdown] = useState(false);
+  const [syncInfo, setSyncInfo] = useState({ connected: true, status: 'متصل 🟢', last_sync: 'الآن' });
+  const [searchQuery, setSearchQuery] = useState('');
 
-  const prodTabs = [
-    { id: 'inventory', label: 'المخزون الخام', icon: Icons.Scissors },
-    { id: 'factory', label: 'متابعة الورشة والإنتاج', icon: Icons.Factory }
-  ];
+  const user = currentUser || { id: 1, username: 'admin', full_name: 'المدير العام 👑', role: 'admin', role_label: 'المدير العام' };
+  const userRole = user.role || 'admin';
 
-  const finTabs = [
-    { id: 'purchases', label: 'المشتريات والتوريد', icon: Icons.Purchases },
-    { id: 'vouchers', label: 'السندات المالية', icon: Icons.Vouchers },
-    { id: 'expenses', label: 'المصاريف التشغيلية', icon: Icons.Expenses },
-    { id: 'accounts', label: 'شجرة الحسابات', icon: Icons.Accounts },
-    { id: 'journal', label: 'القيود اليومية', icon: Icons.Journal },
-    { id: 'reports', label: 'التقارير المالية', icon: Icons.Reports }
-  ];
-
-  const [syncInfo, setSyncInfo] = React.useState({ connected: true, status: 'متصل 🟢', last_sync: '18:52' });
-
-  React.useEffect(() => {
+  useEffect(() => {
     let isMounted = true;
     const checkSync = async () => {
       if (typeof window.fetchSyncStatus === 'function') {
-        const res = await window.fetchSyncStatus();
-        if (res && isMounted) {
-          const timeStr = res.last_sync ? String(res.last_sync).split('T')[1]?.split('.')[0]?.slice(0, 5) || String(res.last_sync).slice(0, 5) : 'الآن';
-          setSyncInfo({
-            connected: res.connected !== false,
-            status: res.status || 'متصل 🟢',
-            last_sync: timeStr
-          });
-        }
+        try {
+          const res = await window.fetchSyncStatus();
+          if (res && isMounted) {
+            const timeStr = res.last_sync ? String(res.last_sync).split('T')[1]?.split('.')[0]?.slice(0, 5) || String(res.last_sync).slice(0, 5) : 'الآن';
+            setSyncInfo({
+              connected: res.connected !== false,
+              status: res.status || 'متصل 🟢',
+              last_sync: timeStr
+            });
+          }
+        } catch(e){}
       }
     };
     checkSync();
-    const interval = setInterval(checkSync, 10000);
+    const interval = setInterval(checkSync, 12000);
     return () => { isMounted = false; clearInterval(interval); };
   }, []);
 
-  const isProdActive = ['inventory', 'factory'].includes(activeTab);
-  const isFinActive = ['purchases', 'vouchers', 'expenses', 'accounts', 'journal', 'reports'].includes(activeTab);
+  // Map active tab to breadcrumb title & category
+  const tabMetadata = useMemo(() => {
+    const map = {
+      dashboard: { title: "لوحة التحكم التنفيذية", category: "الرئيسية" },
+      customers: { title: "العملاء وسجل المقاسات", category: "العملاء و CRM" },
+      products: { title: "المنتجات والتصاميم و BOM", category: "الأزياء والتصميم" },
+      orders: { title: "المبيعات والطلبات والفواتير", category: "المبيعات" },
+      factory: { title: "إدارة الورشة والمعمل والإنتاج", category: "الإنتاج" },
+      inventory: { title: "مخزون الأقمشة والمستلزمات", category: "المستودعات" },
+      purchases: { title: "المشتريات وفواتير الموردين", category: "المشتريات" },
+      accounts: { title: "شجرة الحسابات المالية (24 عمود)", category: "المحاسبة والمالية" },
+      vouchers: { title: "السندات المالية والقبض والصرف", category: "المحاسبة والمالية" },
+      expenses: { title: "المصاريف التشغيلية والإدارية", category: "المحاسبة والمالية" },
+      journal: { title: "دفتر القيود اليومية المحاسبية", category: "المحاسبة والمالية" },
+      reports: { title: "القوائم والتقارير المالية والختامية", category: "التقارير" },
+      marketing: { title: "محرك التسويق والذكاء الإعلاني", category: "النمو والتسويق" },
+      hr: { title: "إدارة الموظفين ومسير الرواتب", category: "الموارد البشرية" },
+      feedback: { title: "تقييمات الجودة وتجارب العملاء", category: "الجودة" },
+      settings: { title: "إعدادات النظام والعملات", category: "الإدارة" }
+    };
+    return map[activeTab] || { title: "لوحة التحكم", category: "Little Princesses ERP" };
+  }, [activeTab]);
+
+  const getRoleBadgeColor = (role) => {
+    switch(role) {
+      case 'admin': return 'bg-[#FCE8F2] text-[#B0005A] border-[#F2A4CB]';
+      case 'accountant': return 'bg-[#E2F5F7] text-[#007F8C] border-[#C5ECF0]';
+      case 'workshop_manager': return 'bg-[#F2E7F3] text-[#8F2A87] border-[#E5CEE7]';
+      case 'data_entry':
+      default: return 'bg-[#FFF1DC] text-[#F28A00] border-[#FFE4B9]';
+    }
+  };
 
   return (
-    <header className="sticky top-0 z-40 bg-[#0F172A] border-b-2 border-[#D81B60] shadow-lg backdrop-blur-md" dir="rtl">
-      {/* ── Top Main Bar (Compact & Sleek) ── */}
-      <div className="flex items-center justify-between px-4 py-2.5 md:px-8 max-w-7xl mx-auto">
-        <div className="flex items-center gap-3">
-          <button 
-            onClick={() => setMenuDrawer(!menuDrawer)}
-            className="p-1.5 rounded-lg bg-slate-800 text-slate-200 border border-slate-700 md:hidden hover:bg-slate-700 transition"
-            aria-label="القائمة الرئيسية"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              {menuDrawer ? <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /> : <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />}
-            </svg>
-          </button>
-          
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-[#D81B60] via-[#C2185B] to-[#00ACC1] flex items-center justify-center text-white text-base shadow-sm border border-pink-400/40">
-              👑
-            </div>
-            <div className="flex flex-col">
-              <h1 className="text-sm md:text-base font-bold text-white tracking-tight flex items-center gap-1.5">
-                مؤسسة الأميرات الصغيرات <span className="text-[11px] font-bold text-[#F48FB1] bg-pink-950/70 border border-pink-700/70 px-1.5 py-0.5 rounded">ERP</span>
-              </h1>
-              <span className="text-[10px] text-slate-300 font-medium">
-                نظام إدارة ومقاسات فساتين الأطفال الفاخرة
-              </span>
-            </div>
-          </div>
-        </div>
+    <header className="sticky top-0 z-20 h-16 bg-white border-b border-[#E8E5EA] px-4 md:px-6 flex items-center justify-between shadow-[0_1px_4px_rgba(0,0,0,0.02)]" dir="rtl">
+      {/* Right Side: Sidebar Mobile Toggle & Breadcrumbs */}
+      <div className="flex items-center gap-3">
+        <button
+          onClick={onToggleSidebar}
+          className="p-2 rounded-xl border border-[#E8E5EA] text-[#6F6B75] hover:text-[#B0005A] hover:bg-[#FCE8F2] md:hidden transition cursor-pointer"
+          title="القائمة الجانبية"
+        >
+          <Icons.Menu className="w-5 h-5" />
+        </button>
 
-        <div className="flex items-center gap-2.5">
-          <div className="hidden lg:flex items-center gap-1.5 bg-slate-800/80 border border-slate-700/60 px-2.5 py-1 rounded-md text-[11px] font-medium text-slate-300">
-            <span className="text-cyan-400">📅</span>
-            <span>{new Date().toLocaleDateString('ar-SA', { weekday: 'short', month: 'short', day: 'numeric' })}</span>
+        <div className="flex flex-col">
+          <div className="flex items-center gap-1.5 text-xs text-[#6F6B75]">
+            <span className="font-medium">{tabMetadata.category}</span>
+            <Icons.ChevronLeft className="w-3.5 h-3.5 text-[#E8E5EA]" />
+            <span className="font-semibold text-[#B0005A]">{tabMetadata.title}</span>
           </div>
-
-          <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium border ${
-            syncInfo.connected ? 'bg-emerald-950/60 border-emerald-800/60 text-emerald-300' : 'bg-rose-950/60 border-rose-800/60 text-rose-300'
-          }`}>
-            <span className={`w-2 h-2 rounded-full ${syncInfo.connected ? 'bg-emerald-400' : 'bg-rose-400'}`}></span>
-            <span>{syncInfo.status}</span>
-            <span className="text-[10px] opacity-70 font-mono">({syncInfo.last_sync})</span>
-          </div>
+          <span className="text-sm font-bold text-[#25232A] hidden sm:block">
+            {tabMetadata.title}
+          </span>
         </div>
       </div>
 
-      {/* ── Mobile Navigation Drawer ── */}
-      {menuDrawer && (
-        <div className="md:hidden border-t border-slate-800 bg-[#0F172A]/98 backdrop-blur-xl p-3 animate-fadeIn">
-          <div className="grid grid-cols-2 gap-1.5 max-h-72 overflow-y-auto">
-            {allTabs.map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => { setActiveTab(tab.id); setMenuDrawer(false); }}
-                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition ${activeTab === tab.id ? 'bg-[#D81B60] text-white font-bold shadow-sm' : 'bg-slate-800/60 text-slate-200 hover:bg-slate-800'}`}
-              >
-                {typeof tab.icon === 'function' ? tab.icon() : tab.icon}
-                <span className="truncate">{tab.label}</span>
-              </button>
-            ))}
-            <button
-              onClick={() => { setActiveTab('marketing'); setMenuDrawer(false); }}
-              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition ${activeTab === 'marketing' ? 'bg-[#D81B60] text-white font-bold shadow-sm' : 'bg-slate-800/60 text-slate-200 hover:bg-slate-800'}`}
-            >
-              {Icons.Marketing()}
-              <span className="truncate">التسويق والإعلانات</span>
-            </button>
-          </div>
+      {/* Center: Global Quick Search */}
+      <div className="hidden lg:flex items-center relative w-96 max-w-md">
+        <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6F6B75] pointer-events-none">
+          <Icons.Search className="w-4 h-4" />
         </div>
-      )}
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="بحث سريع في العملاء، الطلبات، التصاميم، الفواتير..."
+          className="w-full h-10 pr-9 pl-4 text-xs bg-[#FAFAFB] border border-[#E8E5EA] rounded-xl text-[#25232A] placeholder-[#6F6B75] focus:bg-white focus:border-[#B0005A] focus:ring-2 focus:ring-[#FCE8F2] transition-all outline-none"
+        />
+        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] text-[#6F6B75] bg-white border border-[#E8E5EA] px-1.5 py-0.5 rounded font-mono">
+          ⌘K
+        </span>
+      </div>
 
-      {/* ── Streamlined Desktop Navigation Bar (Enterprise & Compact) ── */}
-      <div className="hidden md:block border-t border-slate-800/80 bg-[#0A0F1D] py-1.5 px-6">
-        <div className="flex items-center gap-1.5 max-w-7xl mx-auto w-full relative">
-          
-          <button onClick={() => { setActiveTab('dashboard'); closeDropdowns(); }} 
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border ${activeTab === 'dashboard' ? 'bg-[#D81B60] text-white border-[#C2185B] font-bold shadow-sm' : 'bg-transparent text-slate-300 border-transparent hover:bg-slate-800/80 hover:text-white'}`}>
-            {Icons.Dashboard()}<span>الرئيسية</span>
+      {/* Left Side: Branch, Cloud Sync, Quick Action & User Profile */}
+      <div className="flex items-center gap-2.5">
+        {/* Branch Context Badge */}
+        <div className="hidden xl:flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-[#F2E7F3] border border-[#E5CEE7] text-[#8F2A87] text-[11.5px] font-semibold">
+          <span>🏛️</span>
+          <span>الفرع الرئيسي - صنعاء</span>
+        </div>
+
+        {/* Realtime Cloud Sync Status */}
+        <div className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold border transition-all ${
+          syncInfo.connected
+            ? 'bg-[#E2F5F7] border-[#C5ECF0] text-[#007F8C]'
+            : 'bg-[#FFF1DC] border-[#FFE4B9] text-[#F28A00]'
+        }`}>
+          <span className={`w-2 h-2 rounded-full ${syncInfo.connected ? 'bg-[#009FAE] animate-pulse' : 'bg-[#F28A00]'}`} />
+          <span>{syncInfo.status}</span>
+          <span className="text-[10px] opacity-70 font-mono">({syncInfo.last_sync})</span>
+        </div>
+
+        {/* Quick Action Button */}
+        <button
+          onClick={() => setActiveTab('orders')}
+          className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#B0005A] hover:bg-[#8E0049] text-white text-xs font-bold shadow-xs hover:shadow-sm transition-all cursor-pointer"
+        >
+          <Icons.Plus className="w-4 h-4" />
+          <span>طلب جديد</span>
+        </button>
+
+        {/* User Profile Dropdown */}
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setUserDropdown(!userDropdown)}
+            className="flex items-center gap-2 py-1 px-2 rounded-xl bg-[#FAFAFB] hover:bg-white border border-[#E8E5EA] transition cursor-pointer"
+          >
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-[#B0005A] via-[#8F2A87] to-[#009FAE] text-white flex items-center justify-center text-xs font-bold shadow-xs">
+              {user.username ? user.username.slice(0, 2).toUpperCase() : 'LP'}
+            </div>
+            <div className="flex flex-col text-right hidden sm:flex">
+              <span className="text-xs font-bold text-[#25232A] leading-tight">
+                {user.full_name || user.username}
+              </span>
+              <span className="text-[10.5px] text-[#6F6B75]">
+                {user.role_label || user.role}
+              </span>
+            </div>
+            <span className={`text-[10.5px] font-bold px-1.5 py-0.5 rounded-md border ${getRoleBadgeColor(userRole)}`}>
+              {userRole === 'admin' ? 'مدير' : userRole === 'accountant' ? 'محاسب' : userRole === 'workshop_manager' ? 'ورشة' : 'مدخل'}
+            </span>
+            <Icons.ChevronDown className="w-3.5 h-3.5 text-[#6F6B75]" />
           </button>
 
-          <button onClick={() => { setActiveTab('customers'); closeDropdowns(); }} 
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border ${activeTab === 'customers' ? 'bg-[#D81B60] text-white border-[#C2185B] font-bold shadow-sm' : 'bg-transparent text-slate-300 border-transparent hover:bg-slate-800/80 hover:text-white'}`}>
-            {Icons.Users()}<span>العملاء والمقاسات</span>
-          </button>
-
-          <button onClick={() => { setActiveTab('products'); closeDropdowns(); }} 
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border ${activeTab === 'products' ? 'bg-[#D81B60] text-white border-[#C2185B] font-bold shadow-sm' : 'bg-transparent text-slate-300 border-transparent hover:bg-slate-800/80 hover:text-white'}`}>
-            {Icons.Calculator()}<span>المنتجات والتسعير</span>
-          </button>
-
-          <button onClick={() => { setActiveTab('orders'); closeDropdowns(); }} 
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border ${activeTab === 'orders' ? 'bg-[#D81B60] text-white border-[#C2185B] font-bold shadow-sm' : 'bg-transparent text-slate-300 border-transparent hover:bg-slate-800/80 hover:text-white'}`}>
-            {Icons.ShoppingBag()}<span>الطلبات والفواتير</span>
-          </button>
-
-          <button onClick={() => { setActiveTab('marketing'); closeDropdowns(); }} 
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border ${activeTab === 'marketing' ? 'bg-[#D81B60] text-white border-[#C2185B] font-bold shadow-sm' : 'bg-transparent text-slate-300 border-transparent hover:bg-slate-800/80 hover:text-white'}`}>
-            {Icons.Marketing()}<span>التسويق والإعلانات</span>
-          </button>
-
-          <button onClick={() => { setActiveTab('hr'); closeDropdowns(); }} 
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border ${activeTab === 'hr' ? 'bg-[#D81B60] text-white border-[#C2185B] font-bold shadow-sm' : 'bg-transparent text-slate-300 border-transparent hover:bg-slate-800/80 hover:text-white'}`}>
-            {Icons.HR ? Icons.HR() : Icons.Users()}<span>الموارد البشرية</span>
-          </button>
-
-          {/* Production Dropdown */}
-          <div className="relative">
-            <button onClick={() => toggleDropdown('production')} 
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border ${isProdActive ? 'bg-pink-950/80 text-pink-200 border-pink-700 font-bold' : 'bg-transparent text-slate-300 border-transparent hover:bg-slate-800/80 hover:text-white'}`}>
-              {Icons.Factory()}<span>المخزون والإنتاج</span>
-              <span className="text-[9px] text-slate-400">▾</span>
-            </button>
-
-            {openDropdown === 'production' && (
-              <div className="absolute right-0 mt-1.5 w-44 bg-[#0F172A] border border-slate-700 rounded-xl shadow-xl p-1.5 z-50 animate-fadeIn space-y-1">
-                {prodTabs.map(t => (
-                  <button key={t.id} onClick={() => { setActiveTab(t.id); closeDropdowns(); }} 
-                    className={`w-full text-right px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-2 transition ${activeTab === t.id ? 'bg-[#D81B60] text-white font-bold' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
-                    {typeof t.icon === 'function' ? t.icon() : t.icon}<span>{t.label}</span>
-                  </button>
-                ))}
+          {/* User Dropdown Modal */}
+          {userDropdown && (
+            <div className="absolute left-0 mt-2 w-64 bg-white border border-[#E8E5EA] rounded-2xl shadow-xl p-2 z-50 animate-fadeIn space-y-1.5">
+              <div className="p-3 bg-[#FAFAFB] rounded-xl border border-[#E8E5EA] text-right">
+                <div className="font-bold text-sm text-[#25232A]">{user.full_name || user.username}</div>
+                <div className="text-xs text-[#6F6B75] font-mono">@{user.username}</div>
+                <div className={`mt-2 inline-block text-[11px] font-bold px-2 py-0.5 rounded-md border ${getRoleBadgeColor(userRole)}`}>
+                  {user.role_label || userRole}
+                </div>
               </div>
-            )}
-          </div>
 
-          {/* Financials Dropdown */}
-          <div className="relative">
-            <button onClick={() => toggleDropdown('financials')} 
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border ${isFinActive ? 'bg-pink-950/80 text-pink-200 border-pink-700 font-bold' : 'bg-transparent text-slate-300 border-transparent hover:bg-slate-800/80 hover:text-white'}`}>
-              {Icons.Accounts()}<span>المالية والحسابات</span>
-              <span className="text-[9px] text-slate-400">▾</span>
-            </button>
+              {userRole === 'admin' && (
+                <button
+                  type="button"
+                  onClick={() => { setUserDropdown(false); if (onOpenUsersModal) onOpenUsersModal(); }}
+                  className="w-full text-right px-3 py-2 rounded-xl text-xs font-bold text-[#25232A] hover:bg-[#FCE8F2] hover:text-[#B0005A] flex items-center gap-2 transition cursor-pointer"
+                >
+                  <Icons.Users className="w-4 h-4 text-[#B0005A]" />
+                  <span>إدارة المستخدمين والصلاحيات (RBAC)</span>
+                </button>
+              )}
 
-            {openDropdown === 'financials' && (
-              <div className="absolute right-0 mt-1.5 w-48 bg-[#0F172A] border border-slate-700 rounded-xl shadow-xl p-1.5 z-50 animate-fadeIn space-y-1">
-                {finTabs.map(t => (
-                  <button key={t.id} onClick={() => { setActiveTab(t.id); closeDropdowns(); }} 
-                    className={`w-full text-right px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-2 transition ${activeTab === t.id ? 'bg-[#D81B60] text-white font-bold' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
-                    {typeof t.icon === 'function' ? t.icon() : t.icon}<span>{t.label}</span>
-                  </button>
-                ))}
+              <button
+                type="button"
+                onClick={() => { setUserDropdown(false); if (onOpenLogin) onOpenLogin(); }}
+                className="w-full text-right px-3 py-2 rounded-xl text-xs font-bold text-[#25232A] hover:bg-[#E2F5F7] hover:text-[#007F8C] flex items-center gap-2 transition cursor-pointer"
+              >
+                <span>🔄</span>
+                <span>تبديل المستخدم (Switch Role)</span>
+              </button>
+
+              <div className="border-t border-[#E8E5EA] pt-1">
+                <button
+                  type="button"
+                  onClick={() => { setUserDropdown(false); if (onLogout) onLogout(); }}
+                  className="w-full text-right px-3 py-2 rounded-xl text-xs font-bold text-[#D64545] hover:bg-rose-50 flex items-center gap-2 transition cursor-pointer"
+                >
+                  <span>🚪</span>
+                  <span>تسجيل الخروج</span>
+                </button>
               </div>
-            )}
-          </div>
-
-          <button onClick={() => { setActiveTab('feedback'); closeDropdowns(); }} 
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border ${activeTab === 'feedback' ? 'bg-[#D81B60] text-white border-[#C2185B] font-bold shadow-sm' : 'bg-transparent text-slate-300 border-transparent hover:bg-slate-800/80 hover:text-white'}`}>
-            {Icons.Star()}<span>الجودة</span>
-          </button>
-
-          <button onClick={() => { setActiveTab('settings'); closeDropdowns(); }} 
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border ${activeTab === 'settings' ? 'bg-[#D81B60] text-white border-[#C2185B] font-bold shadow-sm' : 'bg-transparent text-slate-300 border-transparent hover:bg-slate-800/80 hover:text-white'}`}>
-            {Icons.Settings()}<span>الإعدادات</span>
-          </button>
-
+            </div>
+          )}
         </div>
       </div>
     </header>
   );
-}
+};
