@@ -37,9 +37,11 @@ async function loadAllData() {
       fetch("/api/accounts/list").then(r => r.json()).catch(() => callGAS("getAccounts")),
       callGAS("getProducts"),
       callGAS("getOrders"),
-      fetch("/api/purchases").then(r => r.json()).catch(() => callGAS("getPurchases")),
       callGAS("getFactory"),
-      fetch("/api/vouchers").then(r => r.json()).catch(() => callGAS("getVouchers")),
+      fetch("/api/vouchers").then(r => r.json()).then(d => {
+        const list = (d && Array.isArray(d.data)) ? d.data : (Array.isArray(d) ? d : []);
+        return list.length > 0 ? { data: list } : callGAS("getVouchers");
+      }).catch(() => callGAS("getVouchers")),
       callGAS("getExpenses"),
       callGAS("getJournalEntries"),
       callGAS("getFeedback"),
@@ -132,7 +134,7 @@ async function loadAllData() {
       })) : [],
       purchases: (puRes.status === "fulfilled" && puRes.value?.data && Array.isArray(puRes.value.data)) ? puRes.value.data : [],
       factory: (fRes.status === "fulfilled" && fRes.value?.data && Array.isArray(fRes.value.data)) ? fRes.value.data : [],
-      vouchers: (vRes.status === "fulfilled" && vRes.value?.data && Array.isArray(vRes.value.data)) ? vRes.value.data : [],
+      vouchers: (vRes.status === "fulfilled" && vRes.value) ? (Array.isArray(vRes.value.data) ? vRes.value.data : (Array.isArray(vRes.value) ? vRes.value : [])) : [],
       expenses: (eRes.status === "fulfilled" && eRes.value?.data && Array.isArray(eRes.value.data)) ? eRes.value.data : [],
       journal: (jRes.status === "fulfilled" && jRes.value?.data && Array.isArray(jRes.value.data)) ? jRes.value.data : [],
       feedback: (fBRes.status === "fulfilled" && fBRes.value?.data && Array.isArray(fBRes.value.data)) ? fBRes.value.data : [],

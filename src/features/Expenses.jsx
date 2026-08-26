@@ -21,15 +21,21 @@ function Expenses({ expenses = [], setExpenses, accounts = [], showToast, curren
     const rate = window.CurrencyService ? window.CurrencyService.getRate(currCode) : 1.0;
     const baseObj = window.CurrencyService ? window.CurrencyService.toBase(formData.amount, currCode, rate) : { base_amount: parseFloat(formData.amount) || 0, exchange_rate: rate };
 
-    // Extract expense account code
-    const expMatch = formData.exp_category.match(/^(\d+)/);
-    const expCode = expMatch ? expMatch[1] : '502';
-    const sourceMatch = (formData.source_acc || '101').match(/^(\d+)/);
-    const sourceCode = sourceMatch ? sourceMatch[1] : '101';
+    // Extract exact expense account code & sub-account code without truncating decimals (e.g. 101.01)
+    const expCode = formData.exp_category ? (formData.exp_category.split(' - ')[0] || '').trim() : '502';
+    const sourceCode = formData.source_acc ? (formData.source_acc.split(' - ')[0] || '').trim() : '101';
+
+    const expAccObj = (accounts || []).find(a => String(a.code || a.acc_code) === String(expCode));
+    const debitAccLabel = expAccObj ? `${expAccObj.code || expAccObj.acc_code} - ${expAccObj.name || expAccObj.account_name}` : (formData.exp_category || expCode);
+
+    const sourceAccObj = (accounts || []).find(a => String(a.code || a.acc_code) === String(sourceCode));
+    const creditAccLabel = sourceAccObj ? `${sourceAccObj.code || sourceAccObj.acc_code} - ${sourceAccObj.name || sourceAccObj.account_name}` : (formData.source_acc || sourceCode);
 
     const newE = {
       id: Date.now(),
       ...formData,
+      account_id: creditAccLabel,
+      payment_source: creditAccLabel,
       currency: currCode,
       exchange_rate: rate,
       base_amount: baseObj.base_amount
@@ -40,13 +46,13 @@ function Expenses({ expenses = [], setExpenses, accounts = [], showToast, curren
       if (res.status === 'success' || res.id || !res.error) {
         if (setExpenses) setExpenses([newE, ...(expenses || [])]);
 
-        // Automatically create double-entry journal entry
+        // Automatically create double-entry journal entry with exact sub-account
         callGAS('addJournalEntry', {
           id: Date.now() + 1,
           transaction_id: `TX-EXP-${Date.now()}`,
           entry_no: `AUTO-EXP-${Date.now().toString().slice(-6)}`,
-          debit: expCode,
-          credit: sourceCode,
+          debit: debitAccLabel,
+          credit: creditAccLabel,
           amount: parseFloat(formData.amount) || 0,
           currency: currCode,
           exchange_rate: rate,
@@ -125,12 +131,13 @@ function Expenses({ expenses = [], setExpenses, accounts = [], showToast, curren
             <div>
               <label className={labelCls}>حساب الدفع</label>
               <select className={inputCls} value={formData.source_acc} onChange={e => setFormData({...formData, source_acc: e.target.value})}>
-                <option value="">-- اختر حساب --</option>
+                <option value="">-- اختر حساب الدفع --</option>
                 {accounts.map(a => {
                   const code = a.code || a.acc_code || a.id;
                   const rawName = a.name || a.account_name || a.acc_name || '';
                   const name = (rawName && !rawName.includes('???')) ? rawName : (a.name_en || code);
-                  return <option key={code} value={code}>{code} - {name}</option>;
+                  const label = `${code} - ${name}`;
+                  return <option key={code} value={label}>{label}</option>;
                 })}
               </select>
             </div>

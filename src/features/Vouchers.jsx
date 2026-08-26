@@ -4,7 +4,16 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
   const currencyDisplay = currency?.display || "SAR";
 
   const [formData, setFormData] = useState({
-    v_no: '', v_type: 'سند قبض', party: '', amount: '', currency: typeof CURRENCIES !== 'undefined' ? (typeof CURRENCIES[0] === 'object' ? CURRENCIES[0].value : CURRENCIES[0]) : 'SAR', date: TODAY_STR_ISO, notes: '', pay_method: typeof PAY_METHODS !== 'undefined' ? PAY_METHODS[0] : 'نقدي', acc_code: ''
+    v_no: '',
+    v_type: 'سند صرف',
+    party: '',
+    amount: '',
+    currency: typeof CURRENCIES !== 'undefined' ? (typeof CURRENCIES[0] === 'object' ? CURRENCIES[0].value : CURRENCIES[0]) : 'SAR',
+    date: TODAY_STR_ISO,
+    notes: '',
+    pay_method: typeof PAY_METHODS !== 'undefined' ? PAY_METHODS[0] : 'نقدي',
+    acc_code: '101 - الصندوق الرئيسي',
+    target_acc: '201 - ذمم الموردين'
   });
   
   const [selectedCustomer, setSelectedCustomer] = useState('');
@@ -12,19 +21,21 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('الكل'); // 'الكل' | 'سند قبض' | 'سند صرف'
   const [viewVoucher, setViewVoucher] = useState(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // حالة تعديل وحذف السند المالي
   const [editingVoucher, setEditingVoucher] = useState(null);
   const [editVoucherData, setEditVoucherData] = useState({
     id: null,
     v_no: '',
-    v_type: 'سند قبض',
+    v_type: 'سند صرف',
     party: '',
     amount: '',
     currency: 'YER ﷼',
     exchange_rate: '1.0',
     pay_method: 'نقدي',
-    acc_code: '',
+    acc_code: '101 - الصندوق الرئيسي',
+    target_acc: '201 - ذمم الموردين',
     date: TODAY_STR_ISO,
     notes: ''
   });
@@ -32,26 +43,28 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
   const [isDeletingId, setIsDeletingId] = useState(null);
 
   const normalizeVoucher = (v) => {
-    const rawNo = v.v_no || v.voucher_no || v.payment_no || `VCH-${v.id || ''}`;
-    const rawType = v.v_type || v.voucher_type || v.payment_type || (String(rawNo).includes('PV') || String(rawNo).includes('EXP') ? 'سند صرف' : 'سند قبض');
-    const isReceipt = rawType === 'سند قبض' || rawType === 'RECEIPT' || rawType === 'قبض';
+    if (!v) return null;
+    const rawNo = v.v_no || v.voucher_no || v.payment_no || v.reference_no || `VCH-${v.id || ''}`;
+    const rawType = v.v_type || v.voucher_type || v.payment_type || v.type || (String(rawNo).includes('PV') || String(rawNo).includes('EXP') ? 'سند صرف' : 'سند قبض');
+    const isReceipt = rawType === 'سند قبض' || rawType === 'RECEIPT' || rawType === 'قبض' || String(rawNo).includes('RV');
     const typeLabel = isReceipt ? 'سند قبض' : 'سند صرف';
     
     // الطرف: العميل في القبض، المورد أو المستفيد في الصرف
     let party = v.party || v.party_name || '';
     if (!party) {
       if (isReceipt) party = v.customer_id || v.customer_name || v.customer || '';
-      else party = v.supplier_id || v.supplier_name || v.supplier || v.beneficiary || '';
+      else party = v.supplier_id || v.supplier_name || v.supplier || v.beneficiary || v.recipient || '';
     }
-    if (!party) party = v.customer_id || v.supplier_id || 'طرف عام';
+    if (!party) party = isReceipt ? 'عميلة عامة' : 'مورد / مستفيد عام';
     
     const payMethod = v.pay_method || v.payment_method || v.pay_type || 'نقدي';
-    const amount = parseFloat(v.amount) || 0;
+    const amount = parseFloat(String(v.amount !== undefined ? v.amount : (v.base_amount || v.amt || 0)).replace(/,/g, '')) || 0;
     const curr = v.currency || currencyDisplay;
     let dateStr = v.date || v.date_created || v.created_at || TODAY_STR_ISO;
     if (dateStr && String(dateStr).includes('T')) dateStr = String(dateStr).split('T')[0];
     const notes = v.notes || v.note || v.description || '—';
     const account = v.acc_code || v.account_id || v.payment_source || '101 - الصندوق الرئيسي';
+    const targetAccount = v.target_acc || v.debit_account || v.credit_account || (isReceipt ? '104 - ذمم العملاء' : '201 - ذمم الموردين');
 
     return {
       id: v.id || rawNo,
@@ -65,31 +78,82 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
       date: dateStr,
       notes,
       account,
+      target_account: targetAccount,
       image_path: v.image_path || v.receipt_url || ''
     };
   };
 
   const filteredVouchers = useMemo(() => {
     return (vouchers || []).map(normalizeVoucher).filter(v => {
+      if (!v) return false;
       const matchType = typeFilter === 'الكل' || v.v_type === typeFilter;
-      const q = search.toLowerCase();
+      const q = (search || '').toLowerCase();
       const matchSearch = !search ||
-        v.v_no.toLowerCase().includes(q) ||
-        v.party.toLowerCase().includes(q) ||
-        v.notes.toLowerCase().includes(q) ||
-        v.pay_method.toLowerCase().includes(q);
+        String(v.v_no || '').toLowerCase().includes(q) ||
+        String(v.party || '').toLowerCase().includes(q) ||
+        String(v.notes || '').toLowerCase().includes(q) ||
+        String(v.account || '').toLowerCase().includes(q) ||
+        String(v.pay_method || '').toLowerCase().includes(q);
       return matchType && matchSearch;
     });
   }, [vouchers, search, typeFilter]);
 
   const totals = useMemo(() => {
     let receipts = 0, payments = 0;
-    (vouchers || []).map(normalizeVoucher).forEach(v => {
-      if (v.isReceipt) receipts += v.amount;
-      else payments += v.amount;
+    (vouchers || []).forEach(item => {
+      const v = normalizeVoucher(item);
+      if (v) {
+        if (v.isReceipt) receipts += v.amount;
+        else payments += v.amount;
+      }
     });
     return { receipts, payments, net: receipts - payments };
   }, [vouchers]);
+
+  // ── إعادة جلب ومزامنة السندات المالية فوراً من السيرفر وشيت السندات_المالية ──
+  const refreshVouchers = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      let combined = [];
+      // 1. Live Google Sheets
+      try {
+        if (typeof window.callGAS === 'function') {
+          const gasRes = await window.callGAS('getVouchers');
+          const gasList = (gasRes && Array.isArray(gasRes.data)) ? gasRes.data : (Array.isArray(gasRes) ? gasRes : []);
+          if (gasList.length > 0) combined.push(...gasList);
+        }
+      } catch (ge) {
+        console.warn("GAS getVouchers warning:", ge);
+      }
+
+      // 2. Local Backend
+      try {
+        const beRes = await fetch('/api/vouchers').then(r => r.json());
+        const beList = (beRes && Array.isArray(beRes.data)) ? beRes.data : (Array.isArray(beRes) ? beRes : []);
+        if (beList.length > 0) combined.push(...beList);
+      } catch (be) {
+        console.warn("Local vouchers fetch warning:", be);
+      }
+
+      if (combined.length > 0) {
+        const uniq = new Map();
+        combined.forEach(v => {
+          const key = String(v.v_no || v.voucher_no || v.payment_no || v.id || '').trim();
+          if (key && !uniq.has(key)) uniq.set(key, v);
+        });
+        const mergedList = Array.from(uniq.values());
+        if (setVouchers) setVouchers(mergedList);
+      }
+    } catch (err) {
+      console.error("refreshVouchers error:", err);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [setVouchers]);
+
+  useEffect(() => {
+    refreshVouchers();
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -100,14 +164,28 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
     const vRate = window.CurrencyService ? window.CurrencyService.getRate(vCurrCode) : 1.0;
     const vBaseObj = window.CurrencyService ? window.CurrencyService.toBase(formData.amount, vCurrCode, vRate) : { base_amount: parseFloat(formData.amount) || 0, exchange_rate: vRate };
 
-    const selectedAccCode = formData.acc_code ? formData.acc_code.split(' - ')[0] : '101';
+    const selectedCashAcc = formData.acc_code ? formData.acc_code.split(' - ')[0].trim() : '101';
+    const defaultTarget = formData.v_type === 'سند صرف' ? '201' : '104';
+    const selectedTargetAcc = formData.target_acc ? formData.target_acc.split(' - ')[0].trim() : defaultTarget;
+
+    const isReceipt = formData.v_type === 'سند قبض';
+    // Fix 1: Auto-Debit in Payment Voucher posts to user-selected target account (e.g. 502, 201, 102, etc.)
+    const debitAccCode = isReceipt ? selectedCashAcc : selectedTargetAcc;
+    const creditAccCode = isReceipt ? selectedTargetAcc : selectedCashAcc;
+
+    const debitAccObj = (accounts || []).find(a => String(a.code || a.acc_code) === String(debitAccCode));
+    const creditAccObj = (accounts || []).find(a => String(a.code || a.acc_code) === String(creditAccCode));
+    const debitAccLabel = debitAccObj ? `${debitAccObj.code || debitAccObj.acc_code} - ${debitAccObj.name || debitAccObj.account_name}` : debitAccCode;
+    const creditAccLabel = creditAccObj ? `${creditAccObj.code || creditAccObj.acc_code} - ${creditAccObj.name || creditAccObj.account_name}` : creditAccCode;
 
     const newV = {
       id: Date.now(),
       v_no: voucherNo,
       voucher_no: voucherNo,
+      payment_no: voucherNo,
       v_type: formData.v_type,
       voucher_type: formData.v_type,
+      payment_type: formData.v_type,
       party: formData.party,
       party_name: formData.party,
       amount: parseFloat(formData.amount) || 0,
@@ -115,15 +193,18 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
       exchange_rate: vRate,
       base_amount: vBaseObj.base_amount,
       date: formData.date || TODAY_STR_ISO,
+      date_created: formData.date || TODAY_STR_ISO,
       notes: formData.notes,
       pay_method: formData.pay_method,
-      acc_code: formData.acc_code || '101 - الصندوق الرئيسي',
-      customer_id: formData.v_type === 'سند قبض' ? formData.party : '',
-      supplier_id: formData.v_type === 'سند صرف' ? formData.party : '',
       payment_method: formData.pay_method,
+      acc_code: formData.acc_code || '101 - الصندوق الرئيسي',
       account_id: formData.acc_code || '101 - الصندوق الرئيسي',
       payment_source: formData.acc_code || '101 - الصندوق الرئيسي',
-      date_created: formData.date || TODAY_STR_ISO
+      target_acc: formData.target_acc || (isReceipt ? '104 - ذمم العملاء' : '201 - ذمم الموردين'),
+      debit_account: debitAccLabel,
+      credit_account: creditAccLabel,
+      customer_id: isReceipt ? formData.party : '',
+      supplier_id: !isReceipt ? formData.party : ''
     };
     
     try {
@@ -131,17 +212,13 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
       if (res.status === 'success' || res.status === 200 || !res.error || res.id) {
         if (setVouchers) setVouchers([newV, ...(vouchers || [])]);
         
-        // ── ترحيل القيد المحاسبي المزدوج المتوازن بالريال اليمني ──
-        const isReceipt = newV.v_type === 'سند قبض';
-        const debitAcc = isReceipt ? selectedAccCode : '201'; // سند قبض: مدين الصندوق/البنك، سند صرف: مدين ذمم الموردين
-        const creditAcc = isReceipt ? '104' : selectedAccCode; // سند قبض: دائن ذمم العملاء، سند صرف: دائن الصندوق/البنك
-
+        // ── ترحيل القيد المحاسبي المزدوج المتوازن بالريال اليمني للحساب المحدد من قبل المستخدم ──
         callGAS('addJournalEntry', {
             id: Date.now() + 1,
             transaction_id: `TX-VCH-${voucherNo}`,
             entry_no: 'AUTO-VCH-' + voucherNo,
-            debit: debitAcc,
-            credit: creditAcc,
+            debit: debitAccLabel,
+            credit: creditAccLabel,
             amount: newV.amount,
             currency: vCurrCode,
             exchange_rate: vRate,
@@ -226,6 +303,7 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
       exchange_rate: String(vRate),
       pay_method: norm.pay_method || 'نقدي',
       acc_code: norm.account || '101 - الصندوق الرئيسي',
+      target_acc: norm.target_account || (norm.v_type === 'سند صرف' ? '201 - ذمم الموردين' : '104 - ذمم العملاء'),
       date: norm.date || TODAY_STR_ISO,
       notes: norm.notes === '—' ? '' : norm.notes
     });
@@ -243,8 +321,19 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
       const vRate = parseFloat(editVoucherData.exchange_rate) || (window.CurrencyService ? window.CurrencyService.getRate(vCurrCode) : 1.0);
       const amt = parseFloat(editVoucherData.amount) || 0;
       const vBaseObj = window.CurrencyService ? window.CurrencyService.toBase(amt, vCurrCode, vRate) : { base_amount: amt * vRate, exchange_rate: vRate };
-      const selectedAccCode = editVoucherData.acc_code ? editVoucherData.acc_code.split(' - ')[0] : '101';
+      
+      const selectedCashAcc = editVoucherData.acc_code ? editVoucherData.acc_code.split(' - ')[0].trim() : '101';
+      const defaultTarget = editVoucherData.v_type === 'سند صرف' ? '201' : '104';
+      const selectedTargetAcc = editVoucherData.target_acc ? editVoucherData.target_acc.split(' - ')[0].trim() : defaultTarget;
+      
       const isReceipt = editVoucherData.v_type === 'سند قبض';
+      const debitAccCode = isReceipt ? selectedCashAcc : selectedTargetAcc;
+      const creditAccCode = isReceipt ? selectedTargetAcc : selectedCashAcc;
+
+      const debitAccObj = (accounts || []).find(a => String(a.code || a.acc_code) === String(debitAccCode));
+      const creditAccObj = (accounts || []).find(a => String(a.code || a.acc_code) === String(creditAccCode));
+      const debitLabel = debitAccObj ? `${debitAccObj.code || debitAccObj.acc_code} - ${debitAccObj.name || debitAccObj.account_name}` : debitAccCode;
+      const creditLabel = creditAccObj ? `${creditAccObj.code || creditAccObj.acc_code} - ${creditAccObj.name || creditAccObj.account_name}` : creditAccCode;
 
       const updatedV = {
         ...editingVoucher,
@@ -254,6 +343,7 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
         payment_no: editVoucherData.v_no,
         v_type: editVoucherData.v_type,
         voucher_type: editVoucherData.v_type,
+        payment_type: editVoucherData.v_type,
         party: editVoucherData.party,
         party_name: editVoucherData.party,
         amount: amt,
@@ -267,7 +357,10 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
         payment_method: editVoucherData.pay_method,
         acc_code: editVoucherData.acc_code,
         account_id: editVoucherData.acc_code,
-        payment_source: editVoucherData.acc_code
+        payment_source: editVoucherData.acc_code,
+        target_acc: editVoucherData.target_acc || (isReceipt ? '104 - ذمم العملاء' : '201 - ذمم الموردين'),
+        debit_account: debitLabel,
+        credit_account: creditLabel
       };
 
       // 1. Update vouchers in UI state
@@ -280,13 +373,6 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
 
       // 2. Update linked Journal Entry in UI state
       if (setJournal) {
-        const debitAcc = isReceipt ? selectedAccCode : '201';
-        const creditAcc = isReceipt ? '104' : selectedAccCode;
-        const debitAccObj = (accounts || []).find(a => String(a.code || a.acc_code) === String(debitAcc));
-        const creditAccObj = (accounts || []).find(a => String(a.code || a.acc_code) === String(creditAcc));
-        const debitLabel = debitAccObj ? `${debitAccObj.code || debitAccObj.acc_code} - ${debitAccObj.name || debitAccObj.account_name}` : debitAcc;
-        const creditLabel = creditAccObj ? `${creditAccObj.code || creditAccObj.acc_code} - ${creditAccObj.name || creditAccObj.account_name}` : creditAcc;
-
         setJournal(prev => (prev || []).map(j => {
           const isLinked = j.ref_id === editVoucherData.v_no || j.entry_no === 'AUTO-VCH-' + editVoucherData.v_no || j.entry_no === 'JV-PUR-' + editVoucherData.v_no || j.ref_id === editingVoucher.id;
           if (isLinked) {
@@ -595,9 +681,24 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
               </select>
             </div>
             <div>
-              <label className={labelCls}>حساب الصندوق / البنك</label>
+              <label className={labelCls}>حساب الصندوق / البنك (الدفع/الاستلام)</label>
               <select className={inputCls} value={formData.acc_code} onChange={e => setFormData({...formData, acc_code: e.target.value})}>
                 <option value="">-- اختر حساب --</option>
+                {accounts.map(a => {
+                  const code = a.code || a.acc_code || a.id;
+                  const rawName = a.name || a.account_name || a.acc_name || '';
+                  const name = (rawName && !rawName.includes('???')) ? rawName : (a.name_en || code);
+                  const label = `${code} - ${name}`;
+                  return <option key={code} value={label}>{label}</option>;
+                })}
+              </select>
+            </div>
+            <div>
+              <label className={labelCls}>
+                {formData.v_type === 'سند صرف' ? 'الحساب المدين (بند المصروف / المورد / الأصل)' : 'الحساب الدائن (حساب العميل / الإيراد)'} <span className="text-[#D64545] font-bold">*</span>
+              </label>
+              <select className={inputCls} value={formData.target_acc} onChange={e => setFormData({...formData, target_acc: e.target.value})}>
+                <option value="">-- اختر الحساب المقابل --</option>
                 {accounts.map(a => {
                   const code = a.code || a.acc_code || a.id;
                   const rawName = a.name || a.account_name || a.acc_name || '';
@@ -611,7 +712,7 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
               <label className={labelCls}>التاريخ</label>
               <input type="date" className={inputCls} value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} />
             </div>
-            <div className="sm:col-span-3">
+            <div className="sm:col-span-2">
               <label className={labelCls}>البيان / ملاحظات السند</label>
               <input type="text" className={inputCls} placeholder="ملاحظات وتفاصيل الدفعة..." value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} />
             </div>
@@ -631,6 +732,16 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
           <div className="flex items-center gap-2.5 w-full sm:w-auto">
             <h3 className="font-bold text-sm text-[#25232A]">سجل السندات المالية</h3>
             <span className="text-xs bg-[#E2F5F7] text-[#007F8C] font-bold px-2.5 py-0.5 rounded-full font-mono">{filteredVouchers.length}</span>
+            <button
+              type="button"
+              onClick={refreshVouchers}
+              disabled={isRefreshing}
+              title="تحديث ومزامنة السندات من السحابة"
+              className="p-1.5 bg-[#FAFAFB] hover:bg-[#E8E5EA] text-[#007F8C] border border-[#E8E5EA] rounded-lg text-xs font-bold flex items-center gap-1 transition cursor-pointer disabled:opacity-50"
+            >
+              <span>{isRefreshing ? '⏳' : '🔄'}</span>
+              <span className="text-[11px] hidden sm:inline">{isRefreshing ? 'جاري التحديث...' : 'تحديث السجل'}</span>
+            </button>
           </div>
 
           <div className="flex items-center gap-3 w-full sm:w-auto">
@@ -838,13 +949,33 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
                 </div>
 
                 <div>
-                  <label className={labelCls}>حساب الصندوق / البنك</label>
+                  <label className={labelCls}>حساب الصندوق / البنك (الدفع/الاستلام)</label>
                   <select
                     className={inputCls}
                     value={editVoucherData.acc_code}
                     onChange={e => setEditVoucherData({ ...editVoucherData, acc_code: e.target.value })}
                   >
                     <option value="">-- اختر حساب --</option>
+                    {accounts.map(a => {
+                      const code = a.code || a.acc_code || a.id;
+                      const rawName = a.name || a.account_name || a.acc_name || '';
+                      const name = (rawName && !rawName.includes('???')) ? rawName : (a.name_en || code);
+                      const label = `${code} - ${name}`;
+                      return <option key={code} value={label}>{label}</option>;
+                    })}
+                  </select>
+                </div>
+
+                <div>
+                  <label className={labelCls}>
+                    {editVoucherData.v_type === 'سند صرف' ? 'الحساب المدين (بند المصروف / المورد / الأصل)' : 'الحساب الدائن (حساب العميل / الإيراد)'}
+                  </label>
+                  <select
+                    className={inputCls}
+                    value={editVoucherData.target_acc}
+                    onChange={e => setEditVoucherData({ ...editVoucherData, target_acc: e.target.value })}
+                  >
+                    <option value="">-- اختر الحساب المقابل --</option>
                     {accounts.map(a => {
                       const code = a.code || a.acc_code || a.id;
                       const rawName = a.name || a.account_name || a.acc_name || '';

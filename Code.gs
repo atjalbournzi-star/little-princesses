@@ -1652,9 +1652,13 @@ var VoucherController = {
         // Also update linked journal entry
         try {
           if (typeof JournalController !== "undefined" && JournalController.updateJournalEntry) {
+            var selectedCash = String(data.acc_code || data.account_id || "101").trim();
+            var selectedTarget = String(data.target_acc || (isReceipt ? "104" : "201")).trim();
             JournalController.updateJournalEntry({
               entry_no: "AUTO-VCH-" + targetNo,
               ref_id: targetNo,
+              debit_account_id: data.debit_account || (isReceipt ? selectedCash : selectedTarget),
+              credit_account_id: data.credit_account || (isReceipt ? selectedTarget : selectedCash),
               amount: amtVal,
               currency: currVal,
               exchange_rate: rateVal,
@@ -1771,8 +1775,8 @@ var JournalController = {
       var accLastR = accSheet.getLastRow();
       if (accLastR >= 2) {
         var accData = accSheet.getRange(2, 1, accLastR - 1, Math.min(accSheet.getLastColumn(), 16)).getValues();
-        var dCode = debitAcc.split(" ")[0].trim();
-        var cCode = creditAcc.split(" ")[0].trim();
+        var dCode = (debitAcc.indexOf(" - ") !== -1 ? debitAcc.split(" - ")[0] : debitAcc.split(" ")[0]).trim();
+        var cCode = (creditAcc.indexOf(" - ") !== -1 ? creditAcc.split(" - ")[0] : creditAcc.split(" ")[0]).trim();
 
         for (var r = 0; r < accData.length; r++) {
           var rowCode = String(accData[r][1] || accData[r][0] || "").trim();
