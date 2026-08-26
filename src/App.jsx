@@ -191,7 +191,7 @@ function App() {
         )}
         
         <main className="flex-1 px-4 md:px-6 lg:px-8 py-6 max-w-[1600px] w-full mx-auto pb-20">
-          {activeTab === "dashboard"  && typeof Dashboard !== 'undefined' && <Dashboard setActiveTab={setActiveTab} orders={orders} accounts={accounts} currency={systemCurrency} />}
+          {activeTab === "dashboard"  && typeof Dashboard !== 'undefined' && <Dashboard setActiveTab={setActiveTab} orders={orders} accounts={accounts} journal={journal} vouchers={vouchers} purchases={purchases} expenses={expenses} currency={systemCurrency} />}
           {activeTab === "customers"  && typeof Customers !== 'undefined' && <Customers customers={customers} setCustomers={setCustomers} products={products} showToast={showToast} currency={systemCurrency} />}
           {activeTab === "products"   && typeof Products !== 'undefined'  && <Products products={products} setProducts={setProducts} inventory={inventory} showToast={showToast} currency={systemCurrency} />}
           {activeTab === "orders"     && typeof Orders !== 'undefined'    && <Orders orders={orders} setOrders={setOrders} customers={customers} products={products} campaigns={campaigns} showToast={showToast} currency={systemCurrency} />}

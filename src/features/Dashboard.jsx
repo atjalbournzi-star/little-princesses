@@ -1,12 +1,7 @@
 const { useState, useMemo } = React;
 
-function Dashboard({ setActiveTab, orders = [], accounts = [], currency = { display: 'YER ﷼', symbol: '﷼', code: 'YER' } }) {
+function Dashboard({ setActiveTab, orders = [], accounts = [], journal = [], vouchers = [], purchases = [], expenses = [], currency = { display: 'YER ﷼', symbol: '﷼', code: 'YER' } }) {
   const targetCode = window.CurrencyService ? window.CurrencyService.normalizeCode(currency?.code || currency?.display || 'YER') : 'YER';
-
-  const cashAcc = accounts.find(a => a.acc_code == 101 || a.code == '101');
-  const bankAcc = accounts.find(a => a.acc_code == 103 || a.code == '103');
-  const cashBalance = cashAcc ? parseFloat(cashAcc.balance || cashAcc.current_balance) || 0 : 0;
-  const bankBalance = bankAcc ? parseFloat(bankAcc.balance || bankAcc.current_balance) || 0 : 0;
 
   // Helper to convert an amount to current active currency
   const toCurr = (amount, origCurr, rate) => {
@@ -16,6 +11,105 @@ function Dashboard({ setActiveTab, orders = [], accounts = [], currency = { disp
     const base = window.CurrencyService.toBase(num, c, rate).base_amount;
     return window.CurrencyService.fromBase(base, targetCode);
   };
+
+  // Dynamic Chart of Accounts & Treasury calculation (exact sync with Accounts feature)
+  const { cashBalance, bankBalance, totalTreasuryBalance } = useMemo(() => {
+    const jList = Array.isArray(journal) ? journal : [];
+    const accList = Array.isArray(accounts) ? accounts : [];
+
+    // Calculate dynamic ledger balance for each account in YER base
+    const accountBalances = {};
+
+    accList.forEach(a => {
+      const code = String(a.code || a.acc_code || a.id || '').trim();
+      const openingBal = parseFloat(a.opening_balance || a.open_bal || 0.0);
+      const nature = a.nature || (['خصوم', 'حقوق ملكية', 'إيرادات'].includes(a.account_type) ? 'credit' : 'debit');
+
+      let totalDebit = 0.0;
+      let totalCredit = 0.0;
+      let hasMovements = false;
+
+      jList.forEach(j => {
+        const dStr = String(j.debit || j.debit_account_id || '').trim();
+        const cStr = String(j.credit || j.credit_account_id || '').trim();
+        const baseAmt = parseFloat(j.base_amount) || ((parseFloat(j.amount) || 0) * (parseFloat(j.exchange_rate) || 1.0));
+
+        const matchesDebit = dStr === code || dStr === String(a.id) || dStr.startsWith(code + ' ') || dStr.startsWith(code + '-') || (a.name && dStr.includes(a.name));
+        const matchesCredit = cStr === code || cStr === String(a.id) || cStr.startsWith(code + ' ') || cStr.startsWith(code + '-') || (a.name && cStr.includes(a.name));
+
+        if (matchesDebit) {
+          totalDebit += baseAmt;
+          hasMovements = true;
+        }
+        if (matchesCredit) {
+          totalCredit += baseAmt;
+          hasMovements = true;
+        }
+      });
+
+      let calculatedBal = 0.0;
+      if (hasMovements) {
+        calculatedBal = nature === 'credit' ? (openingBal + (totalCredit - totalDebit)) : (openingBal + (totalDebit - totalCredit));
+      } else {
+        calculatedBal = parseFloat(a.balance || a.current_balance || openingBal) || 0.0;
+      }
+
+      accountBalances[code] = calculatedBal;
+      if (a.id) accountBalances[String(a.id)] = calculatedBal;
+    });
+
+    // 1. Cash Balance: Sum all accounts matching code 101 or 101.* (e.g. 101, 101.01, 101.02, 101.2, 101.3)
+    const cashChildAccs = accList.filter(a => {
+      const code = String(a.code || a.acc_code || '');
+      return code.startsWith('101.') && code !== '101';
+    });
+
+    let totalCash = 0.0;
+    if (cashChildAccs.length > 0) {
+      let subSum = 0.0;
+      let hasSubMovements = false;
+      cashChildAccs.forEach(ca => {
+        const code = String(ca.code || ca.acc_code || '');
+        const b = (accountBalances[code] || 0.0);
+        subSum += b;
+        if (b !== 0) hasSubMovements = true;
+      });
+      totalCash = hasSubMovements ? subSum : (accountBalances['101'] !== undefined ? accountBalances['101'] : subSum);
+    } else {
+      totalCash = accountBalances['101'] || 0.0;
+    }
+
+    // 2. Bank Balance: Sum all accounts matching code 103 or 103.*
+    const bankChildAccs = accList.filter(a => {
+      const code = String(a.code || a.acc_code || '');
+      return code.startsWith('103.') && code !== '103';
+    });
+
+    let totalBank = 0.0;
+    if (bankChildAccs.length > 0) {
+      let subSum = 0.0;
+      let hasSubMovements = false;
+      bankChildAccs.forEach(ba => {
+        const code = String(ba.code || ba.acc_code || '');
+        const b = (accountBalances[code] || 0.0);
+        subSum += b;
+        if (b !== 0) hasSubMovements = true;
+      });
+      totalBank = hasSubMovements ? subSum : (accountBalances['103'] !== undefined ? accountBalances['103'] : subSum);
+    } else {
+      totalBank = accountBalances['103'] || 0.0;
+    }
+
+    // Convert from YER base to active currency
+    const cBal = toCurr(totalCash, 'YER', 1.0);
+    const bBal = toCurr(totalBank, 'YER', 1.0);
+
+    return {
+      cashBalance: cBal,
+      bankBalance: bBal,
+      totalTreasuryBalance: cBal + bBal
+    };
+  }, [accounts, journal, targetCode]);
 
   // Key Financial & Operational Aggregations
   const totalSales = orders.reduce((sum, o) => sum + toCurr(o.total || o.total_amount, o.currency, o.exchange_rate), 0);
@@ -208,20 +302,26 @@ function Dashboard({ setActiveTab, orders = [], accounts = [], currency = { disp
         </div>
 
         {/* 6. Cash & Bank Vaults (Teal) */}
-        <div className="bg-white p-4.5 rounded-2xl border border-[#E8E5EA] shadow-[0_2px_8px_rgba(0,0,0,0.02)] hover:border-[#009FAE]/50 transition-all flex flex-col justify-between">
+        <div 
+          onClick={() => setActiveTab && setActiveTab('accounts')}
+          className="bg-white p-4.5 rounded-2xl border border-[#E8E5EA] shadow-[0_2px_8px_rgba(0,0,0,0.02)] hover:border-[#009FAE]/50 transition-all flex flex-col justify-between cursor-pointer group"
+          title="انقر للانتقال إلى شجرة الحسابات المالية"
+        >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-[#6F6B75]">رصيد الخزينة والبنوك</span>
+            <span className="text-xs font-semibold text-[#6F6B75] group-hover:text-[#009FAE] transition">رصيد الخزينة والبنوك</span>
             <div className="w-8 h-8 rounded-xl bg-[#E2F5F7] text-[#009FAE] flex items-center justify-center text-sm font-bold border border-[#C5ECF0]">
               <Icons.Accounts className="w-4 h-4" />
             </div>
           </div>
           <div className="mt-3">
-            <div className="text-[1.75rem] font-extrabold font-mono tabular-nums text-[#25232A] leading-tight flex items-baseline">
-              <span>{(cashBalance + bankBalance).toLocaleString('en-US')}</span>
+            <div className={`text-[1.75rem] font-extrabold font-mono tabular-nums leading-tight flex items-baseline ${totalTreasuryBalance < 0 ? 'text-rose-600' : 'text-[#25232A]'}`}>
+              <span>{totalTreasuryBalance.toLocaleString('en-US')}</span>
               <span className="text-xs font-medium text-[#6F6B75] mr-1.5 select-none">{currency.display}</span>
             </div>
-            <div className="text-[11px] text-[#6F6B75] mt-1 font-mono tabular-nums">
-              كاش: {cashBalance.toLocaleString('en-US')} | بنك: {bankBalance.toLocaleString('en-US')}
+            <div className="text-[11px] text-[#6F6B75] mt-1 font-mono tabular-nums flex items-center gap-1.5">
+              <span className={cashBalance < 0 ? 'text-rose-600 font-bold' : ''}>كاش: {cashBalance.toLocaleString('en-US')}</span>
+              <span>|</span>
+              <span className={bankBalance < 0 ? 'text-rose-600 font-bold' : ''}>بنك: {bankBalance.toLocaleString('en-US')}</span>
             </div>
           </div>
         </div>

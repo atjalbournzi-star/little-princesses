@@ -38,6 +38,18 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, showTo
 
     setIsResetting(true);
     try {
+      // 1. Trigger Google Apps Script Cloud Reset directly from browser
+      const gasUrl = window.GAS_URL || 'https://script.google.com/macros/s/AKfycbziv1-w2mgI8_Q33eNsYLX4TDQB8ykebh5sm2Ig6kqNdbzb8IMIYLly31K5Sw3IMMGacw/exec';
+      try {
+        if (typeof window.callGAS === 'function') {
+          await window.callGAS({ action: 'resetCleanChartOfAccounts' });
+        }
+        await fetch(`${gasUrl}?action=resetCleanChartOfAccounts`, { mode: 'no-cors' });
+      } catch(gasErr) {
+        console.warn("GAS reset direct call:", gasErr);
+      }
+
+      // 2. Trigger Local Backend Reset
       const res = await fetch('/api/accounts/clean-reset', { method: 'POST' });
       const data = await res.json();
       if (data.success) {
@@ -45,7 +57,7 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, showTo
           setAccounts(data.data);
         }
         if (setJournal) setJournal([]);
-        showToast('✅ تم تصفير شجرة الحسابات ومسح الحسابات والمبالغ التجريبية بنجاح 👑');
+        showToast('✅ تم تصفير شجرة الحسابات ومسح كافة المبالغ في قوقل شيتس والنظام بنجاح 👑');
       } else {
         showToast(data.error || 'فشل التصفير', 'error');
       }

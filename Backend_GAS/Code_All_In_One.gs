@@ -1203,8 +1203,8 @@ var PurchaseController = {
       // 4. Balanced Journal Entry (Cash/Bank)
       JournalController.addJournalEntry({
         entry_no: "JV-PUR-" + data.purchase_no,
-        debit_account_id: "1103 - مخزون خامات وأقمشة",
-        credit_account_id: data.payment_source || "1101 - الصندوق الرئيسي",
+        debit_account_id: "102 - مخزون الأقمشة والمستلزمات",
+        credit_account_id: data.payment_source || "101 - الصندوق / الخزينة الرئيسية",
         amount: grandPayTotal,
         currency: data.currency,
         ref_type: "PURCHASE",
@@ -1215,8 +1215,8 @@ var PurchaseController = {
       // 4. Balanced Journal Entry (Credit / آجل)
       JournalController.addJournalEntry({
         entry_no: "JV-PUR-" + data.purchase_no,
-        debit_account_id: "1103 - مخزون خامات وأقمشة",
-        credit_account_id: "2101 - ذمم الموردين ومحلات الأقمشة (" + data.supplier_name + ")",
+        debit_account_id: "102 - مخزون الأقمشة والمستلزمات",
+        credit_account_id: "201 - ذمم الموردين ومحلات الأقمشة (آجل)",
         amount: grandPayTotal,
         currency: data.currency,
         ref_type: "PURCHASE",

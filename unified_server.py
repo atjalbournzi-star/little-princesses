@@ -356,22 +356,26 @@ def init_accounts_db(conn=None):
 
     default_posting_accounts = [
         ('101', 'الصندوق / الخزينة الرئيسية', 'أصول', '1', 0.0, 'debit'),
+        ('101.01', 'صندوق فرع الورشة والمعمل (صنعاء)', 'أصول', '101', 0.0, 'debit'),
+        ('101.02', 'صندوق محمد فلاح', 'أصول', '101', 0.0, 'debit'),
+        ('101.2', 'صندوق الريال السعودي (SAR)', 'أصول', '101', 0.0, 'debit'),
+        ('101.3', 'صندوق الدولار الأمريكي (USD)', 'أصول', '101', 0.0, 'debit'),
         ('102', 'مخزون الأقمشة والمستلزمات', 'أصول', '1', 0.0, 'debit'),
         ('103', 'الحساب البنكي / الحوالات والمحافظ', 'أصول', '1', 0.0, 'debit'),
         ('104', 'ذمم العملاء (مستحقات خارجية)', 'أصول', '1', 0.0, 'debit'),
         ('105', 'الأصول الثابتة (آلات ومعدات)', 'أصول', '1', 0.0, 'debit'),
-        ('201', 'ذمم الموردين ومحلات الأقمشة', 'خصوم', '2', 0.0, 'credit'),
+        ('201', 'ذمم الموردين ومحلات الأقمشة (آجل)', 'خصوم', '2', 0.0, 'credit'),
         ('202', 'عرابين وأمانات العملاء', 'خصوم', '2', 0.0, 'credit'),
-        ('301', 'رأس المال المباشر', 'حقوق ملكية', '3', 0.0, 'credit'),
-        ('302', 'المسحوبات الشخصية', 'حقوق ملكية', '3', 0.0, 'debit'),
+        ('301', 'رأس المال المباشر لمؤسسة Little Princesses', 'حقوق ملكية', '3', 0.0, 'credit'),
+        ('302', 'الأرباح المبقاة / المحتجزة', 'حقوق ملكية', '3', 0.0, 'credit'),
         ('401', 'إيرادات مبيعات الفساتين والزي', 'إيرادات', '4', 0.0, 'credit'),
-        ('402', 'إيرادات خدمات وتعديلات الخياطة', 'إيرادات', '4', 0.0, 'credit'),
-        ('501', 'أجور ورواتب الخياطين والمطرزين', 'مصاريف', '6', 0.0, 'debit'),
-        ('502', 'إيجار الورشة والمعمل والمحل الرئيسي', 'مصاريف', '6', 0.0, 'debit'),
-        ('503', 'إيجار المحل والورشة', 'مصاريف', '6', 0.0, 'debit'),
-        ('504', 'مصاريف كهرباء وماء وانترنت', 'مصاريف', '6', 0.0, 'debit'),
-        ('505', 'مصاريف التسويق والإعلانات', 'مصاريف', '6', 0.0, 'debit'),
-        ('506', 'مصاريف صيانة الآلات والمعدات', 'مصاريف', '6', 0.0, 'debit')
+        ('402', 'أرباح فروق أسعار صرف العملات', 'إيرادات', '4', 0.0, 'credit'),
+        ('501', 'أجور ورواتب الخياطين والمطرزين', 'مصروفات', '6', 0.0, 'debit'),
+        ('502', 'إيجار الورشة والمعمل والمحل الرئيسي', 'مصروفات', '6', 0.0, 'debit'),
+        ('503', 'إيجار المحل والورشة', 'مصروفات', '6', 0.0, 'debit'),
+        ('504', 'مصاريف كهرباء وماء وإنترنت', 'مصروفات', '6', 0.0, 'debit'),
+        ('505', 'مصاريف التسويق والإعلانات الممولة', 'مصروفات', '6', 0.0, 'debit'),
+        ('506', 'خسائر فروق أسعار صرف العملات', 'مصروفات', '6', 0.0, 'debit')
     ]
 
     for code_val, name_val, type_val, p_code_val, bal_val, nat_val in default_posting_accounts:
@@ -3141,17 +3145,20 @@ class UnifiedERPHandler(http.server.SimpleHTTPRequestHandler):
                     except Exception as ae:
                         print(f"[Accounts balance update warning]: {ae}")
 
-                # زيادة رصيد أصول المخزون (1103 - مخزون خامات وأقمشة)
+                # زيادة رصيد أصول المخزون (102 - مخزون الأقمشة والمستلزمات) أو (105 - الأصول الثابتة) إذا كانت مشتريات معدات وآلات
+                inv_acc_code = '105' if any(w in str(data.get('category') or '') or w in str(items[0].get('name') if items else '') for w in ['معدات', 'آلات', 'ماكينة', 'ماكينات', 'أصول ثابتة']) else '102'
+                inv_acc_name = "الأصول الثابتة (آلات ومعدات)" if inv_acc_code == '105' else "مخزون الأقمشة والمستلزمات"
+
                 try:
-                    c.execute("UPDATE accounts SET current_balance = current_balance + ? WHERE code IN ('105', '1103') OR account_code IN ('105', '1103')", 
-                              (total_items_amount,))
-                except Exception:
-                    pass
+                    c.execute("UPDATE accounts SET current_balance = current_balance + ?, balance = balance + ? WHERE code = ? OR account_code = ?", 
+                              (total_items_amount, total_items_amount, inv_acc_code, inv_acc_code))
+                except Exception as ae:
+                    print(f"[Inventory balance update warning]: {ae}")
 
                 # ── ج. الترحيل المحاسبي للقيود المزدوجة المتزنة ──
                 jv_no = f"JV-PUR-{bill_no}"
-                debit_acc = "1103 - مخزون خامات وأقمشة"
-                credit_acc = payment_source if pay_type != 'آجل' else "2101 - الموردون والذمم الدائنة"
+                debit_acc = f"{inv_acc_code} - {inv_acc_name}"
+                credit_acc = payment_source if pay_type != 'آجل' else "201 - ذمم الموردين ومحلات الأقمشة (آجل)"
 
                 c.execute('''
                     INSERT OR IGNORE INTO journal_entries (entry_no, debit, credit, amount, currency, ref_type, date, notes)
@@ -3910,9 +3917,8 @@ class UnifiedERPHandler(http.server.SimpleHTTPRequestHandler):
 
                 # Sync clean reset to Google Apps Script
                 try:
-                    gas_payload = json.dumps({'action': 'resetCleanChartOfAccounts'}).encode('utf-8')
-                    req = urllib.request.Request(GAS_URL, data=gas_payload, headers={'Content-Type': 'application/json'})
-                    urllib.request.urlopen(req, timeout=15)
+                    req = urllib.request.Request(f"{GAS_URL}?action=resetCleanChartOfAccounts")
+                    urllib.request.urlopen(req, timeout=20)
                 except Exception as gas_err:
                     print("GAS clean reset warning:", gas_err)
 

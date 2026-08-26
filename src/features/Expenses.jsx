@@ -127,8 +127,9 @@ function Expenses({ expenses = [], setExpenses, accounts = [], showToast, curren
               <select className={inputCls} value={formData.source_acc} onChange={e => setFormData({...formData, source_acc: e.target.value})}>
                 <option value="">-- اختر حساب --</option>
                 {accounts.map(a => {
-                  const code = a.acc_code || a.code || a.id;
-                  const name = a.acc_name || a.name || code;
+                  const code = a.code || a.acc_code || a.id;
+                  const rawName = a.name || a.account_name || a.acc_name || '';
+                  const name = (rawName && !rawName.includes('???')) ? rawName : (a.name_en || code);
                   return <option key={code} value={code}>{code} - {name}</option>;
                 })}
               </select>

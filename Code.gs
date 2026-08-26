@@ -2297,6 +2297,15 @@ function resetAndSeedCleanChartOfAccounts(optionalSheet) {
     sh.deleteRows(2, lastR - 1);
   }
 
+  // مسح قيود اليومية المعاملاتية حتى لا تعيد احتساب الأرصدة القديمة
+  var journalSheets = ["القيود_اليومية", "journal_entries", "القيود اليومية", "Journal"];
+  for (var js = 0; js < journalSheets.length; js++) {
+    var jSh = ss.getSheetByName(journalSheets[js]);
+    if (jSh && jSh.getLastRow() >= 2) {
+      try { jSh.deleteRows(2, jSh.getLastRow() - 1); } catch(je) {}
+    }
+  }
+
   var masterAccounts = [
     ["ACC-1", "1", "الأصول", "Assets", "أصول", "أصول", "", "", 1, "1", 1, 0, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
     ["ACC-101", "101", "الصندوق / الخزينة الرئيسية", "Main Cash", "أصول", "أصول متداولة", "ACC-1", "1", 2, "1 > 101", 1, 0, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],

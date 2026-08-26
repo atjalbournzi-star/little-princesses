@@ -89,8 +89,13 @@ function Journal({ journal = [], setJournal, accounts = [], showToast, currency 
 
     const debitAccObj = (accounts || []).find(a => String(a.code || a.acc_code || a.id) === String(formData.debit));
     const creditAccObj = (accounts || []).find(a => String(a.code || a.acc_code || a.id) === String(formData.credit));
-    const debitLabel = debitAccObj ? `${debitAccObj.code || debitAccObj.acc_code} - ${debitAccObj.name || debitAccObj.acc_name}` : formData.debit;
-    const creditLabel = creditAccObj ? `${creditAccObj.code || creditAccObj.acc_code} - ${creditAccObj.name || creditAccObj.acc_name}` : formData.credit;
+    const getCleanAccName = (acc) => {
+      if (!acc) return '';
+      const raw = acc.name || acc.account_name || acc.acc_name || '';
+      return (raw && !raw.includes('???')) ? raw : (acc.name_en || acc.code || acc.acc_code || '');
+    };
+    const debitLabel = debitAccObj ? `${debitAccObj.code || debitAccObj.acc_code} - ${getCleanAccName(debitAccObj)}` : formData.debit;
+    const creditLabel = creditAccObj ? `${creditAccObj.code || creditAccObj.acc_code} - ${getCleanAccName(creditAccObj)}` : formData.credit;
 
     const newJ = {
       id: Date.now(),
@@ -263,8 +268,9 @@ function Journal({ journal = [], setJournal, accounts = [], showToast, currency 
                   <select className={inputCls} value={formData.debit} onChange={e => setFormData({...formData, debit: e.target.value})}>
                     <option value="">-- اختر حساب حركة --</option>
                     {postingAccounts.map(a => {
-                      const code = a.acc_code || a.code || a.id;
-                      const name = a.acc_name || a.name || code;
+                      const code = a.code || a.acc_code || a.id;
+                      const rawName = a.name || a.account_name || a.acc_name || '';
+                      const name = (rawName && !rawName.includes('???')) ? rawName : (a.name_en || code);
                       return <option key={code} value={code}>{code} - {name}</option>;
                     })}
                   </select>
@@ -274,8 +280,9 @@ function Journal({ journal = [], setJournal, accounts = [], showToast, currency 
                   <select className={inputCls} value={formData.credit} onChange={e => setFormData({...formData, credit: e.target.value})}>
                     <option value="">-- اختر حساب حركة --</option>
                     {postingAccounts.map(a => {
-                      const code = a.acc_code || a.code || a.id;
-                      const name = a.acc_name || a.name || code;
+                      const code = a.code || a.acc_code || a.id;
+                      const rawName = a.name || a.account_name || a.acc_name || '';
+                      const name = (rawName && !rawName.includes('???')) ? rawName : (a.name_en || code);
                       return <option key={code} value={code}>{code} - {name}</option>;
                     })}
                   </select>
@@ -444,8 +451,9 @@ function Journal({ journal = [], setJournal, accounts = [], showToast, currency 
                 >
                   <option value="ALL">-- جميع الحسابات المحاسبية --</option>
                   {postingAccounts.map(a => {
-                    const code = a.acc_code || a.code || a.id;
-                    const name = a.acc_name || a.name || code;
+                    const code = a.code || a.acc_code || a.id;
+                    const rawName = a.name || a.account_name || a.acc_name || '';
+                    const name = (rawName && !rawName.includes('???')) ? rawName : (a.name_en || code);
                     return <option key={code} value={code}>{code} - {name}</option>;
                   })}
                 </select>

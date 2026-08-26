@@ -399,8 +399,9 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], showToast, custom
               <select className={inputCls} value={formData.acc_code} onChange={e => setFormData({...formData, acc_code: e.target.value})}>
                 <option value="">-- اختر حساب --</option>
                 {accounts.map(a => {
-                  const code = a.acc_code || a.code || a.id;
-                  const name = a.acc_name || a.name || code;
+                  const code = a.code || a.acc_code || a.id;
+                  const rawName = a.name || a.account_name || a.acc_name || '';
+                  const name = (rawName && !rawName.includes('???')) ? rawName : (a.name_en || code);
                   const label = `${code} - ${name}`;
                   return <option key={code} value={label}>{label}</option>;
                 })}
