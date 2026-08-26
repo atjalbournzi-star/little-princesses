@@ -2,8 +2,15 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
 function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouchers = [], setVouchers, showToast, currency = { display: 'YER ﷼', symbol: '﷼', code: 'YER' } }) {
   const [searchTerm, setSearchTerm] = useState('');
+  const [expandedNodes, setExpandedNodes] = useState({
+    '1': true, '2': true, '3': true, '4': true, '5': true, '6': true, '7': true,
+    '101': true, '102': true, '103': true, '104': true, '105': true,
+    '201': true, '202': true, '301': true, '302': true, '401': true, '402': true,
+    '501': true, '502': true, '503': true, '504': true, '505': true, '506': true,
+    'ACC-1': true, 'ACC-2': true, 'ACC-3': true, 'ACC-4': true, 'ACC-5': true, 'ACC-6': true, 'ACC-7': true,
+    'ACC-101': true
+  });
   const [filterType, setFilterType] = useState('ALL');
-  const [expandedNodes, setExpandedNodes] = useState({ 1: true, 2: true, 3: true, 4: true, 5: true, 6: true, 7: true });
   const [maxDepthFilter, setMaxDepthFilter] = useState('ALL');
 
   // Modals state
@@ -218,41 +225,67 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
     });
   }, [accounts, journal]);
 
+  // Helper to extract clean alphanumeric code (e.g. ACC-101 -> 101, ACC-1 -> 1)
+  const cleanCode = (val) => {
+    if (val === null || val === undefined) return '';
+    let s = String(val).trim();
+    if (s.startsWith('ACC-')) s = s.slice(4).trim();
+    if (s.startsWith('ACC_')) s = s.slice(4).trim();
+    return s;
+  };
+
+  const isChildOf = useCallback((child, parentAcc) => {
+    if (!child || !parentAcc) return false;
+    const pCode = cleanCode(parentAcc.code || parentAcc.acc_code || parentAcc.id);
+    const pId = String(parentAcc.id || '').trim();
+    const cParent = cleanCode(child.parent_id || child.parent_account_id || child.parent_account_code || '');
+    const cParentRaw = String(child.parent_id || '').trim();
+    const cCode = cleanCode(child.code || child.acc_code || child.id);
+
+    if (!cCode || !pCode || cCode === pCode || String(child.id) === pId) return false;
+
+    // 1. Explicit Parent ID / Code Match (e.g. parent_id is "ACC-101" or "101" and parent is 101)
+    if (cParent && (cParent === pCode || cParentRaw === pId || cParent === pId || cParentRaw === `ACC-${pCode}`)) {
+      return true;
+    }
+
+    // 2. Hierarchical dot notation (e.g. 101.01 child of 101, 101.01.01 child of 101.01)
+    if (pCode && cCode && cCode.startsWith(pCode + '.')) {
+      const rest = cCode.slice(pCode.length + 1);
+      if (!rest.includes('.')) return true;
+    }
+
+    // 3. Level 2 under Root Level 1 (e.g. 101, 102, 103, 104 under 1)
+    if (pCode.length === 1 && cCode.length === 3 && cCode.startsWith(pCode)) {
+      return true;
+    }
+
+    return false;
+  }, []);
+
   // Compute Dynamic Recursive Balances for Parent Accounts (Standard ERP Rollup)
   const accountsWithRollupBalances = useMemo(() => {
     const accList = normalizedAccounts;
 
     // Helper: Identify all direct children of an account
     const getDirectChildren = (parentAcc) => {
-      return accList.filter(c => {
-        if (String(c.id) === String(parentAcc.id) || String(c.code) === String(parentAcc.code)) return false;
-        if (c.parent_id !== null && c.parent_id !== undefined && c.parent_id !== '' && c.parent_id !== '0') {
-          return String(c.parent_id) === String(parentAcc.id) || String(c.parent_id) === String(parentAcc.code);
-        }
-        // Fallback hierarchical dot-notation (e.g. 101.01 child of 101)
-        if (parentAcc.code && c.code && c.code.startsWith(parentAcc.code + '.')) {
-          const rest = c.code.slice(parentAcc.code.length + 1);
-          return !rest.includes('.');
-        }
-        return false;
-      });
+      return accList.filter(c => isChildOf(c, parentAcc));
     };
 
     // Recursive calculation: Leaves provide their balance, Parents sum their children's recursive rollups
     const memoSum = {};
     const calcNodeRollup = (acc) => {
-      const key = String(acc.id || acc.code);
+      const key = cleanCode(acc.code || acc.id);
       if (memoSum[key] !== undefined) return memoSum[key];
 
       const children = getDirectChildren(acc);
       if (children.length === 0) {
-        // Leaf movement account -> balance is its own transactional balance
         memoSum[key] = parseFloat(acc.balance) || 0.0;
         return memoSum[key];
       }
 
-      // Summary/Parent account -> recursive sum of all sub-accounts
-      let total = 0.0;
+      // Summary/Parent account -> recursive sum of own balance + all children's rollups
+      let total = parseFloat(acc.balance) || 0.0;
       children.forEach(child => {
         total += calcNodeRollup(child);
       });
@@ -273,7 +306,7 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
         hasChildren
       };
     });
-  }, [normalizedAccounts]);
+  }, [normalizedAccounts, isChildOf]);
 
   // Handle Dynamic Code Auto-Suggestion
   const handleParentChange = async (parentIdVal) => {
@@ -468,13 +501,25 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
     setShowAuditModal(true);
   };
 
-  const toggleExpand = (id) => {
-    setExpandedNodes(prev => ({ ...prev, [id]: !prev[id] }));
+  const toggleExpand = (codeOrId) => {
+    const c = cleanCode(codeOrId);
+    setExpandedNodes(prev => ({
+      ...prev,
+      [codeOrId]: !prev[codeOrId],
+      [c]: !prev[c],
+      [`ACC-${c}`]: !prev[`ACC-${c}`]
+    }));
   };
 
   const expandAll = () => {
     const all = {};
-    accountsWithRollupBalances.forEach(a => { all[a.id] = true; });
+    accountsWithRollupBalances.forEach(a => {
+      const c = cleanCode(a.code || a.id);
+      all[a.id] = true;
+      all[a.code] = true;
+      all[c] = true;
+      all[`ACC-${c}`] = true;
+    });
     setExpandedNodes(all);
   };
 
@@ -496,22 +541,13 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
   }, [searchTerm, filterType, maxDepthFilter]);
 
   const getChildrenOfNode = useCallback((parentAcc) => {
-    return accountsWithRollupBalances.filter(c => {
-      if (String(c.id) === String(parentAcc.id) || String(c.code) === String(parentAcc.code)) return false;
-      if (c.parent_id !== null && c.parent_id !== undefined && c.parent_id !== '' && c.parent_id !== '0') {
-        return String(c.parent_id) === String(parentAcc.id) || String(c.parent_id) === String(parentAcc.code);
-      }
-      if (parentAcc.code && c.code && c.code.startsWith(parentAcc.code + '.')) {
-        const rest = c.code.slice(parentAcc.code.length + 1);
-        return !rest.includes('.');
-      }
-      return false;
-    });
-  }, [accountsWithRollupBalances]);
+    return accountsWithRollupBalances.filter(c => isChildOf(c, parentAcc));
+  }, [accountsWithRollupBalances, isChildOf]);
 
   const renderTreeNode = (acc) => {
     const children = getChildrenOfNode(acc);
-    const isExpanded = !!expandedNodes[acc.id] || !!expandedNodes[acc.code];
+    const cCode = cleanCode(acc.code || acc.acc_code || acc.id);
+    const isExpanded = !!expandedNodes[acc.id] || !!expandedNodes[acc.code] || !!expandedNodes[cCode] || !!expandedNodes[`ACC-${cCode}`];
     const isMatching = filterMatches(acc);
     const hasMatchingChild = children.some(c => filterMatches(c));
 
@@ -622,13 +658,12 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
 
   const rootNodes = useMemo(() => {
     return accountsWithRollupBalances.filter(a => {
-      if (!a.parent_id || a.parent_id === '0' || a.level === 1) return true;
-      const parentExists = accountsWithRollupBalances.some(p => 
-        (String(p.id) === String(a.parent_id) || String(p.code) === String(a.parent_id)) && String(p.id) !== String(a.id)
-      );
-      return !parentExists;
+      const code = cleanCode(a.code || a.acc_code || a.id);
+      if (['1', '2', '3', '4', '5', '6', '7'].includes(code)) return true;
+      const isChild = accountsWithRollupBalances.some(parent => isChildOf(a, parent));
+      return !isChild;
     });
-  }, [accountsWithRollupBalances]);
+  }, [accountsWithRollupBalances, isChildOf]);
 
   return (
     <div className="space-y-6 animate-fadeIn text-right" dir="rtl">
