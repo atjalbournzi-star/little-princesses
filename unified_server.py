@@ -3009,6 +3009,7 @@ class UnifiedERPHandler(http.server.SimpleHTTPRequestHandler):
                 freight_cost = float(data.get('freight_cost') or 0.0)
                 transfer_fees = float(data.get('transfer_fees') or 0.0)
                 receipt_url = data.get('receipt_url', '')
+                invoice_image_url = data.get('invoice_image_url') or data.get('invoice_url') or data.get('bill_image_url') or ''
                 created_by = data.get('created_by', 'system')
 
                 items = data.get('items', [])
@@ -3044,12 +3045,12 @@ class UnifiedERPHandler(http.server.SimpleHTTPRequestHandler):
                     line_total = qty * unit_price
                     total_items_amount += line_total
 
-                    # 1. إدراج في جدول المشتريات (مع رقم المورد والخصم والملاحظات)
+                    # 1. إدراج في جدول المشتريات (مع رقم المورد والخصم والملاحظات وصورة الفاتورة والسند)
                     c.execute('''
-                        INSERT INTO purchases (bill_no, supplier, supplier_phone, discount, currency, pay_type, payment_source, date, transfer_no, freight_cost, transfer_fees, receipt_url, item, unit, qty, price, total, payment_status, status, notes, created_at, created_by)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        INSERT INTO purchases (bill_no, supplier, supplier_phone, discount, currency, pay_type, payment_source, date, transfer_no, freight_cost, transfer_fees, receipt_url, invoice_image_url, item, unit, qty, price, total, payment_status, status, notes, created_at, created_by)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ''', (
-                        bill_no, supplier, supplier_phone, discount if idx_itm == 0 else 0.0, currency, pay_type, payment_source, date_val, transfer_no, freight_cost, transfer_fees, receipt_url, itm_name, unit_val, qty, unit_price, line_total, 'مدفوع' if pay_type != 'آجل' else 'غير مدفوع', 'تم الاستلام', notes_val, now, created_by
+                        bill_no, supplier, supplier_phone, discount if idx_itm == 0 else 0.0, currency, pay_type, payment_source, date_val, transfer_no, freight_cost, transfer_fees, receipt_url, invoice_image_url, itm_name, unit_val, qty, unit_price, line_total, 'مدفوع' if pay_type != 'آجل' else 'غير مدفوع', 'تم الاستلام', notes_val, now, created_by
                     ))
                     pur_row_id = c.lastrowid
 
@@ -4149,6 +4150,8 @@ class UnifiedERPHandler(http.server.SimpleHTTPRequestHandler):
                 payment_source = str(data.get('payment_source') or '')
                 transfer_no = str(data.get('transfer_no') or '')
                 date_val = str(data.get('date') or datetime.now().strftime('%Y-%m-%d'))
+                receipt_url = str(data.get('receipt_url') or '')
+                invoice_image_url = str(data.get('invoice_image_url') or data.get('invoice_url') or data.get('bill_image_url') or '')
 
                 conn = get_db()
                 c = conn.cursor()
@@ -4156,9 +4159,11 @@ class UnifiedERPHandler(http.server.SimpleHTTPRequestHandler):
                     UPDATE purchases SET
                         supplier = ?, supplier_phone = ?, discount = ?, notes = ?,
                         item = ?, unit = ?, qty = ?, price = ?, total = ?,
-                        currency = ?, pay_type = ?, payment_source = ?, transfer_no = ?, date = ?
+                        currency = ?, pay_type = ?, payment_source = ?, transfer_no = ?, date = ?,
+                        receipt_url = CASE WHEN ? != '' THEN ? ELSE receipt_url END,
+                        invoice_image_url = CASE WHEN ? != '' THEN ? ELSE invoice_image_url END
                     WHERE id = ? OR bill_no = ?
-                ''', (supplier, supplier_phone, discount, notes, item, unit, qty, price, total, curr, pay_type, payment_source, transfer_no, date_val, pur_id, bill_no))
+                ''', (supplier, supplier_phone, discount, notes, item, unit, qty, price, total, curr, pay_type, payment_source, transfer_no, date_val, receipt_url, receipt_url, invoice_image_url, invoice_image_url, pur_id, bill_no))
                 conn.commit()
                 conn.close()
 

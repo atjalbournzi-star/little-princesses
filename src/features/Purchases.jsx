@@ -14,7 +14,7 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
   const defaultPayType = (typeof PAY_METHODS !== 'undefined' ? PAY_METHODS[0] : (window.PAY_METHODS ? window.PAY_METHODS[0] : 'نقدي'));
   const todayStrIso = typeof TODAY_STR_ISO !== 'undefined' ? TODAY_STR_ISO : (window.TODAY_STR_ISO || new Date().toISOString().slice(0, 10));
 
-  const emptyHeader = () => ({ bill_no: '', supplier: '', supplier_phone: '', discount: '', notes: '', currency: defaultCurrency, exchange_rate: '', pay_type: defaultPayType, transfer_no: '', payment_source: '', receipt_url: '', date: todayStrIso, freight_cost: '', transfer_fees: '' });
+  const emptyHeader = () => ({ bill_no: '', supplier: '', supplier_phone: '', discount: '', notes: '', currency: defaultCurrency, exchange_rate: '', pay_type: defaultPayType, transfer_no: '', payment_source: '', receipt_url: '', invoice_image_url: '', date: todayStrIso, freight_cost: '', transfer_fees: '' });
   const emptyItem = () => ({ item: '', unit: 'متر', qty: '', price: '', total: '' });
 
   const [headerData, setHeaderData] = useState(emptyHeader);
@@ -22,6 +22,7 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
   const [editingIndex, setEditingIndex] = useState(null);
   const [billItems, setBillItems] = useState([]);
   const [previewImage, setPreviewImage] = useState(null);
+  const [previewTitle, setPreviewTitle] = useState('صورة المرفق');
   const [isSaving, setIsSaving] = useState(false);
 
   // ── نافذة تعديل سجل موجود وحالة القائمة المطوية ──
@@ -37,7 +38,17 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
     if (!file) return;
     if (file.size > 5 * 1024 * 1024) return showToast('حجم الصورة كبير جداً (أقصاه 5 ميجابايت) ⚠️', 'error');
     const reader = new FileReader();
-    reader.onloadend = () => { setHeaderData(prev => ({ ...prev, receipt_url: reader.result })); showToast('تم إرفاق صورة السند 🖼️'); };
+    reader.onloadend = () => { setHeaderData(prev => ({ ...prev, receipt_url: reader.result })); showToast('تم إرفاق صورة السند 💳'); };
+    reader.readAsDataURL(file);
+  };
+
+  // ── رفع صورة الفاتورة ──
+  const handleInvoiceImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) return showToast('حجم الصورة كبير جداً (أقصاه 5 ميجابايت) ⚠️', 'error');
+    const reader = new FileReader();
+    reader.onloadend = () => { setHeaderData(prev => ({ ...prev, invoice_image_url: reader.result })); showToast('تم إرفاق صورة الفاتورة 🧾'); };
     reader.readAsDataURL(file);
   };
 
@@ -86,6 +97,7 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
         freight_cost: parseFloat(headerData.freight_cost) || 0,
         transfer_fees: parseFloat(headerData.transfer_fees) || 0,
         receipt_url: headerData.receipt_url || '',
+        invoice_image_url: headerData.invoice_image_url || '',
         items: billItems.map(itm => ({
           item_name: itm.item,
           unit: itm.unit || 'متر',
@@ -171,6 +183,8 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
             transfer_no: headerData.transfer_no || (`TX-${headerData.bill_no}`),
             receipt_attachment: headerData.receipt_url || '',
             receipt_url: headerData.receipt_url || '',
+            invoice_image_url: headerData.invoice_image_url || '',
+            bill_attachment: headerData.invoice_image_url || '',
             receipt_status: 'تم الاستلام',
             status: 'تم الاستلام',
             payment_status: headerData.pay_type !== 'آجل' ? 'مدفوع' : 'غير مدفوع',
@@ -210,6 +224,7 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
           freight_cost: parseFloat(headerData.freight_cost) || 0,
           transfer_fees: parseFloat(headerData.transfer_fees) || 0,
           receipt_url: headerData.receipt_url || '',
+          invoice_image_url: headerData.invoice_image_url || '',
           payment_status: headerData.pay_type !== 'آجل' ? 'مدفوع' : 'غير مدفوع',
           status: 'تم الاستلام'
         }));
@@ -382,7 +397,9 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
       total: rawTotal||'',
       supplier_phone: p.supplier_phone || p.phone || p.supplier_number || '',
       discount: p.discount !== undefined ? p.discount : (p.discount_amount || ''),
-      notes: p.notes || ''
+      notes: p.notes || '',
+      receipt_url: p.receipt_url || '',
+      invoice_image_url: p.invoice_image_url || p.invoice_url || ''
     });
   };
 
@@ -423,7 +440,9 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
         pay_type: editRecord.pay_type,
         transfer_no: editRecord.transfer_no||'',
         payment_source: editRecord.payment_source||'',
-        date: editRecord.date
+        date: editRecord.date,
+        receipt_url: editRecord.receipt_url || '',
+        invoice_image_url: editRecord.invoice_image_url || ''
       };
 
       try {
@@ -479,7 +498,7 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
   };
 
   const normalizePurchase = (p) => {
-    if (!p || typeof p !== 'object') return { qty: 0, price: 0, total: 0, unit: 'متر', date: '', transfer: '', supplier_phone: '', discount: 0, notes: '' };
+    if (!p || typeof p !== 'object') return { qty: 0, price: 0, total: 0, unit: 'متر', date: '', transfer: '', supplier_phone: '', discount: 0, notes: '', invoice_image_url: '', receipt_url: '' };
     let rawUnit = p.unit, rawQty = p.qty !== undefined ? p.qty : p.quantity, rawPrice = p.price !== undefined ? p.price : p.cost_per_unit, rawTotal = p.total !== undefined ? p.total : (p.total_amount_yer || p.base_amount), rawDate = p.date, rawTransfer = p.transfer_no;
     const unitIsNum = rawUnit !== undefined && rawUnit !== '' && !isNaN(parseFloat(rawUnit)) && !VALID_UNITS.includes(String(rawUnit));
     if (unitIsNum) { rawQty = parseFloat(rawUnit); rawPrice = parseFloat(p.qty) || 0; rawTotal = parseFloat(p.price) || 0; rawUnit = 'متر'; }
@@ -497,7 +516,9 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
       transfer: String(rawTransfer || ''),
       supplier_phone: String(p.supplier_phone || p.phone || p.supplier_number || ''),
       discount: parseFloat(p.discount !== undefined ? p.discount : (p.discount_amount || 0)) || 0,
-      notes: String(p.notes || '')
+      notes: String(p.notes || ''),
+      receipt_url: String(p.receipt_url || ''),
+      invoice_image_url: String(p.invoice_image_url || p.invoice_url || '')
     };
   };
 
@@ -529,10 +550,10 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4" onClick={()=>setPreviewImage(null)}>
           <div className="relative max-w-2xl w-full bg-white p-4 rounded-2xl border border-[#E8E5EA] shadow-2xl" onClick={e=>e.stopPropagation()}>
             <div className="flex justify-between items-center border-b border-[#E8E5EA] pb-3 mb-3">
-              <span className="font-bold text-[#25232A] text-xs">🖼️ صورة السند المرفق</span>
+              <span className="font-bold text-[#25232A] text-xs">{previewTitle || '🖼️ صورة المرفق'}</span>
               <button onClick={()=>setPreviewImage(null)} className="text-[#6F6B75] hover:text-[#25232A] font-bold px-2">✕</button>
             </div>
-            <img src={previewImage} alt="السند" className="w-full max-h-[75vh] object-contain rounded-xl border border-[#E8E5EA]" />
+            <img src={previewImage} alt="المرفق" className="w-full max-h-[75vh] object-contain rounded-xl border border-[#E8E5EA]" />
           </div>
         </div>
       )}
@@ -578,7 +599,7 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
               </div>
               <div>
                 <label className={labelCls}>رقم هاتف المورد 📱</label>
-                <input type="text" className={inputCls + " font-mono"} placeholder="مثال: 777123456" value={editRecord.supplier_phone||''} onChange={e=>handleEditRecordChange('supplier_phone',e.target.value)} />
+                <input type="text" className={inputCls + " font-mono"} placeholder="" value={editRecord.supplier_phone||''} onChange={e=>handleEditRecordChange('supplier_phone',e.target.value)} />
               </div>
               <div>
                 <label className={labelCls}>رقم الحوالة</label>
@@ -599,6 +620,40 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
               <div>
                 <label className={labelCls}>التاريخ</label>
                 <input type="date" className={inputCls} value={editRecord.date||''} onChange={e=>handleEditRecordChange('date',e.target.value)} />
+              </div>
+              <div>
+                <label className={labelCls}>إرفاق صورة الفاتورة 🧾</label>
+                <div className="flex gap-2">
+                  <label className="flex-1 cursor-pointer bg-white hover:bg-[#FAFAFB] border border-[#E8E5EA] text-[#25232A] font-bold p-2.5 rounded-xl text-center flex items-center justify-center h-11">
+                    🧾 اختر صورة
+                    <input type="file" accept="image/*" className="hidden" onChange={(e)=>{
+                      const file = e.target.files[0];
+                      if (!file) return;
+                      if (file.size > 5 * 1024 * 1024) return showToast('حجم الصورة كبير جداً ⚠️', 'error');
+                      const reader = new FileReader();
+                      reader.onloadend = () => { setEditRecord(prev=>({...prev, invoice_image_url: reader.result})); showToast('تم إرفاق صورة الفاتورة 🧾'); };
+                      reader.readAsDataURL(file);
+                    }} />
+                  </label>
+                  {editRecord.invoice_image_url && <button type="button" onClick={()=>{setPreviewImage(editRecord.invoice_image_url);setPreviewTitle('🧾 صورة الفاتورة');}} className="p-2 bg-[#F2E7F3] text-[#8F2A87] rounded-xl font-bold border border-[#E5CEE7] h-11 px-3">🧾</button>}
+                </div>
+              </div>
+              <div>
+                <label className={labelCls}>إرفاق صورة السند 💳</label>
+                <div className="flex gap-2">
+                  <label className="flex-1 cursor-pointer bg-white hover:bg-[#FAFAFB] border border-[#E8E5EA] text-[#25232A] font-bold p-2.5 rounded-xl text-center flex items-center justify-center h-11">
+                    📷 اختر صورة
+                    <input type="file" accept="image/*" className="hidden" onChange={(e)=>{
+                      const file = e.target.files[0];
+                      if (!file) return;
+                      if (file.size > 5 * 1024 * 1024) return showToast('حجم الصورة كبير جداً ⚠️', 'error');
+                      const reader = new FileReader();
+                      reader.onloadend = () => { setEditRecord(prev=>({...prev, receipt_url: reader.result})); showToast('تم إرفاق صورة السند 💳'); };
+                      reader.readAsDataURL(file);
+                    }} />
+                  </label>
+                  {editRecord.receipt_url && <button type="button" onClick={()=>{setPreviewImage(editRecord.receipt_url);setPreviewTitle('💳 صورة السند');}} className="p-2 bg-[#E2F5F7] text-[#007F8C] rounded-xl font-bold border border-[#C5ECF0] h-11 px-3">🖼️</button>}
+                </div>
               </div>
               <div className="col-span-2">
                 <label className={labelCls}>الملاحظات والبيان 📝</label>
@@ -634,7 +689,7 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-5 bg-[#FAFAFB] rounded-2xl border border-[#E8E5EA]">
           <div><label className={labelCls}>رقم الفاتورة</label><input type="text" className={inputCls + " font-mono"} placeholder="" value={headerData.bill_no} onChange={e=>setHeaderData(p=>({...p,bill_no:e.target.value}))} /></div>
           <div><label className={labelCls}>اسم المورد *</label><input type="text" className={inputCls} placeholder="" value={headerData.supplier} onChange={e=>setHeaderData(p=>({...p,supplier:e.target.value}))} /></div>
-          <div><label className={labelCls}>رقم هاتف المورد 📱</label><input type="text" className={inputCls + " font-mono"} placeholder="مثال: 777123456" value={headerData.supplier_phone} onChange={e=>setHeaderData(p=>({...p,supplier_phone:e.target.value}))} /></div>
+          <div><label className={labelCls}>رقم هاتف المورد 📱</label><input type="text" className={inputCls + " font-mono"} placeholder="" value={headerData.supplier_phone} onChange={e=>setHeaderData(p=>({...p,supplier_phone:e.target.value}))} /></div>
           <div><label className={labelCls}>العملة</label>
             <select className={inputCls} value={headerData.currency} onChange={e=>setHeaderData(p=>({...p,currency:e.target.value, exchange_rate: window.CurrencyService ? window.CurrencyService.getRate(e.target.value) : ''}))}>
               {(typeof CURRENCIES !== 'undefined' ? CURRENCIES : ['YER ﷼','SAR ﷼','USD $']).map(c=>{const v=typeof c==='object'?c.value:c,l=typeof c==='object'?c.label:c;return <option key={v} value={v}>{l}</option>;})}
@@ -664,16 +719,22 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
             </select>
           </div>
           <div><label className={labelCls}>رقم الحوالة</label><input type="text" className={inputCls + " text-[#8F2A87] font-mono"} placeholder="" value={headerData.transfer_no} onChange={e=>setHeaderData(p=>({...p,transfer_no:e.target.value}))} /></div>
-          <div><label className={labelCls}>إرفاق صورة السند</label>
+          <div><label className={labelCls}>إرفاق صورة الفاتورة 🧾</label>
+            <div className="flex gap-2">
+              <label className="flex-1 cursor-pointer bg-white hover:bg-[#FAFAFB] border border-[#E8E5EA] text-[#25232A] font-bold p-2.5 rounded-xl text-center flex items-center justify-center h-11">🧾 اختر صورة<input type="file" accept="image/*" className="hidden" onChange={handleInvoiceImageUpload} /></label>
+              {headerData.invoice_image_url && <button type="button" onClick={()=>{setPreviewImage(headerData.invoice_image_url);setPreviewTitle('🧾 صورة الفاتورة المرفقة');}} className="p-2 bg-[#F2E7F3] text-[#8F2A87] rounded-xl font-bold border border-[#E5CEE7] h-11 px-3">🧾</button>}
+            </div>
+          </div>
+          <div><label className={labelCls}>إرفاق صورة السند 💳</label>
             <div className="flex gap-2">
               <label className="flex-1 cursor-pointer bg-white hover:bg-[#FAFAFB] border border-[#E8E5EA] text-[#25232A] font-bold p-2.5 rounded-xl text-center flex items-center justify-center h-11">📷 اختر صورة<input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} /></label>
-              {headerData.receipt_url && <button type="button" onClick={()=>setPreviewImage(headerData.receipt_url)} className="p-2 bg-[#E2F5F7] text-[#007F8C] rounded-xl font-bold border border-[#C5ECF0] h-11 px-3">🖼️</button>}
+              {headerData.receipt_url && <button type="button" onClick={()=>{setPreviewImage(headerData.receipt_url);setPreviewTitle('💳 صورة السند المرفق');}} className="p-2 bg-[#E2F5F7] text-[#007F8C] rounded-xl font-bold border border-[#C5ECF0] h-11 px-3">🖼️</button>}
             </div>
           </div>
           <div><label className={labelCls}>تاريخ الفاتورة</label><input type="date" className={inputCls} value={headerData.date} onChange={e=>setHeaderData(p=>({...p,date:e.target.value}))} /></div>
           <div><label className={labelCls}>تكلفة النقل والتوصيل</label><input type="number" step="0.01" min="0" className={inputCls + " font-mono font-bold text-[#8F2A87]"} placeholder="0.00" value={headerData.freight_cost} onChange={e=>setHeaderData(p=>({...p,freight_cost:e.target.value}))} /></div>
           <div><label className={labelCls}>رسوم التحويل</label><input type="number" step="0.01" min="0" className={inputCls + " font-mono font-bold text-[#D64545]"} placeholder="0.00" value={headerData.transfer_fees} onChange={e=>setHeaderData(p=>({...p,transfer_fees:e.target.value}))} /></div>
-          <div className="sm:col-span-2 lg:col-span-3"><label className={labelCls}>ملاحظات الفاتورة والبيان 📝</label><input type="text" className={inputCls} placeholder="ملاحظات وتفاصيل الفاتورة" value={headerData.notes} onChange={e=>setHeaderData(p=>({...p,notes:e.target.value}))} /></div>
+          <div className="sm:col-span-2 lg:col-span-2"><label className={labelCls}>ملاحظات الفاتورة والبيان 📝</label><input type="text" className={inputCls} placeholder="ملاحظات وتفاصيل الفاتورة" value={headerData.notes} onChange={e=>setHeaderData(p=>({...p,notes:e.target.value}))} /></div>
         </div>
 
         {/* نموذج الصنف */}
@@ -830,7 +891,8 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
                       <th className="p-3 text-center">طريقة الدفع</th>
                       <th className="p-3 text-center">النقل والرسوم</th>
                       <th className="p-3">الملاحظات 📝</th>
-                      <th className="p-3 text-center">السند</th>
+                      <th className="p-3 text-center">الفاتورة 🧾</th>
+                      <th className="p-3 text-center">السند 💳</th>
                       <th className="p-3">التاريخ</th>
                       <th className="p-3 text-center">إجراءات</th>
                     </tr>
@@ -903,7 +965,14 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
                             {n.notes || '—'}
                           </td>
                           <td className="p-3 text-center">
-                            {p.receipt_url ? <button type="button" onClick={()=>setPreviewImage(p.receipt_url)} className="bg-[#E2F5F7] hover:bg-[#C5ECF0] text-[#007F8C] px-2 py-1 rounded-lg font-bold text-[10.5px]">🖼️ عرض</button> : <span className="text-[#6F6B75]">—</span>}
+                            {n.invoice_image_url ? (
+                              <button type="button" onClick={()=>{setPreviewImage(n.invoice_image_url);setPreviewTitle(`🧾 فاتورة ${billNo}`);}} className="bg-[#F2E7F3] hover:bg-[#E5CEE7] text-[#8F2A87] px-2 py-1 rounded-lg font-bold text-[10.5px]">🧾 عرض</button>
+                            ) : <span className="text-[#6F6B75]">—</span>}
+                          </td>
+                          <td className="p-3 text-center">
+                            {n.receipt_url ? (
+                              <button type="button" onClick={()=>{setPreviewImage(n.receipt_url);setPreviewTitle(`💳 سند ${billNo}`);}} className="bg-[#E2F5F7] hover:bg-[#C5ECF0] text-[#007F8C] px-2 py-1 rounded-lg font-bold text-[10.5px]">💳 عرض</button>
+                            ) : <span className="text-[#6F6B75]">—</span>}
                           </td>
                           <td className="p-3 text-[#6F6B75] font-mono">{n.date||'—'}</td>
                           <td className="p-3 text-center space-x-1 space-x-reverse whitespace-nowrap">

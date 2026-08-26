@@ -303,6 +303,7 @@ var MASTER_SCHEMA_MAP = {
       { key: "payment_method", header: "طريقة الدفع" },
       { key: "payment_account_code", header: "حساب الصندوق / الدفع" },
       { key: "transaction_ref", header: "معرف المعاملة / السند" },
+      { key: "invoice_attachment", header: "رابط صورة الفاتورة" },
       { key: "receipt_attachment", header: "رابط صورة السند" },
       { key: "receipt_status", header: "حالة الاستلام" },
       { key: "payment_status", header: "حالة الدفع" },
@@ -1246,6 +1247,9 @@ var PurchaseController = {
         payment_source: payAcc,
         transaction_ref: txRef,
         transfer_no: txRef,
+        invoice_attachment: String(r.invoice_attachment || r.invoice_image_url || r.invoice_url || "").trim(),
+        invoice_image_url: String(r.invoice_attachment || r.invoice_image_url || r.invoice_url || "").trim(),
+        invoice_url: String(r.invoice_attachment || r.invoice_image_url || r.invoice_url || "").trim(),
         receipt_attachment: rcpt,
         receipt_url: rcpt,
         receipt_status: rStat,
@@ -1270,7 +1274,7 @@ var PurchaseController = {
       "وحدة القياس", "الكمية", "العملة", "سعر الصرف",
       "السعر الإفرادي", "المبلغ الأصلي بالعملة", "الخصم / التخفيض", "المبلغ بالريال اليمني", "تكلفة النقل والتوصيل",
       "رسوم التحويل", "الإجمالي النهائي (YER)", "طريقة الدفع", "حساب الصندوق / الدفع",
-      "معرف المعاملة / السند", "رابط صورة السند", "حالة الاستلام", "حالة الدفع",
+      "معرف المعاملة / السند", "رابط صورة الفاتورة", "رابط صورة السند", "حالة الاستلام", "حالة الدفع",
       "ملاحظات", "تاريخ الإنشاء"
     ];
 
@@ -1309,6 +1313,7 @@ var PurchaseController = {
     var paymentMethod = String(data.payment_method || data.pay_type || "نقدي").trim();
     var paymentAccountCode = String(data.payment_account_code || data.payment_source || (paymentMethod === "آجل" ? "201" : "101")).trim();
     var transactionRef = String(data.transaction_ref || data.transaction_id || data.transfer_no || ("TX-" + invoiceNo)).trim();
+    var invoiceAttachment = String(data.invoice_attachment || data.invoice_image_url || data.invoice_url || data.bill_attachment || "").substring(0, 45000);
     var receiptAttachment = String(data.receipt_attachment || data.receipt_url || "").substring(0, 45000);
     var receiptStatus = String(data.receipt_status || data.status || "تم الاستلام").trim();
     var paymentStatus = String(data.payment_status || (paymentMethod === "آجل" ? "غير مدفوع" : "مدفوع")).trim();
@@ -1336,6 +1341,7 @@ var PurchaseController = {
       "طريقة الدفع": paymentMethod,
       "حساب الصندوق / الدفع": paymentAccountCode,
       "معرف المعاملة / السند": transactionRef,
+      "رابط صورة الفاتورة": invoiceAttachment,
       "رابط صورة السند": receiptAttachment,
       "حالة الاستلام": receiptStatus,
       "حالة الدفع": paymentStatus,
@@ -1474,6 +1480,8 @@ var PurchaseController = {
           if (h.indexOf("المبلغ الأصلي") !== -1 && data.total !== undefined) sheet.getRange(rowIdx, c + 1).setValue(Number(data.total));
           if (h.indexOf("ملاحظات") !== -1 && data.notes !== undefined) sheet.getRange(rowIdx, c + 1).setValue(data.notes);
           if (h.indexOf("التاريخ") !== -1 && data.date) sheet.getRange(rowIdx, c + 1).setValue(data.date);
+          if (h.indexOf("صورة الفاتورة") !== -1 && (data.invoice_image_url || data.invoice_attachment)) sheet.getRange(rowIdx, c + 1).setValue(data.invoice_image_url || data.invoice_attachment);
+          if (h.indexOf("صورة السند") !== -1 && (data.receipt_url || data.receipt_attachment)) sheet.getRange(rowIdx, c + 1).setValue(data.receipt_url || data.receipt_attachment);
         }
         return { success: true, message: "تم تحديث فاتورة الشراء بنجاح" };
       }
