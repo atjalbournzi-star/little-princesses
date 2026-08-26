@@ -1283,6 +1283,10 @@ var VoucherController = {
     var result = SchemaMapper.appendOrUpdateRow("payments", data);
     AuditService.log("voucher", newId, result.isUpdate ? "UPDATE" : "CREATE", null, data, data.created_by);
     return { id: newId, message: result.isUpdate ? "تم تحديث السند المالي بنجاح" : "تم حفظ السند المالي بنجاح", data: data };
+  },
+  deleteVoucher: function(payload) {
+    var data = payload.data || payload;
+    return SchemaMapper.softDelete("payments", data.id || data.voucher_no || data.payment_no);
   }
 };
 
@@ -1300,6 +1304,15 @@ var JournalController = {
     var result = SchemaMapper.appendOrUpdateRow("journal_entries", data);
     AuditService.log("journal_entry", newId, result.isUpdate ? "UPDATE" : "POST", null, data, data.created_by);
     return { id: newId, message: result.isUpdate ? "تم تحديث القيد اليومي بنجاح" : "تم ترحيل القيد اليومي بنجاح", data: data };
+  },
+  updateJournalEntry: function(payload) {
+    var data = payload.data || payload;
+    var result = SchemaMapper.appendOrUpdateRow("journal_entries", data);
+    return { id: data.id, message: "تم تعديل القيد اليومي بنجاح", data: data };
+  },
+  deleteJournalEntry: function(payload) {
+    var data = payload.data || payload;
+    return SchemaMapper.softDelete("journal_entries", data.id || data.entry_no);
   }
 };
 
@@ -1679,11 +1692,20 @@ function handleAction(action, payload) {
       case "addVoucher":
       case "addPayment":
         return responseJSON({ status: "success", data: VoucherController.addVoucher(payload) });
+      case "deleteVoucher":
+      case "deletePayment":
+        return responseJSON({ status: "success", data: VoucherController.deleteVoucher(payload) });
 
       case "getJournalEntries":
         return responseJSON({ status: "success", data: JournalController.getJournalEntries() });
       case "addJournalEntry":
         return responseJSON({ status: "success", data: JournalController.addJournalEntry(payload) });
+      case "updateJournalEntry":
+      case "editJournalEntry":
+        return responseJSON({ status: "success", data: JournalController.updateJournalEntry(payload) });
+      case "deleteJournalEntry":
+      case "removeJournalEntry":
+        return responseJSON({ status: "success", data: JournalController.deleteJournalEntry(payload) });
 
       case "getExpenses":
         return responseJSON({ status: "success", data: ExpenseController.getExpenses() });

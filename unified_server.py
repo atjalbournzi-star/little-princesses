@@ -10,6 +10,7 @@ import io
 import hashlib
 import threading
 import time
+from datetime import datetime
 
 # ضبط ترميز المخرجات لدعم اللغة العربية
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
@@ -3909,6 +3910,8 @@ class UnifiedERPHandler(http.server.SimpleHTTPRequestHandler):
                 except Exception: pass
                 try: c.execute("DELETE FROM journal_lines")
                 except Exception: pass
+                try: c.execute("DELETE FROM vouchers")
+                except Exception: pass
                 conn.commit()
 
                 c.execute("SELECT * FROM accounts ORDER BY account_code ASC, code ASC")
@@ -3926,10 +3929,101 @@ class UnifiedERPHandler(http.server.SimpleHTTPRequestHandler):
                 self._send_cors_headers()
                 self.send_header('Content-Type', 'application/json; charset=utf-8')
                 self.end_headers()
-                self.wfile.write(json.dumps({'success': True, 'data': clean_rows, 'message': 'تم تصفير شجرة الحسابات ومسح الحسابات التجريبية بنجاح'}).encode('utf-8'))
+                self.wfile.write(json.dumps({'success': True, 'data': clean_rows, 'message': 'تم تصفير شجرة الحسابات ومسح الحسابات والسندات التجريبية بنجاح'}).encode('utf-8'))
                 return
             except Exception as e:
                 self.send_response(500)
+                self._send_cors_headers()
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({'success': False, 'error': str(e)}).encode('utf-8'))
+                return
+
+        if parsed_url.path in ('/api/journal/delete', '/api/accounting/journal/delete'):
+            try:
+                content_len = int(self.headers.get('Content-Length', 0))
+                post_body = self.rfile.read(content_len) if content_len > 0 else b'{}'
+                req_data = json.loads(post_body.decode('utf-8'))
+                entry_id = req_data.get('id')
+                entry_no = req_data.get('entry_no')
+                ref_id = req_data.get('ref_id')
+
+                conn = get_db()
+                c = conn.cursor()
+                if entry_id:
+                    c.execute("DELETE FROM journal_entries WHERE id = ? OR entry_no = ?", (entry_id, entry_no or entry_id))
+                elif entry_no:
+                    c.execute("DELETE FROM journal_entries WHERE entry_no = ?", (entry_no,))
+                
+                # If linked to a voucher, remove from vouchers table as well
+                if ref_id:
+                    c.execute("DELETE FROM vouchers WHERE voucher_no = ? OR id = ?", (ref_id, ref_id))
+                
+                conn.commit()
+                conn.close()
+
+                self.send_response(200)
+                self._send_cors_headers()
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({'success': True, 'message': 'تم حذف القيد المحاسبي بنجاح'}).encode('utf-8'))
+                return
+            except Exception as e:
+                self.send_response(400)
+                self._send_cors_headers()
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({'success': False, 'error': str(e)}).encode('utf-8'))
+                return
+
+        if parsed_url.path in ('/api/journal/update', '/api/accounting/journal/update'):
+            try:
+                content_len = int(self.headers.get('Content-Length', 0))
+                post_body = self.rfile.read(content_len) if content_len > 0 else b'{}'
+                data = json.loads(post_body.decode('utf-8'))
+                j_id = data.get('id')
+                entry_no = data.get('entry_no')
+                debit = data.get('debit', '')
+                credit = data.get('credit', '')
+                amount = float(data.get('amount', 0))
+                curr = data.get('currency', 'YER')
+                rate = float(data.get('exchange_rate', 1.0))
+                base_amt = float(data.get('base_amount', amount * rate))
+                date_val = data.get('date') or datetime.now().strftime('%Y-%m-%d')
+                notes = data.get('notes', '')
+                ref_type = data.get('ref_type', 'قيد يدوي')
+                ref_id = data.get('ref_id', '')
+
+                conn = get_db()
+                c = conn.cursor()
+                c.execute('''
+                    UPDATE journal_entries SET
+                        entry_no = ?, debit = ?, credit = ?, amount = ?,
+                        currency = ?, exchange_rate = ?, base_amount = ?,
+                        date = ?, notes = ?, ref_type = ?, ref_id = ?
+                    WHERE id = ? OR entry_no = ?
+                ''', (entry_no, debit, credit, amount, curr, rate, base_amt, date_val, notes, ref_type, ref_id, j_id, entry_no))
+                
+                # If linked to voucher, update voucher
+                if ref_id:
+                    c.execute('''
+                        UPDATE vouchers SET
+                            amount = ?, currency = ?, exchange_rate = ?,
+                            base_amount = ?, notes = ?
+                        WHERE voucher_no = ? OR id = ?
+                    ''', (amount, curr, rate, base_amt, notes, ref_id, ref_id))
+
+                conn.commit()
+                conn.close()
+
+                self.send_response(200)
+                self._send_cors_headers()
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({'success': True, 'message': 'تم تعديل القيد المحاسبي بنجاح'}).encode('utf-8'))
+                return
+            except Exception as e:
+                self.send_response(400)
                 self._send_cors_headers()
                 self.send_header('Content-Type', 'application/json; charset=utf-8')
                 self.end_headers()

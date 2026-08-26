@@ -1,6 +1,6 @@
 const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
-function Accounts({ accounts = [], setAccounts, journal = [], setJournal, showToast, currency = { display: 'YER ﷼', symbol: '﷼', code: 'YER' } }) {
+function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouchers = [], setVouchers, showToast, currency = { display: 'YER ﷼', symbol: '﷼', code: 'YER' } }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('ALL');
   const [expandedNodes, setExpandedNodes] = useState({ 1: true, 2: true, 3: true, 4: true, 5: true, 6: true, 7: true });
@@ -57,7 +57,8 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, showTo
           setAccounts(data.data);
         }
         if (setJournal) setJournal([]);
-        showToast('✅ تم تصفير شجرة الحسابات ومسح كافة المبالغ في قوقل شيتس والنظام بنجاح 👑');
+        if (setVouchers) setVouchers([]);
+        showToast('✅ تم تصفير شجرة الحسابات ومسح كافة المبالغ والسندات في قوقل شيتس والنظام بنجاح 👑');
       } else {
         showToast(data.error || 'فشل التصفير', 'error');
       }

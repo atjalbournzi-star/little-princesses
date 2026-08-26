@@ -1524,6 +1524,24 @@ var VoucherController = {
     } catch(e) {}
 
     return { id: newId, message: "تم حفظ السند المالي بنجاح", data: data };
+  },
+  deleteVoucher: function(payload) {
+    var data = payload.data || payload;
+    var sheet = SchemaMapper.getOrCreateSheet("payments");
+    var lastR = sheet.getLastRow();
+    if (lastR < 2) return { success: false, message: "لا توجد سندات لحذفها" };
+    var values = sheet.getRange(2, 1, lastR - 1, Math.min(sheet.getLastColumn(), 2)).getValues();
+    var targetId = String(data.id || data.voucher_no || data.payment_no || data.v_no || "").trim();
+
+    for (var i = 0; i < values.length; i++) {
+      var rowId = String(values[i][0]).trim();
+      var rowNo = String(values[i][1]).trim();
+      if (rowId === targetId || rowNo === targetId) {
+        sheet.deleteRow(i + 2);
+        return { success: true, message: "تم حذف السند المالي بنجاح" };
+      }
+    }
+    return { success: false, message: "لم يتم العثور على السند لحذفه" };
   }
 };
 
@@ -1624,34 +1642,99 @@ var JournalController = {
       console.warn("Account balance update warning:", accErr);
     }
 
-    // Auto-record into Expenses Sheet (المصروفات) if Debit is an Expense Account (5xx / إيجار / مصروف)
-    try {
-      var dCodeDigits = parseInt(debitAcc.replace(/\D/g, "").slice(0, 3), 10);
-      var isExpense = (dCodeDigits >= 500 && dCodeDigits < 600) || debitAcc.indexOf("إيجار") !== -1 || debitAcc.indexOf("مصروف") !== -1 || debitAcc.indexOf("مرتب") !== -1 || debitAcc.indexOf("أجور") !== -1;
-      
-      if (isExpense && typeof ExpenseController !== "undefined" && ExpenseController.addExpense) {
-        var expCategory = debitAcc.indexOf("-") !== -1 ? debitAcc.split("-")[1].trim() : debitAcc;
-        ExpenseController.addExpense({
-          expense_no: "EXP-" + entryNo.replace("JV-", ""),
-          category: expCategory,
-          amount: amt,
-          currency: curr,
-          exchange_rate: rate,
-          base_amount: baseAmt,
-          date: entryDate,
-          payment_method: "نقدي",
-          recipient: creditAcc,
-          account_id: creditAcc,
-          notes: nts,
-          status: "posted",
-          created_by: crBy
-        });
-      }
-    } catch(expErr) {
-      console.warn("Auto-sync Expense warning:", expErr);
-    }
+    return { id: newId, message: "تم ترحيل القيد اليومي وتحديث شجرة الحسابات بنجاح", data: data };
+  },
 
-    return { id: newId, message: "تم ترحيل القيد اليومي وتحديث شجرة الحسابات والمصروفات بنجاح", data: data };
+  updateJournalEntry: function(payload) {
+    var data = payload.data || payload;
+    var sheet = SchemaMapper.getOrCreateSheet("journal_entries");
+    var lastR = sheet.getLastRow();
+    if (lastR < 2) return { success: false, message: "لا توجد قيود لتعديلها" };
+    var values = sheet.getRange(2, 1, lastR - 1, Math.min(sheet.getLastColumn(), 15)).getValues();
+    var targetId = String(data.id || data.entry_no || "").trim();
+
+    for (var i = 0; i < values.length; i++) {
+      var rowId = String(values[i][0]).trim();
+      var rowEntryNo = String(values[i][1]).trim();
+      if (rowId === targetId || rowEntryNo === targetId) {
+        var rowNum = i + 2;
+        var entryNo = String(data.entry_no || values[i][1]).trim();
+        var entryDate = String(data.entry_date || data.date || values[i][2]).slice(0, 10);
+        var debitAcc = String(data.debit_account_id || data.debit || values[i][3]).trim();
+        var creditAcc = String(data.credit_account_id || data.credit || values[i][4]).trim();
+        var amt = Number(data.amount !== undefined ? data.amount : values[i][5]);
+        var curr = String(data.currency || values[i][6] || "YER").trim().toUpperCase();
+        var rate = Number(data.exchange_rate) > 0 ? Number(data.exchange_rate) : (curr === "YER" ? 1.0 : Number(values[i][7] || 1.0));
+        var baseAmt = Number(data.base_amount) > 0 ? Number(data.base_amount) : Number((amt * rate).toFixed(2));
+        var refType = String(data.ref_type || data.reference_type || values[i][9] || "قيد يدوي").trim();
+        var refId = String(data.ref_id || data.reference_no || values[i][10] || entryNo).trim();
+        var nts = String(data.notes || data.statement || data.description || values[i][11]).trim();
+
+        sheet.getRange(rowNum, 2).setValue(entryNo);
+        sheet.getRange(rowNum, 3).setValue(entryDate);
+        sheet.getRange(rowNum, 4).setValue(debitAcc);
+        sheet.getRange(rowNum, 5).setValue(creditAcc);
+        sheet.getRange(rowNum, 6).setValue(amt);
+        sheet.getRange(rowNum, 7).setValue(curr);
+        sheet.getRange(rowNum, 8).setValue(rate);
+        sheet.getRange(rowNum, 9).setValue(baseAmt);
+        sheet.getRange(rowNum, 10).setValue(refType);
+        sheet.getRange(rowNum, 11).setValue(refId);
+        sheet.getRange(rowNum, 12).setValue(nts);
+
+        try {
+          if (typeof ChartOfAccountsController !== "undefined" && ChartOfAccountsController.getAccounts) {
+            ChartOfAccountsController.getAccounts();
+          }
+        } catch(e) {}
+
+        return { success: true, message: "تم تعديل القيد اليومي وتحديث شجرة الحسابات بنجاح", data: data };
+      }
+    }
+    return { success: false, message: "لم يتم العثور على القيد المطلوب تعديله" };
+  },
+
+  deleteJournalEntry: function(payload) {
+    var data = payload.data || payload;
+    var sheet = SchemaMapper.getOrCreateSheet("journal_entries");
+    var lastR = sheet.getLastRow();
+    if (lastR < 2) return { success: false, message: "لا توجد قيود لحذفها" };
+    var values = sheet.getRange(2, 1, lastR - 1, Math.min(sheet.getLastColumn(), 2)).getValues();
+    var targetId = String(data.id || data.entry_no || "").trim();
+
+    for (var i = 0; i < values.length; i++) {
+      var rowId = String(values[i][0]).trim();
+      var rowEntryNo = String(values[i][1]).trim();
+      if (rowId === targetId || rowEntryNo === targetId) {
+        var rowNum = i + 2;
+        sheet.deleteRow(rowNum);
+
+        // Also delete from vouchers if linked
+        try {
+          var vSheet = SchemaMapper.getOrCreateSheet("payments");
+          var vLastR = vSheet.getLastRow();
+          if (vLastR >= 2) {
+            var vVals = vSheet.getRange(2, 1, vLastR - 1, Math.min(vSheet.getLastColumn(), 4)).getValues();
+            for (var v = 0; v < vVals.length; v++) {
+              var vNo = String(vVals[v][1] || vVals[v][0] || "").trim();
+              if (vNo === targetId || targetId.indexOf(vNo) !== -1 || vNo.indexOf(targetId) !== -1) {
+                vSheet.deleteRow(v + 2);
+                break;
+              }
+            }
+          }
+        } catch(ve) {}
+
+        try {
+          if (typeof ChartOfAccountsController !== "undefined" && ChartOfAccountsController.getAccounts) {
+            ChartOfAccountsController.getAccounts();
+          }
+        } catch(e) {}
+
+        return { success: true, message: "تم حذف القيد اليومي وتحديث الأستاذ وشجرة الحسابات بنجاح" };
+      }
+    }
+    return { success: false, message: "لم يتم العثور على القيد لحذفه" };
   }
 };
 
@@ -2409,12 +2492,21 @@ function handleAction(action, payload) {
       case "addVoucher":
       case "addPayment":
         return responseJSON({ status: "success", data: VoucherController.addVoucher(payload) });
+      case "deleteVoucher":
+      case "deletePayment":
+        return responseJSON({ status: "success", data: VoucherController.deleteVoucher(payload) });
 
       case "getJournalEntries":
         return responseJSON({ status: "success", data: JournalController.getJournalEntries() });
       case "addJournalEntry":
       case "saveJournalEntry":
         return responseJSON({ status: "success", data: JournalController.addJournalEntry(payload) });
+      case "updateJournalEntry":
+      case "editJournalEntry":
+        return responseJSON({ status: "success", data: JournalController.updateJournalEntry(payload) });
+      case "deleteJournalEntry":
+      case "removeJournalEntry":
+        return responseJSON({ status: "success", data: JournalController.deleteJournalEntry(payload) });
 
       case "getExpenses":
         return responseJSON({ status: "success", data: ExpenseController.getExpenses() });

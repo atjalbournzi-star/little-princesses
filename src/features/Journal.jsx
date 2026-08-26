@@ -1,6 +1,4 @@
-const { useState, useEffect, useMemo, useCallback, useRef } = React;
-
-function Journal({ journal = [], setJournal, accounts = [], showToast, currency }) {
+function Journal({ journal = [], setJournal, accounts = [], setAccounts, vouchers = [], setVouchers, showToast, currency }) {
   const [activeSubTab, setActiveSubTab] = useState('entries'); // 'entries' | 'ledger' | 'trial_balance'
   
   // Journal Form State
@@ -15,6 +13,24 @@ function Journal({ journal = [], setJournal, accounts = [], showToast, currency 
     notes: '',
     ref_type: 'قيد يدوي'
   });
+
+  // Edit Modal State
+  const [editingEntry, setEditingEntry] = useState(null);
+  const [editFormData, setEditFormData] = useState({
+    id: null,
+    entry_no: '',
+    debit: '',
+    credit: '',
+    amount: '',
+    currency: 'YER ﷼',
+    exchange_rate: '1.0',
+    date: TODAY_STR_ISO,
+    notes: '',
+    ref_type: 'قيد يدوي',
+    ref_id: ''
+  });
+  const [isSubmittingEdit, setIsSubmittingEdit] = useState(false);
+  const [isDeletingId, setIsDeletingId] = useState(null);
 
   // General Ledger Filters
   const [ledgerAccount, setLedgerAccount] = useState('ALL');
@@ -142,6 +158,169 @@ function Journal({ journal = [], setJournal, accounts = [], showToast, currency 
         notes: '',
         ref_type: 'قيد يدوي'
       });
+    }
+  };
+
+  const handleOpenEdit = (entry) => {
+    if (!entry) return;
+    const dCode = entry.debit_code || String(entry.debit || '').split(' - ')[0].trim();
+    const cCode = entry.credit_code || String(entry.credit || '').split(' - ')[0].trim();
+    const curr = window.CurrencyService ? window.CurrencyService.normalizeCode(entry.currency || 'YER') : (entry.currency || 'YER');
+    const rate = entry.exchange_rate || (window.CurrencyService ? window.CurrencyService.getRate(curr) : 1.0);
+
+    setEditingEntry(entry);
+    setEditFormData({
+      id: entry.id,
+      entry_no: entry.entry_no || `JV-${entry.id}`,
+      debit: dCode,
+      credit: cCode,
+      amount: String(entry.amount || ''),
+      currency: curr === 'USD' ? 'USD $' : (curr === 'SAR' ? 'SAR ﷼' : 'YER ﷼'),
+      exchange_rate: String(rate),
+      date: (entry.date || entry.entry_date || TODAY_STR_ISO).split('T')[0],
+      notes: entry.notes || entry.statement || '',
+      ref_type: entry.ref_type || 'قيد يدوي',
+      ref_id: entry.ref_id || ''
+    });
+  };
+
+  const handleSaveEdit = async (e) => {
+    e.preventDefault();
+    if (!editFormData.debit || !editFormData.credit || !editFormData.amount) {
+      return showToast('الطرف المدين، الدائن، والمبلغ مطلوبة ⚠️', 'error');
+    }
+    if (editFormData.debit === editFormData.credit) {
+      return showToast('الطرف المدين والدائن يجب أن يكونا مختلفين ⚠️', 'error');
+    }
+
+    setIsSubmittingEdit(true);
+    try {
+      const editCurrencyCode = window.CurrencyService ? window.CurrencyService.normalizeCode(editFormData.currency) : 'YER';
+      const rate = parseFloat(editFormData.exchange_rate) || (window.CurrencyService ? window.CurrencyService.getRate(editCurrencyCode) : 1.0);
+      const amt = parseFloat(editFormData.amount) || 0;
+      const baseObj = window.CurrencyService ? window.CurrencyService.toBase(amt, editCurrencyCode, rate) : { base_amount: amt * rate, exchange_rate: rate };
+
+      const debitAccObj = (accounts || []).find(a => String(a.code || a.acc_code || a.id) === String(editFormData.debit));
+      const creditAccObj = (accounts || []).find(a => String(a.code || a.acc_code || a.id) === String(editFormData.credit));
+      const getCleanAccName = (acc) => {
+        if (!acc) return '';
+        const raw = acc.name || acc.account_name || acc.acc_name || '';
+        return (raw && !raw.includes('???')) ? raw : (acc.name_en || acc.code || acc.acc_code || '');
+      };
+      const debitLabel = debitAccObj ? `${debitAccObj.code || debitAccObj.acc_code} - ${getCleanAccName(debitAccObj)}` : editFormData.debit;
+      const creditLabel = creditAccObj ? `${creditAccObj.code || creditAccObj.acc_code} - ${getCleanAccName(creditAccObj)}` : editFormData.credit;
+
+      const updatedJ = {
+        ...editingEntry,
+        id: editingEntry.id,
+        entry_no: editFormData.entry_no,
+        debit: debitLabel,
+        credit: creditLabel,
+        debit_account_id: debitLabel,
+        credit_account_id: creditLabel,
+        debit_code: editFormData.debit,
+        credit_code: editFormData.credit,
+        amount: amt,
+        currency: editCurrencyCode,
+        exchange_rate: rate,
+        base_amount: baseObj.base_amount,
+        ref_type: editFormData.ref_type || 'قيد يدوي',
+        ref_id: editFormData.ref_id || '',
+        date: editFormData.date,
+        notes: editFormData.notes,
+        statement: editFormData.notes
+      };
+
+      // 1. Update local journal state
+      if (setJournal) {
+        setJournal(prev => (prev || []).map(j => (j.id === editingEntry.id || j.entry_no === editingEntry.entry_no) ? updatedJ : j));
+      }
+
+      // 2. Update local backend
+      try {
+        await fetch('/api/journal/update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updatedJ)
+        });
+      } catch(beErr) {
+        console.warn("Backend journal update warning:", beErr);
+      }
+
+      // 3. Update linked voucher if exists
+      if (setVouchers && editFormData.ref_id) {
+        setVouchers(prev => (prev || []).map(v => {
+          if (v.voucher_no === editFormData.ref_id || v.payment_no === editFormData.ref_id || v.id === editFormData.ref_id) {
+            return { ...v, amount: amt, currency: editCurrencyCode, exchange_rate: rate, base_amount: baseObj.base_amount, notes: editFormData.notes, date: editFormData.date };
+          }
+          return v;
+        }));
+      }
+
+      // 4. Sync to Google Apps Script Web App
+      try {
+        if (typeof window.callGAS === 'function') {
+          await window.callGAS('updateJournalEntry', updatedJ);
+        }
+      } catch(gasErr) {
+        console.warn("GAS journal update warning:", gasErr);
+      }
+
+      showToast('✅ تم تعديل القيد وتحديث الأستاذ العام وشجرة الحسابات والسندات بنجاح ✏️');
+      setEditingEntry(null);
+    } catch(err) {
+      console.error("Save edit error:", err);
+      showToast('حدث خطأ أثناء حفظ تعديل القيد', 'error');
+    } finally {
+      setIsSubmittingEdit(false);
+    }
+  };
+
+  const handleDeleteEntry = async (entry) => {
+    if (!entry) return;
+    if (!window.confirm(`⚠️ هل أنت متأكد من حذف القيد المحاسبي رقم (${entry.entry_no || entry.id})؟\n\n(سيتم حذف القيد وعكس أثره المالي فوراً من دفتر الأستاذ وميزان المراجعة والسندات المرتبطة)`)) {
+      return;
+    }
+
+    setIsDeletingId(entry.id);
+    try {
+      // 1. Remove from local state
+      if (setJournal) {
+        setJournal(prev => (prev || []).filter(j => j.id !== entry.id && j.entry_no !== entry.entry_no));
+      }
+
+      // 2. Remove linked voucher if exists
+      const refNo = entry.ref_id || entry.entry_no;
+      if (setVouchers && refNo) {
+        setVouchers(prev => (prev || []).filter(v => v.voucher_no !== refNo && v.payment_no !== refNo && v.id !== refNo && v.id !== entry.id));
+      }
+
+      // 3. Delete from Local Backend
+      try {
+        await fetch('/api/journal/delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: entry.id, entry_no: entry.entry_no, ref_id: entry.ref_id })
+        });
+      } catch(beErr) {
+        console.warn("Backend journal delete warning:", beErr);
+      }
+
+      // 4. Delete from Google Apps Script
+      try {
+        if (typeof window.callGAS === 'function') {
+          await window.callGAS('deleteJournalEntry', { id: entry.id, entry_no: entry.entry_no, ref_id: entry.ref_id });
+        }
+      } catch(gasErr) {
+        console.warn("GAS journal delete warning:", gasErr);
+      }
+
+      showToast('✅ تم حذف القيد وتحديث الأستاذ العام وشجرة الحسابات والسندات بنجاح 🗑️');
+    } catch(err) {
+      console.error("Delete error:", err);
+      showToast('حدث خطأ أثناء حذف القيد', 'error');
+    } finally {
+      setIsDeletingId(null);
     }
   };
 
@@ -374,6 +553,7 @@ function Journal({ journal = [], setJournal, accounts = [], showToast, currency 
                       <th className="px-4 py-3 text-right">المرجع</th>
                       <th className="px-4 py-3 text-right">البيان والشرح</th>
                       <th className="px-4 py-3 text-right">التاريخ</th>
+                      <th className="px-4 py-3 text-center w-28">الإجراءات</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#E8E5EA] bg-white">
@@ -407,6 +587,27 @@ function Journal({ journal = [], setJournal, accounts = [], showToast, currency 
                             {j.notes || j.statement || '—'}
                           </td>
                           <td className="px-4 py-3 text-[#6F6B75] font-mono whitespace-nowrap">{j.date || j.entry_date}</td>
+                          <td className="px-4 py-3 text-center whitespace-nowrap">
+                            <div className="flex items-center justify-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEdit(j)}
+                                title="تعديل القيد المحاسبي ومزامنة السندات"
+                                className="p-1.5 text-[#007F8C] hover:bg-[#E2F5F7] rounded-lg transition-colors cursor-pointer"
+                              >
+                                <Icons.Edit className="w-4 h-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteEntry(j)}
+                                title="حذف القيد المحاسبي وعكس أثره"
+                                disabled={isDeletingId === j.id}
+                                className="p-1.5 text-[#D64545] hover:bg-[#FDE8E8] rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+                              >
+                                <Icons.Trash className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
                         </tr>
                       );
                     })}
@@ -617,6 +818,180 @@ function Journal({ journal = [], setJournal, accounts = [], showToast, currency 
                 </tfoot>
               </table>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal تعديل القيد المحاسبي ومزامنة السندات والأستاذ ── */}
+      {editingEntry && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 animate-fadeIn">
+          <div className="bg-white rounded-2xl border border-[#E8E5EA] shadow-2xl max-w-2xl w-full overflow-hidden text-right" dir="rtl">
+            <div className="px-6 py-4 border-b border-[#E8E5EA] flex items-center justify-between bg-gradient-to-r from-white via-[#FAFAFB] to-white">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[#E2F5F7] text-[#007F8C] flex items-center justify-center text-sm font-bold border border-[#C5EDF0]">
+                  ✏️
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold text-[#25232A]">تعديل القيد المحاسبي: {editFormData.entry_no}</h2>
+                  <p className="text-[11px] text-[#6F6B75]">تعديل الحسابات والمبالغ وتحديث دفتر الأستاذ والسندات المالية آلياً</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingEntry(null)}
+                className="w-8 h-8 rounded-lg text-[#6F6B75] hover:bg-[#F3F2F5] hover:text-[#25232A] flex items-center justify-center transition-colors cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEdit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className={labelCls}>رقم القيد</label>
+                  <input
+                    type="text"
+                    className={inputCls + " font-mono"}
+                    value={editFormData.entry_no}
+                    onChange={e => setEditFormData({ ...editFormData, entry_no: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className={labelCls}>تاريخ القيد</label>
+                  <input
+                    type="date"
+                    className={inputCls}
+                    value={editFormData.date}
+                    onChange={e => setEditFormData({ ...editFormData, date: e.target.value })}
+                  />
+                </div>
+
+                <div>
+                  <label className={labelCls}>من حساب (المدين Debit) <span className="text-[#D64545] font-bold">*</span></label>
+                  <select
+                    className={inputCls}
+                    value={editFormData.debit}
+                    onChange={e => setEditFormData({ ...editFormData, debit: e.target.value })}
+                  >
+                    <option value="">-- اختر حساب حركة --</option>
+                    {postingAccounts.map(a => {
+                      const code = a.code || a.acc_code || a.id;
+                      const rawName = a.name || a.account_name || a.acc_name || '';
+                      const name = (rawName && !rawName.includes('???')) ? rawName : (a.name_en || code);
+                      return <option key={code} value={code}>{code} - {name}</option>;
+                    })}
+                  </select>
+                </div>
+
+                <div>
+                  <label className={labelCls}>إلى حساب (الدائن Credit) <span className="text-[#D64545] font-bold">*</span></label>
+                  <select
+                    className={inputCls}
+                    value={editFormData.credit}
+                    onChange={e => setEditFormData({ ...editFormData, credit: e.target.value })}
+                  >
+                    <option value="">-- اختر حساب حركة --</option>
+                    {postingAccounts.map(a => {
+                      const code = a.code || a.acc_code || a.id;
+                      const rawName = a.name || a.account_name || a.acc_name || '';
+                      const name = (rawName && !rawName.includes('???')) ? rawName : (a.name_en || code);
+                      return <option key={code} value={code}>{code} - {name}</option>;
+                    })}
+                  </select>
+                </div>
+
+                <div>
+                  <label className={labelCls}>العملة <span className="text-[#D64545] font-bold">*</span></label>
+                  <select
+                    className={inputCls}
+                    value={editFormData.currency}
+                    onChange={e => {
+                      const newCurr = e.target.value;
+                      const cCode = window.CurrencyService ? window.CurrencyService.normalizeCode(newCurr) : 'YER';
+                      const newRate = window.CurrencyService ? window.CurrencyService.getRate(cCode) : 1.0;
+                      setEditFormData({ ...editFormData, currency: newCurr, exchange_rate: String(newRate) });
+                    }}
+                  >
+                    {["YER ﷼", "SAR ﷼", "USD $"].map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+
+                <div>
+                  <label className={labelCls}>المبلغ بالعملة المختارة <span className="text-[#D64545] font-bold">*</span></label>
+                  <input
+                    type="number"
+                    step="any"
+                    required
+                    className={inputCls + " font-mono font-bold text-[#25232A]"}
+                    value={editFormData.amount}
+                    onChange={e => setEditFormData({ ...editFormData, amount: e.target.value })}
+                  />
+                </div>
+
+                {window.CurrencyService && window.CurrencyService.normalizeCode(editFormData.currency) !== 'YER' && (
+                  <div>
+                    <label className={labelCls}>سعر الصرف وقت العملية (مقابل YER) <span className="text-[#D64545] font-bold">*</span></label>
+                    <input
+                      type="number"
+                      step="any"
+                      required
+                      className={inputCls + " font-mono font-bold text-[#8F2A87]"}
+                      value={editFormData.exchange_rate}
+                      onChange={e => setEditFormData({ ...editFormData, exchange_rate: e.target.value })}
+                    />
+                  </div>
+                )}
+
+                <div>
+                  <label className={labelCls}>نوع المرجع</label>
+                  <select
+                    className={inputCls}
+                    value={editFormData.ref_type}
+                    onChange={e => setEditFormData({ ...editFormData, ref_type: e.target.value })}
+                  >
+                    {["قيد يدوي", "إيجارات", "مرتبات وأجور", "مشتريات", "مصروفات تشغيلية", "سند صرف", "سند قبض", "تسوية"].map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+
+                <div>
+                  <label className={labelCls}>رقم المرجع / السند</label>
+                  <input
+                    type="text"
+                    className={inputCls + " font-mono"}
+                    value={editFormData.ref_id}
+                    onChange={e => setEditFormData({ ...editFormData, ref_id: e.target.value })}
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className={labelCls}>البيان والشرح المحاسبي <span className="text-[#D64545] font-bold">*</span></label>
+                  <input
+                    type="text"
+                    className={inputCls}
+                    value={editFormData.notes}
+                    onChange={e => setEditFormData({ ...editFormData, notes: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-[#E8E5EA]">
+                <button
+                  type="button"
+                  onClick={() => setEditingEntry(null)}
+                  className="px-5 py-2.5 rounded-xl border border-[#E8E5EA] text-[#6F6B75] hover:bg-[#FAFAFB] font-bold text-xs transition cursor-pointer"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingEdit}
+                  className="px-6 py-2.5 rounded-xl font-bold text-xs text-white bg-[#007F8C] hover:bg-[#006A75] transition flex items-center gap-2 cursor-pointer shadow-xs disabled:opacity-50"
+                >
+                  <Icons.Check className="w-4 h-4" />
+                  <span>{isSubmittingEdit ? 'جاري الحفظ...' : 'حفظ التعديلات والمزامنة 💾'}</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
