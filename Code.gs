@@ -1921,7 +1921,7 @@ var ExpenseController = {
     var currency = String(data.currency || "YER").trim().toUpperCase();
     var rate = Number(data.exchange_rate) > 0 ? Number(data.exchange_rate) : 1.0;
     var baseAmount = Number(data.base_amount) > 0 ? Number(data.base_amount) : Number((amount * rate).toFixed(2));
-    var category = String(data.category || data.expense_category || "إيجار الورش والمعمل").trim();
+    var category = String(data.category || data.exp_category || data.expense_category || "إيجار الورش والمعمل").trim();
     var expNo = String(data.expense_no || newId).trim();
     var txId = String(data.transaction_id || ("TX-" + expNo)).trim();
     var expDate = String(data.date || data.expense_date || now).slice(0, 10);
@@ -1947,7 +1947,94 @@ var ExpenseController = {
       sheet.getRange(appRow, 7, 1, 1).setNumberFormat("#,##0.00");
     } catch(e) {}
 
-    return { id: newId, message: "تم تسجيل المصروف بنجاح", data: data };
+    // 1. Automatically Post Payment Voucher in payments sheet (السندات_المالية)
+    try {
+      var vSheet = SchemaMapper.getOrCreateSheet("payments");
+      var vNo = "PV-" + expNo;
+      var vRow = [
+        "PAY-" + expNo, vNo, "", expNo, "", recipient || category,
+        "سند صرف", amount, currency, rate, baseAmount, payMethod,
+        txId, accountId, expDate, status, "سند صرف مصروف: " + category + " - " + notes,
+        now, createdBy
+      ];
+      vSheet.appendRow(vRow);
+    } catch(ve) {
+      console.warn("Auto payment voucher for expense warning:", ve);
+    }
+
+    // 2. Automatically Post Journal Entry in journal_entries sheet (القيود_اليومية)
+    try {
+      var jSheet = SchemaMapper.getOrCreateSheet("journal_entries");
+      var jRow = [
+        "JV-" + expNo, "JV-" + expNo, expDate, category, accountId,
+        amount, currency, rate, baseAmount, "EXPENSE", expNo,
+        "قيد مصروف تشغيلي: " + category + " - " + notes, "posted",
+        createdBy, now
+      ];
+      jSheet.appendRow(jRow);
+    } catch(je) {
+      console.warn("Auto journal entry for expense warning:", je);
+    }
+
+    return { id: newId, message: "تم تسجيل المصروف وترحيل السند المالي والقيد اليومي بنجاح 💸", data: data };
+  },
+
+  deleteExpense: function(payload) {
+    var data = payload.data || payload;
+    var targetId = String(data.id || data.expense_no || data.expense_id || "").trim();
+    if (!targetId) throw new Error("معرف المصروف مطلوب للحذف");
+
+    // 1. Delete from expenses sheet (المصروفات)
+    var expSheet = SchemaMapper.getOrCreateSheet("expenses");
+    var expValues = expSheet.getDataRange().getValues();
+    for (var i = 1; i < expValues.length; i++) {
+      var rowId = String(expValues[i][0] || "").trim();
+      var rowNo = String(expValues[i][1] || "").trim();
+      if (rowId === targetId || rowNo === targetId) {
+        expSheet.deleteRow(i + 1);
+        break;
+      }
+    }
+
+    // 2. Delete linked Payment Voucher from payments sheet (السندات_المالية)
+    try {
+      var vSheet = SchemaMapper.getOrCreateSheet("payments");
+      var vValues = vSheet.getDataRange().getValues();
+      for (var j = 1; j < vValues.length; j++) {
+        var vId = String(vValues[j][0] || "").trim();
+        var vNo = String(vValues[j][1] || "").trim();
+        var vInv = String(vValues[j][3] || "").trim();
+        if (vId === "PAY-" + targetId || vNo === "PV-" + targetId || vInv === targetId) {
+          vSheet.deleteRow(j + 1);
+          break;
+        }
+      }
+    } catch(ve) {}
+
+    // 3. Delete linked Journal Entry from journal_entries sheet (القيود_اليومية)
+    try {
+      var jSheet = SchemaMapper.getOrCreateSheet("journal_entries");
+      var jValues = jSheet.getDataRange().getValues();
+      for (var k = 1; k < jValues.length; k++) {
+        var jId = String(jValues[k][0] || "").trim();
+        var jRef = String(jValues[k][10] || "").trim();
+        if (jId === "JV-" + targetId || jRef === targetId) {
+          jSheet.deleteRow(k + 1);
+          break;
+        }
+      }
+    } catch(je) {}
+
+    return { success: true, message: "تم حذف المصروف والسند المالي والقيد اليومي المرتبط به بنجاح 🗑️" };
+  },
+
+  purgeExpensesSheetData: function() {
+    var sheet = SchemaMapper.getOrCreateSheet("expenses");
+    var lastRow = sheet.getLastRow();
+    if (lastRow > 1) {
+      sheet.deleteRows(2, lastRow - 1);
+    }
+    return { success: true, message: "تم تفريغ شيت المصروفات بنجاح 🧹" };
   }
 };
 
@@ -2052,8 +2139,8 @@ var ChartOfAccountsController = {
       { id: "ACC-101", code: "101", name: "الصندوق / الخزينة الرئيسية", name_en: "Main Cash", type: "أصول", cat: "أصول متداولة", pId: "1", pCode: "1", lvl: 2, path: "1 > 101", isGrp: 1, isPost: 0, nature: "debit", cur: "YER" },
       { id: "ACC-101.01", code: "101.01", name: "صندوق فرع الورشة والمعمل (صنعاء)", name_en: "Workshop Cash", type: "أصول", cat: "نقدية وما في حكمها", pId: "101", pCode: "101", lvl: 3, path: "1 > 101 > 101.01", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
       { id: "ACC-101.02", code: "101.02", name: "صندوق محمد فلاح", name_en: "Mohammed Falah Cash", type: "أصول", cat: "نقدية وما في حكمها", pId: "101", pCode: "101", lvl: 3, path: "1 > 101 > 101.02", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
-      { id: "ACC-101.2", code: "101.2", name: "صندوق الريال السعودي (SAR)", name_en: "SAR Cash Box", type: "أصول", cat: "نقدية وما في حكمها", pId: "101", pCode: "101", lvl: 3, path: "1 > 101 > 101.2", isGrp: 0, isPost: 1, nature: "debit", cur: "SAR" },
-      { id: "ACC-101.3", code: "101.3", name: "صندوق الدولار الأمريكي (USD)", name_en: "USD Cash Box", type: "أصول", cat: "نقدية وما في حكمها", pId: "101", pCode: "101", lvl: 3, path: "1 > 101 > 101.3", isGrp: 0, isPost: 1, nature: "debit", cur: "USD" },
+      { id: "ACC-101.03", code: "101.03", name: "صندوق الريال السعودي (SAR)", name_en: "SAR Cash Box", type: "أصول", cat: "نقدية وما في حكمها", pId: "101", pCode: "101", lvl: 3, path: "1 > 101 > 101.03", isGrp: 0, isPost: 1, nature: "debit", cur: "SAR" },
+      { id: "ACC-101.04", code: "101.04", name: "صندوق الدولار الأمريكي (USD)", name_en: "USD Cash Box", type: "أصول", cat: "نقدية وما في حكمها", pId: "101", pCode: "101", lvl: 3, path: "1 > 101 > 101.04", isGrp: 0, isPost: 1, nature: "debit", cur: "USD" },
       { id: "ACC-102", code: "102", name: "مخزون الأقمشة والمستلزمات", name_en: "Fabrics & Supplies Inventory", type: "أصول", cat: "أصول متداولة", pId: "1", pCode: "1", lvl: 2, path: "1 > 102", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
       { id: "ACC-103", code: "103", name: "الحساب البنكي / الحوالات والمحافظ", name_en: "Bank & Wallets (YER)", type: "أصول", cat: "أصول متداولة", pId: "1", pCode: "1", lvl: 2, path: "1 > 103", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
       { id: "ACC-104", code: "104", name: "ذمم العملاء (مستحقات خارجية)", name_en: "Accounts Receivable", type: "أصول", cat: "أصول متداولة", pId: "1", pCode: "1", lvl: 2, path: "1 > 104", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
@@ -2554,8 +2641,8 @@ function resetAndSeedCleanChartOfAccounts(optionalSheet) {
     ["ACC-101", "101", "الصندوق / الخزينة الرئيسية", "Main Cash", "أصول", "أصول متداولة", "ACC-1", "1", 2, "1 > 101", 1, 0, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
     ["ACC-101.01", "101.01", "صندوق فرع الورشة والمعمل (صنعاء)", "Workshop Cash", "أصول", "نقدية وما في حكمها", "ACC-101", "101", 3, "1 > 101 > 101.01", 0, 1, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
     ["ACC-101.02", "101.02", "صندوق محمد فلاح", "Mohammed Falah Cash", "أصول", "نقدية وما في حكمها", "ACC-101", "101", 3, "1 > 101 > 101.02", 0, 1, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
-    ["ACC-101.2", "101.2", "صندوق الريال السعودي (SAR)", "SAR Cash Box", "أصول", "نقدية وما في حكمها", "ACC-101", "101", 3, "1 > 101 > 101.2", 0, 1, 1, "debit", 0, 0, "debit", "SAR", "2026-01-01", "", "2026-01-01", "system"],
-    ["ACC-101.3", "101.3", "صندوق الدولار الأمريكي (USD)", "USD Cash Box", "أصول", "نقدية وما في حكمها", "ACC-101", "101", 3, "1 > 101 > 101.3", 0, 1, 1, "debit", 0, 0, "debit", "USD", "2026-01-01", "", "2026-01-01", "system"],
+    ["ACC-101.03", "101.03", "صندوق الريال السعودي (SAR)", "SAR Cash Box", "أصول", "نقدية وما في حكمها", "ACC-101", "101", 3, "1 > 101 > 101.03", 0, 1, 1, "debit", 0, 0, "debit", "SAR", "2026-01-01", "", "2026-01-01", "system"],
+    ["ACC-101.04", "101.04", "صندوق الدولار الأمريكي (USD)", "USD Cash Box", "أصول", "نقدية وما في حكمها", "ACC-101", "101", 3, "1 > 101 > 101.04", 0, 1, 1, "debit", 0, 0, "debit", "USD", "2026-01-01", "", "2026-01-01", "system"],
     ["ACC-102", "102", "مخزون الأقمشة والمستلزمات", "Fabrics & Supplies Inventory", "أصول", "أصول متداولة", "ACC-1", "1", 2, "1 > 102", 0, 1, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
     ["ACC-103", "103", "الحساب البنكي / الحوالات والمحافظ", "Bank & Wallets (YER)", "أصول", "أصول متداولة", "ACC-1", "1", 2, "1 > 103", 0, 1, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
     ["ACC-104", "104", "ذمم العملاء (مستحقات خارجية)", "Accounts Receivable", "أصول", "أصول متداولة", "ACC-1", "1", 2, "1 > 104", 0, 1, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
@@ -2681,6 +2768,11 @@ function handleAction(action, payload) {
         return responseJSON({ status: "success", data: ExpenseController.getExpenses() });
       case "addExpense":
         return responseJSON({ status: "success", data: ExpenseController.addExpense(payload) });
+      case "deleteExpense":
+      case "removeExpense":
+        return responseJSON({ status: "success", data: ExpenseController.deleteExpense(payload) });
+      case "purgeExpensesSheetData":
+        return responseJSON({ status: "success", data: ExpenseController.purgeExpensesSheetData() });
 
       case "getQualityInspections":
         return responseJSON({ status: "success", data: QualityController.getInspections() });

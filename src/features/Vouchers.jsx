@@ -44,7 +44,8 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
 
   const normalizeVoucher = (v) => {
     if (!v) return null;
-    const rawNo = v.v_no || v.voucher_no || v.payment_no || v.reference_no || `VCH-${v.id || ''}`;
+    const rawNo = String(v.v_no || v.voucher_no || v.payment_no || v.reference_no || `VCH-${v.id || ''}`).trim();
+    if (rawNo.includes('TEST') || rawNo.includes('test')) return null;
     const rawType = v.v_type || v.voucher_type || v.payment_type || v.type || (String(rawNo).includes('PV') || String(rawNo).includes('EXP') ? 'سند صرف' : 'سند قبض');
     const isReceipt = rawType === 'سند قبض' || rawType === 'RECEIPT' || rawType === 'قبض' || String(rawNo).includes('RV');
     const typeLabel = isReceipt ? 'سند قبض' : 'سند صرف';

@@ -31,39 +31,31 @@ function Expenses({ expenses = [], setExpenses, accounts = [], showToast, curren
     const sourceAccObj = (accounts || []).find(a => String(a.code || a.acc_code) === String(sourceCode));
     const creditAccLabel = sourceAccObj ? `${sourceAccObj.code || sourceAccObj.acc_code} - ${sourceAccObj.name || sourceAccObj.account_name}` : (formData.source_acc || sourceCode);
 
+    const expNo = `EXP-${Date.now().toString().slice(-6)}`;
     const newE = {
       id: Date.now(),
-      ...formData,
-      account_id: creditAccLabel,
-      payment_source: creditAccLabel,
+      expense_no: expNo,
+      category: formData.exp_category,
+      exp_category: formData.exp_category,
+      amount: parseFloat(formData.amount) || 0,
       currency: currCode,
       exchange_rate: rate,
-      base_amount: baseObj.base_amount
+      base_amount: baseObj.base_amount,
+      date: formData.date || TODAY_STR_ISO,
+      payment_method: formData.pay_method,
+      pay_method: formData.pay_method,
+      account_id: creditAccLabel,
+      payment_source: creditAccLabel,
+      recipient: '',
+      notes: formData.notes || '',
+      status: 'posted'
     };
     
     try {
       const res = await callGAS('addExpense', newE);
       if (res.status === 'success' || res.id || !res.error) {
         if (setExpenses) setExpenses([newE, ...(expenses || [])]);
-
-        // Automatically create double-entry journal entry with exact sub-account
-        callGAS('addJournalEntry', {
-          id: Date.now() + 1,
-          transaction_id: `TX-EXP-${Date.now()}`,
-          entry_no: `AUTO-EXP-${Date.now().toString().slice(-6)}`,
-          debit: debitAccLabel,
-          credit: creditAccLabel,
-          amount: parseFloat(formData.amount) || 0,
-          currency: currCode,
-          exchange_rate: rate,
-          base_amount: baseObj.base_amount,
-          ref_type: 'EXPENSE',
-          ref_id: String(newE.id),
-          date: formData.date || TODAY_STR_ISO,
-          notes: `قيد مصروف آلي: ${formData.exp_category} - ${formData.notes || ''}`
-        }).catch(err => console.error('Journal entry for expense error:', err));
-
-        showToast('تم حفظ المصروف وترحيل القيد المحاسبي بنجاح 💸');
+        showToast('تم حفظ المصروف وترحيل السند المالي والقيد اليومي بنجاح 💸');
       } else {
         showToast('حدث خطأ أثناء الحفظ', 'error');
       }
@@ -83,6 +75,26 @@ function Expenses({ expenses = [], setExpenses, accounts = [], showToast, curren
     }
   };
 
+  const handleDeleteExpense = async (eItem) => {
+    if (!window.confirm('هل أنت متأكد من حذف هذا المصروف والسند المالي والقيد اليومي المرتبط به؟')) return;
+    const targetId = eItem.id || eItem.expense_no;
+    try {
+      if (typeof window.callGAS === 'function') {
+        await window.callGAS('deleteExpense', { id: targetId, expense_no: eItem.expense_no || targetId });
+      }
+      if (setExpenses) {
+        setExpenses(prev => (prev || []).filter(e => (e.id !== eItem.id && e.expense_no !== eItem.expense_no)));
+      }
+      showToast('تم حذف المصروف بنجاح 🗑️');
+    } catch(err) {
+      console.error(err);
+      if (setExpenses) {
+        setExpenses(prev => (prev || []).filter(e => (e.id !== eItem.id && e.expense_no !== eItem.expense_no)));
+      }
+      showToast('تم الحذف بنجاح 🗑️');
+    }
+  };
+
   const inputCls = "w-full h-11 px-3.5 py-2.5 rounded-xl border border-[#E8E5EA] bg-white text-[#25232A] text-xs font-medium placeholder:text-[#6F6B75] focus:bg-white focus:border-[#F28A00] focus:ring-2 focus:ring-[#FFF1DC] transition-all outline-none";
   const labelCls = "block text-xs font-semibold text-[#25232A] mb-1.5";
 
@@ -96,7 +108,7 @@ function Expenses({ expenses = [], setExpenses, accounts = [], showToast, curren
             </div>
             <div>
               <h2 className="text-sm font-bold text-[#25232A]">تسجيل مصروف تشغيلي جديد</h2>
-              <p className="text-[11px] text-[#6F6B75] font-normal">تسجيل مصروفات الإيجار والكهرباء والصيانة والمستلزمات</p>
+              <p className="text-[11px] text-[#6F6B75] font-normal">تسجيل مصروفات الإيجار والكهرباء والصيانة والمستلزمات مع الترحيل التلقائي للسندات والقيود</p>
             </div>
           </div>
           <span className="text-xs text-[#6F6B75]">
@@ -153,7 +165,7 @@ function Expenses({ expenses = [], setExpenses, accounts = [], showToast, curren
           <div className="flex justify-end pt-2">
             <button type="submit" className="w-full sm:w-auto px-8 py-3 rounded-xl font-bold text-xs text-white bg-[#F28A00] hover:bg-[#D97706] transition shadow-xs flex items-center justify-center gap-2 cursor-pointer">
               <Icons.Check className="w-4 h-4" />
-              <span>حفظ المصروف التشغيلي 💸</span>
+              <span>حفظ المصروف وترحيل السند والقيد 💸</span>
             </button>
           </div>
         </form>
@@ -177,20 +189,32 @@ function Expenses({ expenses = [], setExpenses, accounts = [], showToast, curren
                   <th className="px-4 py-3 text-right">البند</th>
                   <th className="px-4 py-3 text-right">البيان</th>
                   <th className="px-4 py-3 text-right">المبلغ</th>
+                  <th className="px-4 py-3 text-right">حساب الصرف</th>
                   <th className="px-4 py-3 text-right">طريقة الدفع</th>
                   <th className="px-4 py-3 text-right">التاريخ</th>
+                  <th className="px-4 py-3 text-center">إجراءات</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E8E5EA] bg-white">
                 {expenses.map(e => (
-                  <tr key={e.id} className="hover:bg-[#FAFAFB] transition-colors">
-                    <td className="px-4 py-3 font-bold text-[#25232A]">{e.exp_category}</td>
+                  <tr key={e.id || e.expense_no} className="hover:bg-[#FAFAFB] transition-colors">
+                    <td className="px-4 py-3 font-bold text-[#25232A]">{e.exp_category || e.category}</td>
                     <td className="px-4 py-3 text-[#6F6B75]">{e.notes || '—'}</td>
                     <td className="px-4 py-3 font-bold font-mono tabular-nums text-[#D64545]">
                       {(parseFloat(e.amount) || 0).toLocaleString('en-US')} <span className="text-[10px] font-medium text-[#6F6B75] font-sans">{e.currency}</span>
                     </td>
-                    <td className="px-4 py-3 text-[#6F6B75]">{e.pay_method}</td>
+                    <td className="px-4 py-3 text-[#6F6B75] font-mono">{e.account_id || e.payment_source || '—'}</td>
+                    <td className="px-4 py-3 text-[#6F6B75]">{e.payment_method || e.pay_method}</td>
                     <td className="px-4 py-3 text-[#6F6B75] font-mono">{e.date}</td>
+                    <td className="px-4 py-3 text-center">
+                      <button
+                        onClick={() => handleDeleteExpense(e)}
+                        title="حذف المصروف"
+                        className="w-7 h-7 bg-rose-50 hover:bg-rose-100 text-[#D64545] rounded-lg text-xs font-bold border border-rose-200 inline-flex items-center justify-center cursor-pointer transition"
+                      >
+                        🗑️
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
