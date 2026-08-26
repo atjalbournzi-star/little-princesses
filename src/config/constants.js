@@ -57,30 +57,47 @@ const ACCOUNT_TYPES = ["أصول", "خصوم", "حقوق ملكية", "إيرا�
 const PAY_METHODS = ["نقد (كاش)", "حوالة بنكية", "آجل (على الحساب)"];
 
 const INITIAL_ACCOUNTS = [
-  // Root Groups (Level 1)
-  { id: 1, code: "1", name: "الأصول", name_en: "Assets", account_type: "أصول", parent_id: null, level: 1, nature: "debit", is_group: 1, is_active: 1, balance: 0.0, acc_code: "1", acc_name: "الأصول", acc_type: "أصول" },
-  { id: 2, code: "2", name: "الخصوم (الالتزامات)", name_en: "Liabilities", account_type: "خصوم", parent_id: null, level: 1, nature: "credit", is_group: 1, is_active: 1, balance: 0.0, acc_code: "2", acc_name: "الخصوم", acc_type: "خصوم" },
-  { id: 3, code: "3", name: "حقوق الملكية", name_en: "Equity", account_type: "حقوق ملكية", parent_id: null, level: 1, nature: "credit", is_group: 1, is_active: 1, balance: 0.0, acc_code: "3", acc_name: "حقوق الملكية", acc_type: "حقوق ملكية" },
-  { id: 4, code: "4", name: "الإيرادات", name_en: "Revenue", account_type: "إيرادات", parent_id: null, level: 1, nature: "credit", is_group: 1, is_active: 1, balance: 0.0, acc_code: "4", acc_name: "الإيرادات", acc_type: "إيرادات" },
-  { id: 5, code: "5", name: "تكلفة المبيعات", name_en: "Cost of Sales", account_type: "تكلفة المبيعات", parent_id: null, level: 1, nature: "debit", is_group: 1, is_active: 1, balance: 0.0, acc_code: "5", acc_name: "تكلفة المبيعات", acc_type: "تكلفة المبيعات" },
-  { id: 6, code: "6", name: "المصروفات", name_en: "Expenses", account_type: "مصروفات", parent_id: null, level: 1, nature: "debit", is_group: 1, is_active: 1, balance: 0.0, acc_code: "6", acc_name: "المصروفات", acc_type: "مصروفات" },
+  // ── 1. الأصول (Assets) ──
+  { id: "ACC-1", code: "1", name: "الأصول", name_en: "Assets", account_type: "أصول", parent_id: null, level: 1, nature: "debit", is_group: 1, is_active: 1, balance: 0.0 },
+  { id: "ACC-101", code: "101", name: "الصندوق / الخزينة الرئيسية", name_en: "Main Cash", account_type: "أصول", parent_id: "1", level: 2, nature: "debit", is_group: 1, is_active: 1, balance: 0.0 },
+  { id: "ACC-101.01", code: "101.01", name: "صندوق فرع الورشة والمعمل (صنعاء)", name_en: "Workshop Cash", account_type: "أصول", parent_id: "101", level: 3, nature: "debit", is_group: 0, is_active: 1, balance: 0.0 },
+  { id: "ACC-101.02", code: "101.02", name: "صندوق محمد فلاح", name_en: "Mohammed Falah Cash", account_type: "أصول", parent_id: "101", level: 3, nature: "debit", is_group: 0, is_active: 1, balance: 0.0 },
+  { id: "ACC-101.2", code: "101.2", name: "صندوق الريال السعودي (SAR)", name_en: "SAR Cash Box", account_type: "أصول", parent_id: "101", level: 3, nature: "debit", is_group: 0, is_active: 1, balance: 0.0 },
+  { id: "ACC-101.3", code: "101.3", name: "صندوق الدولار الأمريكي (USD)", name_en: "USD Cash Box", account_type: "أصول", parent_id: "101", level: 3, nature: "debit", is_group: 0, is_active: 1, balance: 0.0 },
+  { id: "ACC-102", code: "102", name: "مخزون الأقمشة والمستلزمات", name_en: "Inventory", account_type: "أصول", parent_id: "1", level: 2, nature: "debit", is_group: 0, is_active: 1, balance: 0.0 },
+  { id: "ACC-103", code: "103", name: "الحساب البنكي / الحوالات والمحافظ", name_en: "Bank & Wallets", account_type: "أصول", parent_id: "1", level: 2, nature: "debit", is_group: 0, is_active: 1, balance: 0.0 },
+  { id: "ACC-104", code: "104", name: "ذمم العملاء (مستحقات خارجية)", name_en: "Accounts Receivable", account_type: "أصول", parent_id: "1", level: 2, nature: "debit", is_group: 0, is_active: 1, balance: 0.0 },
+  { id: "ACC-105", code: "105", name: "الأصول الثابتة (آلات ومعدات)", name_en: "Fixed Assets", account_type: "أصول", parent_id: "1", level: 2, nature: "debit", is_group: 0, is_active: 1, balance: 0.0 },
 
-  // Posting Accounts (Level 2 & Currency Sub-Accounts)
-  { id: 101, code: "101", name: "الصندوق / الخزينة الرئيسية (YER)", account_type: "أصول", parent_id: 1, level: 2, nature: "debit", is_group: 0, is_active: 1, balance: 0.0, created_date: TODAY_STR_DISPLAY, acc_code: "101", acc_name: "الصندوق / الخزينة الرئيسية (YER)", acc_type: "أصول", currency: "YER" },
-  { id: 1012, code: "101.2", name: "صندوق الريال السعودي (SAR)", account_type: "أصول", parent_id: 1, level: 2, nature: "debit", is_group: 0, is_active: 1, balance: 0.0, created_date: TODAY_STR_DISPLAY, acc_code: "101.2", acc_name: "صندوق الريال السعودي (SAR)", acc_type: "أصول", currency: "SAR" },
-  { id: 1013, code: "101.3", name: "صندوق الدولار الأمريكي (USD)", account_type: "أصول", parent_id: 1, level: 2, nature: "debit", is_group: 0, is_active: 1, balance: 0.0, created_date: TODAY_STR_DISPLAY, acc_code: "101.3", acc_name: "صندوق الدولار الأمريكي (USD)", acc_type: "أصول", currency: "USD" },
-  { id: 102, code: "102", name: "مخزون الأقمشة والمستلزمات", account_type: "أصول", parent_id: 1, level: 2, nature: "debit", is_group: 0, is_active: 1, balance: 0.0, created_date: TODAY_STR_DISPLAY, acc_code: "102", acc_name: "مخزون الأقمشة والمستلزمات", acc_type: "أصول", currency: "YER" },
-  { id: 103, code: "103", name: "الحساب البنكي / الحوالات والمحافظ (YER)", account_type: "أصول", parent_id: 1, level: 2, nature: "debit", is_group: 0, is_active: 1, balance: 0.0, created_date: TODAY_STR_DISPLAY, acc_code: "103", acc_name: "الحساب البنكي / الحوالات والمحافظ (YER)", acc_type: "أصول", currency: "YER" },
-  { id: 1032, code: "103.2", name: "حساب بنكي بالريال السعودي (SAR)", account_type: "أصول", parent_id: 1, level: 2, nature: "debit", is_group: 0, is_active: 1, balance: 0.0, created_date: TODAY_STR_DISPLAY, acc_code: "103.2", acc_name: "حساب بنكي بالريال السعودي (SAR)", acc_type: "أصول", currency: "SAR" },
-  { id: 1033, code: "103.3", name: "حساب بنكي بالدولار الأمريكي (USD)", account_type: "أصول", parent_id: 1, level: 2, nature: "debit", is_group: 0, is_active: 1, balance: 0.0, created_date: TODAY_STR_DISPLAY, acc_code: "103.3", acc_name: "حساب بنكي بالدولار الأمريكي (USD)", acc_type: "أصول", currency: "USD" },
-  { id: 104, code: "104", name: "ذمم العملاء (مستحقات خارجية)", account_type: "أصول", parent_id: 1, level: 2, nature: "debit", is_group: 0, is_active: 1, balance: 0.0, created_date: TODAY_STR_DISPLAY, acc_code: "104", acc_name: "ذمم العملاء (مستحقات خارجية)", acc_type: "أصول", currency: "YER" },
-  { id: 201, code: "201", name: "ذمم الموردين ومحلات الأقمشة (آجل)", account_type: "خصوم", parent_id: 2, level: 2, nature: "credit", is_group: 0, is_active: 1, balance: 0.0, created_date: TODAY_STR_DISPLAY, acc_code: "201", acc_name: "ذمم الموردين ومحلات الأقمشة (آجل)", acc_type: "خصوم", currency: "YER" },
-  { id: 301, code: "301", name: "رأس المال المباشر لمؤسسة Little Princesses", account_type: "حقوق ملكية", parent_id: 3, level: 2, nature: "credit", is_group: 0, is_active: 1, balance: 0.0, created_date: TODAY_STR_DISPLAY, acc_code: "301", acc_name: "رأس المال المباشر لمؤسسة Little Princesses", acc_type: "حقوق ملكية", currency: "YER" },
-  { id: 401, code: "401", name: "إيرادات مبيعات الفساتين والزي", account_type: "إيرادات", parent_id: 4, level: 2, nature: "credit", is_group: 0, is_active: 1, balance: 0.0, created_date: TODAY_STR_DISPLAY, acc_code: "401", acc_name: "إيرادات مبيعات الفساتين والزي", acc_type: "إيرادات", currency: "YER" },
-  { id: 402, code: "402", name: "أرباح فروق أسعار الصرف", account_type: "إيرادات", parent_id: 4, level: 2, nature: "credit", is_group: 0, is_active: 1, balance: 0.0, created_date: TODAY_STR_DISPLAY, acc_code: "402", acc_name: "أرباح فروق أسعار الصرف", acc_type: "إيرادات", currency: "YER" },
-  { id: 501, code: "501", name: "أجور ورواتب الخياطين والمطرزين", account_type: "مصاريف", parent_id: 6, level: 2, nature: "debit", is_group: 0, is_active: 1, balance: 0.0, created_date: TODAY_STR_DISPLAY, acc_code: "501", acc_name: "أجور ورواتب الخياطين والمطرزين", acc_type: "مصاريف", currency: "YER" },
-  { id: 502, code: "502", name: "إيجار الورشة والمعمل والمحل الرئيسي", account_type: "مصاريف", parent_id: 6, level: 2, nature: "debit", is_group: 0, is_active: 1, balance: 0.0, created_date: TODAY_STR_DISPLAY, acc_code: "502", acc_name: "إيجار الورشة والمعمل والمحل الرئيسي", acc_type: "مصاريف", currency: "YER" },
-  { id: 506, code: "506", name: "خسائر فروق أسعار الصرف", account_type: "مصاريف", parent_id: 6, level: 2, nature: "debit", is_group: 0, is_active: 1, balance: 0.0, created_date: TODAY_STR_DISPLAY, acc_code: "506", acc_name: "خسائر فروق أسعار الصرف", acc_type: "مصاريف", currency: "YER" }
+  // ── 2. الخصوم (Liabilities) ──
+  { id: "ACC-2", code: "2", name: "الخصوم (الالتزامات)", name_en: "Liabilities", account_type: "خصوم", parent_id: null, level: 1, nature: "credit", is_group: 1, is_active: 1, balance: 0.0 },
+  { id: "ACC-201", code: "201", name: "ذمم الموردين ومحلات الأقمشة (آجل)", name_en: "Accounts Payable", account_type: "خصوم", parent_id: "2", level: 2, nature: "credit", is_group: 0, is_active: 1, balance: 0.0 },
+  { id: "ACC-202", code: "202", name: "عرابين وأمانات العملاء", name_en: "Customer Deposits", account_type: "خصوم", parent_id: "2", level: 2, nature: "credit", is_group: 0, is_active: 1, balance: 0.0 },
+
+  // ── 3. حقوق الملكية (Equity) ──
+  { id: "ACC-3", code: "3", name: "حقوق الملكية", name_en: "Equity", account_type: "حقوق ملكية", parent_id: null, level: 1, nature: "credit", is_group: 1, is_active: 1, balance: 0.0 },
+  { id: "ACC-301", code: "301", name: "رأس المال المباشر لمؤسسة Little Princesses", name_en: "Capital", account_type: "حقوق ملكية", parent_id: "3", level: 2, nature: "credit", is_group: 0, is_active: 1, balance: 0.0 },
+  { id: "ACC-302", code: "302", name: "الأرباح المبقاة / المحتجزة", name_en: "Retained Earnings", account_type: "حقوق ملكية", parent_id: "3", level: 2, nature: "credit", is_group: 0, is_active: 1, balance: 0.0 },
+
+  // ── 4. الإيرادات (Revenue) ──
+  { id: "ACC-4", code: "4", name: "الإيرادات", name_en: "Revenue", account_type: "إيرادات", parent_id: null, level: 1, nature: "credit", is_group: 1, is_active: 1, balance: 0.0 },
+  { id: "ACC-401", code: "401", name: "إيرادات مبيعات الفساتين والزي", name_en: "Sales Revenue", account_type: "إيرادات", parent_id: "4", level: 2, nature: "credit", is_group: 0, is_active: 1, balance: 0.0 },
+  { id: "ACC-402", code: "402", name: "أرباح فروق أسعار صرف العملات", name_en: "Forex Gains", account_type: "إيرادات", parent_id: "4", level: 2, nature: "credit", is_group: 0, is_active: 1, balance: 0.0 },
+
+  // ── 5. تكلفة المبيعات (Cost of Sales) ──
+  { id: "ACC-5", code: "5", name: "تكلفة المبيعات", name_en: "Cost of Sales", account_type: "تكلفة المبيعات", parent_id: null, level: 1, nature: "debit", is_group: 1, is_active: 1, balance: 0.0 },
+
+  // ── 6. المصروفات (Expenses) ──
+  { id: "ACC-6", code: "6", name: "المصروفات", name_en: "Expenses", account_type: "مصروفات", parent_id: null, level: 1, nature: "debit", is_group: 1, is_active: 1, balance: 0.0 },
+  { id: "ACC-501", code: "501", name: "أجور ورواتب الخياطين والمطرزين", name_en: "Salaries & Wages", account_type: "مصروفات", parent_id: "6", level: 2, nature: "debit", is_group: 0, is_active: 1, balance: 0.0 },
+  { id: "ACC-502", code: "502", name: "إيجار الورشة والمعمل والمحل الرئيسي", name_en: "Workshop Rent", account_type: "مصروفات", parent_id: "6", level: 2, nature: "debit", is_group: 0, is_active: 1, balance: 0.0 },
+  { id: "ACC-503", code: "503", name: "إيجار المحل والورشة", name_en: "Shop Rent", account_type: "مصروفات", parent_id: "6", level: 2, nature: "debit", is_group: 0, is_active: 1, balance: 0.0 },
+  { id: "ACC-504", code: "504", name: "مصاريف كهرباء وماء وإنترنت", name_en: "Utilities", account_type: "مصروفات", parent_id: "6", level: 2, nature: "debit", is_group: 0, is_active: 1, balance: 0.0 },
+  { id: "ACC-505", code: "505", name: "مصاريف التسويق والإعلانات الممولة", name_en: "Marketing", account_type: "مصروفات", parent_id: "6", level: 2, nature: "debit", is_group: 0, is_active: 1, balance: 0.0 },
+  { id: "ACC-506", code: "506", name: "خسائر فروق أسعار صرف العملات", name_en: "Forex Losses", account_type: "مصروفات", parent_id: "6", level: 2, nature: "debit", is_group: 0, is_active: 1, balance: 0.0 },
+
+  // ── 7. حسابات أخرى ──
+  { id: "ACC-7", code: "7", name: "حسابات أخرى", name_en: "Other Accounts", account_type: "أخرى", parent_id: null, level: 1, nature: "debit", is_group: 1, is_active: 1, balance: 0.0 }
 ];
 
 // ── Universal Numeric & Currency Formatting Helpers (Western Tabular Numerals) ──

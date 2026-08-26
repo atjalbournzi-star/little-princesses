@@ -117,9 +117,7 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
   }, [setAccounts]);
 
   useEffect(() => {
-    if (!accounts || accounts.length === 0 || !accounts.some(a => a.name && a.name.length > 1 && !a.name.includes('?'))) {
-      fetchFreshAccounts();
-    }
+    fetchFreshAccounts();
   }, []);
 
   const handleSyncCloudAccounts = async () => {
