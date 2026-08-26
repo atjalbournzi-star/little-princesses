@@ -109,12 +109,23 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
       if (list.length > 0 && setAccounts) {
         setAccounts(list);
       }
+
+      // Also fetch fresh journal entries so ledger movements are 100% accurate
+      try {
+        if (typeof window.callGAS === 'function' && setJournal) {
+          const jRes = await window.callGAS('getJournalEntries');
+          const jList = (jRes && Array.isArray(jRes.data)) ? jRes.data : (Array.isArray(jRes) ? jRes : []);
+          if (jList.length > 0) setJournal(jList);
+        }
+      } catch(jErr) {
+        console.warn("Journal fetch warning:", jErr);
+      }
     } catch (e) {
       console.error("fetchFreshAccounts error:", e);
     } finally {
       setIsSyncing(false);
     }
-  }, [setAccounts]);
+  }, [setAccounts, setJournal]);
 
   useEffect(() => {
     fetchFreshAccounts();
@@ -129,6 +140,12 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
           const gasRes = await window.callGAS('getAccounts');
           const gasList = (gasRes && Array.isArray(gasRes.data)) ? gasRes.data : (Array.isArray(gasRes) ? gasRes : []);
           if (gasList.length > 0) list = gasList;
+
+          if (setJournal) {
+            const jRes = await window.callGAS('getJournalEntries');
+            const jList = (jRes && Array.isArray(jRes.data)) ? jRes.data : (Array.isArray(jRes) ? jRes : []);
+            if (jList.length > 0) setJournal(jList);
+          }
         }
       } catch (ge) {}
 
@@ -139,7 +156,7 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
 
       if (list.length > 0) {
         if (setAccounts) setAccounts(list);
-        if (showToast) showToast(`تمت مزامنة كافة الحسابات الـ ${list.length} وتحديث الأرصدة بنجاح 👑`, 'success');
+        if (showToast) showToast(`تمت مزامنة كافة الحسابات والقيود وتحديث الأرصدة بنجاح 👑`, 'success');
       } else {
         if (showToast) showToast('لم يتم العثور على حسابات لمزامنتها', 'info');
       }

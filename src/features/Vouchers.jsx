@@ -1,6 +1,6 @@
 const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
-function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, journal = [], setJournal, showToast, customers = [], setCustomers, orders = [], setOrders, currency }) {
+function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, journal = [], setJournal, showToast, customers = [], setCustomers, orders = [], setOrders, currency, expenses = [], setExpenses }) {
   const currencyDisplay = currency?.display || "SAR";
 
   const [formData, setFormData] = useState({
@@ -214,12 +214,14 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
         if (setVouchers) setVouchers([newV, ...(vouchers || [])]);
         
         // ── ترحيل القيد المحاسبي المزدوج المتوازن بالريال اليمني للحساب المحدد من قبل المستخدم ──
-        callGAS('addJournalEntry', {
+        const newJEntry = {
             id: Date.now() + 1,
             transaction_id: `TX-VCH-${voucherNo}`,
             entry_no: 'AUTO-VCH-' + voucherNo,
             debit: debitAccLabel,
             credit: creditAccLabel,
+            debit_account_id: debitAccLabel,
+            credit_account_id: creditAccLabel,
             amount: newV.amount,
             currency: vCurrCode,
             exchange_rate: vRate,
@@ -227,8 +229,34 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
             ref_type: isReceipt ? 'RECEIPT_VOUCHER' : 'PAYMENT_VOUCHER',
             ref_id: voucherNo,
             date: newV.date,
-            notes: `قيد آلي: ${newV.notes || newV.v_type + ' - ' + newV.party}`
-        }).catch(e => console.error(e));
+            notes: `قيد آلي: ${newV.notes || newV.v_type + ' - ' + newV.party}`,
+            status: 'posted'
+        };
+        callGAS('addJournalEntry', newJEntry).catch(e => console.error(e));
+        if (setJournal) setJournal(prev => [newJEntry, ...(prev || [])]);
+
+        // إذا كان السند سند صرف وموجه لحساب مصروفات (5xx أو 6)، نقوم بإضافته فوراً إلى سجل المصروفات
+        if (!isReceipt && (debitAccLabel.startsWith('5') || debitAccLabel.startsWith('6') || debitAccLabel.includes('مصروف'))) {
+          const newExp = {
+            id: Date.now() + 2,
+            expense_no: voucherNo,
+            category: debitAccLabel,
+            exp_category: debitAccLabel,
+            amount: parseFloat(newV.amount) || 0,
+            currency: vCurrCode,
+            exchange_rate: vRate,
+            base_amount: vBaseObj.base_amount,
+            date: newV.date,
+            payment_method: newV.pay_method,
+            pay_method: newV.pay_method,
+            account_id: creditAccLabel,
+            payment_source: creditAccLabel,
+            recipient: newV.party,
+            notes: newV.notes || `سند صرف: ${newV.party}`,
+            status: 'posted'
+          };
+          if (setExpenses) setExpenses(prev => [newExp, ...(prev || [])]);
+        }
 
         if (newV.v_type === 'سند قبض' && selectedCustomer) {
             if (selectedOrder && setOrders) {
