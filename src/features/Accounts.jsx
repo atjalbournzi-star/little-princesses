@@ -70,19 +70,74 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
     }
   };
 
+  const fetchFreshAccounts = useCallback(async () => {
+    setIsSyncing(true);
+    try {
+      let list = [];
+      // 1. Try local backend
+      try {
+        const res = await fetch('/api/accounts/list').then(r => r.json());
+        if (res && Array.isArray(res.data) && res.data.length > 0) {
+          list = res.data;
+        } else if (Array.isArray(res) && res.length > 0) {
+          list = res;
+        }
+      } catch (beErr) {
+        console.warn("Local accounts fetch warning:", beErr);
+      }
+
+      // 2. Try Google Apps Script if local empty or names corrupted
+      if (list.length === 0 || !list.some(a => a.name && a.name.length > 1 && !a.name.includes('?'))) {
+        try {
+          if (typeof window.callGAS === 'function') {
+            const gasRes = await window.callGAS('getAccounts');
+            const gasList = (gasRes && Array.isArray(gasRes.data)) ? gasRes.data : (Array.isArray(gasRes) ? gasRes : []);
+            if (gasList.length > 0) list = gasList;
+          }
+        } catch (gasErr) {
+          console.warn("GAS getAccounts warning:", gasErr);
+        }
+      }
+
+      if (list.length > 0 && setAccounts) {
+        setAccounts(list);
+      }
+    } catch (e) {
+      console.error("fetchFreshAccounts error:", e);
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [setAccounts]);
+
+  useEffect(() => {
+    if (!accounts || accounts.length === 0 || !accounts.some(a => a.name && a.name.length > 1 && !a.name.includes('?'))) {
+      fetchFreshAccounts();
+    }
+  }, []);
+
   const handleSyncCloudAccounts = async () => {
     setIsSyncing(true);
     try {
-      if (window.api && window.api.chartOfAccounts && window.api.chartOfAccounts.getTree) {
-        const res = await window.api.chartOfAccounts.getTree();
-        if (res && (res.data || Array.isArray(res))) {
-          const freshList = res.data || res;
-          if (Array.isArray(freshList) && freshList.length > 0) {
-            setAccounts(freshList);
-          }
+      let list = [];
+      try {
+        if (typeof window.callGAS === 'function') {
+          const gasRes = await window.callGAS('getAccounts');
+          const gasList = (gasRes && Array.isArray(gasRes.data)) ? gasRes.data : (Array.isArray(gasRes) ? gasRes : []);
+          if (gasList.length > 0) list = gasList;
         }
+      } catch (ge) {}
+
+      if (list.length === 0) {
+        const beRes = await fetch('/api/accounts/list').then(r => r.json());
+        list = (beRes && Array.isArray(beRes.data)) ? beRes.data : (Array.isArray(beRes) ? beRes : []);
       }
-      if (showToast) showToast('تمت مزامنة كافة الحسابات الـ 26 وتحديث الأرصدة في دليل الحسابات السحابي بنجاح 👑', 'success');
+
+      if (list.length > 0) {
+        if (setAccounts) setAccounts(list);
+        if (showToast) showToast(`تمت مزامنة كافة الحسابات الـ ${list.length} وتحديث الأرصدة بنجاح 👑`, 'success');
+      } else {
+        if (showToast) showToast('لم يتم العثور على حسابات لمزامنتها', 'info');
+      }
     } catch(err) {
       console.error("Sync error:", err);
       if (showToast) showToast('حدث خطأ أثناء مزامنة دليل الحسابات مع السحابة', 'error');

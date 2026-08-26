@@ -34,7 +34,13 @@ async function loadAllData() {
     const [cRes, iRes, aRes, pRes, oRes, puRes, fRes, vRes, eRes, jRes, fBRes, empRes, payRes] = await Promise.allSettled([
       callGAS("getCustomers"),
       fetch("/api/inventory").then(r => r.json()).catch(() => callGAS("getInventory")),
-      fetch("/api/accounts/list").then(r => r.json()).catch(() => callGAS("getAccounts")),
+      fetch("/api/accounts/list").then(r => r.json()).then(d => {
+        const list = (d && Array.isArray(d.data)) ? d.data : (Array.isArray(d) ? d : []);
+        if (list.length > 0 && list.some(a => a.name && a.name.length > 1 && !a.name.includes('?'))) {
+          return { data: list };
+        }
+        return callGAS("getAccounts");
+      }).catch(() => callGAS("getAccounts")),
       callGAS("getProducts"),
       callGAS("getOrders"),
       callGAS("getFactory"),

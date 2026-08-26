@@ -417,8 +417,18 @@ def init_accounts_db(conn=None):
         r_nat = str(r['nature'] if isinstance(r, dict) else r[6] or 'debit')
         r_bal = float(r['balance'] if isinstance(r, dict) else r[7] or 0.0)
 
-        acc_id_str = f"ACC-{r_id:06d}"
-        p_acc_id = f"ACC-{r_pid:06d}" if r_pid else ""
+        try:
+            acc_id_str = f"ACC-{int(r_id):06d}"
+        except Exception:
+            acc_id_str = f"ACC-{r_id}"
+
+        if r_pid:
+            try:
+                p_acc_id = f"ACC-{int(r_pid):06d}"
+            except Exception:
+                p_acc_id = f"ACC-{r_pid}"
+        else:
+            p_acc_id = ""
         c.execute('''
             UPDATE accounts SET
                 account_id = COALESCE(NULLIF(account_id, ''), ?),
