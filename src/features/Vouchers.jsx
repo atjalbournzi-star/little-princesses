@@ -1,6 +1,6 @@
 const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
-function Vouchers({ vouchers = [], setVouchers, accounts = [], showToast, customers = [], setCustomers, orders = [], setOrders, currency }) {
+function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, journal = [], setJournal, showToast, customers = [], setCustomers, orders = [], setOrders, currency }) {
   const currencyDisplay = currency?.display || "SAR";
 
   const [formData, setFormData] = useState({
@@ -12,6 +12,24 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], showToast, custom
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('الكل'); // 'الكل' | 'سند قبض' | 'سند صرف'
   const [viewVoucher, setViewVoucher] = useState(null);
+
+  // حالة تعديل وحذف السند المالي
+  const [editingVoucher, setEditingVoucher] = useState(null);
+  const [editVoucherData, setEditVoucherData] = useState({
+    id: null,
+    v_no: '',
+    v_type: 'سند قبض',
+    party: '',
+    amount: '',
+    currency: 'YER ﷼',
+    exchange_rate: '1.0',
+    pay_method: 'نقدي',
+    acc_code: '',
+    date: TODAY_STR_ISO,
+    notes: ''
+  });
+  const [isSubmittingEdit, setIsSubmittingEdit] = useState(false);
+  const [isDeletingId, setIsDeletingId] = useState(null);
 
   const normalizeVoucher = (v) => {
     const rawNo = v.v_no || v.voucher_no || v.payment_no || `VCH-${v.id || ''}`;
@@ -188,6 +206,188 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], showToast, custom
     } catch (err) {
       if (setVouchers) setVouchers([newV, ...(vouchers || [])]);
       showToast('تم الحفظ محلياً ⚡');
+    }
+  };
+
+  const handleOpenEditVoucher = (v) => {
+    if (!v) return;
+    const norm = normalizeVoucher(v);
+    const vCurrCode = window.CurrencyService ? window.CurrencyService.normalizeCode(norm.currency) : (norm.currency || 'YER');
+    const vRate = v.exchange_rate || (window.CurrencyService ? window.CurrencyService.getRate(vCurrCode) : 1.0);
+
+    setEditingVoucher(v);
+    setEditVoucherData({
+      id: norm.id,
+      v_no: norm.v_no,
+      v_type: norm.v_type,
+      party: norm.party,
+      amount: String(norm.amount || ''),
+      currency: vCurrCode === 'USD' ? 'USD $' : (vCurrCode === 'SAR' ? 'SAR ﷼' : 'YER ﷼'),
+      exchange_rate: String(vRate),
+      pay_method: norm.pay_method || 'نقدي',
+      acc_code: norm.account || '101 - الصندوق الرئيسي',
+      date: norm.date || TODAY_STR_ISO,
+      notes: norm.notes === '—' ? '' : norm.notes
+    });
+  };
+
+  const handleSaveEditVoucher = async (e) => {
+    e.preventDefault();
+    if (!editVoucherData.party || !editVoucherData.amount) {
+      return showToast('الطرف والمبلغ مطلوبان ⚠️', 'error');
+    }
+
+    setIsSubmittingEdit(true);
+    try {
+      const vCurrCode = window.CurrencyService ? window.CurrencyService.normalizeCode(editVoucherData.currency) : 'YER';
+      const vRate = parseFloat(editVoucherData.exchange_rate) || (window.CurrencyService ? window.CurrencyService.getRate(vCurrCode) : 1.0);
+      const amt = parseFloat(editVoucherData.amount) || 0;
+      const vBaseObj = window.CurrencyService ? window.CurrencyService.toBase(amt, vCurrCode, vRate) : { base_amount: amt * vRate, exchange_rate: vRate };
+      const selectedAccCode = editVoucherData.acc_code ? editVoucherData.acc_code.split(' - ')[0] : '101';
+      const isReceipt = editVoucherData.v_type === 'سند قبض';
+
+      const updatedV = {
+        ...editingVoucher,
+        id: editingVoucher.id || editVoucherData.v_no,
+        v_no: editVoucherData.v_no,
+        voucher_no: editVoucherData.v_no,
+        payment_no: editVoucherData.v_no,
+        v_type: editVoucherData.v_type,
+        voucher_type: editVoucherData.v_type,
+        party: editVoucherData.party,
+        party_name: editVoucherData.party,
+        amount: amt,
+        currency: vCurrCode,
+        exchange_rate: vRate,
+        base_amount: vBaseObj.base_amount,
+        date: editVoucherData.date,
+        date_created: editVoucherData.date,
+        notes: editVoucherData.notes,
+        pay_method: editVoucherData.pay_method,
+        payment_method: editVoucherData.pay_method,
+        acc_code: editVoucherData.acc_code,
+        account_id: editVoucherData.acc_code,
+        payment_source: editVoucherData.acc_code
+      };
+
+      // 1. Update vouchers in UI state
+      if (setVouchers) {
+        setVouchers(prev => (prev || []).map(v => {
+          const curNo = v.v_no || v.voucher_no || v.payment_no || v.id;
+          return (curNo === editVoucherData.v_no || v.id === editingVoucher.id) ? updatedV : v;
+        }));
+      }
+
+      // 2. Update linked Journal Entry in UI state
+      if (setJournal) {
+        const debitAcc = isReceipt ? selectedAccCode : '201';
+        const creditAcc = isReceipt ? '104' : selectedAccCode;
+        const debitAccObj = (accounts || []).find(a => String(a.code || a.acc_code) === String(debitAcc));
+        const creditAccObj = (accounts || []).find(a => String(a.code || a.acc_code) === String(creditAcc));
+        const debitLabel = debitAccObj ? `${debitAccObj.code || debitAccObj.acc_code} - ${debitAccObj.name || debitAccObj.account_name}` : debitAcc;
+        const creditLabel = creditAccObj ? `${creditAccObj.code || creditAccObj.acc_code} - ${creditAccObj.name || creditAccObj.account_name}` : creditAcc;
+
+        setJournal(prev => (prev || []).map(j => {
+          const isLinked = j.ref_id === editVoucherData.v_no || j.entry_no === 'AUTO-VCH-' + editVoucherData.v_no || j.entry_no === 'JV-PUR-' + editVoucherData.v_no || j.ref_id === editingVoucher.id;
+          if (isLinked) {
+            return {
+              ...j,
+              debit: debitLabel,
+              credit: creditLabel,
+              amount: amt,
+              currency: vCurrCode,
+              exchange_rate: vRate,
+              base_amount: vBaseObj.base_amount,
+              date: editVoucherData.date,
+              notes: `قيد آلي: ${editVoucherData.notes || editVoucherData.v_type + ' - ' + editVoucherData.party}`
+            };
+          }
+          return j;
+        }));
+      }
+
+      // 3. Update local backend
+      try {
+        await fetch('/api/vouchers/update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updatedV)
+        });
+      } catch(beErr) {
+        console.warn("Backend voucher update warning:", beErr);
+      }
+
+      // 4. Update Google Apps Script
+      try {
+        if (typeof window.callGAS === 'function') {
+          await window.callGAS('updateVoucher', updatedV);
+        }
+      } catch(gasErr) {
+        console.warn("GAS voucher update warning:", gasErr);
+      }
+
+      showToast('✅ تم تعديل السند المالي ومزامنة القيود والأستاذ العام بنجاح ✏️');
+      setEditingVoucher(null);
+    } catch(err) {
+      console.error("Save edit voucher error:", err);
+      showToast('حدث خطأ أثناء تعديل السند', 'error');
+    } finally {
+      setIsSubmittingEdit(false);
+    }
+  };
+
+  const handleDeleteVoucher = async (v) => {
+    if (!v) return;
+    const norm = normalizeVoucher(v);
+    if (!window.confirm(`⚠️ هل أنت متأكد من حذف ${norm.v_type} رقم (${norm.v_no})؟\n\n(سيتم حذف السند وإلغاء وعكس أثره المالي فوراً من دفتر الأستاذ والقيود اليومية وشجرة الحسابات)`)) {
+      return;
+    }
+
+    setIsDeletingId(norm.id);
+    try {
+      // 1. Remove from vouchers state
+      if (setVouchers) {
+        setVouchers(prev => (prev || []).filter(item => {
+          const curNo = item.v_no || item.voucher_no || item.payment_no || item.id;
+          return curNo !== norm.v_no && item.id !== norm.id;
+        }));
+      }
+
+      // 2. Remove linked journal entry from journal state
+      if (setJournal) {
+        setJournal(prev => (prev || []).filter(j => {
+          const isLinked = j.ref_id === norm.v_no || j.entry_no === 'AUTO-VCH-' + norm.v_no || j.entry_no === 'JV-PUR-' + norm.v_no || j.ref_id === norm.id;
+          return !isLinked;
+        }));
+      }
+
+      // 3. Delete from Local Backend
+      try {
+        await fetch('/api/vouchers/delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: norm.id, voucher_no: norm.v_no })
+        });
+      } catch(beErr) {
+        console.warn("Backend voucher delete warning:", beErr);
+      }
+
+      // 4. Delete from Google Apps Script
+      try {
+        if (typeof window.callGAS === 'function') {
+          await window.callGAS('deleteVoucher', { id: norm.id, voucher_no: norm.v_no });
+          await window.callGAS('deleteJournalEntry', { ref_id: norm.v_no, entry_no: 'AUTO-VCH-' + norm.v_no });
+        }
+      } catch(gasErr) {
+        console.warn("GAS voucher delete warning:", gasErr);
+      }
+
+      showToast('✅ تم حذف السند المالي وتحديث الأستاذ العام وشجرة الحسابات بنجاح 🗑️');
+    } catch(err) {
+      console.error("Delete voucher error:", err);
+      showToast('حدث خطأ أثناء حذف السند', 'error');
+    } finally {
+      setIsDeletingId(null);
     }
   };
 
@@ -489,13 +689,34 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], showToast, custom
                     <td className="px-4 py-3 text-[#25232A] font-medium">{v.pay_method}</td>
                     <td className="px-4 py-3 text-[#6F6B75] text-[11px] font-mono">{v.account}</td>
                     <td className="px-4 py-3 text-[#6F6B75] font-mono">{v.date}</td>
-                    <td className="px-4 py-3 text-center">
-                      <button 
-                        onClick={() => setViewVoucher(v)} 
-                        className="px-2.5 py-1 bg-[#FAFAFB] hover:bg-[#E8E5EA] text-[#007F8C] border border-[#E8E5EA] rounded-lg font-bold text-[11px] transition cursor-pointer"
-                      >
-                        👁️ عرض
-                      </button>
+                    <td className="px-4 py-3 text-center whitespace-nowrap">
+                      <div className="flex items-center justify-center gap-1.5">
+                        <button 
+                          type="button"
+                          onClick={() => setViewVoucher(v)} 
+                          title="معاينة وطباعة السند"
+                          className="p-1.5 bg-[#FAFAFB] hover:bg-[#E8E5EA] text-[#007F8C] border border-[#E8E5EA] rounded-lg font-bold text-[11px] transition cursor-pointer"
+                        >
+                          👁️
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={() => handleOpenEditVoucher(v)} 
+                          title="تعديل السند المالي ومزامنة القيود"
+                          className="p-1.5 bg-[#E2F5F7] hover:bg-[#C5ECF0] text-[#007F8C] border border-[#C5ECF0] rounded-lg font-bold text-[11px] transition cursor-pointer"
+                        >
+                          <Icons.Edit className="w-3.5 h-3.5" />
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={() => handleDeleteVoucher(v)} 
+                          disabled={isDeletingId === (v.id || v.v_no)}
+                          title="حذف السند وعكس أثره المالي"
+                          className="p-1.5 bg-rose-50 hover:bg-rose-100 text-[#D64545] border border-rose-200 rounded-lg font-bold text-[11px] transition cursor-pointer disabled:opacity-50"
+                        >
+                          <Icons.Trash className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -504,6 +725,179 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], showToast, custom
           )}
         </div>
       </div>
+
+      {/* ── Modal تعديل السند المالي ومزامنة القيود والأستاذ العام ── */}
+      {editingVoucher && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 animate-fadeIn">
+          <div className="bg-white rounded-2xl border border-[#E8E5EA] shadow-2xl max-w-xl w-full overflow-hidden text-right" dir="rtl">
+            <div className="px-6 py-4 border-b border-[#E8E5EA] flex items-center justify-between bg-gradient-to-r from-white via-[#FAFAFB] to-white">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[#E2F5F7] text-[#007F8C] flex items-center justify-center text-sm font-bold border border-[#C5ECF0]">
+                  ✏️
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold text-[#25232A]">تعديل {editVoucherData.v_type}: {editVoucherData.v_no}</h2>
+                  <p className="text-[11px] text-[#6F6B75]">تعديل المبالغ والأطراف وتحديث دفتر الأستاذ والقيود اليومية آلياً</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingVoucher(null)}
+                className="w-8 h-8 rounded-lg text-[#6F6B75] hover:bg-[#F3F2F5] hover:text-[#25232A] flex items-center justify-center transition-colors cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditVoucher} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className={labelCls}>رقم السند</label>
+                  <input
+                    type="text"
+                    className={inputCls + " font-mono"}
+                    value={editVoucherData.v_no}
+                    onChange={e => setEditVoucherData({ ...editVoucherData, v_no: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className={labelCls}>نوع السند</label>
+                  <select
+                    className={inputCls}
+                    value={editVoucherData.v_type}
+                    onChange={e => setEditVoucherData({ ...editVoucherData, v_type: e.target.value })}
+                  >
+                    <option value="سند قبض">سند قبض (استلام نقدية)</option>
+                    <option value="سند صرف">سند صرف (دفع نقدية)</option>
+                  </select>
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className={labelCls}>
+                    {editVoucherData.v_type === 'سند قبض' ? 'حساب الزبون / العميلة (استلمنا من) *' : 'صرفنا إلى (الطرف المستفيد / المورد) *'}
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    className={inputCls}
+                    value={editVoucherData.party}
+                    onChange={e => setEditVoucherData({ ...editVoucherData, party: e.target.value })}
+                  />
+                </div>
+
+                <div>
+                  <label className={labelCls}>المبلغ <span className="text-[#D64545] font-bold">*</span></label>
+                  <input
+                    type="number"
+                    step="any"
+                    required
+                    className={inputCls + " font-mono font-bold text-[#25232A]"}
+                    value={editVoucherData.amount}
+                    onChange={e => setEditVoucherData({ ...editVoucherData, amount: e.target.value })}
+                  />
+                </div>
+
+                <div>
+                  <label className={labelCls}>العملة <span className="text-[#D64545] font-bold">*</span></label>
+                  <select
+                    className={inputCls}
+                    value={editVoucherData.currency}
+                    onChange={e => {
+                      const newCurr = e.target.value;
+                      const cCode = window.CurrencyService ? window.CurrencyService.normalizeCode(newCurr) : 'YER';
+                      const newRate = window.CurrencyService ? window.CurrencyService.getRate(cCode) : 1.0;
+                      setEditVoucherData({ ...editVoucherData, currency: newCurr, exchange_rate: String(newRate) });
+                    }}
+                  >
+                    {["YER ﷼", "SAR ﷼", "USD $"].map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+
+                {window.CurrencyService && window.CurrencyService.normalizeCode(editVoucherData.currency) !== 'YER' && (
+                  <div>
+                    <label className={labelCls}>سعر الصرف وقت العملية (مقابل YER)</label>
+                    <input
+                      type="number"
+                      step="any"
+                      className={inputCls + " font-mono font-bold text-[#8F2A87]"}
+                      value={editVoucherData.exchange_rate}
+                      onChange={e => setEditVoucherData({ ...editVoucherData, exchange_rate: e.target.value })}
+                    />
+                  </div>
+                )}
+
+                <div>
+                  <label className={labelCls}>طريقة الدفع</label>
+                  <select
+                    className={inputCls}
+                    value={editVoucherData.pay_method}
+                    onChange={e => setEditVoucherData({ ...editVoucherData, pay_method: e.target.value })}
+                  >
+                    {["نقدي", "حوالة بنكية", "تحويل إلكتروني"].map(p => <option key={p} value={p}>{p}</option>)}
+                  </select>
+                </div>
+
+                <div>
+                  <label className={labelCls}>حساب الصندوق / البنك</label>
+                  <select
+                    className={inputCls}
+                    value={editVoucherData.acc_code}
+                    onChange={e => setEditVoucherData({ ...editVoucherData, acc_code: e.target.value })}
+                  >
+                    <option value="">-- اختر حساب --</option>
+                    {accounts.map(a => {
+                      const code = a.code || a.acc_code || a.id;
+                      const rawName = a.name || a.account_name || a.acc_name || '';
+                      const name = (rawName && !rawName.includes('???')) ? rawName : (a.name_en || code);
+                      const label = `${code} - ${name}`;
+                      return <option key={code} value={label}>{label}</option>;
+                    })}
+                  </select>
+                </div>
+
+                <div>
+                  <label className={labelCls}>تاريخ السند</label>
+                  <input
+                    type="date"
+                    className={inputCls}
+                    value={editVoucherData.date}
+                    onChange={e => setEditVoucherData({ ...editVoucherData, date: e.target.value })}
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className={labelCls}>البيان / ملاحظات السند</label>
+                  <input
+                    type="text"
+                    className={inputCls}
+                    value={editVoucherData.notes}
+                    onChange={e => setEditVoucherData({ ...editVoucherData, notes: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-[#E8E5EA]">
+                <button
+                  type="button"
+                  onClick={() => setEditingVoucher(null)}
+                  className="px-5 py-2.5 rounded-xl border border-[#E8E5EA] text-[#6F6B75] hover:bg-[#FAFAFB] font-bold text-xs transition cursor-pointer"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingEdit}
+                  className="px-6 py-2.5 rounded-xl font-bold text-xs text-white bg-[#009FAE] hover:bg-[#007F8C] transition flex items-center gap-2 cursor-pointer shadow-xs disabled:opacity-50"
+                >
+                  <Icons.Check className="w-4 h-4" />
+                  <span>{isSubmittingEdit ? 'جاري الحفظ...' : 'حفظ التعديلات والمزامنة 💾'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

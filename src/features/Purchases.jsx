@@ -14,7 +14,7 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
   const defaultPayType = (typeof PAY_METHODS !== 'undefined' ? PAY_METHODS[0] : (window.PAY_METHODS ? window.PAY_METHODS[0] : 'نقدي'));
   const todayStrIso = typeof TODAY_STR_ISO !== 'undefined' ? TODAY_STR_ISO : (window.TODAY_STR_ISO || new Date().toISOString().slice(0, 10));
 
-  const emptyHeader = () => ({ bill_no: '', supplier: '', currency: defaultCurrency, exchange_rate: '', pay_type: defaultPayType, transfer_no: '', payment_source: '', receipt_url: '', date: todayStrIso, freight_cost: '', transfer_fees: '' });
+  const emptyHeader = () => ({ bill_no: '', supplier: '', supplier_phone: '', discount: '', notes: '', currency: defaultCurrency, exchange_rate: '', pay_type: defaultPayType, transfer_no: '', payment_source: '', receipt_url: '', date: todayStrIso, freight_cost: '', transfer_fees: '' });
   const emptyItem = () => ({ item: '', unit: 'متر', qty: '', price: '', total: '' });
 
   const [headerData, setHeaderData] = useState(emptyHeader);
@@ -60,7 +60,9 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
     setItemData(emptyItem());
   };
 
-  const grandTotal = billItems.reduce((acc,curr)=>acc+(parseFloat(curr.total)||0),0) + (parseFloat(headerData.freight_cost)||0) + (parseFloat(headerData.transfer_fees)||0);
+  const rawItemsSum = billItems.reduce((acc,curr)=>acc+(parseFloat(curr.total)||0),0) + (parseFloat(headerData.freight_cost)||0) + (parseFloat(headerData.transfer_fees)||0);
+  const discountVal = parseFloat(headerData.discount) || 0;
+  const grandTotal = Math.max(0, rawItemsSum - discountVal);
 
   // ── حفظ الفاتورة الجديدة مع الربط الشامل بكافة الأقسام ──
   const handleSaveFullBill = async () => {
@@ -73,6 +75,9 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
       const payload = {
         bill_no: billNo,
         supplier: headerData.supplier,
+        supplier_phone: headerData.supplier_phone || '',
+        discount: discountVal,
+        notes: headerData.notes || '',
         pay_type: headerData.pay_type || defaultPayType,
         payment_source: headerData.payment_source || '',
         transfer_no: headerData.transfer_no || '',
@@ -113,9 +118,11 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
         const lineOriginalAmount = parseFloat((lineQty * lineUnitPrice).toFixed(2));
         const itemFreight = i === 0 ? totalFreight : 0;
         const itemFees = i === 0 ? totalFees : 0;
+        const itemDiscount = i === 0 ? discountVal : 0;
         const itemFreightYER = parseFloat((itemFreight * purRate).toFixed(2));
         const itemFeesYER = parseFloat((itemFees * purRate).toFixed(2));
-        const lineTotalBaseYER = parseFloat(((lineOriginalAmount * purRate) + itemFreightYER + itemFeesYER).toFixed(2));
+        const itemDiscountYER = parseFloat((itemDiscount * purRate).toFixed(2));
+        const lineTotalBaseYER = parseFloat((((lineOriginalAmount * purRate) + itemFreightYER + itemFeesYER) - itemDiscountYER).toFixed(2));
 
         try {
           await callGAS("addPurchase", {
@@ -125,6 +132,11 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
             purchase_no: headerData.bill_no,
             supplier_name: headerData.supplier,
             supplier: headerData.supplier,
+            supplier_phone: headerData.supplier_phone || '',
+            supplier_number: headerData.supplier_phone || '',
+            phone: headerData.supplier_phone || '',
+            discount: itemDiscount,
+            discount_amount: itemDiscount,
             invoice_date: headerData.date || todayStrIso,
             date: headerData.date || todayStrIso,
             item_name: itm.item,
@@ -178,6 +190,9 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
           purchase_no: headerData.bill_no,
           supplier: headerData.supplier,
           supplier_name: headerData.supplier,
+          supplier_phone: headerData.supplier_phone || '',
+          discount: idx === 0 ? discountVal : 0,
+          notes: headerData.notes || '',
           item: itm.item,
           item_name: itm.item,
           fabric_name: itm.item,
@@ -358,7 +373,17 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
     let rawUnit=p.unit, rawQty=p.qty, rawPrice=p.price, rawTotal=p.total;
     const unitIsNum = rawUnit!==undefined && rawUnit!=='' && !isNaN(parseFloat(rawUnit)) && !VALID_UNITS_CHECK.includes(String(rawUnit));
     if (unitIsNum) { rawQty=parseFloat(rawUnit); rawPrice=parseFloat(p.qty)||0; rawTotal=parseFloat(p.price)||0; rawUnit='متر'; }
-    setEditRecord({ ...p, item: p.item||p.item_name||'', unit: rawUnit||'متر', qty: rawQty||'', price: rawPrice||'', total: rawTotal||'' });
+    setEditRecord({
+      ...p,
+      item: p.item||p.item_name||'',
+      unit: rawUnit||'متر',
+      qty: rawQty||'',
+      price: rawPrice||'',
+      total: rawTotal||'',
+      supplier_phone: p.supplier_phone || p.phone || p.supplier_number || '',
+      discount: p.discount !== undefined ? p.discount : (p.discount_amount || ''),
+      notes: p.notes || ''
+    });
   };
 
   const handleEditRecordChange = (field, val) => {
@@ -380,7 +405,37 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
     else if (price>0&&total<=0) total=qty*price;
     setEditSaving(true);
     try {
-      const payload = { id: String(editRecord.id), bill_no: editRecord.bill_no, supplier: editRecord.supplier, item: String(editRecord.item).trim(), item_name: String(editRecord.item).trim(), unit: editRecord.unit||'متر', qty, price: parseFloat(price.toFixed(2)), total: parseFloat(total.toFixed(2)), currency: editRecord.currency, pay_type: editRecord.pay_type, transfer_no: editRecord.transfer_no||'', payment_source: editRecord.payment_source||'', date: editRecord.date };
+      const payload = {
+        id: String(editRecord.id),
+        bill_no: editRecord.bill_no,
+        supplier: editRecord.supplier,
+        supplier_name: editRecord.supplier,
+        supplier_phone: editRecord.supplier_phone || '',
+        discount: parseFloat(editRecord.discount) || 0,
+        notes: editRecord.notes || '',
+        item: String(editRecord.item).trim(),
+        item_name: String(editRecord.item).trim(),
+        unit: editRecord.unit||'متر',
+        qty,
+        price: parseFloat(price.toFixed(2)),
+        total: parseFloat(total.toFixed(2)),
+        currency: editRecord.currency,
+        pay_type: editRecord.pay_type,
+        transfer_no: editRecord.transfer_no||'',
+        payment_source: editRecord.payment_source||'',
+        date: editRecord.date
+      };
+
+      try {
+        await fetch('/api/purchases/update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+      } catch(beErr) {
+        console.warn("Backend purchase update warning:", beErr);
+      }
+
       await callGAS('updatePurchase', payload);
       if (setPurchases) setPurchases(prev => prev.map(r => String(r.id)===String(editRecord.id) ? { ...r, ...payload } : r));
       showToast('✅ تم تحديث السجل في Google Sheets بنجاح');
@@ -392,6 +447,12 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
   const handleDeleteRecord = async (p) => {
     if (!window.confirm(`هل أنت متأكد من حذف الفاتورة ${p.bill_no||p.id}؟`)) return;
     try {
+      await fetch('/api/purchases/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: p.id, bill_no: p.bill_no })
+      }).catch(e => console.warn(e));
+
       await callGAS('deletePurchase', { id: String(p.id) });
       if (setPurchases) setPurchases(prev => prev.filter(r => String(r.id) !== String(p.id)));
       showToast('🗑️ تم حذف السجل من Google Sheets');
@@ -400,7 +461,7 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
 
   // ── تصفير وحذف كافة السجلات التالفة السابقة من Google Sheets ──
   const handlePurgeAllPurchases = async () => {
-    if (!window.confirm("⚠️ تحذير: هل أنت متأكد من رغبتك في تصفير وحذف كافة سجلات المشتريات التالفة السابقة وإعادة هيكلة الجدول وترتيب الأعمدة الـ 22 بدقة 100%؟")) return;
+    if (!window.confirm("⚠️ تحذير: هل أنت متأكد من رغبتك في تصفير وحذف كافة سجلات المشتريات التالفة السابقة وإعادة هيكلة الجدول وترتيب الأعمدة بدقة 100%؟")) return;
     setIsPurging(true);
     try {
       try {
@@ -418,7 +479,7 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
   };
 
   const normalizePurchase = (p) => {
-    if (!p || typeof p !== 'object') return { qty: 0, price: 0, total: 0, unit: 'متر', date: '', transfer: '' };
+    if (!p || typeof p !== 'object') return { qty: 0, price: 0, total: 0, unit: 'متر', date: '', transfer: '', supplier_phone: '', discount: 0, notes: '' };
     let rawUnit = p.unit, rawQty = p.qty !== undefined ? p.qty : p.quantity, rawPrice = p.price !== undefined ? p.price : p.cost_per_unit, rawTotal = p.total !== undefined ? p.total : (p.total_amount_yer || p.base_amount), rawDate = p.date, rawTransfer = p.transfer_no;
     const unitIsNum = rawUnit !== undefined && rawUnit !== '' && !isNaN(parseFloat(rawUnit)) && !VALID_UNITS.includes(String(rawUnit));
     if (unitIsNum) { rawQty = parseFloat(rawUnit); rawPrice = parseFloat(p.qty) || 0; rawTotal = parseFloat(p.price) || 0; rawUnit = 'متر'; }
@@ -427,7 +488,17 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
     if (rawDate && String(rawDate).includes('T')) rawDate = String(rawDate).slice(0, 10);
     const qty = parseFloat(rawQty || 0), price = parseFloat(rawPrice || 0);
     let total = parseFloat(rawTotal || 0); if (total <= 0 && qty > 0 && price > 0) total = qty * price;
-    return { qty, price, total, unit: VALID_UNITS.includes(String(rawUnit)) ? rawUnit : (rawUnit || 'متر'), date: String(rawDate || ''), transfer: String(rawTransfer || '') };
+    return {
+      qty,
+      price,
+      total,
+      unit: VALID_UNITS.includes(String(rawUnit)) ? rawUnit : (rawUnit || 'متر'),
+      date: String(rawDate || ''),
+      transfer: String(rawTransfer || ''),
+      supplier_phone: String(p.supplier_phone || p.phone || p.supplier_number || ''),
+      discount: parseFloat(p.discount !== undefined ? p.discount : (p.discount_amount || 0)) || 0,
+      notes: String(p.notes || '')
+    };
   };
 
   const filteredPurchases = useMemo(() => {
@@ -494,12 +565,20 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
                 <input type="number" step="0.01" min="0" className={inputCls + " text-center font-mono font-bold text-[#8F2A87]"} value={editRecord.price||''} onChange={e=>handleEditRecordChange('price',e.target.value)} />
               </div>
               <div>
+                <label className={labelCls}>الخصم والتخفيض</label>
+                <input type="number" step="0.01" min="0" className={inputCls + " text-center font-mono font-bold text-[#D64545]"} placeholder="0.00" value={editRecord.discount||''} onChange={e=>handleEditRecordChange('discount',e.target.value)} />
+              </div>
+              <div>
                 <label className={labelCls}>الإجمالي</label>
                 <input type="number" step="0.01" min="0" className={inputCls + " text-center font-mono font-bold text-[#007F8C] bg-[#FAFAFB]"} value={editRecord.total||''} onChange={e=>handleEditRecordChange('total',e.target.value)} />
               </div>
               <div>
                 <label className={labelCls}>اسم المورد</label>
                 <input type="text" className={inputCls} value={editRecord.supplier||''} onChange={e=>handleEditRecordChange('supplier',e.target.value)} />
+              </div>
+              <div>
+                <label className={labelCls}>رقم هاتف المورد 📱</label>
+                <input type="text" className={inputCls + " font-mono"} placeholder="مثال: 777123456" value={editRecord.supplier_phone||''} onChange={e=>handleEditRecordChange('supplier_phone',e.target.value)} />
               </div>
               <div>
                 <label className={labelCls}>رقم الحوالة</label>
@@ -520,6 +599,10 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
               <div>
                 <label className={labelCls}>التاريخ</label>
                 <input type="date" className={inputCls} value={editRecord.date||''} onChange={e=>handleEditRecordChange('date',e.target.value)} />
+              </div>
+              <div className="col-span-2">
+                <label className={labelCls}>الملاحظات والبيان 📝</label>
+                <input type="text" className={inputCls} placeholder="ملاحظات وتفاصيل الفاتورة" value={editRecord.notes||''} onChange={e=>handleEditRecordChange('notes',e.target.value)} />
               </div>
             </div>
             <div className="flex gap-2 pt-3 border-t border-[#E8E5EA]">
@@ -551,6 +634,7 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-5 bg-[#FAFAFB] rounded-2xl border border-[#E8E5EA]">
           <div><label className={labelCls}>رقم الفاتورة</label><input type="text" className={inputCls + " font-mono"} placeholder="" value={headerData.bill_no} onChange={e=>setHeaderData(p=>({...p,bill_no:e.target.value}))} /></div>
           <div><label className={labelCls}>اسم المورد *</label><input type="text" className={inputCls} placeholder="" value={headerData.supplier} onChange={e=>setHeaderData(p=>({...p,supplier:e.target.value}))} /></div>
+          <div><label className={labelCls}>رقم هاتف المورد 📱</label><input type="text" className={inputCls + " font-mono"} placeholder="مثال: 777123456" value={headerData.supplier_phone} onChange={e=>setHeaderData(p=>({...p,supplier_phone:e.target.value}))} /></div>
           <div><label className={labelCls}>العملة</label>
             <select className={inputCls} value={headerData.currency} onChange={e=>setHeaderData(p=>({...p,currency:e.target.value, exchange_rate: window.CurrencyService ? window.CurrencyService.getRate(e.target.value) : ''}))}>
               {(typeof CURRENCIES !== 'undefined' ? CURRENCIES : ['YER ﷼','SAR ﷼','USD $']).map(c=>{const v=typeof c==='object'?c.value:c,l=typeof c==='object'?c.label:c;return <option key={v} value={v}>{l}</option>;})}
@@ -562,6 +646,7 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
               <input type="number" step="0.01" className={inputCls + " font-mono font-bold text-[#8F2A87] bg-amber-50"} value={headerData.exchange_rate || (window.CurrencyService ? window.CurrencyService.getRate(headerData.currency) : 1)} onChange={e=>setHeaderData(p=>({...p, exchange_rate: e.target.value}))} />
             </div>
           )}
+          <div><label className={labelCls}>الخصم والتخفيض 💸</label><input type="number" step="0.01" min="0" className={inputCls + " font-mono font-bold text-[#D64545]"} placeholder="0.00" value={headerData.discount} onChange={e=>setHeaderData(p=>({...p,discount:e.target.value}))} /></div>
           <div><label className={labelCls}>طريقة الدفع</label>
             <select className={inputCls} value={headerData.pay_type} onChange={e=>setHeaderData(p=>({...p,pay_type:e.target.value}))}>
               {(typeof PAY_METHODS!=='undefined'?PAY_METHODS:['نقدي','حوالة بنكية','آجل']).map(pt=><option key={pt} value={pt}>{pt}</option>)}
@@ -588,6 +673,7 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
           <div><label className={labelCls}>تاريخ الفاتورة</label><input type="date" className={inputCls} value={headerData.date} onChange={e=>setHeaderData(p=>({...p,date:e.target.value}))} /></div>
           <div><label className={labelCls}>تكلفة النقل والتوصيل</label><input type="number" step="0.01" min="0" className={inputCls + " font-mono font-bold text-[#8F2A87]"} placeholder="0.00" value={headerData.freight_cost} onChange={e=>setHeaderData(p=>({...p,freight_cost:e.target.value}))} /></div>
           <div><label className={labelCls}>رسوم التحويل</label><input type="number" step="0.01" min="0" className={inputCls + " font-mono font-bold text-[#D64545]"} placeholder="0.00" value={headerData.transfer_fees} onChange={e=>setHeaderData(p=>({...p,transfer_fees:e.target.value}))} /></div>
+          <div className="sm:col-span-2 lg:col-span-3"><label className={labelCls}>ملاحظات الفاتورة والبيان 📝</label><input type="text" className={inputCls} placeholder="ملاحظات وتفاصيل الفاتورة" value={headerData.notes} onChange={e=>setHeaderData(p=>({...p,notes:e.target.value}))} /></div>
         </div>
 
         {/* نموذج الصنف */}
@@ -733,14 +819,17 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
                     <tr className="bg-[#FAFAFB] text-[#6F6B75] font-semibold border-b border-[#E8E5EA]">
                       <th className="p-3">رقم الفاتورة</th>
                       <th className="p-3">المورد</th>
+                      <th className="p-3">هاتف المورد 📱</th>
                       <th className="p-3">الصنف / القماش</th>
                       <th className="p-3 text-center">الوحدة</th>
                       <th className="p-3 text-center">الكمية</th>
                       <th className="p-3 text-center">السعر والعملة</th>
-                      <th className="p-3 text-center font-bold text-[#8F2A87]">الإجمالي (YER)</th>
+                      <th className="p-3 text-center text-[#D64545]">الخصم 💸</th>
+                      <th className="p-3 text-center font-bold text-[#8F2A87]">الصافي (YER)</th>
                       <th className="p-3">حساب الصندوق / الدفع</th>
                       <th className="p-3 text-center">طريقة الدفع</th>
                       <th className="p-3 text-center">النقل والرسوم</th>
+                      <th className="p-3">الملاحظات 📝</th>
                       <th className="p-3 text-center">السند</th>
                       <th className="p-3">التاريخ</th>
                       <th className="p-3 text-center">إجراءات</th>
@@ -758,13 +847,24 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
                       const rate = parseFloat(p.exchange_rate || p.exchangeRate) || (window.CurrencyService ? window.CurrencyService.getRate(currCode) : (currCode === 'SAR' ? 142 : (currCode === 'USD' ? 535 : 1)));
                       const freight = parseFloat(p.freight_cost || p.shipping_cost) || 0;
                       const fees = parseFloat(p.transfer_fees || p.transfer_fee) || 0;
+                      const discountAmt = parseFloat(n.discount) || 0;
                       const origAmount = parseFloat(p.subtotal_original || p.original_amount || p.originalAmount) || (n.qty > 0 && n.price > 0 ? (n.qty * n.price) : n.total);
-                      const grandTotalYER = parseFloat(p.grand_total_yer || p.total_amount_yer) || (isForeign ? ((origAmount * rate) + (freight * rate) + (fees * rate)) : (origAmount + freight + fees));
+                      const netOriginal = Math.max(0, origAmount - discountAmt);
+                      const grandTotalYER = parseFloat(p.grand_total_yer || p.total_amount_yer) || (isForeign ? ((netOriginal * rate) + (freight * rate) + (fees * rate)) : (netOriginal + freight + fees));
+                      const paySrc = p.payment_source || p.payment_account_code || '101 - الصندوق الرئيسي';
+                      const payType = p.pay_type || p.payment_method || 'نقدي';
 
                       return (
                         <tr key={p.id||idx} className="hover:bg-[#FAFAFB] transition-colors">
                           <td className="p-3 font-mono font-bold text-[#8F2A87]">{billNo}</td>
                           <td className="p-3 font-bold text-[#25232A]">{supplier}</td>
+                          <td className="p-3 font-mono text-xs text-[#6F6B75]">
+                            {n.supplier_phone ? (
+                              <span className="bg-[#FAFAFB] px-2 py-0.5 rounded-md border border-[#E8E5EA] text-[#25232A]">
+                                {n.supplier_phone}
+                              </span>
+                            ) : '—'}
+                          </td>
                           <td className="p-3 font-bold text-[#25232A]">
                             {itemName ? itemName : <span className="text-[#D64545] font-bold text-[10.5px] cursor-pointer underline" onClick={()=>handleOpenEdit(p)}>⚠️ فارغ — تعديل</span>}
                           </td>
@@ -772,6 +872,13 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
                           <td className="p-3 text-center font-bold font-mono tabular-nums">{n.qty>0?n.qty.toLocaleString('en-US'):'—'}</td>
                           <td className="p-3 text-center text-[#8F2A87] font-bold font-mono tabular-nums">
                             {n.price > 0 ? `${n.price.toLocaleString('en-US')} ${currCode}` : '—'}
+                          </td>
+                          <td className="p-3 text-center font-mono tabular-nums">
+                            {discountAmt > 0 ? (
+                              <span className="bg-rose-50 text-[#D64545] font-bold px-2 py-0.5 rounded-md border border-rose-200 text-[11px]">
+                                -{discountAmt.toLocaleString('en-US')} {currCode}
+                              </span>
+                            ) : '—'}
                           </td>
                           <td className="p-3 text-center bg-[#E2F5F7]/40 tabular-nums">
                             <div className="font-bold font-mono text-xs text-[#007F8C]">
@@ -792,13 +899,16 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
                           <td className="p-3 text-center font-mono tabular-nums text-[#C97300]">
                             {(freight + fees) > 0 ? `${(freight + fees).toLocaleString('en-US')} ﷼` : '—'}
                           </td>
+                          <td className="p-3 text-[#6F6B75] text-[11px] max-w-[150px] truncate" title={n.notes}>
+                            {n.notes || '—'}
+                          </td>
                           <td className="p-3 text-center">
                             {p.receipt_url ? <button type="button" onClick={()=>setPreviewImage(p.receipt_url)} className="bg-[#E2F5F7] hover:bg-[#C5ECF0] text-[#007F8C] px-2 py-1 rounded-lg font-bold text-[10.5px]">🖼️ عرض</button> : <span className="text-[#6F6B75]">—</span>}
                           </td>
                           <td className="p-3 text-[#6F6B75] font-mono">{n.date||'—'}</td>
-                          <td className="p-3 text-center space-x-1 space-x-reverse">
-                            <button type="button" onClick={()=>handleOpenEdit(p)} className="w-7 h-7 bg-[#FAFAFB] hover:bg-[#E8E5EA] text-[#25232A] rounded-lg font-bold border border-[#E8E5EA] inline-flex items-center justify-center cursor-pointer">✏️</button>
-                            <button type="button" onClick={()=>handleDeleteRecord(p)} className="w-7 h-7 bg-rose-50 hover:bg-rose-100 text-[#D64545] rounded-lg font-bold border border-rose-200 inline-flex items-center justify-center cursor-pointer">🗑️</button>
+                          <td className="p-3 text-center space-x-1 space-x-reverse whitespace-nowrap">
+                            <button type="button" onClick={()=>handleOpenEdit(p)} title="تعديل الفاتورة" className="w-7 h-7 bg-[#FAFAFB] hover:bg-[#E8E5EA] text-[#25232A] rounded-lg font-bold border border-[#E8E5EA] inline-flex items-center justify-center cursor-pointer">✏️</button>
+                            <button type="button" onClick={()=>handleDeleteRecord(p)} title="حذف الفاتورة" className="w-7 h-7 bg-rose-50 hover:bg-rose-100 text-[#D64545] rounded-lg font-bold border border-rose-200 inline-flex items-center justify-center cursor-pointer">🗑️</button>
                           </td>
                         </tr>
                       );

@@ -2998,6 +2998,9 @@ class UnifiedERPHandler(http.server.SimpleHTTPRequestHandler):
                 
                 bill_no = data.get('bill_no') or f"PUR-{int(time.time())}"
                 supplier = data.get('supplier') or data.get('supplier_name') or 'مورد عام'
+                supplier_phone = str(data.get('supplier_phone') or data.get('phone') or data.get('supplier_number') or '').strip()
+                discount = float(data.get('discount') or data.get('discount_amount') or 0.0)
+                notes_val = str(data.get('notes') or '').strip()
                 currency = data.get('currency', 'YER ﷼')
                 date_val = data.get('date', today_iso)
                 pay_type = data.get('pay_type', 'نقدي')
@@ -3033,7 +3036,7 @@ class UnifiedERPHandler(http.server.SimpleHTTPRequestHandler):
                         return
 
                 # ── أ. معالجة كل صنف وحساب متوسط التكلفة المرجح ──
-                for itm in items:
+                for idx_itm, itm in enumerate(items):
                     itm_name = (itm.get('item_name') or itm.get('item') or '').strip()
                     unit_val = itm.get('unit') or 'متر'
                     qty = float(itm.get('qty', 1.0))
@@ -3041,12 +3044,12 @@ class UnifiedERPHandler(http.server.SimpleHTTPRequestHandler):
                     line_total = qty * unit_price
                     total_items_amount += line_total
 
-                    # 1. إدراج في جدول المشتريات (21 حقلاً)
+                    # 1. إدراج في جدول المشتريات (مع رقم المورد والخصم والملاحظات)
                     c.execute('''
-                        INSERT INTO purchases (bill_no, supplier, currency, pay_type, payment_source, date, transfer_no, freight_cost, transfer_fees, receipt_url, item, unit, qty, price, total, payment_status, status, notes, created_at, created_by)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        INSERT INTO purchases (bill_no, supplier, supplier_phone, discount, currency, pay_type, payment_source, date, transfer_no, freight_cost, transfer_fees, receipt_url, item, unit, qty, price, total, payment_status, status, notes, created_at, created_by)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ''', (
-                        bill_no, supplier, currency, pay_type, payment_source, date_val, transfer_no, freight_cost, transfer_fees, receipt_url, itm_name, unit_val, qty, unit_price, line_total, 'مدفوع' if pay_type != 'آجل' else 'غير مدفوع', 'تم الاستلام', data.get('notes', ''), now, created_by
+                        bill_no, supplier, supplier_phone, discount if idx_itm == 0 else 0.0, currency, pay_type, payment_source, date_val, transfer_no, freight_cost, transfer_fees, receipt_url, itm_name, unit_val, qty, unit_price, line_total, 'مدفوع' if pay_type != 'آجل' else 'غير مدفوع', 'تم الاستلام', notes_val, now, created_by
                     ))
                     pur_row_id = c.lastrowid
 
@@ -3108,7 +3111,7 @@ class UnifiedERPHandler(http.server.SimpleHTTPRequestHandler):
                         'receipt_url': receipt_url
                     })
 
-                grand_invoice_total = total_items_amount + freight_cost + transfer_fees
+                grand_invoice_total = max(0.0, (total_items_amount + freight_cost + transfer_fees) - discount)
 
                 # ── ب. التكامل مع الصندوق والبنوك وحسابات الموردين وسندات الصرف ──
                 if pay_type != 'آجل':
@@ -4021,6 +4024,185 @@ class UnifiedERPHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_header('Content-Type', 'application/json; charset=utf-8')
                 self.end_headers()
                 self.wfile.write(json.dumps({'success': True, 'message': 'تم تعديل القيد المحاسبي بنجاح'}).encode('utf-8'))
+                return
+            except Exception as e:
+                self.send_response(400)
+                self._send_cors_headers()
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({'success': False, 'error': str(e)}).encode('utf-8'))
+                return
+
+        if parsed_url.path in ('/api/vouchers/update', '/api/accounting/vouchers/update'):
+            try:
+                content_len = int(self.headers.get('Content-Length', 0))
+                post_body = self.rfile.read(content_len) if content_len > 0 else b'{}'
+                data = json.loads(post_body.decode('utf-8'))
+                v_id = data.get('id')
+                v_no = data.get('v_no') or data.get('voucher_no') or v_id
+                v_type = data.get('v_type') or data.get('voucher_type') or 'سند قبض'
+                party = data.get('party') or data.get('party_name') or ''
+                amount = float(data.get('amount') or 0.0)
+                curr = data.get('currency', 'YER')
+                rate = float(data.get('exchange_rate', 1.0))
+                base_amt = float(data.get('base_amount', amount * rate))
+                pay_method = data.get('pay_method') or data.get('payment_method') or 'نقدي'
+                acc_code = data.get('acc_code') or data.get('account_id') or data.get('payment_source') or '101'
+                date_val = data.get('date') or data.get('date_created') or datetime.now().strftime('%Y-%m-%d')
+                notes = data.get('notes', '')
+
+                conn = get_db()
+                c = conn.cursor()
+                c.execute('''
+                    UPDATE vouchers SET
+                        voucher_no = ?, voucher_type = ?, party_name = ?,
+                        amount = ?, currency = ?, exchange_rate = ?, base_amount = ?,
+                        pay_method = ?, date_created = ?, notes = ?
+                    WHERE id = ? OR voucher_no = ?
+                ''', (v_no, v_type, party, amount, curr, rate, base_amt, pay_method, date_val, notes, v_id, v_no))
+
+                # Update linked journal entry if exists
+                is_receipt = v_type == 'سند قبض'
+                selected_acc = acc_code.split(' - ')[0] if ' - ' in acc_code else acc_code
+                debit_acc = selected_acc if is_receipt else '201'
+                credit_acc = '104' if is_receipt else selected_acc
+                v_raw = v_no.replace('PV-', '').replace('RV-', '') if isinstance(v_no, str) else str(v_no)
+                c.execute('''
+                    UPDATE journal_entries SET
+                        debit = ?, credit = ?, amount = ?, currency = ?,
+                        exchange_rate = ?, base_amount = ?, date = ?, notes = ?
+                    WHERE ref_id IN (?, ?) OR entry_no IN (?, ?, ?, ?, ?)
+                ''', (debit_acc, credit_acc, amount, curr, rate, base_amt, date_val, f"قيد آلي: {notes or v_type + ' - ' + party}", v_no, v_raw, v_no, f"AUTO-VCH-{v_no}", f"AUTO-VCH-{v_raw}", f"JV-PUR-{v_no}", f"JV-PUR-{v_raw}"))
+
+                conn.commit()
+                conn.close()
+
+                self.send_response(200)
+                self._send_cors_headers()
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({'success': True, 'message': 'تم تعديل السند المالي ومزامنة القيود بنجاح'}).encode('utf-8'))
+                return
+            except Exception as e:
+                self.send_response(400)
+                self._send_cors_headers()
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({'success': False, 'error': str(e)}).encode('utf-8'))
+                return
+
+        if parsed_url.path in ('/api/vouchers/delete', '/api/accounting/vouchers/delete'):
+            try:
+                content_len = int(self.headers.get('Content-Length', 0))
+                post_body = self.rfile.read(content_len) if content_len > 0 else b'{}'
+                data = json.loads(post_body.decode('utf-8'))
+                v_id = data.get('id')
+                v_no = data.get('voucher_no') or data.get('v_no') or v_id
+
+                conn = get_db()
+                c = conn.cursor()
+                if v_id:
+                    c.execute("DELETE FROM vouchers WHERE id = ? OR voucher_no = ?", (v_id, v_no or v_id))
+                elif v_no:
+                    c.execute("DELETE FROM vouchers WHERE voucher_no = ?", (v_no,))
+
+                # Also delete linked journal entry
+                if v_no:
+                    v_raw = v_no.replace('PV-', '').replace('RV-', '') if isinstance(v_no, str) else str(v_no)
+                    c.execute("DELETE FROM journal_entries WHERE ref_id IN (?, ?) OR entry_no IN (?, ?, ?, ?, ?)", (v_no, v_raw, v_no, f"AUTO-VCH-{v_no}", f"AUTO-VCH-{v_raw}", f"JV-PUR-{v_no}", f"JV-PUR-{v_raw}"))
+
+                conn.commit()
+                conn.close()
+
+                self.send_response(200)
+                self._send_cors_headers()
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({'success': True, 'message': 'تم حذف السند المالي وعكس قيده بنجاح'}).encode('utf-8'))
+                return
+            except Exception as e:
+                self.send_response(400)
+                self._send_cors_headers()
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({'success': False, 'error': str(e)}).encode('utf-8'))
+                return
+
+        if parsed_url.path in ('/api/purchases/update',):
+            try:
+                content_len = int(self.headers.get('Content-Length', 0))
+                post_body = self.rfile.read(content_len) if content_len > 0 else b'{}'
+                data = json.loads(post_body.decode('utf-8'))
+                pur_id = data.get('id')
+                bill_no = data.get('bill_no')
+                supplier = data.get('supplier') or data.get('supplier_name') or ''
+                supplier_phone = str(data.get('supplier_phone') or data.get('phone') or '').strip()
+                discount = float(data.get('discount') or 0.0)
+                notes = str(data.get('notes') or '').strip()
+                item = str(data.get('item') or data.get('item_name') or '').strip()
+                unit = str(data.get('unit') or 'متر').strip()
+                qty = float(data.get('qty') or 0.0)
+                price = float(data.get('price') or 0.0)
+                total = float(data.get('total') or (qty * price))
+                curr = str(data.get('currency') or 'YER')
+                pay_type = str(data.get('pay_type') or 'نقدي')
+                payment_source = str(data.get('payment_source') or '')
+                transfer_no = str(data.get('transfer_no') or '')
+                date_val = str(data.get('date') or datetime.now().strftime('%Y-%m-%d'))
+
+                conn = get_db()
+                c = conn.cursor()
+                c.execute('''
+                    UPDATE purchases SET
+                        supplier = ?, supplier_phone = ?, discount = ?, notes = ?,
+                        item = ?, unit = ?, qty = ?, price = ?, total = ?,
+                        currency = ?, pay_type = ?, payment_source = ?, transfer_no = ?, date = ?
+                    WHERE id = ? OR bill_no = ?
+                ''', (supplier, supplier_phone, discount, notes, item, unit, qty, price, total, curr, pay_type, payment_source, transfer_no, date_val, pur_id, bill_no))
+                conn.commit()
+                conn.close()
+
+                self.send_response(200)
+                self._send_cors_headers()
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({'success': True, 'message': 'تم تحديث سجل المشتريات بنجاح'}).encode('utf-8'))
+                return
+            except Exception as e:
+                self.send_response(400)
+                self._send_cors_headers()
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({'success': False, 'error': str(e)}).encode('utf-8'))
+                return
+
+        if parsed_url.path in ('/api/purchases/delete',):
+            try:
+                content_len = int(self.headers.get('Content-Length', 0))
+                post_body = self.rfile.read(content_len) if content_len > 0 else b'{}'
+                data = json.loads(post_body.decode('utf-8'))
+                pur_id = data.get('id')
+                bill_no = data.get('bill_no')
+
+                conn = get_db()
+                c = conn.cursor()
+                if pur_id:
+                    c.execute("DELETE FROM purchases WHERE id = ? OR bill_no = ?", (pur_id, bill_no or pur_id))
+                elif bill_no:
+                    c.execute("DELETE FROM purchases WHERE bill_no = ?", (bill_no,))
+                
+                if bill_no:
+                    c.execute("DELETE FROM vouchers WHERE voucher_no = ?", (f"PV-{bill_no}",))
+                    c.execute("DELETE FROM journal_entries WHERE ref_id = ? OR entry_no = ?", (bill_no, f"JV-PUR-{bill_no}"))
+
+                conn.commit()
+                conn.close()
+
+                self.send_response(200)
+                self._send_cors_headers()
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({'success': True, 'message': 'تم حذف سجل المشتريات بنجاح'}).encode('utf-8'))
                 return
             except Exception as e:
                 self.send_response(400)

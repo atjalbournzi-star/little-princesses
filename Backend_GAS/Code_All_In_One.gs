@@ -162,78 +162,73 @@ var MASTER_SCHEMA_MAP = {
 
   "inventory": {
     arabicSheet: "المخزون_والمستودعات",
-    prefix: "INV",
+    prefix: "MAT",
     fields: [
       { key: "id", header: "المعرف" },
       { key: "item_code", header: "رمز الصنف" },
-      { key: "item_name", header: "اسم الصنف / القماش" },
+      { key: "name", header: "اسم الصنف" },
+      { key: "type", header: "نوع الخامة" },
       { key: "category", header: "التصنيف" },
       { key: "unit", header: "وحدة القياس" },
-      { key: "stock_qty", header: "الكمية المتوفرة" },
+      { key: "quantity", header: "الكمية الحالية" },
       { key: "reserved_qty", header: "الكمية المحجوزة" },
-      { key: "available_qty", header: "الكمية القابلة للاستخدام" },
-      { key: "min_limit", header: "حد إعادة الطلب" },
-      { key: "unit_cost", header: "سعر التكلفة" },
-      { key: "total_cost", header: "إجمالي التكلفة" },
-      { key: "selling_price", header: "سعر البيع" },
+      { key: "available_qty", header: "الكمية المتاحة" },
+      { key: "min_limit", header: "الحد الأدنى" },
+      { key: "unit_cost", header: "تكلفة الوحدة" },
+      { key: "total_value", header: "إجمالي القيمة" },
+      { key: "supplier_id", header: "معرف المورد" },
       { key: "location", header: "موقع التخزين" },
-      { key: "color", header: "اللون" },
-      { key: "pattern", header: "النقشة" },
-      { key: "material_type", header: "نوع الخامة" },
-      { key: "barcode", header: "الباركود" },
-      { key: "image_url", header: "رابط الصورة" },
       { key: "status", header: "الحالة" },
-      { key: "notes", header: "ملاحظات" },
-      { key: "created_at", header: "تاريخ الإضافة" },
+      { key: "created_at", header: "تاريخ الإنشاء" },
       { key: "updated_at", header: "تاريخ آخر تحديث" }
     ]
   },
 
-  "inventory_movements": {
+  "inventory_transactions": {
     arabicSheet: "حركات_المخزون",
-    prefix: "MOV",
+    prefix: "INV-TXN",
     fields: [
       { key: "id", header: "المعرف" },
-      { key: "movement_no", header: "رقم الحركة" },
-      { key: "movement_type", header: "نوع الحركة" },
-      { key: "item_id", header: "معرف الصنف" },
+      { key: "product_id", header: "معرف المنتج" },
+      { key: "variant_id", header: "معرف الصنف" },
+      { key: "fabric_id", header: "معرف الخامة" },
+      { key: "warehouse_id", header: "معرف المستودع" },
+      { key: "transaction_type", header: "نوع الحركة" },
       { key: "quantity", header: "الكمية" },
-      { key: "unit_cost", header: "سعر الوحدة" },
-      { key: "total_cost", header: "التكلفة الإجمالية" },
-      { key: "source_location", header: "من موقع" },
-      { key: "destination_location", header: "إلى موقع" },
+      { key: "unit_cost", header: "تكلفة الوحدة" },
       { key: "reference_type", header: "نوع المرجع" },
       { key: "reference_id", header: "معرف المرجع" },
-      { key: "date", header: "تاريخ الحركة" },
-      { key: "notes", header: "ملاحظات" },
-      { key: "created_at", header: "تاريخ الإنشاء" },
+      { key: "notes", header: "البيان والملاحظات" },
+      { key: "created_at", header: "تاريخ الحركة" },
       { key: "created_by", header: "أنشأ بواسطة" }
     ]
   },
 
   "production_orders": {
     arabicSheet: "أوامر_الإنتاج",
-    prefix: "PRD",
+    prefix: "PROD-ORD",
     fields: [
       { key: "id", header: "المعرف" },
-      { key: "order_no", header: "رقم أمر الإنتاج" },
-      { key: "sales_order_id", header: "معرف طلب المبيعات" },
+      { key: "production_order_no", header: "رقم أمر الإنتاج" },
+      { key: "order_id", header: "معرف الطلب" },
       { key: "product_id", header: "معرف المنتج" },
-      { key: "quantity", header: "الكمية" },
-      { key: "current_stage", header: "المرحلة الحالية" },
-      { key: "tailor_id", header: "معرف الخياط" },
-      { key: "priority", header: "الأولوية" },
+      { key: "variant_id", header: "معرف الصنف" },
+      { key: "product_name", header: "اسم المنتج" },
+      { key: "child_name", header: "اسم الطفل" },
+      { key: "stage", header: "مرحلة الإنتاج" },
+      { key: "assigned_tailor_id", header: "الخياط المسؤول" },
+      { key: "assigned_designer_id", header: "المصمم المسؤول" },
       { key: "start_date", header: "تاريخ البدء" },
       { key: "due_date", header: "تاريخ التسليم" },
-      { key: "actual_finish_date", header: "تاريخ الانتهاء الفعلي" },
+      { key: "progress", header: "نسبة الإنجاز" },
       { key: "status", header: "الحالة" },
-      { key: "notes", header: "ملاحظات" },
+      { key: "notes", header: "ملاحظات الإنتاج" },
       { key: "created_at", header: "تاريخ الإنشاء" },
-      { key: "updated_at", header: "تاريخ التحديث" }
+      { key: "updated_at", header: "تاريخ آخر تحديث" }
     ]
   },
 
-  "accounts": {
+  "chart_of_accounts": {
     arabicSheet: "دليل_الحسابات",
     prefix: "ACC",
     fields: [
@@ -289,29 +284,28 @@ var MASTER_SCHEMA_MAP = {
     prefix: "PUR",
     fields: [
       { key: "id", header: "المعرف" },
-      { key: "purchase_no", header: "رقم فاتورة الشراء" },
+      { key: "invoice_no", header: "رقم الفاتورة" },
       { key: "supplier_name", header: "اسم المورد" },
-      { key: "currency", header: "العملة" },
-      { key: "exchange_rate", header: "سعر الصرف" },
-      { key: "base_amount", header: "المبلغ بالريال اليمني" },
-      { key: "transaction_id", header: "معرف المعاملة" },
-      { key: "pay_type", header: "طريقة الدفع" },
-      { key: "payment_source", header: "حساب الدفع" },
-      { key: "date", header: "تاريخ الفاتورة" },
-      { key: "transfer_no", header: "رقم الحوالة" },
-      { key: "freight_cost", header: "تكلفة النقل والتوصيل" },
-      { key: "transfer_fees", header: "رسوم التحويل" },
-      { key: "receipt_url", header: "رابط صورة السند" },
-      { key: "fabric_name", header: "اسم الصنف / القماش" },
+      { key: "invoice_date", header: "تاريخ الفاتورة" },
+      { key: "item_name", header: "اسم الصنف / القماش" },
       { key: "unit", header: "وحدة القياس" },
       { key: "quantity", header: "الكمية" },
-      { key: "cost_per_unit", header: "السعر الإفرادي" },
-      { key: "total", header: "الإجمالي" },
+      { key: "currency", header: "العملة" },
+      { key: "exchange_rate", header: "سعر الصرف" },
+      { key: "unit_price", header: "السعر الإفرادي" },
+      { key: "original_amount", header: "المبلغ الأصلي بالعملة" },
+      { key: "amount_yer", header: "المبلغ بالريال اليمني" },
+      { key: "shipping_cost", header: "تكلفة النقل والتوصيل" },
+      { key: "transfer_fee", header: "رسوم التحويل" },
+      { key: "grand_total_yer", header: "الإجمالي النهائي (YER)" },
+      { key: "payment_method", header: "طريقة الدفع" },
+      { key: "payment_account_code", header: "حساب الصندوق / الدفع" },
+      { key: "transaction_ref", header: "معرف المعاملة / السند" },
+      { key: "receipt_attachment", header: "رابط صورة السند" },
+      { key: "receipt_status", header: "حالة الاستلام" },
       { key: "payment_status", header: "حالة الدفع" },
-      { key: "status", header: "حالة الاستلام" },
       { key: "notes", header: "ملاحظات" },
-      { key: "created_at", header: "تاريخ الإنشاء" },
-      { key: "created_by", header: "أُنشئ بواسطة" }
+      { key: "created_at", header: "تاريخ الإنشاء" }
     ]
   },
 
@@ -611,13 +605,31 @@ var MASTER_SCHEMA_MAP = {
   }
 };
 
+// ⚙️ إعدادات الربط المباشر مع جدول البيانات (اختياري في حال كان السكربت مستقلاً)
+var SPREADSHEET_ID = ""; // ضع معرف الشيت هنا إذا كان السكربت مستقلاً، أو اتركه فارغاً إذا فُتح من داخل الشيت
+var SPREADSHEET_URL = ""; // أو ضع رابط الشيت كاملاً هنا
+
 /**
  * UTILITY & COMMON SERVICES
  */
 function getSpreadsheet() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  if (ss) return ss;
+  // 1. محاولة الوصول التلقائي إذا كان السكربت مربوطاً بالشيت مباشرة
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    if (ss) return ss;
+  } catch (e) {}
 
+  // 2. محاولة الفتح بالمعرف المباشر (SPREADSHEET_ID)
+  if (typeof SPREADSHEET_ID !== 'undefined' && SPREADSHEET_ID && SPREADSHEET_ID.trim() !== "") {
+    try { return SpreadsheetApp.openById(SPREADSHEET_ID.trim()); } catch (e) {}
+  }
+
+  // 3. محاولة الفتح بالرابط المباشر (SPREADSHEET_URL)
+  if (typeof SPREADSHEET_URL !== 'undefined' && SPREADSHEET_URL && SPREADSHEET_URL.trim() !== "") {
+    try { return SpreadsheetApp.openByUrl(SPREADSHEET_URL.trim()); } catch (e) {}
+  }
+
+  // 4. البحث التلقائي في Google Drive بالاسم
   try {
     var files = DriveApp.getFilesByName("Little Princesses ERP Database");
     if (files.hasNext()) {
@@ -630,11 +642,11 @@ function getSpreadsheet() {
         return SpreadsheetApp.open(f);
       }
     }
-  } catch(e) {
+  } catch (e) {
     Logger.log("DriveApp lookup error: " + e.message);
   }
 
-  throw new Error("لم يتم العثور على ملف جدول بيانات Little Princesses ERP Database.");
+  throw new Error("لم يتم العثور على ملف جدول البيانات. يرجى فتح السكربت من داخل الشيت (التوسيعات > Apps Script) أو وضع رابط/معرف الشيت في المتغير SPREADSHEET_URL.");
 }
 
 function todayISO() {
@@ -947,76 +959,116 @@ var InventoryController = {
   addOrUpdateItem: function(payload) {
     var data = payload.data || payload;
     var sheet = SchemaMapper.getOrCreateSheet("inventory");
-    var records = SchemaMapper.readRows("inventory");
     var itemName = String(data.name || data.item_name || "").trim();
     var itemCode = String(data.item_code || "").trim();
-    var existing = null;
-    var existingRowIdx = -1;
+    var addQty = Number(data.quantity !== undefined ? data.quantity : (data.qty !== undefined ? data.qty : (data.quantity_meters || 0)));
+    var unitPrice = Number(data.unit_cost !== undefined ? data.unit_cost : (data.cost_per_unit !== undefined ? data.cost_per_unit : (data.cost_per_meter !== undefined ? data.cost_per_meter : (data.cost || data.price || 0))));
+    var unit = String(data.unit || "متر").trim();
+    var supplierId = String(data.supplier_id || data.supplier || "").trim();
+    var location = String(data.location || "المستودع الرئيسي").trim();
 
-    for (var i = 0; i < records.length; i++) {
-      var rName = String(records[i].name || records[i].item_name || "").trim();
-      var rCode = String(records[i].item_code || "").trim();
-      if ((itemName && rName === itemName) || (itemCode && rCode === itemCode) || (data.id && String(records[i].id) === String(data.id))) {
-        existing = records[i];
-        existingRowIdx = SchemaMapper.findRowIndexById(sheet, existing.id);
-        break;
+    var lastRow = sheet.getLastRow();
+    var existingRowIdx = -1;
+    var currentQty = 0;
+    var currentCost = 0;
+    var currentAvail = 0;
+    var curId = "";
+    var curCode = "";
+
+    if (lastRow >= 2) {
+      var vals = sheet.getRange(2, 1, lastRow - 1, Math.min(sheet.getLastColumn(), 17)).getValues();
+      for (var r = 0; r < vals.length; r++) {
+        var rowName = String(vals[r][2] || "").trim(); // Col C: اسم الصنف
+        var rowCode = String(vals[r][1] || "").trim(); // Col B: رمز الصنف
+        var rowId = String(vals[r][0] || "").trim();   // Col A: المعرف
+        if ((itemName && rowName.toLowerCase() === itemName.toLowerCase()) || 
+            (itemCode && rowCode.toLowerCase() === itemCode.toLowerCase()) || 
+            (data.id && rowId === String(data.id))) {
+          existingRowIdx = r + 2;
+          curId = rowId;
+          curCode = rowCode;
+          currentQty = Number(vals[r][6] || 0);
+          currentAvail = Number(vals[r][8] !== "" ? vals[r][8] : currentQty);
+          currentCost = Number(vals[r][10] || 0);
+          break;
+        }
       }
     }
 
-    var addQty = Number(data.quantity !== undefined ? data.quantity : (data.qty !== undefined ? data.qty : (data.quantity_meters || 0)));
-    var unitPrice = Number(data.unit_cost !== undefined ? data.unit_cost : (data.cost_per_unit !== undefined ? data.cost_per_unit : (data.cost_per_meter !== undefined ? data.cost_per_meter : (data.cost || data.price || 0))));
-
-    if (existing && existingRowIdx !== -1) {
-      var currentQty = Number(existing.quantity !== undefined ? existing.quantity : (existing.qty || 0));
-      var currentCost = Number(existing.unit_cost !== undefined ? existing.unit_cost : (existing.cost || 0));
+    if (existingRowIdx !== -1) {
       var newQty = currentQty + addQty;
       var newCost = newQty > 0 ? (((currentQty * currentCost) + (addQty * (unitPrice || currentCost))) / newQty) : (unitPrice || currentCost);
-      var curAvail = Number(existing.available_qty !== undefined ? existing.available_qty : currentQty);
-      existing.name = itemName || existing.name;
-      existing.quantity = newQty;
-      existing.available_qty = curAvail + addQty;
-      existing.unit_cost = Number(newCost.toFixed(2));
-      existing.total_value = Number((newQty * newCost).toFixed(2));
-      if (data.supplier_id) existing.supplier_id = data.supplier_id;
-      if (data.location) existing.location = data.location;
-      existing.updated_at = todayISO();
+      newCost = Number(newCost.toFixed(2));
+      var newAvail = currentAvail + addQty;
+      var totalVal = Number((newQty * newCost).toFixed(2));
+      var updatedDate = todayISO();
 
-      var rowArray = SchemaMapper.buildRowArray("inventory", existing);
-      sheet.getRange(existingRowIdx, 1, 1, rowArray.length).setValues([rowArray]);
+      sheet.getRange(existingRowIdx, 7).setValue(newQty);
+      sheet.getRange(existingRowIdx, 9).setValue(newAvail);
+      sheet.getRange(existingRowIdx, 11).setValue(newCost);
+      sheet.getRange(existingRowIdx, 12).setValue(totalVal);
+      if (supplierId) sheet.getRange(existingRowIdx, 13).setValue(supplierId);
+      if (location) sheet.getRange(existingRowIdx, 14).setValue(location);
+      sheet.getRange(existingRowIdx, 17).setValue(updatedDate);
+
       try {
         sheet.getRange(existingRowIdx, 7, 1, 3).setNumberFormat("0.##");
-        sheet.getRange(existingRowIdx, 11, 1, 2).setNumberFormat("0.##");
+        sheet.getRange(existingRowIdx, 11, 1, 2).setNumberFormat("#,##0.00");
       } catch(e) {}
-      return { id: existing.id, updated: true, data: existing };
-    } else {
-      var newId = data.id || SequenceService.getNextId("inventory", "MAT");
-      var newItem = {
-        id: newId,
-        item_code: itemCode || newId,
-        name: itemName || "خامة جديدة",
-        type: data.type || "خامة",
-        category: data.category || "أقمشة وخامات",
-        unit: data.unit || "متر",
-        quantity: addQty,
-        available_qty: addQty,
-        reserved_qty: 0,
-        min_limit: Number(data.min_limit || 5),
-        unit_cost: unitPrice,
-        total_value: Number((addQty * unitPrice).toFixed(2)),
-        supplier_id: data.supplier_id || "",
-        location: data.location || "المستودع الرئيسي",
-        status: "متوفر",
-        created_at: todayISO(),
-        updated_at: todayISO()
-      };
 
-      sheet.appendRow(SchemaMapper.buildRowArray("inventory", newItem));
       try {
-        var lastRow = sheet.getLastRow();
-        sheet.getRange(lastRow, 7, 1, 3).setNumberFormat("0.##");
-        sheet.getRange(lastRow, 11, 1, 2).setNumberFormat("0.##");
+        if (typeof InventoryMovementService !== "undefined" && InventoryMovementService.recordMovement) {
+          InventoryMovementService.recordMovement({
+            fabric_id: curId,
+            warehouse_id: location || "المستودع الرئيسي",
+            transaction_type: "PURCHASE_RECEIPT",
+            quantity: addQty,
+            unit_cost: unitPrice,
+            reference_type: "PURCHASE",
+            reference_id: data.invoice_no || data.bill_no || "",
+            notes: "توريد مخزون من فاتورة شراء " + (data.invoice_no || data.bill_no || "") + " - المورد: " + supplierId,
+            created_by: data.created_by || "system"
+          });
+        }
+      } catch(mErr) {}
+
+      return { id: curId, updated: true };
+    } else {
+      var newId = data.id || ("MAT-" + Utilities.formatString("%06d", Math.max(1, lastRow)));
+      var newItemCode = itemCode || newId;
+      var totalVal = Number((addQty * unitPrice).toFixed(2));
+      var crDate = todayISO();
+
+      var newRow = [
+        newId, newItemCode, itemName || "خامة جديدة", "خامة", "أقمشة وخامات",
+        unit, addQty, 0, addQty, 5, unitPrice, totalVal,
+        supplierId, location, "متوفر", crDate, crDate
+      ];
+
+      sheet.appendRow(newRow);
+      var appendedR = sheet.getLastRow();
+      try {
+        sheet.getRange(appendedR, 7, 1, 3).setNumberFormat("0.##");
+        sheet.getRange(appendedR, 11, 1, 2).setNumberFormat("#,##0.00");
       } catch(e) {}
-      return { id: newId, created: true, data: newItem };
+
+      try {
+        if (typeof InventoryMovementService !== "undefined" && InventoryMovementService.recordMovement) {
+          InventoryMovementService.recordMovement({
+            fabric_id: newId,
+            warehouse_id: location || "المستودع الرئيسي",
+            transaction_type: "PURCHASE_RECEIPT",
+            quantity: addQty,
+            unit_cost: unitPrice,
+            reference_type: "PURCHASE",
+            reference_id: data.invoice_no || data.bill_no || "",
+            notes: "توريد مخزون من فاتورة شراء " + (data.invoice_no || data.bill_no || "") + " - المورد: " + supplierId,
+            created_by: data.created_by || "system"
+          });
+        }
+      } catch(mErr) {}
+
+      return { id: newId, created: true };
     }
   },
 
@@ -1063,170 +1115,406 @@ var InventoryController = {
   }
 };
 
+/**
+ * ══════════════════════════════════════════════════════════════════════════
+ * CLEAN SLATE PURGE & RESET FOR PURCHASES & SUPPLIERS SHEET
+ * ══════════════════════════════════════════════════════════════════════════
+ */
+function purgePurchasesSheetData() {
+  var ss = getSpreadsheet();
+  var sheet = ss.getSheetByName("المشتريات_والموردون") || ss.getSheetByName("المشتريات") || ss.getSheetByName("Purchases");
+  if (!sheet) {
+    sheet = ss.insertSheet("المشتريات_والموردون");
+  }
+
+  var headers = [
+    "المعرف",
+    "رقم الفاتورة",
+    "اسم المورد",
+    "تاريخ الفاتورة",
+    "اسم الصنف / القماش",
+    "وحدة القياس",
+    "الكمية",
+    "العملة",
+    "سعر الصرف",
+    "السعر الإفرادي",
+    "المبلغ الأصلي بالعملة",
+    "المبلغ بالريال اليمني",
+    "تكلفة النقل والتوصيل",
+    "رسوم التحويل",
+    "الإجمالي النهائي (YER)",
+    "طريقة الدفع",
+    "حساب الصندوق / الدفع",
+    "معرف المعاملة / السند",
+    "رابط صورة السند",
+    "حالة الاستلام",
+    "حالة الدفع",
+    "ملاحظات",
+    "تاريخ الإنشاء"
+  ];
+
+  sheet.clear();
+  sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  sheet.getRange(1, 1, 1, headers.length)
+    .setFontWeight("bold")
+    .setBackground("#4A154B")
+    .setFontColor("#FFFFFF")
+    .setHorizontalAlignment("center");
+  sheet.setFrozenRows(1);
+  for (var c = 1; c <= headers.length; c++) {
+    sheet.setColumnWidth(c, 135);
+  }
+  try {
+    sheet.getRange("G2:G").setNumberFormat("0.##");
+    sheet.getRange("I2:I").setNumberFormat("0.##");
+    sheet.getRange("J2:O").setNumberFormat("#,##0.00");
+  } catch(e) {}
+  return {
+    success: true,
+    message: "تم تصفير وتنظيف جدول المشتريات بالكامل وإعادة بناء الأعمدة الـ 23 بدقة 100% 👑"
+  };
+}
+
 var PurchaseController = {
-  getPurchases: function() { return SchemaMapper.readRows("purchases"); },
+  getPurchases: function() {
+    var raw = SchemaMapper.readRows("purchases");
+    return raw.map(function(r) {
+      var invNo = String(r.invoice_no || r.bill_no || r.purchase_no || r.id || "").trim();
+      var supp = String(r.supplier_name || r.supplier || "—").trim();
+      var dt = String(r.invoice_date || r.date || "").trim();
+      var itm = String(r.item_name || r.fabric_name || r.item || "—").trim();
+      var u = String(r.unit || "متر").trim();
+      var q = Number(r.quantity !== undefined && r.quantity !== "" ? r.quantity : (r.qty !== undefined && r.qty !== "" ? r.qty : 0));
+      var curr = String(r.currency || "YER").trim();
+      var rate = Number(r.exchange_rate || 1.0);
+      var unitP = Number(r.unit_price !== undefined && r.unit_price !== "" ? r.unit_price : (r.cost_per_unit || r.price || 0));
+      var origAmt = Number(r.original_amount !== undefined && r.original_amount !== "" ? r.original_amount : (q * unitP));
+      var amtYer = Number(r.amount_yer !== undefined && r.amount_yer !== "" ? r.amount_yer : (r.base_amount || (origAmt * rate)));
+      var ship = Number(r.shipping_cost !== undefined && r.shipping_cost !== "" ? r.shipping_cost : (r.freight_cost || 0));
+      var trans = Number(r.transfer_fee !== undefined && r.transfer_fee !== "" ? r.transfer_fee : (r.transfer_fees || 0));
+      var grandYer = Number(r.grand_total_yer !== undefined && r.grand_total_yer !== "" ? r.grand_total_yer : (amtYer + (ship * rate) + (trans * rate)));
+      var payM = String(r.payment_method || r.pay_type || "نقدي").trim();
+      var payAcc = String(r.payment_account_code || r.payment_source || "").trim();
+      var txRef = String(r.transaction_ref || r.transfer_no || "").trim();
+      var rcpt = String(r.receipt_attachment || r.receipt_url || "").trim();
+      var rStat = String(r.receipt_status || r.status || "تم الاستلام").trim();
+      var pStat = String(r.payment_status || (payM === "آجل" ? "غير مدفوع" : "مدفوع")).trim();
+      var notes = String(r.notes || "").trim();
+      var createdAt = String(r.created_at || dt || "").trim();
 
-  removeDuplicates: function() {
-    var sheet = SchemaMapper.getOrCreateSheet("purchases");
-    var records = SchemaMapper.readRows("purchases");
-    var seen = {};
-    var uniqueRows = [];
-    var removedCount = 0;
-
-    for (var i = 0; i < records.length; i++) {
-      var r = records[i];
-      var purNo = String(r.purchase_no || "").trim();
-      var fabric = String(r.fabric_name || r.item_name || r.item || "").trim();
-      var q = String(r.quantity || r.qty || "");
-      var key = purNo && fabric ? (purNo + "___" + fabric + "___" + q) : r.id;
-
-      if (!seen[key]) {
-        seen[key] = true;
-        uniqueRows.push(SchemaMapper.buildRowArray("purchases", r));
-      } else {
-        removedCount++;
-      }
-    }
-
-    if (removedCount > 0 && uniqueRows.length > 0) {
-      for (var rIdx = 0; rIdx < uniqueRows.length; rIdx++) {
-        for (var cIdx = 0; cIdx < uniqueRows[rIdx].length; cIdx++) {
-          if (typeof uniqueRows[rIdx][cIdx] === "string" && uniqueRows[rIdx][cIdx].length > 45000) {
-            uniqueRows[rIdx][cIdx] = uniqueRows[rIdx][cIdx].substring(0, 45000);
-          }
-        }
-      }
-      sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).clearContent();
-      sheet.getRange(2, 1, uniqueRows.length, uniqueRows[0].length).setValues(uniqueRows);
-    }
-    return { count: uniqueRows.length, removed: removedCount };
+      return {
+        id: r.id || ("PUR-" + invNo),
+        invoice_no: invNo,
+        bill_no: invNo,
+        purchase_no: invNo,
+        supplier_name: supp,
+        supplier: supp,
+        supplier_phone: String(r.supplier_phone || r.supplier_number || r.phone || "").trim(),
+        phone: String(r.supplier_phone || r.supplier_number || r.phone || "").trim(),
+        discount: Number(r.discount !== undefined ? r.discount : (r.discount_amount || 0)),
+        discount_amount: Number(r.discount !== undefined ? r.discount : (r.discount_amount || 0)),
+        invoice_date: dt,
+        date: dt,
+        item_name: itm,
+        fabric_name: itm,
+        item: itm,
+        unit: u,
+        quantity: q,
+        qty: q,
+        currency: curr,
+        Original_Currency: curr,
+        exchange_rate: rate,
+        exchangeRate: rate,
+        unit_price: unitP,
+        cost_per_unit: unitP,
+        price: unitP,
+        original_amount: origAmt,
+        originalAmount: origAmt,
+        amount_yer: amtYer,
+        base_amount: amtYer,
+        shipping_cost: ship,
+        freight_cost: ship,
+        transfer_fee: trans,
+        transfer_fees: trans,
+        grand_total_yer: grandYer,
+        total_amount_yer: grandYer,
+        payment_method: payM,
+        pay_type: payM,
+        payment_account_code: payAcc,
+        payment_source: payAcc,
+        transaction_ref: txRef,
+        transfer_no: txRef,
+        receipt_attachment: rcpt,
+        receipt_url: rcpt,
+        receipt_status: rStat,
+        status: rStat,
+        payment_status: pStat,
+        notes: notes,
+        created_at: createdAt
+      };
+    });
   },
 
   addPurchase: function(payload) {
     var data = payload.data || payload;
-    var sheet = SchemaMapper.getOrCreateSheet("purchases");
-    var purchaseNo = String(data.purchase_no || data.bill_no || "").trim();
-    var fabricName = String(data.fabric_name || data.item || data.item_name || data.name || "").trim();
-    var qty = Number(data.quantity || data.qty || 1);
-    var cost = Number(data.cost_per_unit || data.cost || data.price || 0);
+    var ss = getSpreadsheet();
+    var sheet = ss.getSheetByName("المشتريات_والموردون") || ss.getSheetByName("المشتريات") || ss.getSheetByName("Purchases");
+    if (!sheet) {
+      sheet = ss.insertSheet("المشتريات_والموردون");
+    }
 
-    // 🛡️ Deduplication Guard
-    if (purchaseNo && fabricName) {
-      var records = SchemaMapper.readRows("purchases");
-      for (var i = 0; i < records.length; i++) {
-        var rPurNo = String(records[i].purchase_no || "").trim();
-        var rFabric = String(records[i].fabric_name || records[i].item_name || records[i].item || "").trim();
-        var rQty = Number(records[i].quantity || records[i].qty || 0);
-        if (rPurNo === purchaseNo && rFabric === fabricName && Math.abs(rQty - qty) < 0.001) {
-          return { id: records[i].id, duplicate: true, message: "تم تسجيل الصنف مسبقاً في هذه الفاتورة", data: records[i] };
+    var headers = [
+      "المعرف", "رقم الفاتورة", "اسم المورد", "رقم المورد", "تاريخ الفاتورة", "اسم الصنف / القماش",
+      "وحدة القياس", "الكمية", "العملة", "سعر الصرف",
+      "السعر الإفرادي", "المبلغ الأصلي بالعملة", "الخصم / التخفيض", "المبلغ بالريال اليمني", "تكلفة النقل والتوصيل",
+      "رسوم التحويل", "الإجمالي النهائي (YER)", "طريقة الدفع", "حساب الصندوق / الدفع",
+      "معرف المعاملة / السند", "رابط صورة السند", "حالة الاستلام", "حالة الدفع",
+      "ملاحظات", "تاريخ الإنشاء"
+    ];
+
+    if (sheet.getLastRow() < 1) {
+      sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+      sheet.getRange(1, 1, 1, headers.length)
+        .setFontWeight("bold")
+        .setBackground("#4A154B")
+        .setFontColor("#FFFFFF")
+        .setHorizontalAlignment("center");
+      sheet.setFrozenRows(1);
+    }
+
+    var newPurId = data.id || SequenceService.getNextId("purchases", "PUR");
+    var invoiceNo = String(data.invoice_no || data.bill_no || data.purchase_no || ("PUR-" + Math.floor(1000 + Math.random() * 9000))).trim();
+    var supplierName = String(data.supplier_name || data.supplier || "مورد عام").trim();
+    var supplierPhone = String(data.supplier_phone || data.supplier_number || data.phone || "").trim();
+    var invoiceDate = String(data.invoice_date || data.date || todayISO()).slice(0, 10);
+    var itemName = String(data.item_name || data.fabric_name || data.item || data.name || "قماش / خامة").trim();
+    var unit = String(data.unit || "متر").trim();
+    var qty = Number(data.quantity !== undefined ? data.quantity : (data.qty !== undefined ? data.qty : 1));
+    var currency = String(data.currency || data.Original_Currency || "YER").trim().toUpperCase();
+    var exchangeRate = Number(data.exchange_rate || data.exchangeRate || 1.0);
+    if (currency === "YER" || isNaN(exchangeRate) || exchangeRate <= 0) exchangeRate = 1.0;
+    var unitPrice = Number(data.unit_price !== undefined ? data.unit_price : (data.cost_per_unit !== undefined ? data.cost_per_unit : (data.cost !== undefined ? data.cost : (data.price || 0))));
+    var originalAmount = Number(data.original_amount !== undefined ? data.original_amount : (qty * unitPrice).toFixed(2));
+    var discount = Number(data.discount !== undefined ? data.discount : (data.discount_amount || 0));
+    var discountYer = Number((discount * exchangeRate).toFixed(2));
+    var amountYer = Number(data.amount_yer !== undefined ? data.amount_yer : (data.base_amount !== undefined ? data.base_amount : (originalAmount * exchangeRate).toFixed(2)));
+    var shippingCost = Number(data.shipping_cost !== undefined ? data.shipping_cost : (data.freight_cost !== undefined ? data.freight_cost : (data.shippingFee || 0)));
+    var transferFee = Number(data.transfer_fee !== undefined ? data.transfer_fee : (data.transfer_fees !== undefined ? data.transfer_fees : (data.transferFee || 0)));
+    var shippingCostYer = Number((shippingCost * exchangeRate).toFixed(2));
+    var transferFeeYer = Number((transferFee * exchangeRate).toFixed(2));
+    var grandTotalYer = Number(data.grand_total_yer !== undefined ? data.grand_total_yer : (data.total_amount_yer !== undefined ? data.total_amount_yer : Math.max(0, ((amountYer + shippingCostYer + transferFeeYer) - discountYer)).toFixed(2)));
+    var billTotalOriginal = Number(Math.max(0, (originalAmount + shippingCost + transferFee) - discount).toFixed(2));
+    var paymentMethod = String(data.payment_method || data.pay_type || "نقدي").trim();
+    var paymentAccountCode = String(data.payment_account_code || data.payment_source || (paymentMethod === "آجل" ? "201" : "101")).trim();
+    var transactionRef = String(data.transaction_ref || data.transaction_id || data.transfer_no || ("TX-" + invoiceNo)).trim();
+    var receiptAttachment = String(data.receipt_attachment || data.receipt_url || "").substring(0, 45000);
+    var receiptStatus = String(data.receipt_status || data.status || "تم الاستلام").trim();
+    var paymentStatus = String(data.payment_status || (paymentMethod === "آجل" ? "غير مدفوع" : "مدفوع")).trim();
+    var notes = String(data.notes || "").trim();
+    var createdAt = todayISO();
+
+    var fieldValues = {
+      "المعرف": newPurId,
+      "رقم الفاتورة": invoiceNo,
+      "اسم المورد": supplierName,
+      "رقم المورد": supplierPhone,
+      "تاريخ الفاتورة": invoiceDate,
+      "اسم الصنف / القماش": itemName,
+      "وحدة القياس": unit,
+      "الكمية": qty,
+      "العملة": currency,
+      "سعر الصرف": exchangeRate,
+      "السعر الإفرادي": unitPrice,
+      "المبلغ الأصلي بالعملة": originalAmount,
+      "الخصم / التخفيض": discount,
+      "المبلغ بالريال اليمني": amountYer,
+      "تكلفة النقل والتوصيل": shippingCost,
+      "رسوم التحويل": transferFee,
+      "الإجمالي النهائي (YER)": grandTotalYer,
+      "طريقة الدفع": paymentMethod,
+      "حساب الصندوق / الدفع": paymentAccountCode,
+      "معرف المعاملة / السند": transactionRef,
+      "رابط صورة السند": receiptAttachment,
+      "حالة الاستلام": receiptStatus,
+      "حالة الدفع": paymentStatus,
+      "ملاحظات": notes,
+      "تاريخ الإنشاء": createdAt
+    };
+
+    var headerRow = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), headers.length)).getValues()[0];
+    var rowArray = [];
+    for (var col = 0; col < headers.length; col++) {
+      var hName = String(headerRow[col] || headers[col]).trim();
+      var val = fieldValues[hName];
+      if (val === undefined) {
+        for (var k in fieldValues) {
+          if (hName.indexOf(k) !== -1 || k.indexOf(hName) !== -1) {
+            val = fieldValues[k];
+            break;
+          }
         }
       }
+      rowArray.push(val !== undefined ? val : "");
     }
 
-    var newId = data.id || SequenceService.getNextId("purchases", "PUR");
-    var now = todayISO();
-    var total = Number(data.total || (qty * cost));
-    var freight = Number(data.freight_cost || 0);
-    var fees = Number(data.transfer_fees || 0);
-    var grandPayTotal = total + freight + fees;
-
-    data.id = newId;
-    data.purchase_no = purchaseNo || newId;
-    data.supplier_name = data.supplier_name || data.supplier || "مورد عام";
-    data.currency = data.currency || "YER ﷼";
-    data.exchange_rate = Number(data.exchange_rate) > 0 ? Number(data.exchange_rate) : 1.0;
-    data.base_amount = Number(data.base_amount) > 0 ? Number(data.base_amount) : Number((total * data.exchange_rate).toFixed(2));
-    data.transaction_id = data.transaction_id || ("TX-" + (purchaseNo || newId));
-    data.pay_type = data.pay_type || "نقدي";
-    data.payment_source = data.payment_source || "101 - الصندوق الرئيسي";
-    data.date = data.date || now;
-    data.transfer_no = data.transfer_no || "";
-    data.freight_cost = freight;
-    data.transfer_fees = fees;
-    data.receipt_url = data.receipt_url || "";
-    data.fabric_name = fabricName || "قماش / خامة";
-    data.unit = data.unit || "متر";
-    data.quantity = qty;
-    data.cost_per_unit = cost;
-    data.total = total;
-    data.payment_status = data.payment_status || "مدفوع";
-    data.status = data.status || "تم الاستلام";
-    data.notes = data.notes || "";
-    data.created_at = now;
-    data.created_by = data.created_by || "system";
-
-    var newRow = SchemaMapper.buildRowArray("purchases", data);
-    sheet.appendRow(newRow);
+    sheet.appendRow(rowArray);
+    var newRowIdx = sheet.getLastRow();
     try {
-      var lastRow = sheet.getLastRow();
-      sheet.getRange(lastRow, 14, 1, 3).setNumberFormat("0.##");
-    } catch(e) {}
+      sheet.getRange(newRowIdx, 8, 1, 1).setNumberFormat("0.##");
+      sheet.getRange(newRowIdx, 11, 1, 1).setNumberFormat("0.##");
+      sheet.getRange(newRowIdx, 12, 1, 6).setNumberFormat("#,##0.00");
+    } catch (fmtErr) {}
 
-    // 1. Inventory Auto-increment & Weighted Average Costing & Warehouses location
-    InventoryController.addOrUpdateItem({
-      name: data.fabric_name,
-      quantity: qty,
-      unit_cost: cost,
-      unit: data.unit,
-      supplier_id: data.supplier_name,
-      location: data.location || "المستودع الرئيسي"
-    });
-
-    // 2. Record inventory movement
-    InventoryMovementService.recordMovement({
-      fabric_id: data.fabric_name,
-      transaction_type: "PURCHASE_RECEIPT",
-      quantity: qty,
-      unit_cost: cost,
-      reference_type: "PURCHASE",
-      reference_id: data.purchase_no,
-      notes: "توريد مخزون من فاتورة شراء " + data.purchase_no + " - " + data.supplier_name,
-      created_by: data.created_by
-    });
-
-    // 3. Generate Payment Voucher if cash/bank
-    if (data.pay_type !== "آجل") {
-      var grandPayTotal = total + freight + fees;
-      VoucherController.addVoucher({
-        voucher_no: "PV-" + data.purchase_no,
-        payment_type: "سند صرف",
-        amount: grandPayTotal,
-        currency: data.currency,
-        payment_method: data.pay_type,
-        supplier_id: data.supplier_name,
-        reference_no: data.transfer_no || data.purchase_no,
-        account_id: data.payment_source,
-        date: data.date,
-        notes: "سند صرف مشتريات للفاتورة " + data.purchase_no + " - " + data.supplier_name
-      });
-
-      // 4. Balanced Journal Entry (Cash/Bank)
-      JournalController.addJournalEntry({
-        entry_no: "JV-PUR-" + data.purchase_no,
-        debit_account_id: "102 - مخزون الأقمشة والمستلزمات",
-        credit_account_id: data.payment_source || "101 - الصندوق / الخزينة الرئيسية",
-        amount: grandPayTotal,
-        currency: data.currency,
-        ref_type: "PURCHASE",
-        ref_id: data.purchase_no,
-        notes: "قيد إثبات مشتريات نقداً للفاتورة " + data.purchase_no + " - " + data.supplier_name
-      });
-    } else {
-      // 4. Balanced Journal Entry (Credit / آجل)
-      JournalController.addJournalEntry({
-        entry_no: "JV-PUR-" + data.purchase_no,
-        debit_account_id: "102 - مخزون الأقمشة والمستلزمات",
-        credit_account_id: "201 - ذمم الموردين ومحلات الأقمشة (آجل)",
-        amount: grandPayTotal,
-        currency: data.currency,
-        ref_type: "PURCHASE",
-        ref_id: data.purchase_no,
-        notes: "قيد إثبات مشتريات آجلة للفاتورة " + data.purchase_no + " - المورد: " + data.supplier_name
-      });
+    // A. Inventory Integration
+    try {
+      if (typeof InventoryController !== "undefined" && InventoryController.addOrUpdateItem) {
+        InventoryController.addOrUpdateItem({
+          name: itemName,
+          item_name: itemName,
+          quantity: qty,
+          unit_cost: Number((unitPrice * exchangeRate).toFixed(2)),
+          unit: unit,
+          supplier_id: supplierName,
+          location: data.location || "المستودع الرئيسي",
+          invoice_no: invoiceNo,
+          bill_no: invoiceNo
+        });
+      }
+    } catch (invErr) {
+      console.warn("Inventory update warning:", invErr);
     }
 
-    AuditService.log("purchase", newId, "CREATE", null, data, data.created_by);
-    return { id: newId, message: "تم تسجيل فاتورة الشراء وتوريد الأصناف وتوليد السندات بنجاح", data: data };
+    // B. General Ledger & Double-Entry Journal Integration
+    try {
+      var debitAcc = "102";
+      var creditAcc = paymentMethod === "آجل" ? "201" : paymentAccountCode;
+      
+      if (typeof JournalController !== "undefined" && JournalController.addJournalEntry) {
+        JournalController.addJournalEntry({
+          entry_no: "JV-PUR-" + invoiceNo,
+          entry_date: invoiceDate,
+          debit_account_id: debitAcc + " - مخزون الأقمشة والمستلزمات",
+          credit_account_id: creditAcc + (paymentMethod === "آجل" ? " - ذمم الموردين (" + supplierName + ")" : " - الصندوق/البنك"),
+          amount: billTotalOriginal,
+          currency: currency,
+          exchange_rate: exchangeRate,
+          base_amount: grandTotalYer,
+          ref_type: "PURCHASE",
+          ref_id: invoiceNo,
+          notes: "قيد إثبات مشتريات فاتورة " + invoiceNo + " - المورد: " + supplierName + " - الصنف: " + itemName
+        });
+      }
+    } catch (jErr) {
+      console.warn("Journal entry warning:", jErr);
+    }
+
+    // C. Payment Voucher Integration
+    try {
+      if (paymentMethod !== "آجل" && typeof VoucherController !== "undefined" && VoucherController.addVoucher) {
+        VoucherController.addVoucher({
+          voucher_no: "PV-" + invoiceNo,
+          invoice_id: invoiceNo,
+          payment_type: "سند صرف",
+          amount: billTotalOriginal,
+          currency: currency,
+          exchange_rate: exchangeRate,
+          base_amount: grandTotalYer,
+          payment_method: paymentMethod,
+          supplier_id: supplierName,
+          reference_no: transactionRef,
+          account_id: paymentAccountCode,
+          date: invoiceDate,
+          notes: "سند صرف مشتريات للفاتورة " + invoiceNo + " - " + supplierName
+        });
+      }
+    } catch (vErr) {
+      console.warn("Voucher creation warning:", vErr);
+    }
+
+    AuditService.log("purchase", newPurId, "CREATE", null, fieldValues, "system");
+    return {
+      success: true,
+      id: newPurId,
+      invoice_no: invoiceNo,
+      bill_no: invoiceNo,
+      message: "تم تسجيل فاتورة الشراء وتوريد الأصناف وتوليد السندات بنجاح 👑",
+      data: fieldValues
+    };
+  },
+
+  updatePurchase: function(payload) {
+    var data = payload.data || payload;
+    var ss = getSpreadsheet();
+    var sheet = ss.getSheetByName("المشتريات_والموردون") || ss.getSheetByName("المشتريات") || ss.getSheetByName("Purchases");
+    if (!sheet) return { success: false, message: "جدول المشتريات غير موجود" };
+    var lastR = sheet.getLastRow();
+    if (lastR < 2) return { success: false, message: "لا توجد سجلات لتعديلها" };
+
+    var values = sheet.getRange(2, 1, lastR - 1, Math.min(sheet.getLastColumn(), 5)).getValues();
+    var targetId = String(data.id || "").trim();
+    var targetBill = String(data.bill_no || data.invoice_no || "").trim();
+
+    for (var i = 0; i < values.length; i++) {
+      var rowId = String(values[i][0]).trim();
+      var rowBill = String(values[i][1]).trim();
+      if ((targetId && rowId === targetId) || (targetBill && rowBill === targetBill)) {
+        var rowIdx = i + 2;
+        var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+        for (var c = 0; c < headers.length; c++) {
+          var h = String(headers[c]).trim();
+          if (h.indexOf("اسم المورد") !== -1 && data.supplier) sheet.getRange(rowIdx, c + 1).setValue(data.supplier);
+          if (h.indexOf("رقم المورد") !== -1 && data.supplier_phone !== undefined) sheet.getRange(rowIdx, c + 1).setValue(data.supplier_phone);
+          if (h.indexOf("اسم الصنف") !== -1 && (data.item || data.item_name)) sheet.getRange(rowIdx, c + 1).setValue(data.item || data.item_name);
+          if (h.indexOf("وحدة القياس") !== -1 && data.unit) sheet.getRange(rowIdx, c + 1).setValue(data.unit);
+          if (h.indexOf("الكمية") !== -1 && data.qty !== undefined) sheet.getRange(rowIdx, c + 1).setValue(Number(data.qty));
+          if (h.indexOf("السعر الإفرادي") !== -1 && data.price !== undefined) sheet.getRange(rowIdx, c + 1).setValue(Number(data.price));
+          if (h.indexOf("الخصم") !== -1 && data.discount !== undefined) sheet.getRange(rowIdx, c + 1).setValue(Number(data.discount));
+          if (h.indexOf("المبلغ الأصلي") !== -1 && data.total !== undefined) sheet.getRange(rowIdx, c + 1).setValue(Number(data.total));
+          if (h.indexOf("ملاحظات") !== -1 && data.notes !== undefined) sheet.getRange(rowIdx, c + 1).setValue(data.notes);
+          if (h.indexOf("التاريخ") !== -1 && data.date) sheet.getRange(rowIdx, c + 1).setValue(data.date);
+        }
+        return { success: true, message: "تم تحديث فاتورة الشراء بنجاح" };
+      }
+    }
+    return { success: false, message: "لم يتم العثور على الفاتورة لتحديثها" };
+  },
+
+  deletePurchase: function(payload) {
+    var data = payload.data || payload;
+    var ss = getSpreadsheet();
+    var sheet = ss.getSheetByName("المشتريات_والموردون") || ss.getSheetByName("المشتريات") || ss.getSheetByName("Purchases");
+    if (!sheet) return { success: false, message: "جدول المشتريات غير موجود" };
+    var lastR = sheet.getLastRow();
+    if (lastR < 2) return { success: false, message: "لا توجد سجلات لحذفها" };
+
+    var values = sheet.getRange(2, 1, lastR - 1, Math.min(sheet.getLastColumn(), 5)).getValues();
+    var targetId = String(data.id || "").trim();
+    var targetBill = String(data.bill_no || data.invoice_no || "").trim();
+
+    for (var i = 0; i < values.length; i++) {
+      var rowId = String(values[i][0]).trim();
+      var rowBill = String(values[i][1]).trim();
+      if ((targetId && rowId === targetId) || (targetBill && rowBill === targetBill)) {
+        sheet.deleteRow(i + 2);
+        // Also delete linked auto-voucher and journal entry
+        try {
+          if (targetBill) {
+            VoucherController.deleteVoucher({ voucher_no: "PV-" + targetBill });
+            JournalController.deleteJournalEntry({ entry_no: "JV-PUR-" + targetBill, ref_id: targetBill });
+          }
+        } catch(e) {}
+        return { success: true, message: "تم حذف سجل الشراء بنجاح" };
+      }
+    }
+    return { success: false, message: "لم يتم العثور على الفاتورة لحذفها" };
+  },
+
+  clearAllPurchaseRecords: function() {
+    return purgePurchasesSheetData();
+  },
+
+  purgePurchasesSheetData: function() {
+    return purgePurchasesSheetData();
   }
 };
 
@@ -1238,11 +1526,17 @@ var VoucherController = {
       var rawType = r.payment_type || r.voucher_type || r.v_type || (String(rawNo).indexOf("PV") !== -1 ? "سند صرف" : "سند قبض");
       var isReceipt = rawType === "سند قبض" || rawType === "RECEIPT" || rawType === "قبض";
       var party = r.customer_id || r.supplier_id || r.party_name || r.party || "";
+      var curr = String(r.currency || "YER").trim();
+      var rate = Number(r.exchange_rate || 1.0);
+      var amt = Number(r.amount || 0);
+      var baseAmt = Number(r.base_amount !== undefined && r.base_amount !== "" ? r.base_amount : (curr === "YER" ? amt : amt * rate));
       return {
         id: r.id,
         v_no: rawNo,
         voucher_no: rawNo,
         payment_no: rawNo,
+        invoice_id: r.invoice_id || "",
+        order_id: r.order_id || "",
         v_type: isReceipt ? "سند قبض" : "سند صرف",
         voucher_type: isReceipt ? "سند قبض" : "سند صرف",
         payment_type: isReceipt ? "سند قبض" : "سند صرف",
@@ -1250,8 +1544,10 @@ var VoucherController = {
         party_name: party || (isReceipt ? "عميلة عامة" : "مورد عام"),
         customer_id: isReceipt ? party : (r.customer_id || ""),
         supplier_id: !isReceipt ? party : (r.supplier_id || ""),
-        amount: Number(r.amount || 0),
-        currency: r.currency || "YER ﷼",
+        amount: amt,
+        currency: curr,
+        exchange_rate: rate,
+        base_amount: baseAmt,
         pay_method: r.payment_method || r.pay_method || "نقدي",
         payment_method: r.payment_method || r.pay_method || "نقدي",
         reference_no: r.reference_no || r.order_id || r.invoice_id || "",
@@ -1265,54 +1561,322 @@ var VoucherController = {
   },
   addVoucher: function(payload) {
     var data = payload.data || payload;
-    var newId = data.id || SequenceService.getNextId("payments", "PAY");
-    data.id = newId;
-    data.payment_no = data.payment_no || data.voucher_no || data.v_no || newId;
+    var sheet = SchemaMapper.getOrCreateSheet("payments");
+    var lastR = sheet.getLastRow();
+    var newId = data.id || ("PAY-" + Utilities.formatString("%06d", Math.max(1, lastR)));
+    var payNo = String(data.payment_no || data.voucher_no || data.v_no || newId).trim();
     var isReceipt = data.v_type === 'سند قبض' || data.payment_type === 'سند قبض' || data.voucher_type === 'سند قبض';
-    data.payment_type = isReceipt ? "سند قبض" : "سند صرف";
-    data.voucher_type = data.payment_type;
-    data.customer_id = data.customer_id || (isReceipt ? (data.party || data.party_name || "") : "");
-    data.supplier_id = data.supplier_id || (!isReceipt ? (data.party || data.party_name || "") : "");
-    data.party_name = data.party || data.party_name || data.supplier_id || data.customer_id || "";
-    data.payment_method = data.payment_method || data.pay_method || data.pay_type || "نقدي";
-    data.account_id = data.account_id || data.acc_code || data.payment_source || "101 - الصندوق الرئيسي";
-    data.date = data.date || data.date_created || todayISO();
-    data.status = "posted";
-    data.created_at = data.created_at || todayISO();
-    data.created_by = data.created_by || "system";
-    var result = SchemaMapper.appendOrUpdateRow("payments", data);
-    AuditService.log("voucher", newId, result.isUpdate ? "UPDATE" : "CREATE", null, data, data.created_by);
-    return { id: newId, message: result.isUpdate ? "تم تحديث السند المالي بنجاح" : "تم حفظ السند المالي بنجاح", data: data };
+    var payType = isReceipt ? "سند قبض" : "سند صرف";
+    var custId = isReceipt ? String(data.customer_id || data.party || data.party_name || "").trim() : "";
+    var suppId = !isReceipt ? String(data.supplier_id || data.party || data.party_name || "").trim() : "";
+    var invId = String(data.invoice_id || data.bill_no || data.purchase_no || "").trim();
+    var ordId = String(data.order_id || "").trim();
+    var amt = Number(data.amount || 0);
+    var curr = String(data.currency || "YER").trim().toUpperCase();
+    var rate = Number(data.exchange_rate) > 0 ? Number(data.exchange_rate) : 1.0;
+    if (curr === "YER") rate = 1.0;
+    var baseAmt = Number(data.base_amount) > 0 ? Number(data.base_amount) : Number((amt * rate).toFixed(2));
+    var payMethod = String(data.payment_method || data.pay_method || data.pay_type || "نقدي").trim();
+    var refNo = String(data.reference_no || data.transfer_no || data.transaction_id || "").trim();
+    var accId = String(data.account_id || data.acc_code || data.payment_source || "101 - الصندوق الرئيسي").trim();
+    var dt = String(data.date || data.date_created || todayISO()).slice(0, 10);
+    var stat = String(data.status || "posted").trim();
+    var nts = String(data.notes || data.statement || "").trim();
+    var crAt = todayISO();
+    var crBy = String(data.created_by || "system").trim();
+
+    var rowArray = [
+      newId, payNo, ordId, invId, custId, suppId, payType,
+      amt, curr, rate, baseAmt,
+      payMethod, refNo, accId, dt, stat, nts, crAt, crBy
+    ];
+
+    sheet.appendRow(rowArray);
+    var appendedRow = sheet.getLastRow();
+    try {
+      sheet.getRange(appendedRow, 8, 1, 1).setNumberFormat("#,##0.00");
+      sheet.getRange(appendedRow, 10, 1, 2).setNumberFormat("#,##0.00");
+    } catch(e) {}
+
+    return { id: newId, message: "تم حفظ السند المالي بنجاح", data: data };
+  },
+  updateVoucher: function(payload) {
+    var data = payload.data || payload;
+    var sheet = SchemaMapper.getOrCreateSheet("payments");
+    var lastR = sheet.getLastRow();
+    if (lastR < 2) return { success: false, message: "لا توجد سندات لتعديلها" };
+
+    var values = sheet.getRange(2, 1, lastR - 1, Math.min(sheet.getLastColumn(), 4)).getValues();
+    var targetId = String(data.id || "").trim();
+    var targetNo = String(data.voucher_no || data.v_no || data.payment_no || "").trim();
+
+    for (var i = 0; i < values.length; i++) {
+      var rowId = String(values[i][0]).trim();
+      var rowNo = String(values[i][1]).trim();
+      if ((targetId && rowId === targetId) || (targetNo && rowNo === targetNo)) {
+        var rowIdx = i + 2;
+        var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+        var isReceipt = data.v_type === 'سند قبض' || data.payment_type === 'سند قبض';
+        var partyVal = String(data.party || data.party_name || data.customer_id || data.supplier_id || "").trim();
+        var amtVal = Number(data.amount || 0);
+        var currVal = String(data.currency || "YER").trim().toUpperCase();
+        var rateVal = Number(data.exchange_rate) > 0 ? Number(data.exchange_rate) : 1.0;
+        if (currVal === "YER") rateVal = 1.0;
+        var baseAmtVal = Number(data.base_amount) > 0 ? Number(data.base_amount) : Number((amtVal * rateVal).toFixed(2));
+
+        for (var c = 0; c < headers.length; c++) {
+          var h = String(headers[c]).trim();
+          if (h.indexOf("النوع") !== -1 || h.indexOf("payment_type") !== -1) sheet.getRange(rowIdx, c + 1).setValue(isReceipt ? "سند قبض" : "سند صرف");
+          if (isReceipt && (h.indexOf("customer_id") !== -1 || h.indexOf("العميل") !== -1)) sheet.getRange(rowIdx, c + 1).setValue(partyVal);
+          if (!isReceipt && (h.indexOf("supplier_id") !== -1 || h.indexOf("المورد") !== -1)) sheet.getRange(rowIdx, c + 1).setValue(partyVal);
+          if (h.indexOf("المبلغ") !== -1 || h.indexOf("amount") !== -1) sheet.getRange(rowIdx, c + 1).setValue(amtVal);
+          if (h.indexOf("العملة") !== -1 || h.indexOf("currency") !== -1) sheet.getRange(rowIdx, c + 1).setValue(currVal);
+          if (h.indexOf("سعر الصرف") !== -1 || h.indexOf("exchange_rate") !== -1) sheet.getRange(rowIdx, c + 1).setValue(rateVal);
+          if (h.indexOf("المبلغ المعادل") !== -1 || h.indexOf("base_amount") !== -1) sheet.getRange(rowIdx, c + 1).setValue(baseAmtVal);
+          if (h.indexOf("طريقة الدفع") !== -1 || h.indexOf("payment_method") !== -1) sheet.getRange(rowIdx, c + 1).setValue(data.pay_method || data.payment_method || "نقدي");
+          if (h.indexOf("الحساب") !== -1 || h.indexOf("account_id") !== -1) sheet.getRange(rowIdx, c + 1).setValue(data.acc_code || data.account_id || "101");
+          if (h.indexOf("التاريخ") !== -1 || h.indexOf("date") !== -1) sheet.getRange(rowIdx, c + 1).setValue(data.date || todayISO());
+          if (h.indexOf("ملاحظات") !== -1 || h.indexOf("notes") !== -1) sheet.getRange(rowIdx, c + 1).setValue(data.notes || "");
+        }
+
+        // Also update linked journal entry
+        try {
+          if (typeof JournalController !== "undefined" && JournalController.updateJournalEntry) {
+            JournalController.updateJournalEntry({
+              entry_no: "AUTO-VCH-" + targetNo,
+              ref_id: targetNo,
+              amount: amtVal,
+              currency: currVal,
+              exchange_rate: rateVal,
+              base_amount: baseAmtVal,
+              date: data.date || todayISO(),
+              notes: "قيد آلي: " + (data.notes || (data.v_type + " - " + partyVal))
+            });
+          }
+        } catch(jErr) {}
+
+        return { success: true, message: "تم تعديل السند المالي ومزامنة القيود بنجاح" };
+      }
+    }
+    return { success: false, message: "لم يتم العثور على السند لتعديله" };
   },
   deleteVoucher: function(payload) {
     var data = payload.data || payload;
-    return SchemaMapper.softDelete("payments", data.id || data.voucher_no || data.payment_no);
+    var sheet = SchemaMapper.getOrCreateSheet("payments");
+    var lastR = sheet.getLastRow();
+    if (lastR < 2) return { success: false, message: "لا توجد سندات لحذفها" };
+    var values = sheet.getRange(2, 1, lastR - 1, Math.min(sheet.getLastColumn(), 4)).getValues();
+    var targetId = String(data.id || "").trim();
+    var targetNo = String(data.voucher_no || data.payment_no || data.v_no || targetId).trim();
+
+    for (var i = 0; i < values.length; i++) {
+      var rowId = String(values[i][0]).trim();
+      var rowNo = String(values[i][1]).trim();
+      if ((targetId && rowId === targetId) || (targetNo && rowNo === targetNo)) {
+        sheet.deleteRow(i + 2);
+        // Also delete linked journal entry
+        try {
+          if (typeof JournalController !== "undefined" && JournalController.deleteJournalEntry) {
+            JournalController.deleteJournalEntry({ entry_no: "AUTO-VCH-" + targetNo, ref_id: targetNo });
+          }
+        } catch(jErr) {}
+        return { success: true, message: "تم حذف السند المالي وعكس قيده بنجاح" };
+      }
+    }
+    return { success: false, message: "لم يتم العثور على السند لحذفه" };
   }
 };
 
 var JournalController = {
-  getJournalEntries: function() { return SchemaMapper.readRows("journal_entries"); },
+  getJournalEntries: function() { 
+    var raw = SchemaMapper.readRows("journal_entries"); 
+    return raw.map(function(r) {
+      var curr = String(r.currency || "YER").trim();
+      var rate = Number(r.exchange_rate || 1.0);
+      var amt = Number(r.amount || 0);
+      var baseAmt = Number(r.base_amount !== undefined && r.base_amount !== "" ? r.base_amount : (curr === "YER" ? amt : amt * rate));
+      return {
+        id: r.id,
+        entry_no: r.entry_no || r.id,
+        entry_date: r.entry_date || r.date || todayISO(),
+        date: r.entry_date || r.date || todayISO(),
+        debit_account_id: r.debit_account_id || r.debit || "",
+        credit_account_id: r.credit_account_id || r.credit || "",
+        debit: r.debit_account_id || r.debit || "",
+        credit: r.credit_account_id || r.credit || "",
+        amount: amt,
+        currency: curr,
+        exchange_rate: rate,
+        base_amount: baseAmt,
+        ref_type: r.ref_type || "MANUAL",
+        ref_id: r.ref_id || "",
+        notes: r.notes || "",
+        status: r.status || "posted",
+        created_at: r.created_at || todayISO()
+      };
+    });
+  },
   addJournalEntry: function(payload) {
     var data = payload.data || payload;
-    var newId = data.id || SequenceService.getNextId("journal_entries", "JV");
-    data.id = newId;
-    data.entry_no = data.entry_no || newId;
-    data.entry_date = data.entry_date || data.date || todayISO();
-    data.status = "posted";
-    data.created_at = data.created_at || todayISO();
-    data.created_by = data.created_by || "system";
-    var result = SchemaMapper.appendOrUpdateRow("journal_entries", data);
-    AuditService.log("journal_entry", newId, result.isUpdate ? "UPDATE" : "POST", null, data, data.created_by);
-    return { id: newId, message: result.isUpdate ? "تم تحديث القيد اليومي بنجاح" : "تم ترحيل القيد اليومي بنجاح", data: data };
+    var sheet = SchemaMapper.getOrCreateSheet("journal_entries");
+    var lastR = sheet.getLastRow();
+    var newId = data.id || ("JV-" + Utilities.formatString("%06d", Math.max(1, lastR)));
+    var entryNo = String(data.entry_no || newId).trim();
+    var entryDate = String(data.entry_date || data.date || todayISO()).slice(0, 10);
+    var debitAcc = String(data.debit_account_id || data.debit || "102 - مخزون الأقمشة والمستلزمات").trim();
+    var creditAcc = String(data.credit_account_id || data.credit || "101 - الصندوق الرئيسي").trim();
+    var amt = Number(data.amount || 0);
+    var curr = String(data.currency || "YER").trim().toUpperCase();
+    var rate = Number(data.exchange_rate) > 0 ? Number(data.exchange_rate) : 1.0;
+    if (curr === "YER") rate = 1.0;
+    var baseAmt = Number(data.base_amount) > 0 ? Number(data.base_amount) : Number((amt * rate).toFixed(2));
+    var refType = String(data.ref_type || data.reference_type || "قيد يدوي").trim();
+    var refId = String(data.ref_id || data.reference_no || entryNo).trim();
+    var nts = String(data.notes || data.statement || data.description || ("قيد من " + debitAcc + " إلى " + creditAcc)).trim();
+    var stat = "posted";
+    var crBy = String(data.created_by || "system").trim();
+    var crAt = todayISO();
+
+    var rowArray = [
+      newId, entryNo, entryDate, debitAcc, creditAcc,
+      amt, curr, rate, baseAmt,
+      refType, refId, nts, stat, crBy, crAt
+    ];
+
+    sheet.appendRow(rowArray);
+    var appendedRow = sheet.getLastRow();
+    try {
+      sheet.getRange(appendedRow, 6, 1, 1).setNumberFormat("#,##0.00");
+      sheet.getRange(appendedRow, 7, 1, 1).setNumberFormat("@");
+      sheet.getRange(appendedRow, 8, 1, 1).setNumberFormat("0.##");
+      sheet.getRange(appendedRow, 9, 1, 1).setNumberFormat("#,##0.00");
+    } catch(e) {}
+
+    // Ensure all master accounts exist and update account balances in chart_of_accounts sheet
+    try {
+      if (typeof ChartOfAccountsController !== "undefined" && ChartOfAccountsController.ensureAllMasterAccounts) {
+        ChartOfAccountsController.ensureAllMasterAccounts();
+      }
+      var accSheet = SchemaMapper.getOrCreateSheet("chart_of_accounts");
+      var accLastR = accSheet.getLastRow();
+      if (accLastR >= 2) {
+        var accData = accSheet.getRange(2, 1, accLastR - 1, Math.min(accSheet.getLastColumn(), 16)).getValues();
+        var dCode = debitAcc.split(" ")[0].trim();
+        var cCode = creditAcc.split(" ")[0].trim();
+
+        for (var r = 0; r < accData.length; r++) {
+          var rowCode = String(accData[r][1] || accData[r][0] || "").trim();
+          var rowName = String(accData[r][2] || "").trim();
+          var curBal = Number(accData[r][15] || 0);
+          var nature = String(accData[r][13] || "debit").trim();
+
+          if (rowCode === dCode || rowName === debitAcc || rowCode === debitAcc) {
+            var newBal = nature === "credit" ? (curBal - baseAmt) : (curBal + baseAmt);
+            accSheet.getRange(r + 2, 16).setValue(newBal);
+          }
+          if (rowCode === cCode || rowName === creditAcc || rowCode === creditAcc) {
+            var newBal = nature === "credit" ? (curBal + baseAmt) : (curBal - baseAmt);
+            accSheet.getRange(r + 2, 16).setValue(newBal);
+          }
+        }
+      }
+    } catch(accErr) {
+      console.warn("Account balance update warning:", accErr);
+    }
+
+    return { id: newId, message: "تم ترحيل القيد اليومي وتحديث شجرة الحسابات بنجاح", data: data };
   },
+
   updateJournalEntry: function(payload) {
     var data = payload.data || payload;
-    var result = SchemaMapper.appendOrUpdateRow("journal_entries", data);
-    return { id: data.id, message: "تم تعديل القيد اليومي بنجاح", data: data };
+    var sheet = SchemaMapper.getOrCreateSheet("journal_entries");
+    var lastR = sheet.getLastRow();
+    if (lastR < 2) return { success: false, message: "لا توجد قيود لتعديلها" };
+    var values = sheet.getRange(2, 1, lastR - 1, Math.min(sheet.getLastColumn(), 15)).getValues();
+    var targetId = String(data.id || data.entry_no || "").trim();
+
+    for (var i = 0; i < values.length; i++) {
+      var rowId = String(values[i][0]).trim();
+      var rowEntryNo = String(values[i][1]).trim();
+      if (rowId === targetId || rowEntryNo === targetId) {
+        var rowNum = i + 2;
+        var entryNo = String(data.entry_no || values[i][1]).trim();
+        var entryDate = String(data.entry_date || data.date || values[i][2]).slice(0, 10);
+        var debitAcc = String(data.debit_account_id || data.debit || values[i][3]).trim();
+        var creditAcc = String(data.credit_account_id || data.credit || values[i][4]).trim();
+        var amt = Number(data.amount !== undefined ? data.amount : values[i][5]);
+        var curr = String(data.currency || values[i][6] || "YER").trim().toUpperCase();
+        var rate = Number(data.exchange_rate) > 0 ? Number(data.exchange_rate) : (curr === "YER" ? 1.0 : Number(values[i][7] || 1.0));
+        var baseAmt = Number(data.base_amount) > 0 ? Number(data.base_amount) : Number((amt * rate).toFixed(2));
+        var refType = String(data.ref_type || data.reference_type || values[i][9] || "قيد يدوي").trim();
+        var refId = String(data.ref_id || data.reference_no || values[i][10] || entryNo).trim();
+        var nts = String(data.notes || data.statement || data.description || values[i][11]).trim();
+
+        sheet.getRange(rowNum, 2).setValue(entryNo);
+        sheet.getRange(rowNum, 3).setValue(entryDate);
+        sheet.getRange(rowNum, 4).setValue(debitAcc);
+        sheet.getRange(rowNum, 5).setValue(creditAcc);
+        sheet.getRange(rowNum, 6).setValue(amt);
+        sheet.getRange(rowNum, 7).setValue(curr);
+        sheet.getRange(rowNum, 8).setValue(rate);
+        sheet.getRange(rowNum, 9).setValue(baseAmt);
+        sheet.getRange(rowNum, 10).setValue(refType);
+        sheet.getRange(rowNum, 11).setValue(refId);
+        sheet.getRange(rowNum, 12).setValue(nts);
+
+        try {
+          if (typeof ChartOfAccountsController !== "undefined" && ChartOfAccountsController.getAccounts) {
+            ChartOfAccountsController.getAccounts();
+          }
+        } catch(e) {}
+
+        return { success: true, message: "تم تعديل القيد اليومي وتحديث شجرة الحسابات بنجاح", data: data };
+      }
+    }
+    return { success: false, message: "لم يتم العثور على القيد المطلوب تعديله" };
   },
+
   deleteJournalEntry: function(payload) {
     var data = payload.data || payload;
-    return SchemaMapper.softDelete("journal_entries", data.id || data.entry_no);
+    var sheet = SchemaMapper.getOrCreateSheet("journal_entries");
+    var lastR = sheet.getLastRow();
+    if (lastR < 2) return { success: false, message: "لا توجد قيود لحذفها" };
+    var values = sheet.getRange(2, 1, lastR - 1, Math.min(sheet.getLastColumn(), 2)).getValues();
+    var targetId = String(data.id || data.entry_no || "").trim();
+
+    for (var i = 0; i < values.length; i++) {
+      var rowId = String(values[i][0]).trim();
+      var rowEntryNo = String(values[i][1]).trim();
+      if (rowId === targetId || rowEntryNo === targetId) {
+        var rowNum = i + 2;
+        sheet.deleteRow(rowNum);
+
+        // Also delete from vouchers if linked
+        try {
+          var vSheet = SchemaMapper.getOrCreateSheet("payments");
+          var vLastR = vSheet.getLastRow();
+          if (vLastR >= 2) {
+            var vVals = vSheet.getRange(2, 1, vLastR - 1, Math.min(vSheet.getLastColumn(), 4)).getValues();
+            for (var v = 0; v < vVals.length; v++) {
+              var vNo = String(vVals[v][1] || vVals[v][0] || "").trim();
+              if (vNo === targetId || targetId.indexOf(vNo) !== -1 || vNo.indexOf(targetId) !== -1) {
+                vSheet.deleteRow(v + 2);
+                break;
+              }
+            }
+          }
+        } catch(ve) {}
+
+        try {
+          if (typeof ChartOfAccountsController !== "undefined" && ChartOfAccountsController.getAccounts) {
+            ChartOfAccountsController.getAccounts();
+          }
+        } catch(e) {}
+
+        return { success: true, message: "تم حذف القيد اليومي وتحديث الأستاذ وشجرة الحسابات بنجاح" };
+      }
+    }
+    return { success: false, message: "لم يتم العثور على القيد لحذفه" };
   }
 };
 
@@ -1340,29 +1904,36 @@ var ExpenseController = {
     var newId = data.id || SequenceService.getNextId("expenses", "EXP");
     var now = todayISO();
     var amount = Number(data.amount || 0);
+    var currency = String(data.currency || "YER").trim().toUpperCase();
     var rate = Number(data.exchange_rate) > 0 ? Number(data.exchange_rate) : 1.0;
     var baseAmount = Number(data.base_amount) > 0 ? Number(data.base_amount) : Number((amount * rate).toFixed(2));
+    var category = String(data.category || data.expense_category || "إيجار الورش والمعمل").trim();
+    var expNo = String(data.expense_no || newId).trim();
+    var txId = String(data.transaction_id || ("TX-" + expNo)).trim();
+    var expDate = String(data.date || data.expense_date || now).slice(0, 10);
+    var payMethod = String(data.payment_method || data.pay_method || "نقدي").trim();
+    var recipient = String(data.recipient || "").trim();
+    var accountId = String(data.account_id || data.payment_source || "101 - الصندوق الرئيسي").trim();
+    var status = "posted";
+    var notes = String(data.notes || data.description || category).trim();
+    var createdBy = String(data.created_by || "system").trim();
 
-    data.id = newId;
-    data.expense_no = data.expense_no || newId;
-    data.category = data.category || "مصروفات عامة";
-    data.amount = amount;
-    data.currency = data.currency || "YER ﷼";
-    data.exchange_rate = rate;
-    data.base_amount = baseAmount;
-    data.transaction_id = data.transaction_id || ("TX-" + (data.expense_no || newId));
-    data.date = data.date || now;
-    data.payment_method = data.payment_method || data.pay_method || "نقدي";
-    data.recipient = data.recipient || "";
-    data.account_id = data.account_id || "501 - مصروفات تشغيلية";
-    data.status = "posted";
-    data.notes = data.notes || "";
-    data.created_at = now;
-    data.created_by = data.created_by || "system";
+    var expRow = [
+      newId, expNo, category, amount, currency, rate, baseAmount,
+      txId, expDate, payMethod, recipient, accountId, status, notes,
+      now, createdBy
+    ];
 
-    var result = SchemaMapper.appendOrUpdateRow("expenses", data);
-    AuditService.log("expense", newId, result.isUpdate ? "UPDATE" : "CREATE", null, data, data.created_by);
-    return { id: newId, message: result.isUpdate ? "تم تحديث المصروف بنجاح" : "تم تسجيل المصروف بنجاح", data: data };
+    sheet.appendRow(expRow);
+    var appRow = sheet.getLastRow();
+    try {
+      sheet.getRange(appRow, 4, 1, 1).setNumberFormat("#,##0.00");
+      sheet.getRange(appRow, 5, 1, 1).setNumberFormat("@");
+      sheet.getRange(appRow, 6, 1, 1).setNumberFormat("0.##");
+      sheet.getRange(appRow, 7, 1, 1).setNumberFormat("#,##0.00");
+    } catch(e) {}
+
+    return { id: newId, message: "تم تسجيل المصروف بنجاح", data: data };
   }
 };
 
@@ -1436,6 +2007,262 @@ var CurrencyController = {
 
     SchemaMapper.appendOrUpdateRow("currencies", updatedObj);
     return { success: true, currency_code: code, exchange_rate: rate, last_updated: now };
+  }
+};
+
+/**
+ * CHART OF ACCOUNTS CONTROLLER (شجرة الحسابات)
+ * - Dynamic Recursive Rollup of Balances
+ * - Automatic Summary Parent Switching (is_group=1, is_postable=0)
+ * - Automatic Complete Seeding of Master Chart of Accounts (26 Accounts)
+ */
+var ChartOfAccountsController = {
+  ensureAllMasterAccounts: function() {
+    var sheet = SchemaMapper.getOrCreateSheet("chart_of_accounts");
+    var raw = SchemaMapper.readRows("chart_of_accounts");
+    var existingCodes = {};
+    for (var i = 0; i < raw.length; i++) {
+      var c = String(raw[i].account_code || raw[i].code || raw[i].id || "").trim();
+      if (c) existingCodes[c] = true;
+    }
+
+    var defaultMaster = [
+      { id: "ACC-1", code: "1", name: "الأصول", name_en: "Assets", type: "أصول", cat: "أصول", pId: "", pCode: "", lvl: 1, path: "1", isGrp: 1, isPost: 0, nature: "debit", cur: "YER" },
+      { id: "ACC-2", code: "2", name: "الخصوم (الالتزامات)", name_en: "Liabilities", type: "خصوم", cat: "خصوم", pId: "", pCode: "", lvl: 1, path: "2", isGrp: 1, isPost: 0, nature: "credit", cur: "YER" },
+      { id: "ACC-3", code: "3", name: "حقوق الملكية", name_en: "Equity", type: "حقوق ملكية", cat: "حقوق ملكية", pId: "", pCode: "", lvl: 1, path: "3", isGrp: 1, isPost: 0, nature: "credit", cur: "YER" },
+      { id: "ACC-4", code: "4", name: "الإيرادات", name_en: "Revenue", type: "إيرادات", cat: "إيرادات", pId: "", pCode: "", lvl: 1, path: "4", isGrp: 1, isPost: 0, nature: "credit", cur: "YER" },
+      { id: "ACC-5", code: "5", name: "تكلفة المبيعات", name_en: "Cost of Sales", type: "تكلفة المبيعات", cat: "تكلفة المبيعات", pId: "", pCode: "", lvl: 1, path: "5", isGrp: 1, isPost: 0, nature: "debit", cur: "YER" },
+      { id: "ACC-6", code: "6", name: "المصروفات", name_en: "Expenses", type: "مصروفات", cat: "مصروفات", pId: "", pCode: "", lvl: 1, path: "6", isGrp: 1, isPost: 0, nature: "debit", cur: "YER" },
+      { id: "ACC-7", code: "7", name: "حسابات أخرى", name_en: "Other Accounts", type: "أخرى", cat: "أخرى", pId: "", pCode: "", lvl: 1, path: "7", isGrp: 1, isPost: 0, nature: "debit", cur: "YER" },
+
+      { id: "ACC-101", code: "101", name: "الصندوق / الخزينة الرئيسية", name_en: "Main Cash", type: "أصول", cat: "أصول متداولة", pId: "1", pCode: "1", lvl: 2, path: "1 > 101", isGrp: 1, isPost: 0, nature: "debit", cur: "YER" },
+      { id: "ACC-101.01", code: "101.01", name: "صندوق فرع الورشة والمعمل (صنعاء)", name_en: "Workshop Cash", type: "أصول", cat: "نقدية وما في حكمها", pId: "101", pCode: "101", lvl: 3, path: "1 > 101 > 101.01", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
+      { id: "ACC-101.02", code: "101.02", name: "صندوق محمد فلاح", name_en: "Mohammed Falah Cash", type: "أصول", cat: "نقدية وما في حكمها", pId: "101", pCode: "101", lvl: 3, path: "1 > 101 > 101.02", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
+      { id: "ACC-101.2", code: "101.2", name: "صندوق الريال السعودي (SAR)", name_en: "SAR Cash Box", type: "أصول", cat: "نقدية وما في حكمها", pId: "101", pCode: "101", lvl: 3, path: "1 > 101 > 101.2", isGrp: 0, isPost: 1, nature: "debit", cur: "SAR" },
+      { id: "ACC-101.3", code: "101.3", name: "صندوق الدولار الأمريكي (USD)", name_en: "USD Cash Box", type: "أصول", cat: "نقدية وما في حكمها", pId: "101", pCode: "101", lvl: 3, path: "1 > 101 > 101.3", isGrp: 0, isPost: 1, nature: "debit", cur: "USD" },
+      { id: "ACC-102", code: "102", name: "مخزون الأقمشة والمستلزمات", name_en: "Fabrics & Supplies Inventory", type: "أصول", cat: "أصول متداولة", pId: "1", pCode: "1", lvl: 2, path: "1 > 102", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
+      { id: "ACC-103", code: "103", name: "الحساب البنكي / الحوالات والمحافظ", name_en: "Bank & Wallets (YER)", type: "أصول", cat: "أصول متداولة", pId: "1", pCode: "1", lvl: 2, path: "1 > 103", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
+      { id: "ACC-104", code: "104", name: "ذمم العملاء (مستحقات خارجية)", name_en: "Accounts Receivable", type: "أصول", cat: "أصول متداولة", pId: "1", pCode: "1", lvl: 2, path: "1 > 104", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
+      { id: "ACC-105", code: "105", name: "أصول ثابتة (آلات ومعدات)", name_en: "Fixed Assets", type: "أصول", cat: "أصول غير متداولة", pId: "1", pCode: "1", lvl: 2, path: "1 > 105", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
+
+      { id: "ACC-201", code: "201", name: "ذمم الموردين ومحلات الأقمشة (آجل)", name_en: "Accounts Payable", type: "خصوم", cat: "خصوم متداولة", pId: "2", pCode: "2", lvl: 2, path: "2 > 201", isGrp: 0, isPost: 1, nature: "credit", cur: "YER" },
+      { id: "ACC-202", code: "202", name: "مصروفات مستحقة الدفع", name_en: "Accrued Expenses", type: "خصوم", cat: "خصوم متداولة", pId: "2", pCode: "2", lvl: 2, path: "2 > 202", isGrp: 0, isPost: 1, nature: "credit", cur: "YER" },
+
+      { id: "ACC-301", code: "301", name: "رأس المال المباشر لمؤسسة Little Princesses", name_en: "Paid Capital", type: "حقوق ملكية", cat: "رأس المال", pId: "3", pCode: "3", lvl: 2, path: "3 > 301", isGrp: 0, isPost: 1, nature: "credit", cur: "YER" },
+      { id: "ACC-302", code: "302", name: "الأرباح المبقاة / المحتجزة", name_en: "Retained Earnings", type: "حقوق ملكية", cat: "أرباح مرحلة", pId: "3", pCode: "3", lvl: 2, path: "3 > 302", isGrp: 0, isPost: 1, nature: "credit", cur: "YER" },
+
+      { id: "ACC-401", code: "401", name: "إيرادات مبيعات الفساتين والزي", name_en: "Sales Revenue", type: "إيرادات", cat: "إيرادات تشغيلية", pId: "4", pCode: "4", lvl: 2, path: "4 > 401", isGrp: 0, isPost: 1, nature: "credit", cur: "YER" },
+      { id: "ACC-402", code: "402", name: "أرباح فروق أسعار صرف العملات", name_en: "Foreign Exchange Gain", type: "إيرادات", cat: "إيرادات أخرى", pId: "4", pCode: "4", lvl: 2, path: "4 > 402", isGrp: 0, isPost: 1, nature: "credit", cur: "YER" },
+
+      { id: "ACC-501", code: "501", name: "أجور ورواتب الخياطين والمطرزين", name_en: "Salaries & Wages", type: "مصروفات", cat: "مصروفات تشغيلية", pId: "6", pCode: "6", lvl: 2, path: "6 > 501", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
+      { id: "ACC-502", code: "502", name: "إيجار الورشة والمعمل والمحل الرئيسي", name_en: "Workshop & Shop Rent", type: "مصروفات", cat: "مصروفات تشغيلية", pId: "6", pCode: "6", lvl: 2, path: "6 > 502", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
+      { id: "ACC-503", code: "503", name: "إيجار المحل والورشة", name_en: "Shop Rent", type: "مصروفات", cat: "مصروفات تشغيلية", pId: "6", pCode: "6", lvl: 2, path: "6 > 503", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
+      { id: "ACC-504", code: "504", name: "مصاريف كهرباء وماء وإنترنت", name_en: "Electricity, Water & Internet", type: "مصروفات", cat: "مصروفات تشغيلية", pId: "6", pCode: "6", lvl: 2, path: "6 > 504", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
+      { id: "ACC-505", code: "505", name: "مصاريف التسويق والإعلانات", name_en: "Marketing & Ads", type: "مصروفات", cat: "مصروفات تسويقية", pId: "6", pCode: "6", lvl: 2, path: "6 > 505", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
+      { id: "ACC-506", code: "506", name: "خسائر فروق أسعار صرف العملات", name_en: "Foreign Exchange Loss", type: "مصروفات", cat: "مصروفات تمويلية", pId: "6", pCode: "6", lvl: 2, path: "6 > 506", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" }
+    ];
+
+    var now = todayISO();
+    for (var m = 0; m < defaultMaster.length; m++) {
+      var item = defaultMaster[m];
+      if (!existingCodes[item.code]) {
+        var rowArr = [
+          item.id, item.code, item.name, item.name_en,
+          item.type, item.cat, item.pId, item.pCode,
+          item.lvl, item.path, item.isGrp, item.isPost,
+          1, item.nature, 0, 0, item.nature, item.cur,
+          now, "حساب معتمد في دليل الحسابات", now, "system"
+        ];
+        sheet.appendRow(rowArr);
+      }
+    }
+  },
+
+  getAccounts: function() {
+    this.ensureAllMasterAccounts();
+    var raw = SchemaMapper.readRows("chart_of_accounts");
+    var jRows = SchemaMapper.readRows("journal_entries");
+    var sheet = SchemaMapper.getOrCreateSheet("chart_of_accounts");
+
+    return raw.map(function(r, idx) {
+      var code = String(r.account_code || r.code || r.id || "").trim();
+      var name = String(r.account_name || r.name || code).trim();
+      var pId = (r.parent_account_id !== undefined && r.parent_account_id !== null && r.parent_account_id !== "" && r.parent_account_id !== "0") ? r.parent_account_id : (r.parent_id || null);
+      var pCode = String(r.parent_account_code || "").trim();
+      var isGrp = Number(r.is_group !== undefined ? r.is_group : (code.length <= 1 ? 1 : 0));
+      var isPost = Number(r.is_postable !== undefined ? r.is_postable : (isGrp === 1 ? 0 : 1));
+      var openBal = Number(r.opening_balance || 0);
+      var nature = r.normal_balance || r.nature || (['خصوم', 'حقوق ملكية', 'إيرادات'].indexOf(r.account_type) !== -1 ? 'credit' : 'debit');
+
+      // Compute dynamic movements from journal_entries sheet
+      var totalDebit = 0;
+      var totalCredit = 0;
+      var hasMovements = false;
+
+      for (var j = 0; j < jRows.length; j++) {
+        var je = jRows[j];
+        var dStr = String(je.debit_account_id || je.debit || "").trim();
+        var cStr = String(je.credit_account_id || je.credit || "").trim();
+        var baseAmt = Number(je.base_amount !== undefined && je.base_amount !== "" ? je.base_amount : (Number(je.amount || 0) * Number(je.exchange_rate || 1)));
+
+        var matchD = dStr === code || dStr === String(r.id) || dStr.indexOf(code + " ") === 0 || dStr.indexOf(code + "-") === 0 || (name && dStr.indexOf(name) !== -1);
+        var matchC = cStr === code || cStr === String(r.id) || cStr.indexOf(code + " ") === 0 || cStr.indexOf(code + "-") === 0 || (name && cStr.indexOf(name) !== -1);
+
+        if (matchD) { totalDebit += baseAmt; hasMovements = true; }
+        if (matchC) { totalCredit += baseAmt; hasMovements = true; }
+      }
+
+      var curBal = hasMovements ? (nature === "credit" ? (openBal + totalCredit - totalDebit) : (openBal + totalDebit - totalCredit)) : Number(r.current_balance !== undefined && r.current_balance !== "" ? r.current_balance : (r.balance || openBal));
+
+      // Sync calculated balance to Column P in دليل_الحسابات sheet
+      try {
+        if (hasMovements && sheet && idx !== undefined) {
+          sheet.getRange(idx + 2, 16).setValue(curBal);
+        }
+      } catch(syncErr) {}
+
+      return {
+        id: r.id || code,
+        account_id: r.id || code,
+        code: code,
+        account_code: code,
+        acc_code: code,
+        name: name,
+        account_name: name,
+        acc_name: name,
+        name_en: r.account_name_en || r.name_en || "",
+        account_type: r.account_type || r.acc_type || "أصول",
+        account_category: r.account_category || r.account_type || "أصول",
+        parent_id: pId,
+        parent_account_id: pId,
+        parent_account_code: pCode,
+        level: Number(r.level || (code.indexOf('.') !== -1 ? code.split('.').length : (code.length > 2 ? 3 : (code.length === 1 ? 1 : 2)))),
+        account_path: r.account_path || code,
+        is_group: isGrp,
+        is_postable: isPost,
+        is_active: Number(r.is_active !== undefined ? r.is_active : 1),
+        normal_balance: nature,
+        nature: nature,
+        opening_balance: openBal,
+        current_balance: curBal,
+        balance: curBal,
+        balance_type: r.balance_type || nature,
+        currency: r.currency || "YER",
+        establishment_date: r.establishment_date || todayISO(),
+        notes: r.notes || "",
+        created_at: r.created_at || todayISO(),
+        created_by: r.created_by || "system"
+      };
+    });
+  },
+
+  getChartOfAccountsTree: function() {
+    var accs = this.getAccounts();
+
+    var getChildren = function(parent) {
+      return accs.filter(function(c) {
+        if (String(c.id) === String(parent.id) || String(c.code) === String(parent.code)) return false;
+        if (c.parent_id !== null && c.parent_id !== undefined && c.parent_id !== '' && c.parent_id !== '0') {
+          return String(c.parent_id) === String(parent.id) || String(c.parent_id) === String(parent.code);
+        }
+        if (c.parent_account_code) return String(c.parent_account_code) === String(parent.code);
+        if (parent.code && c.code && c.code.indexOf(parent.code + '.') === 0) {
+          var sub = c.code.substring(parent.code.length + 1);
+          return sub.indexOf('.') === -1;
+        }
+        return false;
+      });
+    };
+
+    var memo = {};
+    var computeRollup = function(node) {
+      var k = String(node.id || node.code);
+      if (memo[k] !== undefined) return memo[k];
+      var ch = getChildren(node);
+      if (ch.length === 0) {
+        memo[k] = Number(node.balance || 0);
+        return memo[k];
+      }
+      var sum = 0;
+      for (var i = 0; i < ch.length; i++) {
+        sum += computeRollup(ch[i]);
+      }
+      memo[k] = sum;
+      return sum;
+    };
+
+    return accs.map(function(a) {
+      var ch = getChildren(a);
+      var hasCh = ch.length > 0;
+      var rollup = computeRollup(a);
+      return Object.assign({}, a, {
+        is_group: hasCh ? 1 : a.is_group,
+        is_postable: hasCh ? 0 : a.is_postable,
+        rollupBalance: hasCh ? rollup : a.balance,
+        hasChildren: hasCh
+      });
+    });
+  },
+
+  addAccount: function(payload) {
+    var data = payload.data || payload;
+    var sheet = SchemaMapper.getOrCreateSheet("chart_of_accounts");
+    var code = String(data.account_code || data.code || data.acc_code || "").trim();
+    var name = String(data.account_name || data.name || data.acc_name || "").trim();
+    var parentId = data.parent_id || data.parent_account_id || null;
+    if (parentId === "" || parentId === 0 || parentId === "0") parentId = null;
+
+    var lastR = sheet.getLastRow();
+    var newId = data.id || data.account_id || ("ACC-" + Utilities.formatString("%06d", Math.max(1, lastR)));
+    
+    // Auto switch parent to is_group=1 and is_postable=0 if parentId exists
+    if (parentId && lastR >= 2) {
+      var vals = sheet.getRange(2, 1, lastR - 1, Math.min(sheet.getLastColumn(), 12)).getValues();
+      for (var r = 0; r < vals.length; r++) {
+        var rowId = String(vals[r][0] || "").trim();
+        var rowCode = String(vals[r][1] || "").trim();
+        if (rowId === String(parentId) || rowCode === String(parentId)) {
+          var pRowIdx = r + 2;
+          sheet.getRange(pRowIdx, 11).setValue(1); // Col K: is_group = 1
+          sheet.getRange(pRowIdx, 12).setValue(0); // Col L: is_postable = 0
+          break;
+        }
+      }
+    }
+
+    var isGrp = Number(data.is_group || 0);
+    var isPost = isGrp === 1 ? 0 : Number(data.is_postable !== undefined ? data.is_postable : 1);
+    var lvl = Number(data.level || (parentId ? 2 : 1));
+    var nature = String(data.normal_balance || data.nature || "debit").trim();
+    var bal = Number(data.current_balance !== undefined ? data.current_balance : (data.balance || 0));
+
+    var accountRecord = {
+      id: newId,
+      account_code: code,
+      account_name: name,
+      account_name_en: data.account_name_en || data.name_en || "",
+      account_type: data.account_type || data.acc_type || "أصول",
+      account_category: data.account_category || data.account_type || "أصول",
+      parent_account_id: parentId || "",
+      parent_account_code: data.parent_account_code || "",
+      level: lvl,
+      account_path: data.account_path || code,
+      is_group: isGrp,
+      is_postable: isPost,
+      is_active: Number(data.is_active !== undefined ? data.is_active : 1),
+      normal_balance: nature,
+      opening_balance: Number(data.opening_balance || 0),
+      current_balance: bal,
+      balance_type: nature,
+      currency: data.currency || "YER",
+      establishment_date: data.establishment_date || todayISO(),
+      notes: data.notes || "",
+      created_at: todayISO(),
+      created_by: data.created_by || "system"
+    };
+
+    SchemaMapper.appendOrUpdateRow("chart_of_accounts", accountRecord);
+    return { success: true, id: newId, account_code: code, message: "تم حفظ الحساب بنجاح في دليل الحسابات" };
   }
 };
 
@@ -1634,6 +2461,112 @@ function migrateToMasterArabicDatabase() {
 }
 
 /**
+ * FACTORY RESET & CLEAR ALL TRANSACTIONAL DATA IN GOOGLE SHEETS
+ * - Deletes rows 2..N in all transactional sheets
+ * - Keeps Row 1 Headers intact 100%
+ * - Resets chart_of_accounts balances to 0
+ */
+function clearAllTransactionalData() {
+  var ss = getSpreadsheet();
+  var allSheets = ss.getSheets();
+  var wiped = [];
+
+  // Sheets that should preserve specific system rows
+  var protectedSheets = ["المستخدمون", "users", "العملات", "currencies", "دليل_الحسابات", "chart_of_accounts", "Accounts", "بروفايل_المؤسسة", "org_profile"];
+
+  for (var i = 0; i < allSheets.length; i++) {
+    var sh = allSheets[i];
+    var sName = sh.getName();
+    var lastR = sh.getLastRow();
+
+    if (sName === "المستخدمون" || sName === "users") {
+      // Keep admin user at row 2, delete any extra demo users
+      if (lastR > 2) {
+        sh.deleteRows(3, lastR - 2);
+        wiped.push(sName + " (تم تنظيف المستخدمين الإضافيين)");
+      }
+    } else if (sName === "العملات" || sName === "currencies") {
+      // Keep standard currencies (YER, SAR, USD) at rows 2, 3, 4
+      if (lastR > 4) {
+        sh.deleteRows(5, lastR - 4);
+        wiped.push(sName + " (تم تنظيف العملات التجريبية)");
+      }
+    } else if (sName === "دليل_الحسابات" || sName === "chart_of_accounts" || sName === "Accounts") {
+      // Re-seed clean master accounts with 0.00 balances and remove any test/dummy accounts
+      resetAndSeedCleanChartOfAccounts(sh);
+      wiped.push(sName + " (تم تنظيف وتصفير كافة الحسابات إلى 0.00 وإعادة البناء القياسي)");
+    } else if (sName === "بروفايل_المؤسسة" || sName === "org_profile") {
+      // Keep organization info
+    } else {
+      // FOR ALL OTHER SHEETS (Orders, Purchases, Inventory, Measurements, Payroll, Quality, Marketing, Webhooks, AI Briefs, etc.):
+      if (lastR >= 2) {
+        sh.deleteRows(2, lastR - 1);
+        wiped.push(sName + " (تم مسح " + (lastR - 1) + " سطر)");
+      }
+    }
+  }
+
+  return { success: true, message: "تم مسح وتصفير كافة البيانات المدخلة في جميع الشيتات بنجاح 👑", wipedSheets: wiped };
+}
+
+/**
+ * RE-SEEDS CLEAN MASTER ACCOUNTS TO ZERO WITH NO DUMMY ROWS
+ */
+function resetAndSeedCleanChartOfAccounts(optionalSheet) {
+  var ss = getSpreadsheet();
+  var sh = optionalSheet || ss.getSheetByName("دليل_الحسابات") || ss.getSheetByName("Accounts") || ss.getSheetByName("chart_of_accounts");
+  if (!sh) return { success: false, message: "لم يتم العثور على شيت دليل_الحسابات" };
+
+  var lastR = sh.getLastRow();
+  if (lastR >= 2) {
+    sh.deleteRows(2, lastR - 1);
+  }
+
+  // مسح قيود اليومية المعاملاتية حتى لا تعيد احتساب الأرصدة القديمة
+  var journalSheets = ["القيود_اليومية", "journal_entries", "القيود اليومية", "Journal"];
+  for (var js = 0; js < journalSheets.length; js++) {
+    var jSh = ss.getSheetByName(journalSheets[js]);
+    if (jSh && jSh.getLastRow() >= 2) {
+      try { jSh.deleteRows(2, jSh.getLastRow() - 1); } catch(je) {}
+    }
+  }
+
+  var masterAccounts = [
+    ["ACC-1", "1", "الأصول", "Assets", "أصول", "أصول", "", "", 1, "1", 1, 0, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
+    ["ACC-101", "101", "الصندوق / الخزينة الرئيسية", "Main Cash", "أصول", "أصول متداولة", "ACC-1", "1", 2, "1 > 101", 1, 0, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
+    ["ACC-101.01", "101.01", "صندوق فرع الورشة والمعمل (صنعاء)", "Workshop Cash", "أصول", "نقدية وما في حكمها", "ACC-101", "101", 3, "1 > 101 > 101.01", 0, 1, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
+    ["ACC-101.02", "101.02", "صندوق محمد فلاح", "Mohammed Falah Cash", "أصول", "نقدية وما في حكمها", "ACC-101", "101", 3, "1 > 101 > 101.02", 0, 1, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
+    ["ACC-101.2", "101.2", "صندوق الريال السعودي (SAR)", "SAR Cash Box", "أصول", "نقدية وما في حكمها", "ACC-101", "101", 3, "1 > 101 > 101.2", 0, 1, 1, "debit", 0, 0, "debit", "SAR", "2026-01-01", "", "2026-01-01", "system"],
+    ["ACC-101.3", "101.3", "صندوق الدولار الأمريكي (USD)", "USD Cash Box", "أصول", "نقدية وما في حكمها", "ACC-101", "101", 3, "1 > 101 > 101.3", 0, 1, 1, "debit", 0, 0, "debit", "USD", "2026-01-01", "", "2026-01-01", "system"],
+    ["ACC-102", "102", "مخزون الأقمشة والمستلزمات", "Fabrics & Supplies Inventory", "أصول", "أصول متداولة", "ACC-1", "1", 2, "1 > 102", 0, 1, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
+    ["ACC-103", "103", "الحساب البنكي / الحوالات والمحافظ", "Bank & Wallets (YER)", "أصول", "أصول متداولة", "ACC-1", "1", 2, "1 > 103", 0, 1, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
+    ["ACC-104", "104", "ذمم العملاء (مستحقات خارجية)", "Accounts Receivable", "أصول", "أصول متداولة", "ACC-1", "1", 2, "1 > 104", 0, 1, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
+    ["ACC-105", "105", "الأصول الثابتة (آلات ومعدات)", "Fixed Assets", "أصول", "أصول غير متداولة", "ACC-1", "1", 2, "1 > 105", 0, 1, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
+    ["ACC-2", "2", "الخصوم (الالتزامات)", "Liabilities", "خصوم", "خصوم", "", "", 1, "2", 1, 0, 1, "credit", 0, 0, "credit", "YER", "2026-01-01", "", "2026-01-01", "system"],
+    ["ACC-201", "201", "ذمم الموردين ومحلات الأقمشة (آجل)", "Accounts Payable", "خصوم", "خصوم متداولة", "ACC-2", "2", 2, "2 > 201", 0, 1, 1, "credit", 0, 0, "credit", "YER", "2026-01-01", "", "2026-01-01", "system"],
+    ["ACC-202", "202", "عرابين وأمانات العملاء", "Accrued Expenses", "خصوم", "خصوم متداولة", "ACC-2", "2", 2, "2 > 202", 0, 1, 1, "credit", 0, 0, "credit", "YER", "2026-01-01", "", "2026-01-01", "system"],
+    ["ACC-3", "3", "حقوق الملكية", "Equity", "حقوق ملكية", "حقوق ملكية", "", "", 1, "3", 1, 0, 1, "credit", 0, 0, "credit", "YER", "2026-01-01", "", "2026-01-01", "system"],
+    ["ACC-301", "301", "رأس المال المباشر لمؤسسة Little Princesses", "Paid Capital", "حقوق ملكية", "رأس المال", "ACC-3", "3", 2, "3 > 301", 0, 1, 1, "credit", 0, 0, "credit", "YER", "2026-01-01", "", "2026-01-01", "system"],
+    ["ACC-302", "302", "الأرباح المبقاة / المحتجزة", "Retained Earnings", "حقوق ملكية", "أرباح مرحلة", "ACC-3", "3", 2, "3 > 302", 0, 1, 1, "credit", 0, 0, "credit", "YER", "2026-01-01", "", "2026-01-01", "system"],
+    ["ACC-4", "4", "الإيرادات", "Revenue", "إيرادات", "إيرادات", "", "", 1, "4", 1, 0, 1, "credit", 0, 0, "credit", "YER", "2026-01-01", "", "2026-01-01", "system"],
+    ["ACC-401", "401", "إيرادات مبيعات الفساتين والزي", "Sales Revenue", "إيرادات", "إيرادات تشغيلية", "ACC-4", "4", 2, "4 > 401", 0, 1, 1, "credit", 0, 0, "credit", "YER", "2026-01-01", "", "2026-01-01", "system"],
+    ["ACC-402", "402", "أرباح فروق أسعار صرف العملات", "Foreign Exchange Gain", "إيرادات", "إيرادات أخرى", "ACC-4", "4", 2, "4 > 402", 0, 1, 1, "credit", 0, 0, "credit", "YER", "2026-01-01", "", "2026-01-01", "system"],
+    ["ACC-5", "5", "تكلفة المبيعات", "Cost of Sales", "تكلفة المبيعات", "تكلفة المبيعات", "", "", 1, "5", 1, 0, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
+    ["ACC-6", "6", "المصروفات", "Expenses", "مصروفات", "مصروفات", "", "", 1, "6", 1, 0, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
+    ["ACC-501", "501", "أجور ورواتب الخياطين والمطرزين", "Salaries & Wages", "مصروفات", "مصروفات تشغيلية", "ACC-6", "6", 2, "6 > 501", 0, 1, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
+    ["ACC-502", "502", "إيجار الورشة والمعمل والمحل الرئيسي", "Workshop & Shop Rent", "مصروفات", "مصروفات تشغيلية", "ACC-6", "6", 2, "6 > 502", 0, 1, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
+    ["ACC-503", "503", "إيجار المحل والورشة", "Shop Rent", "مصروفات", "مصروفات تشغيلية", "ACC-6", "6", 2, "6 > 503", 0, 1, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
+    ["ACC-504", "504", "مصاريف كهرباء وماء وإنترنت", "Electricity, Water & Internet", "مصروفات", "مصروفات تشغيلية", "ACC-6", "6", 2, "6 > 504", 0, 1, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
+    ["ACC-505", "505", "مصاريف التسويق والإعلانات الممولة", "Marketing & Ads", "مصروفات", "مصاريف تسويقية", "ACC-6", "6", 2, "6 > 505", 0, 1, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
+    ["ACC-506", "506", "خسائر فروق أسعار صرف العملات", "Foreign Exchange Loss", "مصروفات", "مصروفات أخرى", "ACC-6", "6", 2, "6 > 506", 0, 1, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
+    ["ACC-7", "7", "حسابات أخرى", "Other Accounts", "أخرى", "أخرى", "", "", 1, "7", 1, 0, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"]
+  ];
+
+  sh.getRange(2, 1, masterAccounts.length, masterAccounts[0].length).setValues(masterAccounts);
+  return { success: true, message: "تم تنظيف وتصفير شجرة الحسابات وإعادة زراعة الحسابات القياسية الـ 28 بنجاح 👑", count: masterAccounts.length };
+}
+
+/**
  * HTTP HANDLERS
  */
 function doGet(e) {
@@ -1655,6 +2588,10 @@ function handleAction(action, payload) {
     switch (action) {
       case "migrateToMasterArabicDatabase":
         return responseJSON({ status: "success", data: migrateToMasterArabicDatabase() });
+      case "clearAllData":
+      case "clearAllTransactionalData":
+      case "wipeAllData":
+        return responseJSON({ status: "success", data: clearAllTransactionalData() });
 
       case "getCustomers":
         return responseJSON({ status: "success", data: CustomerController.getCustomers() });
@@ -1674,9 +2611,20 @@ function handleAction(action, payload) {
       case "getPurchases":
         return responseJSON({ status: "success", data: PurchaseController.getPurchases() });
       case "deduplicatePurchases":
-        return responseJSON({ status: "success", data: PurchaseController.deduplicatePurchases() });
+        return responseJSON({ status: "success", data: PurchaseController.removeDuplicates ? PurchaseController.removeDuplicates() : { count: 0 } });
+      case "purgePurchasesSheetData":
+      case "clearAllPurchaseRecords":
+        return responseJSON({ status: "success", data: purgePurchasesSheetData() });
       case "addPurchase":
+      case "addPurchaseInvoice":
+      case "savePurchaseInvoice":
         return responseJSON({ status: "success", data: PurchaseController.addPurchase(payload) });
+      case "updatePurchase":
+      case "editPurchase":
+        return responseJSON({ status: "success", data: PurchaseController.updatePurchase(payload) });
+      case "deletePurchase":
+      case "removePurchase":
+        return responseJSON({ status: "success", data: PurchaseController.deletePurchase(payload) });
 
       case "getInventory":
         return responseJSON({ status: "success", data: InventoryController.getInventory() });
@@ -1692,6 +2640,9 @@ function handleAction(action, payload) {
       case "addVoucher":
       case "addPayment":
         return responseJSON({ status: "success", data: VoucherController.addVoucher(payload) });
+      case "updateVoucher":
+      case "editVoucher":
+        return responseJSON({ status: "success", data: VoucherController.updateVoucher(payload) });
       case "deleteVoucher":
       case "deletePayment":
         return responseJSON({ status: "success", data: VoucherController.deleteVoucher(payload) });
@@ -1699,6 +2650,7 @@ function handleAction(action, payload) {
       case "getJournalEntries":
         return responseJSON({ status: "success", data: JournalController.getJournalEntries() });
       case "addJournalEntry":
+      case "saveJournalEntry":
         return responseJSON({ status: "success", data: JournalController.addJournalEntry(payload) });
       case "updateJournalEntry":
       case "editJournalEntry":
@@ -1732,8 +2684,16 @@ function handleAction(action, payload) {
         return responseJSON({ status: "success", data: CurrencyController.getCurrencies() });
       case "updateExchangeRate":
         return responseJSON({ status: "success", data: CurrencyController.updateExchangeRate(payload) });
-      case "appendExchangeDiffAccounts":
-        return responseJSON(appendExchangeDiffAccounts());
+      case "getAccounts":
+      case "getChartOfAccounts":
+      case "getChartOfAccountsTree":
+        return responseJSON({ status: "success", data: ChartOfAccountsController.getChartOfAccountsTree() });
+      case "addAccount":
+      case "saveAccount":
+        return responseJSON({ status: "success", data: ChartOfAccountsController.addAccount(payload) });
+      case "resetChartOfAccounts":
+      case "resetCleanChartOfAccounts":
+        return responseJSON({ status: "success", data: resetAndSeedCleanChartOfAccounts() });
 
       case "getDashboardStats":
       default:

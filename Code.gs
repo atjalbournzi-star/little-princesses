@@ -1209,6 +1209,10 @@ var PurchaseController = {
         purchase_no: invNo,
         supplier_name: supp,
         supplier: supp,
+        supplier_phone: String(r.supplier_phone || r.supplier_number || r.phone || "").trim(),
+        phone: String(r.supplier_phone || r.supplier_number || r.phone || "").trim(),
+        discount: Number(r.discount !== undefined ? r.discount : (r.discount_amount || 0)),
+        discount_amount: Number(r.discount !== undefined ? r.discount : (r.discount_amount || 0)),
         invoice_date: dt,
         date: dt,
         item_name: itm,
@@ -1260,9 +1264,9 @@ var PurchaseController = {
     }
 
     var headers = [
-      "المعرف", "رقم الفاتورة", "اسم المورد", "تاريخ الفاتورة", "اسم الصنف / القماش",
+      "المعرف", "رقم الفاتورة", "اسم المورد", "رقم المورد", "تاريخ الفاتورة", "اسم الصنف / القماش",
       "وحدة القياس", "الكمية", "العملة", "سعر الصرف",
-      "السعر الإفرادي", "المبلغ الأصلي بالعملة", "المبلغ بالريال اليمني", "تكلفة النقل والتوصيل",
+      "السعر الإفرادي", "المبلغ الأصلي بالعملة", "الخصم / التخفيض", "المبلغ بالريال اليمني", "تكلفة النقل والتوصيل",
       "رسوم التحويل", "الإجمالي النهائي (YER)", "طريقة الدفع", "حساب الصندوق / الدفع",
       "معرف المعاملة / السند", "رابط صورة السند", "حالة الاستلام", "حالة الدفع",
       "ملاحظات", "تاريخ الإنشاء"
@@ -1281,6 +1285,7 @@ var PurchaseController = {
     var newPurId = data.id || SequenceService.getNextId("purchases", "PUR");
     var invoiceNo = String(data.invoice_no || data.bill_no || data.purchase_no || ("PUR-" + Math.floor(1000 + Math.random() * 9000))).trim();
     var supplierName = String(data.supplier_name || data.supplier || "مورد عام").trim();
+    var supplierPhone = String(data.supplier_phone || data.supplier_number || data.phone || "").trim();
     var invoiceDate = String(data.invoice_date || data.date || todayISO()).slice(0, 10);
     var itemName = String(data.item_name || data.fabric_name || data.item || data.name || "قماش / خامة").trim();
     var unit = String(data.unit || "متر").trim();
@@ -1290,13 +1295,15 @@ var PurchaseController = {
     if (currency === "YER" || isNaN(exchangeRate) || exchangeRate <= 0) exchangeRate = 1.0;
     var unitPrice = Number(data.unit_price !== undefined ? data.unit_price : (data.cost_per_unit !== undefined ? data.cost_per_unit : (data.cost !== undefined ? data.cost : (data.price || 0))));
     var originalAmount = Number(data.original_amount !== undefined ? data.original_amount : (qty * unitPrice).toFixed(2));
+    var discount = Number(data.discount !== undefined ? data.discount : (data.discount_amount || 0));
+    var discountYer = Number((discount * exchangeRate).toFixed(2));
     var amountYer = Number(data.amount_yer !== undefined ? data.amount_yer : (data.base_amount !== undefined ? data.base_amount : (originalAmount * exchangeRate).toFixed(2)));
     var shippingCost = Number(data.shipping_cost !== undefined ? data.shipping_cost : (data.freight_cost !== undefined ? data.freight_cost : (data.shippingFee || 0)));
     var transferFee = Number(data.transfer_fee !== undefined ? data.transfer_fee : (data.transfer_fees !== undefined ? data.transfer_fees : (data.transferFee || 0)));
     var shippingCostYer = Number((shippingCost * exchangeRate).toFixed(2));
     var transferFeeYer = Number((transferFee * exchangeRate).toFixed(2));
-    var grandTotalYer = Number(data.grand_total_yer !== undefined ? data.grand_total_yer : (data.total_amount_yer !== undefined ? data.total_amount_yer : (amountYer + shippingCostYer + transferFeeYer).toFixed(2)));
-    var billTotalOriginal = Number((originalAmount + shippingCost + transferFee).toFixed(2));
+    var grandTotalYer = Number(data.grand_total_yer !== undefined ? data.grand_total_yer : (data.total_amount_yer !== undefined ? data.total_amount_yer : Math.max(0, ((amountYer + shippingCostYer + transferFeeYer) - discountYer)).toFixed(2)));
+    var billTotalOriginal = Number(Math.max(0, (originalAmount + shippingCost + transferFee) - discount).toFixed(2));
     var paymentMethod = String(data.payment_method || data.pay_type || "نقدي").trim();
     var paymentAccountCode = String(data.payment_account_code || data.payment_source || (paymentMethod === "آجل" ? "201" : "101")).trim();
     var transactionRef = String(data.transaction_ref || data.transaction_id || data.transfer_no || ("TX-" + invoiceNo)).trim();
@@ -1310,6 +1317,7 @@ var PurchaseController = {
       "المعرف": newPurId,
       "رقم الفاتورة": invoiceNo,
       "اسم المورد": supplierName,
+      "رقم المورد": supplierPhone,
       "تاريخ الفاتورة": invoiceDate,
       "اسم الصنف / القماش": itemName,
       "وحدة القياس": unit,
@@ -1318,6 +1326,7 @@ var PurchaseController = {
       "سعر الصرف": exchangeRate,
       "السعر الإفرادي": unitPrice,
       "المبلغ الأصلي بالعملة": originalAmount,
+      "الخصم / التخفيض": discount,
       "المبلغ بالريال اليمني": amountYer,
       "تكلفة النقل والتوصيل": shippingCost,
       "رسوم التحويل": transferFee,
@@ -1351,13 +1360,12 @@ var PurchaseController = {
     sheet.appendRow(rowArray);
     var newRowIdx = sheet.getLastRow();
     try {
-      sheet.getRange(newRowIdx, 7, 1, 1).setNumberFormat("0.##");
-      sheet.getRange(newRowIdx, 9, 1, 1).setNumberFormat("0.##");
-      sheet.getRange(newRowIdx, 10, 1, 6).setNumberFormat("#,##0.00");
+      sheet.getRange(newRowIdx, 8, 1, 1).setNumberFormat("0.##");
+      sheet.getRange(newRowIdx, 11, 1, 1).setNumberFormat("0.##");
+      sheet.getRange(newRowIdx, 12, 1, 6).setNumberFormat("#,##0.00");
     } catch (fmtErr) {}
 
-    // ── AUTOMATED ERP LIFECYCLE TRIGGERS ──
-    // A. Inventory Integration (المخزون والمستودعات)
+    // A. Inventory Integration
     try {
       if (typeof InventoryController !== "undefined" && InventoryController.addOrUpdateItem) {
         InventoryController.addOrUpdateItem({
@@ -1376,9 +1384,9 @@ var PurchaseController = {
       console.warn("Inventory update warning:", invErr);
     }
 
-    // B. General Ledger & Double-Entry Journal Integration (القيود اليومية)
+    // B. General Ledger & Double-Entry Journal Integration
     try {
-      var debitAcc = "102"; // مخزون الأقمشة والمستلزمات
+      var debitAcc = "102";
       var creditAcc = paymentMethod === "آجل" ? "201" : paymentAccountCode;
       
       if (typeof JournalController !== "undefined" && JournalController.addJournalEntry) {
@@ -1400,7 +1408,7 @@ var PurchaseController = {
       console.warn("Journal entry warning:", jErr);
     }
 
-    // C. Payment Voucher Integration (السندات المالية)
+    // C. Payment Voucher Integration
     try {
       if (paymentMethod !== "آجل" && typeof VoucherController !== "undefined" && VoucherController.addVoucher) {
         VoucherController.addVoucher({
@@ -1432,6 +1440,73 @@ var PurchaseController = {
       message: "تم تسجيل فاتورة الشراء وتوريد الأصناف وتوليد السندات بنجاح 👑",
       data: fieldValues
     };
+  },
+
+  updatePurchase: function(payload) {
+    var data = payload.data || payload;
+    var ss = getSpreadsheet();
+    var sheet = ss.getSheetByName("المشتريات_والموردون") || ss.getSheetByName("المشتريات") || ss.getSheetByName("Purchases");
+    if (!sheet) return { success: false, message: "جدول المشتريات غير موجود" };
+    var lastR = sheet.getLastRow();
+    if (lastR < 2) return { success: false, message: "لا توجد سجلات لتعديلها" };
+
+    var values = sheet.getRange(2, 1, lastR - 1, Math.min(sheet.getLastColumn(), 5)).getValues();
+    var targetId = String(data.id || "").trim();
+    var targetBill = String(data.bill_no || data.invoice_no || "").trim();
+
+    for (var i = 0; i < values.length; i++) {
+      var rowId = String(values[i][0]).trim();
+      var rowBill = String(values[i][1]).trim();
+      if ((targetId && rowId === targetId) || (targetBill && rowBill === targetBill)) {
+        var rowIdx = i + 2;
+        var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+        for (var c = 0; c < headers.length; c++) {
+          var h = String(headers[c]).trim();
+          if (h.indexOf("اسم المورد") !== -1 && data.supplier) sheet.getRange(rowIdx, c + 1).setValue(data.supplier);
+          if (h.indexOf("رقم المورد") !== -1 && data.supplier_phone !== undefined) sheet.getRange(rowIdx, c + 1).setValue(data.supplier_phone);
+          if (h.indexOf("اسم الصنف") !== -1 && (data.item || data.item_name)) sheet.getRange(rowIdx, c + 1).setValue(data.item || data.item_name);
+          if (h.indexOf("وحدة القياس") !== -1 && data.unit) sheet.getRange(rowIdx, c + 1).setValue(data.unit);
+          if (h.indexOf("الكمية") !== -1 && data.qty !== undefined) sheet.getRange(rowIdx, c + 1).setValue(Number(data.qty));
+          if (h.indexOf("السعر الإفرادي") !== -1 && data.price !== undefined) sheet.getRange(rowIdx, c + 1).setValue(Number(data.price));
+          if (h.indexOf("الخصم") !== -1 && data.discount !== undefined) sheet.getRange(rowIdx, c + 1).setValue(Number(data.discount));
+          if (h.indexOf("المبلغ الأصلي") !== -1 && data.total !== undefined) sheet.getRange(rowIdx, c + 1).setValue(Number(data.total));
+          if (h.indexOf("ملاحظات") !== -1 && data.notes !== undefined) sheet.getRange(rowIdx, c + 1).setValue(data.notes);
+          if (h.indexOf("التاريخ") !== -1 && data.date) sheet.getRange(rowIdx, c + 1).setValue(data.date);
+        }
+        return { success: true, message: "تم تحديث فاتورة الشراء بنجاح" };
+      }
+    }
+    return { success: false, message: "لم يتم العثور على الفاتورة لتحديثها" };
+  },
+
+  deletePurchase: function(payload) {
+    var data = payload.data || payload;
+    var ss = getSpreadsheet();
+    var sheet = ss.getSheetByName("المشتريات_والموردون") || ss.getSheetByName("المشتريات") || ss.getSheetByName("Purchases");
+    if (!sheet) return { success: false, message: "جدول المشتريات غير موجود" };
+    var lastR = sheet.getLastRow();
+    if (lastR < 2) return { success: false, message: "لا توجد سجلات لحذفها" };
+
+    var values = sheet.getRange(2, 1, lastR - 1, Math.min(sheet.getLastColumn(), 5)).getValues();
+    var targetId = String(data.id || "").trim();
+    var targetBill = String(data.bill_no || data.invoice_no || "").trim();
+
+    for (var i = 0; i < values.length; i++) {
+      var rowId = String(values[i][0]).trim();
+      var rowBill = String(values[i][1]).trim();
+      if ((targetId && rowId === targetId) || (targetBill && rowBill === targetBill)) {
+        sheet.deleteRow(i + 2);
+        // Also delete linked auto-voucher and journal entry
+        try {
+          if (targetBill) {
+            VoucherController.deleteVoucher({ voucher_no: "PV-" + targetBill });
+            JournalController.deleteJournalEntry({ entry_no: "JV-PUR-" + targetBill, ref_id: targetBill });
+          }
+        } catch(e) {}
+        return { success: true, message: "تم حذف سجل الشراء بنجاح" };
+      }
+    }
+    return { success: false, message: "لم يتم العثور على الفاتورة لحذفها" };
   },
 
   clearAllPurchaseRecords: function() {
@@ -1525,20 +1600,87 @@ var VoucherController = {
 
     return { id: newId, message: "تم حفظ السند المالي بنجاح", data: data };
   },
+  updateVoucher: function(payload) {
+    var data = payload.data || payload;
+    var sheet = SchemaMapper.getOrCreateSheet("payments");
+    var lastR = sheet.getLastRow();
+    if (lastR < 2) return { success: false, message: "لا توجد سندات لتعديلها" };
+
+    var values = sheet.getRange(2, 1, lastR - 1, Math.min(sheet.getLastColumn(), 4)).getValues();
+    var targetId = String(data.id || "").trim();
+    var targetNo = String(data.voucher_no || data.v_no || data.payment_no || "").trim();
+
+    for (var i = 0; i < values.length; i++) {
+      var rowId = String(values[i][0]).trim();
+      var rowNo = String(values[i][1]).trim();
+      if ((targetId && rowId === targetId) || (targetNo && rowNo === targetNo)) {
+        var rowIdx = i + 2;
+        var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+        var isReceipt = data.v_type === 'سند قبض' || data.payment_type === 'سند قبض';
+        var partyVal = String(data.party || data.party_name || data.customer_id || data.supplier_id || "").trim();
+        var amtVal = Number(data.amount || 0);
+        var currVal = String(data.currency || "YER").trim().toUpperCase();
+        var rateVal = Number(data.exchange_rate) > 0 ? Number(data.exchange_rate) : 1.0;
+        if (currVal === "YER") rateVal = 1.0;
+        var baseAmtVal = Number(data.base_amount) > 0 ? Number(data.base_amount) : Number((amtVal * rateVal).toFixed(2));
+
+        for (var c = 0; c < headers.length; c++) {
+          var h = String(headers[c]).trim();
+          if (h.indexOf("النوع") !== -1 || h.indexOf("payment_type") !== -1) sheet.getRange(rowIdx, c + 1).setValue(isReceipt ? "سند قبض" : "سند صرف");
+          if (isReceipt && (h.indexOf("customer_id") !== -1 || h.indexOf("العميل") !== -1)) sheet.getRange(rowIdx, c + 1).setValue(partyVal);
+          if (!isReceipt && (h.indexOf("supplier_id") !== -1 || h.indexOf("المورد") !== -1)) sheet.getRange(rowIdx, c + 1).setValue(partyVal);
+          if (h.indexOf("المبلغ") !== -1 || h.indexOf("amount") !== -1) sheet.getRange(rowIdx, c + 1).setValue(amtVal);
+          if (h.indexOf("العملة") !== -1 || h.indexOf("currency") !== -1) sheet.getRange(rowIdx, c + 1).setValue(currVal);
+          if (h.indexOf("سعر الصرف") !== -1 || h.indexOf("exchange_rate") !== -1) sheet.getRange(rowIdx, c + 1).setValue(rateVal);
+          if (h.indexOf("المبلغ المعادل") !== -1 || h.indexOf("base_amount") !== -1) sheet.getRange(rowIdx, c + 1).setValue(baseAmtVal);
+          if (h.indexOf("طريقة الدفع") !== -1 || h.indexOf("payment_method") !== -1) sheet.getRange(rowIdx, c + 1).setValue(data.pay_method || data.payment_method || "نقدي");
+          if (h.indexOf("الحساب") !== -1 || h.indexOf("account_id") !== -1) sheet.getRange(rowIdx, c + 1).setValue(data.acc_code || data.account_id || "101");
+          if (h.indexOf("التاريخ") !== -1 || h.indexOf("date") !== -1) sheet.getRange(rowIdx, c + 1).setValue(data.date || todayISO());
+          if (h.indexOf("ملاحظات") !== -1 || h.indexOf("notes") !== -1) sheet.getRange(rowIdx, c + 1).setValue(data.notes || "");
+        }
+
+        // Also update linked journal entry
+        try {
+          if (typeof JournalController !== "undefined" && JournalController.updateJournalEntry) {
+            JournalController.updateJournalEntry({
+              entry_no: "AUTO-VCH-" + targetNo,
+              ref_id: targetNo,
+              amount: amtVal,
+              currency: currVal,
+              exchange_rate: rateVal,
+              base_amount: baseAmtVal,
+              date: data.date || todayISO(),
+              notes: "قيد آلي: " + (data.notes || (data.v_type + " - " + partyVal))
+            });
+          }
+        } catch(jErr) {}
+
+        return { success: true, message: "تم تعديل السند المالي ومزامنة القيود بنجاح" };
+      }
+    }
+    return { success: false, message: "لم يتم العثور على السند لتعديله" };
+  },
   deleteVoucher: function(payload) {
     var data = payload.data || payload;
     var sheet = SchemaMapper.getOrCreateSheet("payments");
     var lastR = sheet.getLastRow();
     if (lastR < 2) return { success: false, message: "لا توجد سندات لحذفها" };
-    var values = sheet.getRange(2, 1, lastR - 1, Math.min(sheet.getLastColumn(), 2)).getValues();
-    var targetId = String(data.id || data.voucher_no || data.payment_no || data.v_no || "").trim();
+    var values = sheet.getRange(2, 1, lastR - 1, Math.min(sheet.getLastColumn(), 4)).getValues();
+    var targetId = String(data.id || "").trim();
+    var targetNo = String(data.voucher_no || data.payment_no || data.v_no || targetId).trim();
 
     for (var i = 0; i < values.length; i++) {
       var rowId = String(values[i][0]).trim();
       var rowNo = String(values[i][1]).trim();
-      if (rowId === targetId || rowNo === targetId) {
+      if ((targetId && rowId === targetId) || (targetNo && rowNo === targetNo)) {
         sheet.deleteRow(i + 2);
-        return { success: true, message: "تم حذف السند المالي بنجاح" };
+        // Also delete linked journal entry
+        try {
+          if (typeof JournalController !== "undefined" && JournalController.deleteJournalEntry) {
+            JournalController.deleteJournalEntry({ entry_no: "AUTO-VCH-" + targetNo, ref_id: targetNo });
+          }
+        } catch(jErr) {}
+        return { success: true, message: "تم حذف السند المالي وعكس قيده بنجاح" };
       }
     }
     return { success: false, message: "لم يتم العثور على السند لحذفه" };
@@ -2477,6 +2619,12 @@ function handleAction(action, payload) {
       case "addPurchaseInvoice":
       case "savePurchaseInvoice":
         return responseJSON({ status: "success", data: PurchaseController.addPurchase(payload) });
+      case "updatePurchase":
+      case "editPurchase":
+        return responseJSON({ status: "success", data: PurchaseController.updatePurchase(payload) });
+      case "deletePurchase":
+      case "removePurchase":
+        return responseJSON({ status: "success", data: PurchaseController.deletePurchase(payload) });
 
       case "getInventory":
         return responseJSON({ status: "success", data: InventoryController.getInventory() });
@@ -2492,6 +2640,9 @@ function handleAction(action, payload) {
       case "addVoucher":
       case "addPayment":
         return responseJSON({ status: "success", data: VoucherController.addVoucher(payload) });
+      case "updateVoucher":
+      case "editVoucher":
+        return responseJSON({ status: "success", data: VoucherController.updateVoucher(payload) });
       case "deleteVoucher":
       case "deletePayment":
         return responseJSON({ status: "success", data: VoucherController.deleteVoucher(payload) });
