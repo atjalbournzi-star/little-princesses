@@ -242,9 +242,9 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
 
     if (!cCode || !pCode || cCode === pCode || String(child.id) === pId) return false;
 
-    // 1. Explicit Parent ID / Code Match (e.g. parent_id is "ACC-101" or "101" and parent is 101)
-    if (cParent && (cParent === pCode || cParentRaw === pId || cParent === pId || cParentRaw === `ACC-${pCode}`)) {
-      return true;
+    // 1. Explicit Parent ID / Code Match (Primary rule)
+    if (cParent) {
+      return cParent === pCode || cParentRaw === pId || cParent === pId || cParentRaw === `ACC-${pCode}`;
     }
 
     // 2. Hierarchical dot notation (e.g. 101.01 child of 101, 101.01.01 child of 101.01)
@@ -253,7 +253,7 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
       if (!rest.includes('.')) return true;
     }
 
-    // 3. Level 2 under Root Level 1 (e.g. 101, 102, 103, 104 under 1)
+    // 3. Level 2 under Root Level 1 (only if no explicit parent)
     if (pCode.length === 1 && cCode.length === 3 && cCode.startsWith(pCode)) {
       return true;
     }
@@ -556,7 +556,7 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
     const displayBalance = isGroup ? acc.rollupBalance : acc.balance;
 
     return (
-      <div key={acc.id || acc.code} className="mr-2 md:mr-3.5 my-1.5">
+      <div key={`${acc.id || acc.code}-${cCode}`} className="mr-2 md:mr-3.5 my-1.5">
         <div className={`flex items-center justify-between p-3 rounded-xl border transition-all ${
           isGroup ? 'bg-[#FAFAFB] border-[#E8E5EA] font-bold' : 'bg-white border-[#E8E5EA] hover:bg-[#FAFAFB]'
         } ${acc.is_active === 0 ? 'opacity-50 bg-rose-50/40' : ''}`}>
