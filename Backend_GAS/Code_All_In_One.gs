@@ -2317,6 +2317,10 @@ function appendExchangeDiffAccounts() {
 /**
  * AUTOMATED DATABASE MIGRATION ENGINE
  */
+function initMasterSchema() {
+  return migrateToMasterArabicDatabase();
+}
+
 function migrateToMasterArabicDatabase() {
   var ss = getSpreadsheet();
   var legacyToCanonicalMap = {
