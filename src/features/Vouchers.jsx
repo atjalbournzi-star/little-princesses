@@ -208,109 +208,136 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
       supplier_id: !isReceipt ? formData.party : ''
     };
     
+    // Optimistic UI updates
+    if (setVouchers) setVouchers([newV, ...(vouchers || [])]);
+
+    const newJEntry = {
+        id: Date.now() + 1,
+        transaction_id: `TX-VCH-${voucherNo}`,
+        entry_no: 'AUTO-VCH-' + voucherNo,
+        debit: debitAccLabel,
+        credit: creditAccLabel,
+        debit_account_id: debitAccLabel,
+        credit_account_id: creditAccLabel,
+        amount: newV.amount,
+        currency: vCurrCode,
+        exchange_rate: vRate,
+        base_amount: vBaseObj.base_amount,
+        ref_type: isReceipt ? 'RECEIPT_VOUCHER' : 'PAYMENT_VOUCHER',
+        ref_id: voucherNo,
+        date: newV.date,
+        notes: `قيد آلي: ${newV.notes || newV.v_type + ' - ' + newV.party}`,
+        status: 'posted'
+    };
+    if (setJournal) setJournal(prev => [newJEntry, ...(prev || [])]);
+
+    // If payment voucher is for an expense account, add to expenses
+    let newExp = null;
+    if (!isReceipt && (debitAccLabel.startsWith('5') || debitAccLabel.startsWith('6') || debitAccLabel.includes('مصروف'))) {
+      newExp = {
+        id: Date.now() + 2,
+        expense_no: voucherNo,
+        category: debitAccLabel,
+        exp_category: debitAccLabel,
+        amount: parseFloat(newV.amount) || 0,
+        currency: vCurrCode,
+        exchange_rate: vRate,
+        base_amount: vBaseObj.base_amount,
+        date: newV.date,
+        payment_method: newV.pay_method,
+        pay_method: newV.pay_method,
+        account_id: creditAccLabel,
+        payment_source: creditAccLabel,
+        recipient: newV.party,
+        notes: newV.notes || `سند صرف: ${newV.party}`,
+        status: 'posted'
+      };
+      if (setExpenses) setExpenses(prev => [newExp, ...(prev || [])]);
+    }
+
+    // Dynamic accounts balance update in React state
+    if (typeof setAccounts === 'function') {
+      setAccounts(prev => (prev || []).map(acc => {
+        const c = String(acc.code || acc.acc_code || '');
+        if (c === selectedCashAcc || (selectedCashAcc && c.startsWith(selectedCashAcc))) {
+          const delta = isReceipt ? vBaseObj.base_amount : -vBaseObj.base_amount;
+          const curBal = (parseFloat(acc.current_balance ?? acc.balance) || 0) + delta;
+          return { ...acc, current_balance: curBal, balance: curBal };
+        }
+        if (c === selectedTargetAcc || (selectedTargetAcc && c.startsWith(selectedTargetAcc))) {
+          const delta = isReceipt ? -vBaseObj.base_amount : vBaseObj.base_amount;
+          const curBal = (parseFloat(acc.current_balance ?? acc.balance) || 0) + delta;
+          return { ...acc, current_balance: curBal, balance: curBal };
+        }
+        return acc;
+      }));
+    }
+
     try {
+      // 1. Post to local backend
+      fetch('/api/vouchers/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newV)
+      }).catch(err => console.warn('Local voucher save error:', err));
+
+      // 2. Post to GAS
       const res = await callGAS('addVoucher', newV);
-      if (res.status === 'success' || res.status === 200 || !res.error || res.id) {
-        if (setVouchers) setVouchers([newV, ...(vouchers || [])]);
-        
-        // ── ترحيل القيد المحاسبي المزدوج المتوازن بالريال اليمني للحساب المحدد من قبل المستخدم ──
-        const newJEntry = {
-            id: Date.now() + 1,
-            transaction_id: `TX-VCH-${voucherNo}`,
-            entry_no: 'AUTO-VCH-' + voucherNo,
-            debit: debitAccLabel,
-            credit: creditAccLabel,
-            debit_account_id: debitAccLabel,
-            credit_account_id: creditAccLabel,
-            amount: newV.amount,
-            currency: vCurrCode,
-            exchange_rate: vRate,
-            base_amount: vBaseObj.base_amount,
-            ref_type: isReceipt ? 'RECEIPT_VOUCHER' : 'PAYMENT_VOUCHER',
-            ref_id: voucherNo,
-            date: newV.date,
-            notes: `قيد آلي: ${newV.notes || newV.v_type + ' - ' + newV.party}`,
-            status: 'posted'
-        };
-        callGAS('addJournalEntry', newJEntry).catch(e => console.error(e));
-        if (setJournal) setJournal(prev => [newJEntry, ...(prev || [])]);
-
-        // إذا كان السند سند صرف وموجه لحساب مصروفات (5xx أو 6)، نقوم بإضافته فوراً إلى سجل المصروفات
-        if (!isReceipt && (debitAccLabel.startsWith('5') || debitAccLabel.startsWith('6') || debitAccLabel.includes('مصروف'))) {
-          const newExp = {
-            id: Date.now() + 2,
-            expense_no: voucherNo,
-            category: debitAccLabel,
-            exp_category: debitAccLabel,
-            amount: parseFloat(newV.amount) || 0,
-            currency: vCurrCode,
-            exchange_rate: vRate,
-            base_amount: vBaseObj.base_amount,
-            date: newV.date,
-            payment_method: newV.pay_method,
-            pay_method: newV.pay_method,
-            account_id: creditAccLabel,
-            payment_source: creditAccLabel,
-            recipient: newV.party,
-            notes: newV.notes || `سند صرف: ${newV.party}`,
-            status: 'posted'
-          };
-          if (setExpenses) setExpenses(prev => [newExp, ...(prev || [])]);
-        }
-
-        if (newV.v_type === 'سند قبض' && selectedCustomer) {
-            if (selectedOrder && setOrders) {
-                setOrders((orders || []).map(o => {
-                  if (o.order_no === selectedOrder) {
-                     const newPaid = (o.paid || 0) + parseFloat(newV.amount);
-                     return { ...o, paid: newPaid, remaining: Math.max(0, o.total - newPaid) };
-                  }
-                  return o;
-                }));
-            }
-            
-            if (setCustomers) {
-                setCustomers((customers || []).map(c => {
-                   if (c.name === selectedCustomer) {
-                       const cSales = c.ledger?.total_sales || 0;
-                       const cDeliv = c.ledger?.delivery || 0;
-                       const cPaid = (c.ledger?.total_paid || 0) + parseFloat(newV.amount);
-                       return {
-                          ...c,
-                          ledger: {
-                              ...c.ledger,
-                              total_paid: cPaid,
-                              remaining: Math.max(0, (cSales + cDeliv) - cPaid)
-                          }
-                       }
-                   }
-                   return c;
-                }));
-            }
-            
-            fetch('/api/gas', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json; charset=utf-8' },
-                body: JSON.stringify({
-                    action: 'addOrderPayment',
-                    customer_name: selectedCustomer,
-                    order_no: selectedOrder,
-                    amount: newV.amount,
-                    currency: newV.currency,
-                    notes: newV.notes
-                })
-            }).catch(e => console.error(e));
-        }
-
-        showToast('تم حفظ السند وترحيله بنجاح 🧾');
-        setFormData(prev => ({...prev, amount: '', notes: '', v_no: '', party: ''}));
-        setSelectedCustomer('');
-        setSelectedOrder('');
-      } else {
-        showToast('حدث خطأ أثناء الحفظ', 'error');
+      callGAS('addJournalEntry', newJEntry).catch(e => console.error(e));
+      if (newExp) {
+        callGAS('addExpense', newExp).catch(e => console.error(e));
       }
+
+      if (newV.v_type === 'سند قبض' && selectedCustomer) {
+          if (selectedOrder && setOrders) {
+              setOrders((orders || []).map(o => {
+                if (o.order_no === selectedOrder) {
+                   const newPaid = (o.paid || 0) + parseFloat(newV.amount);
+                   return { ...o, paid: newPaid, remaining: Math.max(0, o.total - newPaid) };
+                }
+                return o;
+              }));
+          }
+          
+          if (setCustomers) {
+              setCustomers((customers || []).map(c => {
+                 if (c.name === selectedCustomer) {
+                     const cSales = c.ledger?.total_sales || 0;
+                     const cDeliv = c.ledger?.delivery || 0;
+                     const cPaid = (c.ledger?.total_paid || 0) + parseFloat(newV.amount);
+                     return {
+                        ...c,
+                        ledger: {
+                            ...c.ledger,
+                            total_paid: cPaid,
+                            remaining: Math.max(0, (cSales + cDeliv) - cPaid)
+                        }
+                     }
+                 }
+                 return c;
+              }));
+          }
+          
+          fetch('/api/gas', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json; charset=utf-8' },
+              body: JSON.stringify({
+                  action: 'addOrderPayment',
+                  customer_name: selectedCustomer,
+                  order_no: selectedOrder,
+                  amount: newV.amount,
+                  currency: newV.currency,
+                  notes: newV.notes
+              })
+          }).catch(e => console.error(e));
+      }
+
+      showToast('تم حفظ السند وترحيل القيد بنجاح 🧾');
+      setFormData(prev => ({...prev, amount: '', notes: '', v_no: '', party: ''}));
+      setSelectedCustomer('');
+      setSelectedOrder('');
     } catch (err) {
-      if (setVouchers) setVouchers([newV, ...(vouchers || [])]);
+      console.warn("Voucher save fallback:", err);
       showToast('تم الحفظ محلياً ⚡');
     }
   };
@@ -638,77 +665,61 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4.5">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {/* الصف الأول: نوع السند | رقم السند (تلقائي) | اسم المستفيد/العميل | المبلغ والعملة */}
             <div>
               <label className={labelCls}>نوع السند <span className="text-[#D64545] font-bold">*</span></label>
               <select className={inputCls} value={formData.v_type} onChange={e => { setFormData({...formData, v_type: e.target.value}); setSelectedCustomer(''); setSelectedOrder(''); }}>
-                <option value="سند قبض">سند قبض (استلام نقدية / حوالة)</option>
                 <option value="سند صرف">سند صرف (دفع / مشتريات / مصاريف)</option>
+                <option value="سند قبض">سند قبض (استلام نقدية / حوالة)</option>
               </select>
             </div>
+
             <div>
-              <label className={labelCls}>رقم السند</label>
+              <label className={labelCls}>رقم السند (تلقائي)</label>
               <input type="text" className={inputCls + " font-mono"} placeholder="تلقائي..." value={formData.v_no} onChange={e => setFormData({...formData, v_no: e.target.value})} />
             </div>
             
-            {formData.v_type === 'سند قبض' ? (
-              <div className="sm:col-span-2">
-                <label className={labelCls}>حساب الزبون / العميلة (استلمنا من) <span className="text-[#D64545] font-bold">*</span></label>
-                <div className="grid grid-cols-2 gap-2">
-                  <select 
-                     className={inputCls}
-                     value={selectedCustomer}
-                     onChange={(e) => {
-                       setSelectedCustomer(e.target.value);
-                       setFormData({...formData, party: e.target.value});
-                       setSelectedOrder('');
-                     }}
-                  >
-                     <option value="">-- اختر العميلة من السجل --</option>
-                     {(customers || []).map(c => <option key={c.customer_id || c.id || c.name} value={c.name}>{c.name} {c.phone ? `(${c.phone})` : ''}</option>)}
-                  </select>
-                  
-                  <select
-                     className={inputCls + " disabled:opacity-50"}
-                     value={selectedOrder}
-                     disabled={!selectedCustomer}
-                     onChange={(e) => setSelectedOrder(e.target.value)}
-                  >
-                     <option value="">-- ربط بطلب (اختياري) --</option>
-                     {(orders || []).filter(o => o.customer_name === selectedCustomer).map(o => (
-                         <option key={o.order_no} value={o.order_no}>
-                             {o.order_no} - {o.product_name} (متبقي: {(o.remaining || 0)})
-                         </option>
-                     ))}
-                  </select>
-                </div>
-                {!selectedCustomer && (
-                   <input type="text" className={inputCls + " mt-2"} placeholder="أو اكتب اسم الطرف يدوياً..." value={formData.party} onChange={e => setFormData({...formData, party: e.target.value})} />
-                )}
-              </div>
-            ) : (
-              <div className="sm:col-span-2">
-                <label className={labelCls}>صرفنا إلى (الطرف المستفيد / المورد) <span className="text-[#D64545] font-bold">*</span></label>
+            <div>
+              <label className={labelCls}>
+                {formData.v_type === 'سند قبض' ? 'اسم العميلة (استلمنا من)' : 'اسم المستفيد / المورد'} <span className="text-[#D64545] font-bold">*</span>
+              </label>
+              {formData.v_type === 'سند قبض' ? (
+                <select 
+                  className={inputCls}
+                  value={selectedCustomer}
+                  onChange={(e) => {
+                    setSelectedCustomer(e.target.value);
+                    setFormData({...formData, party: e.target.value});
+                    setSelectedOrder('');
+                  }}
+                >
+                  <option value="">-- اختر العميلة من السجل --</option>
+                  {(customers || []).map(c => <option key={c.customer_id || c.id || c.name} value={c.name}>{c.name} {c.phone ? `(${c.phone})` : ''}</option>)}
+                </select>
+              ) : (
                 <input type="text" required className={inputCls} placeholder="اسم المورد أو المستفيد..." value={formData.party} onChange={e => setFormData({...formData, party: e.target.value})} />
-              </div>
-            )}
+              )}
+            </div>
 
             <div>
-              <label className={labelCls}>المبلغ <span className="text-[#D64545] font-bold">*</span></label>
-              <input type="number" step="0.01" required className={inputCls + " font-mono font-bold text-[#25232A]"} placeholder="0.00" value={formData.amount} onChange={e => setFormData({...formData, amount: e.target.value})} />
+              <label className={labelCls}>المبلغ والعملة <span className="text-[#D64545] font-bold">*</span></label>
+              <div className="flex gap-2">
+                <input type="number" step="0.01" required className={inputCls + " flex-1 font-mono font-bold text-[#25232A]"} placeholder="0.00" value={formData.amount} onChange={e => setFormData({...formData, amount: e.target.value})} />
+                <select className={inputCls + " w-24 shrink-0 font-medium"} value={formData.currency} onChange={e => setFormData({...formData, currency: e.target.value})}>
+                  {(typeof CURRENCIES !== 'undefined' ? CURRENCIES : ['SAR','USD','YER']).map(c => <option key={typeof c === "object" ? c.value : c} value={typeof c === "object" ? c.value : c}>{typeof c === "object" ? c.label : c}</option>)}
+                </select>
+              </div>
             </div>
-            <div>
-              <label className={labelCls}>العملة</label>
-              <select className={inputCls} value={formData.currency} onChange={e => setFormData({...formData, currency: e.target.value})}>
-                {(typeof CURRENCIES !== 'undefined' ? CURRENCIES : ['SAR','USD','YER']).map(c => <option key={typeof c === "object" ? c.value : c} value={typeof c === "object" ? c.value : c}>{typeof c === "object" ? c.label : c}</option>)}
-              </select>
-            </div>
+
+            {/* الصف الثاني: طريقة الدفع | حساب الصندوق/البنك | الحساب المدين/المقابل | تاريخ السند */}
             <div>
               <label className={labelCls}>طريقة الدفع</label>
               <select className={inputCls} value={formData.pay_method} onChange={e => setFormData({...formData, pay_method: e.target.value})}>
                 {(typeof PAY_METHODS !== 'undefined' ? PAY_METHODS : ['نقدي','حوالة بنكية','تحويل إلكتروني']).map(p => <option key={p} value={p}>{p}</option>)}
               </select>
             </div>
+
             <div>
               <label className={labelCls}>حساب الصندوق / البنك (الدفع/الاستلام)</label>
               <select className={inputCls} value={formData.acc_code} onChange={e => setFormData({...formData, acc_code: e.target.value})}>
@@ -722,9 +733,10 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
                 })}
               </select>
             </div>
+
             <div>
               <label className={labelCls}>
-                {formData.v_type === 'سند صرف' ? 'الحساب المدين (بند المصروف / المورد / الأصل)' : 'الحساب الدائن (حساب العميل / الإيراد)'} <span className="text-[#D64545] font-bold">*</span>
+                {formData.v_type === 'سند صرف' ? 'الحساب المدين (بند المصروف / المورد)' : 'الحساب الدائن (العميل / الإيراد)'} <span className="text-[#D64545] font-bold">*</span>
               </label>
               <select className={inputCls} value={formData.target_acc} onChange={e => setFormData({...formData, target_acc: e.target.value})}>
                 <option value="">-- اختر الحساب المقابل --</option>
@@ -737,15 +749,38 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
                 })}
               </select>
             </div>
+
             <div>
-              <label className={labelCls}>التاريخ</label>
-              <input type="date" className={inputCls} value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} />
+              <label className={labelCls}>تاريخ السند</label>
+              <input type="date" className={inputCls + " font-mono text-center dir-ltr"} value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} />
             </div>
-            <div className="sm:col-span-2">
-              <label className={labelCls}>البيان / ملاحظات السند</label>
+
+            {/* الصف الثالث: البيان وملاحظات السند (كامل العرض col-span-full) */}
+            <div className="col-span-1 md:col-span-4">
+              <label className={labelCls}>البيان وملاحظات السند</label>
               <input type="text" className={inputCls} placeholder="ملاحظات وتفاصيل الدفعة..." value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} />
             </div>
+
+            {/* ربط اختياري بطلب في حال سند قبض */}
+            {formData.v_type === 'سند قبض' && selectedCustomer && (
+              <div className="col-span-1 md:col-span-4">
+                <label className={labelCls}>ربط بطلب محدد للعميلة (اختياري)</label>
+                <select
+                  className={inputCls}
+                  value={selectedOrder}
+                  onChange={(e) => setSelectedOrder(e.target.value)}
+                >
+                  <option value="">-- اختياري: غير مربوط بطلب معين --</option>
+                  {(orders || []).filter(o => o.customer_name === selectedCustomer).map(o => (
+                    <option key={o.order_no} value={o.order_no}>
+                      {o.order_no} - {o.product_name} (متبقي: {(o.remaining || 0)})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
+
           <div className="flex justify-end pt-2">
             <button type="submit" className="w-full sm:w-auto px-8 py-3 rounded-xl font-bold text-xs text-white bg-[#009FAE] hover:bg-[#007F8C] transition shadow-xs flex items-center justify-center gap-2 cursor-pointer">
               <Icons.Check className="w-4 h-4" />
@@ -796,70 +831,111 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
           </div>
         </div>
 
-        <div className="overflow-x-auto rounded-xl border border-[#E8E5EA]">
+        <div className="rounded-xl border border-[#E8E5EA] overflow-hidden bg-white">
           {filteredVouchers.length === 0 ? (
             <div className="text-center py-12 text-[#6F6B75] text-xs font-medium">لا توجد سندات مسجلة تطابق البحث 🧾</div>
           ) : (
-            <table className="w-full text-xs">
+            <table className="w-full text-xs table-fixed border-collapse">
               <thead>
                 <tr className="bg-[#FAFAFB] text-[#6F6B75] font-semibold border-b border-[#E8E5EA]">
-                  <th className="px-4 py-3 text-right">النوع</th>
-                  <th className="px-4 py-3 text-right">رقم السند</th>
-                  <th className="px-4 py-3 text-right">الطرف (المستفيد / العميل)</th>
-                  <th className="px-4 py-3 text-right">المبلغ</th>
-                  <th className="px-4 py-3 text-right">طريقة الدفع</th>
-                  <th className="px-4 py-3 text-right">الحساب المالي</th>
-                  <th className="px-4 py-3 text-right">التاريخ</th>
-                  <th className="px-4 py-3 text-center">إجراءات</th>
+                  <th className="px-3 py-3 text-right w-[10%]">النوع</th>
+                  <th className="px-3 py-3 text-right w-[15%]">رقم السند</th>
+                  <th className="px-3 py-3 text-right w-[17%]">الطرف (المستفيد / العميل)</th>
+                  <th className="px-3 py-3 text-left w-[14%]">المبلغ</th>
+                  <th className="px-3 py-3 text-right w-[11%]">طريقة الدفع</th>
+                  <th className="px-3 py-3 text-right w-[15%]">الحساب المالي</th>
+                  <th className="px-3 py-3 text-center w-[10%]">التاريخ</th>
+                  <th className="px-3 py-3 text-left w-[8%]">إجراءات</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E8E5EA] bg-white">
-                {filteredVouchers.map(v => (
-                  <tr key={v.id} className="hover:bg-[#FAFAFB] transition-colors">
-                    <td className="px-4 py-3">
-                      <span className={`px-2.5 py-0.5 rounded-md text-[10.5px] font-bold border ${v.isReceipt ? 'bg-[#E2F5F7] text-[#007F8C] border-[#C5ECF0]' : 'bg-rose-50 text-[#D64545] border-rose-200'}`}>
-                        {v.v_type}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 font-mono font-bold text-[#8F2A87]">{v.v_no}</td>
-                    <td className="px-4 py-3 font-bold text-[#25232A]">{v.party}</td>
-                    <td className="px-4 py-3 font-bold font-mono tabular-nums text-[#25232A]">
-                      {v.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} <span className="text-[10px] font-medium text-[#6F6B75] font-sans">{v.currency}</span>
-                    </td>
-                    <td className="px-4 py-3 text-[#25232A] font-medium">{v.pay_method}</td>
-                    <td className="px-4 py-3 text-[#6F6B75] text-[11px] font-mono">{v.account}</td>
-                    <td className="px-4 py-3 text-[#6F6B75] font-mono">{v.date}</td>
-                    <td className="px-4 py-3 text-center whitespace-nowrap">
-                      <div className="flex items-center justify-center gap-1.5">
-                        <button 
-                          type="button"
-                          onClick={() => setViewVoucher(v)} 
-                          title="معاينة وطباعة السند"
-                          className="p-1.5 bg-[#FAFAFB] hover:bg-[#E8E5EA] text-[#007F8C] border border-[#E8E5EA] rounded-lg font-bold text-[11px] transition cursor-pointer"
-                        >
-                          👁️
-                        </button>
-                        <button 
-                          type="button"
-                          onClick={() => handleOpenEditVoucher(v)} 
-                          title="تعديل السند المالي ومزامنة القيود"
-                          className="p-1.5 bg-[#E2F5F7] hover:bg-[#C5ECF0] text-[#007F8C] border border-[#C5ECF0] rounded-lg font-bold text-[11px] transition cursor-pointer"
-                        >
-                          <Icons.Edit className="w-3.5 h-3.5" />
-                        </button>
-                        <button 
-                          type="button"
-                          onClick={() => handleDeleteVoucher(v)} 
-                          disabled={isDeletingId === (v.id || v.v_no)}
-                          title="حذف السند وعكس أثره المالي"
-                          className="p-1.5 bg-rose-50 hover:bg-rose-100 text-[#D64545] border border-rose-200 rounded-lg font-bold text-[11px] transition cursor-pointer disabled:opacity-50"
-                        >
-                          <Icons.Trash className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {filteredVouchers.map(v => {
+                  const accLabel = (() => {
+                    const rawAcc = v.account || v.acc_code || v.account_id || v.payment_source || '';
+                    if (!rawAcc) return '101 - الصندوق الرئيسي';
+                    const cleanStr = String(rawAcc).trim();
+                    const accCodeOnly = cleanStr.split(' - ')[0].trim();
+                    const match = (accounts || []).find(a => String(a.code || a.acc_code || a.id) === accCodeOnly);
+                    if (match) {
+                      const rawName = match.name || match.account_name || match.acc_name || '';
+                      const name = (rawName && !rawName.includes('???')) ? rawName : (match.name_en || match.code);
+                      return `${match.code || match.acc_code} - ${name}`;
+                    }
+                    return cleanStr;
+                  })();
+
+                  return (
+                    <tr key={v.id || v.v_no} className="hover:bg-[#FAFAFB] transition-colors border-b border-[#E8E5EA]">
+                      {/* الخلية 1 (النوع): شارة نوع السند (سند صرف / قبض) فقط */}
+                      <td className="px-3 py-3 text-right align-middle">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-md text-[10.5px] font-bold border whitespace-nowrap ${v.isReceipt ? 'bg-[#E2F5F7] text-[#007F8C] border-[#C5ECF0]' : 'bg-rose-50 text-[#D64545] border-rose-200'}`}>
+                          {v.v_type}
+                        </span>
+                      </td>
+
+                      {/* الخلية 2 (رقم السند): كود ورقم السند كاملاً */}
+                      <td className="px-3 py-3 text-right align-middle font-mono font-bold text-[#8F2A87] text-xs whitespace-nowrap">
+                        {v.v_no}
+                      </td>
+
+                      {/* الخلية 3 (الطرف): اسم المستفيد / العميل (محاذاة يمين text-right) */}
+                      <td className="px-3 py-3 text-right align-middle font-bold text-[#25232A] text-xs whitespace-nowrap truncate" title={v.party}>
+                        {v.party || '—'}
+                      </td>
+
+                      {/* الخلية 4 (المبلغ): المبلغ والعملة (محاذاة يسار text-left font-mono tabular-nums) */}
+                      <td className="px-3 py-3 text-left align-middle font-mono font-bold tabular-nums text-xs text-[#25232A] whitespace-nowrap dir-ltr">
+                        {(parseFloat(v.amount) || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} <span className="text-[10px] font-normal text-[#6F6B75] font-sans mr-0.5">{v.currency || currencyDisplay}</span>
+                      </td>
+
+                      {/* الخلية 5 (طريقة الدفع): طريقة الدفع فقط (نص أو شارة مستقلة) */}
+                      <td className="px-3 py-3 text-right align-middle text-[#25232A] text-xs font-medium whitespace-nowrap">
+                        {v.pay_method || 'نقدي'}
+                      </td>
+
+                      {/* الخلية 6 (الحساب المالي): اسم الحساب المالي / الصندوق (فصل التاريخ عنه تماماً) */}
+                      <td className="px-3 py-3 text-right align-middle text-[#25232A] text-xs font-mono whitespace-nowrap truncate" title={accLabel}>
+                        {accLabel || '101 - الصندوق الرئيسي'}
+                      </td>
+
+                      {/* الخلية 7 (التاريخ): تاريخ السند فقط (محاذاة وسط text-center font-mono) */}
+                      <td className="px-3 py-3 text-center align-middle font-mono text-[#6F6B75] text-xs tabular-nums whitespace-nowrap">
+                        {v.date || '—'}
+                      </td>
+
+                      {/* الخلية 8 (إجراءات - أقصى اليسار): أزرار الإجراءات (معاينة، تعديل، حذف) بمحاذاة يسار flex justify-end items-center gap-2 */}
+                      <td className="px-3 py-3 text-left align-middle whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button 
+                            type="button"
+                            onClick={() => setViewVoucher(v)} 
+                            title="معاينة وطباعة السند"
+                            className="p-1.5 bg-[#FAFAFB] hover:bg-[#E8E5EA] text-[#007F8C] border border-[#E8E5EA] rounded-lg font-bold text-[11px] transition cursor-pointer"
+                          >
+                            👁️
+                          </button>
+                          <button 
+                            type="button"
+                            onClick={() => handleOpenEditVoucher(v)} 
+                            title="تعديل السند المالي ومزامنة القيود"
+                            className="p-1.5 bg-[#E2F5F7] hover:bg-[#C5ECF0] text-[#007F8C] border border-[#C5ECF0] rounded-lg font-bold text-[11px] transition cursor-pointer"
+                          >
+                            <Icons.Edit className="w-3.5 h-3.5" />
+                          </button>
+                          <button 
+                            type="button"
+                            onClick={() => handleDeleteVoucher(v)} 
+                            disabled={isDeletingId === (v.id || v.v_no)}
+                            title="حذف السند وعكس أثره المالي"
+                            className="p-1.5 bg-rose-50 hover:bg-rose-100 text-[#D64545] border border-rose-200 rounded-lg font-bold text-[11px] transition cursor-pointer disabled:opacity-50"
+                          >
+                            <Icons.Trash className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           )}
