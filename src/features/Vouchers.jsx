@@ -921,15 +921,15 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
                             type="button"
                             onClick={() => setViewVoucher(v)} 
                             title="معاينة وطباعة السند"
-                            className="p-1.5 bg-[#FAFAFB] hover:bg-[#E8E5EA] text-[#007F8C] border border-[#E8E5EA] rounded-lg font-bold text-[11px] transition cursor-pointer"
+                            className="p-1.5 bg-[#FAFAFB] hover:bg-[#E8E5EA] text-[#007F8C] border border-[#E8E5EA] rounded-lg transition cursor-pointer flex items-center justify-center"
                           >
-                            👁️
+                            <Icons.Eye className="w-3.5 h-3.5" />
                           </button>
                           <button 
                             type="button"
                             onClick={() => handleOpenEditVoucher(v)} 
                             title="تعديل السند المالي ومزامنة القيود"
-                            className="p-1.5 bg-[#E2F5F7] hover:bg-[#C5ECF0] text-[#007F8C] border border-[#C5ECF0] rounded-lg font-bold text-[11px] transition cursor-pointer"
+                            className="p-1.5 bg-[#E2F5F7] hover:bg-[#C5ECF0] text-[#007F8C] border border-[#C5ECF0] rounded-lg transition cursor-pointer flex items-center justify-center"
                           >
                             <Icons.Edit className="w-3.5 h-3.5" />
                           </button>
@@ -938,7 +938,7 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
                             onClick={() => handleDeleteVoucher(v)} 
                             disabled={isDeletingId === (v.id || v.v_no)}
                             title="حذف السند وعكس أثره المالي"
-                            className="p-1.5 bg-rose-50 hover:bg-rose-100 text-[#D64545] border border-rose-200 rounded-lg font-bold text-[11px] transition cursor-pointer disabled:opacity-50"
+                            className="p-1.5 bg-rose-50 hover:bg-rose-100 text-[#D64545] border border-rose-200 rounded-lg transition cursor-pointer disabled:opacity-50 flex items-center justify-center"
                           >
                             <Icons.Trash className="w-3.5 h-3.5" />
                           </button>

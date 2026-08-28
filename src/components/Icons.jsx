@@ -198,6 +198,26 @@ window.Icons = {
       <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
       <path d="M16 3.13a4 4 0 0 1 0 7.75" />
     </svg>
+  ),
+  Edit: ({ className = "w-4 h-4" } = {}) => (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2">
+      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+    </svg>
+  ),
+  Trash: ({ className = "w-4 h-4" } = {}) => (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2">
+      <polyline points="3 6 5 6 21 6" />
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+      <line x1="10" y1="11" x2="10" y2="17" />
+      <line x1="14" y1="11" x2="14" y2="17" />
+    </svg>
+  ),
+  Eye: ({ className = "w-4 h-4" } = {}) => (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2">
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
   )
 };
 
@@ -218,6 +238,9 @@ Icons.search = Icons.Search;
 Icons.bell = Icons.Bell;
 Icons.plus = Icons.Plus;
 Icons.menu = Icons.Menu;
+Icons.edit = Icons.Edit;
+Icons.trash = Icons.Trash;
+Icons.eye = Icons.Eye;
 
 // Safe fallback Proxy: If an unknown icon name is accessed, return a safe component instead of undefined (prevents React #130)
 if (typeof Proxy !== 'undefined') {
