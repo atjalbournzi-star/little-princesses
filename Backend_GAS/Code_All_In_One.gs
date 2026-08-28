@@ -2155,12 +2155,19 @@ var ChartOfAccountsController = {
       { id: "ACC-401", code: "401", name: "إيرادات مبيعات الفساتين والزي", name_en: "Sales Revenue", type: "إيرادات", cat: "إيرادات تشغيلية", pId: "4", pCode: "4", lvl: 2, path: "4 > 401", isGrp: 0, isPost: 1, nature: "credit", cur: "YER" },
       { id: "ACC-402", code: "402", name: "أرباح فروق أسعار صرف العملات", name_en: "Foreign Exchange Gain", type: "إيرادات", cat: "إيرادات أخرى", pId: "4", pCode: "4", lvl: 2, path: "4 > 402", isGrp: 0, isPost: 1, nature: "credit", cur: "YER" },
 
-      { id: "ACC-501", code: "501", name: "أجور ورواتب الخياطين والمطرزين", name_en: "Salaries & Wages", type: "مصروفات", cat: "مصروفات تشغيلية", pId: "6", pCode: "6", lvl: 2, path: "6 > 501", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
-      { id: "ACC-502", code: "502", name: "إيجار الورشة والمعمل والمحل الرئيسي", name_en: "Workshop & Shop Rent", type: "مصروفات", cat: "مصروفات تشغيلية", pId: "6", pCode: "6", lvl: 2, path: "6 > 502", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
-      { id: "ACC-503", code: "503", name: "إيجار المحل والورشة", name_en: "Shop Rent", type: "مصروفات", cat: "مصروفات تشغيلية", pId: "6", pCode: "6", lvl: 2, path: "6 > 503", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
-      { id: "ACC-504", code: "504", name: "مصاريف كهرباء وماء وإنترنت", name_en: "Electricity, Water & Internet", type: "مصروفات", cat: "مصروفات تشغيلية", pId: "6", pCode: "6", lvl: 2, path: "6 > 504", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
-      { id: "ACC-505", code: "505", name: "مصاريف التسويق والإعلانات", name_en: "Marketing & Ads", type: "مصروفات", cat: "مصروفات تسويقية", pId: "6", pCode: "6", lvl: 2, path: "6 > 505", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
-      { id: "ACC-506", code: "506", name: "خسائر فروق أسعار صرف العملات", name_en: "Foreign Exchange Loss", type: "مصروفات", cat: "مصروفات تمويلية", pId: "6", pCode: "6", lvl: 2, path: "6 > 506", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" }
+      // ── 5. تكلفة المبيعات (Cost of Sales - COGS) ──
+      { id: "ACC-501", code: "501", name: "تكلفة الأقمشة والمواد الخام المباشرة", name_en: "Direct Fabrics & Raw Materials", type: "تكلفة المبيعات", cat: "تكاليف مباشرة", pId: "5", pCode: "5", lvl: 2, path: "5 > 501", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
+      { id: "ACC-502", code: "502", name: "تكلفة مستلزمات الخياطة والإكسسوارات والشك", name_en: "Sewing Accessories & Embellishments", type: "تكلفة المبيعات", cat: "تكاليف مباشرة", pId: "5", pCode: "5", lvl: 2, path: "5 > 502", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
+      { id: "ACC-503", code: "503", name: "تكلفة التغليف وعلب الفساتين الفاخرة", name_en: "Packaging & Luxury Boxes", type: "تكلفة المبيعات", cat: "تكاليف مباشرة", pId: "5", pCode: "5", lvl: 2, path: "5 > 503", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
+
+      // ── 6. المصروفات التشغيلية والعمومية (Operating Expenses - OPEX) ──
+      { id: "ACC-601", code: "601", name: "أجور ورواتب الخياطين والمطرزين والموظفين", name_en: "Salaries & Wages", type: "مصروفات", cat: "مصروفات تشغيلية", pId: "6", pCode: "6", lvl: 2, path: "6 > 601", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
+      { id: "ACC-602", code: "602", name: "إيجار المقرات والمعارض والورش", name_en: "Rent Expenses", type: "مصروفات", cat: "مصروفات تشغيلية", pId: "6", pCode: "6", lvl: 2, path: "6 > 602", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
+      { id: "ACC-603", code: "603", name: "مصاريف كهرباء وماء وإنترنت ومرافق", name_en: "Utilities & Internet Expenses", type: "مصروفات", cat: "مصروفات تشغيلية", pId: "6", pCode: "6", lvl: 2, path: "6 > 603", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
+      { id: "ACC-604", code: "604", name: "مصاريف التسويق والإعلانات الممولة", name_en: "Marketing & Advertising", type: "مصروفات", cat: "مصاريف تسويقية", pId: "6", pCode: "6", lvl: 2, path: "6 > 604", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
+      { id: "ACC-605", code: "605", name: "مصاريف الصيانة وقطع غيار الآلات", name_en: "Maintenance & Repairs", type: "مصروفات", cat: "مصروفات تشغيلية", pId: "6", pCode: "6", lvl: 2, path: "6 > 605", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
+      { id: "ACC-606", code: "606", name: "خسائر فروق أسعار صرف العملات", name_en: "Forex Losses", type: "مصروفات", cat: "مصروفات أخرى", pId: "6", pCode: "6", lvl: 2, path: "6 > 606", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
+      { id: "ACC-607", code: "607", name: "مصروفات إدارية وعمومية متنوعة", name_en: "General & Admin Expenses", type: "مصروفات", cat: "مصروفات إدارية", pId: "6", pCode: "6", lvl: 2, path: "6 > 607", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" }
     ];
 
     var now = todayISO();
