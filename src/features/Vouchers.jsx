@@ -796,30 +796,20 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
           <div className="flex items-center gap-2.5 w-full sm:w-auto">
             <h3 className="font-bold text-sm text-[#25232A]">سجل السندات المالية</h3>
             <span className="text-xs bg-[#E2F5F7] text-[#007F8C] font-bold px-2.5 py-0.5 rounded-full font-mono">{filteredVouchers.length}</span>
-            <button
-              type="button"
-              onClick={refreshVouchers}
-              disabled={isRefreshing}
-              title="تحديث ومزامنة السندات من السحابة"
-              className="p-1.5 bg-[#FAFAFB] hover:bg-[#E8E5EA] text-[#007F8C] border border-[#E8E5EA] rounded-lg text-xs font-bold flex items-center gap-1 transition cursor-pointer disabled:opacity-50"
-            >
-              <span>{isRefreshing ? '⏳' : '🔄'}</span>
-              <span className="text-[11px] hidden sm:inline">{isRefreshing ? 'جاري التحديث...' : 'تحديث السجل'}</span>
-            </button>
           </div>
 
-          <div className="flex items-center gap-3 w-full sm:w-auto">
+          <div className="flex items-center gap-2.5 w-full sm:w-auto">
             <select
               value={typeFilter}
               onChange={e => setTypeFilter(e.target.value)}
-              className="h-10 px-3 rounded-xl border border-[#E8E5EA] bg-[#FAFAFB] text-xs font-semibold text-[#25232A] outline-none"
+              className="h-10 px-3 rounded-xl border border-[#E8E5EA] bg-[#FAFAFB] text-xs font-semibold text-[#25232A] outline-none cursor-pointer"
             >
               <option value="الكل">جميع السندات</option>
               <option value="سند قبض">سندات القبض (مقبوضات)</option>
               <option value="سند صرف">سندات الصرف (مدفوعات)</option>
             </select>
 
-            <div className="relative flex-1 sm:w-72">
+            <div className="relative flex-1 sm:w-64">
               <input
                 value={search}
                 onChange={e => setSearch(e.target.value)}
@@ -828,24 +818,35 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
               />
               <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#6F6B75] text-xs pointer-events-none">🔍</span>
             </div>
+
+            <button
+              type="button"
+              onClick={refreshVouchers}
+              disabled={isRefreshing}
+              title="تحديث ومزامنة السندات من السحابة"
+              className="h-10 px-3 bg-[#FAFAFB] hover:bg-[#E8E5EA] text-[#007F8C] border border-[#E8E5EA] rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50 shrink-0"
+            >
+              <span className={isRefreshing ? 'animate-spin' : ''}>🔄</span>
+              <span className="text-xs hidden sm:inline">{isRefreshing ? 'جاري التحديث...' : 'تحديث'}</span>
+            </button>
           </div>
         </div>
 
-        <div className="rounded-xl border border-[#E8E5EA] overflow-hidden bg-white">
+        <div className="overflow-x-auto rounded-xl border border-[#E8E5EA] bg-white">
           {filteredVouchers.length === 0 ? (
             <div className="text-center py-12 text-[#6F6B75] text-xs font-medium">لا توجد سندات مسجلة تطابق البحث 🧾</div>
           ) : (
-            <table className="w-full text-xs table-fixed border-collapse">
+            <table className="w-full min-w-[950px] text-xs border-collapse">
               <thead>
-                <tr className="bg-[#FAFAFB] text-[#6F6B75] font-semibold border-b border-[#E8E5EA]">
-                  <th className="px-3 py-3 text-right w-[10%]">النوع</th>
-                  <th className="px-3 py-3 text-right w-[15%]">رقم السند</th>
-                  <th className="px-3 py-3 text-right w-[17%]">الطرف (المستفيد / العميل)</th>
-                  <th className="px-3 py-3 text-left w-[14%]">المبلغ</th>
-                  <th className="px-3 py-3 text-right w-[11%]">طريقة الدفع</th>
-                  <th className="px-3 py-3 text-right w-[15%]">الحساب المالي</th>
-                  <th className="px-3 py-3 text-center w-[10%]">التاريخ</th>
-                  <th className="px-3 py-3 text-left w-[8%]">إجراءات</th>
+                <tr className="bg-[#FAFAFB] text-[#6F6B75] font-semibold border-b border-[#E8E5EA] h-11">
+                  <th className="px-3 py-2.5 text-right w-[10%]">النوع</th>
+                  <th className="px-3 py-2.5 text-right w-[14%]">رقم السند</th>
+                  <th className="px-3 py-2.5 text-right w-[17%]">الطرف (المستفيد / العميل)</th>
+                  <th className="px-3 py-2.5 text-left w-[14%]">المبلغ</th>
+                  <th className="px-3 py-2.5 text-right w-[11%]">طريقة الدفع</th>
+                  <th className="px-3 py-2.5 text-right w-[20%]">الحساب المالي</th>
+                  <th className="px-3 py-2.5 text-center w-[8%]">التاريخ</th>
+                  <th className="px-3 py-2.5 text-center w-[6%]">إجراءات</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E8E5EA] bg-white">
@@ -865,47 +866,49 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
                   })();
 
                   return (
-                    <tr key={v.id || v.v_no} className="hover:bg-[#FAFAFB] transition-colors border-b border-[#E8E5EA]">
+                    <tr key={v.id || v.v_no} className="hover:bg-[#FAFAFB] transition-colors border-b border-[#E8E5EA] h-12">
                       {/* الخلية 1 (النوع): شارة نوع السند (سند صرف / قبض) فقط */}
-                      <td className="px-3 py-3 text-right align-middle">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-md text-[10.5px] font-bold border whitespace-nowrap ${v.isReceipt ? 'bg-[#E2F5F7] text-[#007F8C] border-[#C5ECF0]' : 'bg-rose-50 text-[#D64545] border-rose-200'}`}>
+                      <td className="px-3 py-2.5 text-right align-middle whitespace-nowrap">
+                        <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-bold border whitespace-nowrap ${v.isReceipt ? 'bg-[#E2F5F7] text-[#007F8C] border-[#C5ECF0]' : 'bg-rose-50 text-[#D64545] border-rose-200'}`}>
                           {v.v_type}
                         </span>
                       </td>
 
                       {/* الخلية 2 (رقم السند): كود ورقم السند كاملاً */}
-                      <td className="px-3 py-3 text-right align-middle font-mono font-bold text-[#8F2A87] text-xs whitespace-nowrap">
+                      <td className="px-3 py-2.5 text-right align-middle font-mono font-bold text-[#8F2A87] text-xs whitespace-nowrap">
                         {v.v_no}
                       </td>
 
                       {/* الخلية 3 (الطرف): اسم المستفيد / العميل (محاذاة يمين text-right) */}
-                      <td className="px-3 py-3 text-right align-middle font-bold text-[#25232A] text-xs whitespace-nowrap truncate" title={v.party}>
+                      <td className="px-3 py-2.5 text-right align-middle font-bold text-[#25232A] text-xs whitespace-nowrap" title={v.party}>
                         {v.party || '—'}
                       </td>
 
                       {/* الخلية 4 (المبلغ): المبلغ والعملة (محاذاة يسار text-left font-mono tabular-nums) */}
-                      <td className="px-3 py-3 text-left align-middle font-mono font-bold tabular-nums text-xs text-[#25232A] whitespace-nowrap dir-ltr">
+                      <td className="px-3 py-2.5 text-left align-middle font-mono font-bold tabular-nums text-xs text-[#25232A] whitespace-nowrap dir-ltr">
                         {(parseFloat(v.amount) || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} <span className="text-[10px] font-normal text-[#6F6B75] font-sans mr-0.5">{v.currency || currencyDisplay}</span>
                       </td>
 
                       {/* الخلية 5 (طريقة الدفع): طريقة الدفع فقط (نص أو شارة مستقلة) */}
-                      <td className="px-3 py-3 text-right align-middle text-[#25232A] text-xs font-medium whitespace-nowrap">
-                        {v.pay_method || 'نقدي'}
+                      <td className="px-3 py-2.5 text-right align-middle text-[#25232A] text-xs font-medium whitespace-nowrap">
+                        <span className="inline-block px-2 py-0.5 rounded-md bg-[#FAFAFB] border border-[#E8E5EA] text-[#25232A] text-[11px]">
+                          {v.pay_method || 'نقدي'}
+                        </span>
                       </td>
 
                       {/* الخلية 6 (الحساب المالي): اسم الحساب المالي / الصندوق (فصل التاريخ عنه تماماً) */}
-                      <td className="px-3 py-3 text-right align-middle text-[#25232A] text-xs font-mono whitespace-nowrap truncate" title={accLabel}>
+                      <td className="px-3 py-2.5 text-right align-middle text-[#25232A] text-xs font-mono whitespace-nowrap" title={accLabel}>
                         {accLabel || '101 - الصندوق الرئيسي'}
                       </td>
 
                       {/* الخلية 7 (التاريخ): تاريخ السند فقط (محاذاة وسط text-center font-mono) */}
-                      <td className="px-3 py-3 text-center align-middle font-mono text-[#6F6B75] text-xs tabular-nums whitespace-nowrap">
+                      <td className="px-3 py-2.5 text-center align-middle font-mono text-[#6F6B75] text-xs tabular-nums whitespace-nowrap">
                         {v.date || '—'}
                       </td>
 
-                      {/* الخلية 8 (إجراءات - أقصى اليسار): أزرار الإجراءات (معاينة، تعديل، حذف) بمحاذاة يسار flex justify-end items-center gap-2 */}
-                      <td className="px-3 py-3 text-left align-middle whitespace-nowrap">
-                        <div className="flex items-center justify-end gap-1.5">
+                      {/* الخلية 8 (إجراءات - أقصى اليسار): أزرار الإجراءات (معاينة، تعديل، حذف) */}
+                      <td className="px-3 py-2.5 text-center align-middle whitespace-nowrap">
+                        <div className="flex items-center justify-center gap-1.5">
                           <button 
                             type="button"
                             onClick={() => setViewVoucher(v)} 
