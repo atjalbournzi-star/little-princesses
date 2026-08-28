@@ -2643,12 +2643,20 @@ function clearAllTransactionalData() {
  */
 function resetAndSeedCleanChartOfAccounts(optionalSheet) {
   var ss = getSpreadsheet();
-  var sh = optionalSheet || ss.getSheetByName("دليل_الحسابات") || ss.getSheetByName("Accounts") || ss.getSheetByName("chart_of_accounts");
+  var possibleNames = ["دليل_الحسابات", "شجرة_الحسابات", "الحسابات_المالية", "Accounts", "chart_of_accounts"];
+  var sh = optionalSheet;
+  if (!sh) {
+    for (var i = 0; i < possibleNames.length; i++) {
+      sh = ss.getSheetByName(possibleNames[i]);
+      if (sh) break;
+    }
+  }
   if (!sh) return { success: false, message: "لم يتم العثور على شيت دليل_الحسابات" };
 
   var lastR = sh.getLastRow();
+  var lastC = Math.max(sh.getLastColumn(), 22);
   if (lastR >= 2) {
-    sh.deleteRows(2, lastR - 1);
+    sh.getRange(2, 1, lastR - 1, lastC).clearContent();
   }
 
   // مسح قيود اليومية المعاملاتية حتى لا تعيد احتساب الأرصدة القديمة
@@ -2656,7 +2664,7 @@ function resetAndSeedCleanChartOfAccounts(optionalSheet) {
   for (var js = 0; js < journalSheets.length; js++) {
     var jSh = ss.getSheetByName(journalSheets[js]);
     if (jSh && jSh.getLastRow() >= 2) {
-      try { jSh.deleteRows(2, jSh.getLastRow() - 1); } catch(je) {}
+      try { jSh.getRange(2, 1, jSh.getLastRow() - 1, jSh.getLastColumn()).clearContent(); } catch(je) {}
     }
   }
 
