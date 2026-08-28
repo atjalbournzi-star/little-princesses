@@ -387,7 +387,7 @@ function Expenses({ expenses = [], setExpenses, accounts = [], setAccounts, vouc
                       return <option key={code} value={label}>{label}</option>;
                     });
                   }
-                  return (typeof EXPENSE_CATEGORIES !== 'undefined' ? EXPENSE_CATEGORIES : ['502 - إيجار الورشة والمعمل والمحل الرئيسي','501 - رواتب وأجور العاملين','503 - كهرباء ومياه وطاقة','504 - صيانة دورية وتشغيلية','505 - تسويق وإعلانات','506 - مصروفات نثرية وعامة']).map(c => <option key={c} value={c}>{c}</option>);
+                  return (typeof EXPENSE_CATEGORIES !== 'undefined' ? EXPENSE_CATEGORIES : ['601 - أجور ورواتب الخياطين والمطرزين والموظفين', '602 - إيجار المقرات والمعارض والورش', '603 - مصاريف كهرباء وماء وإنترنت ومرافق', '604 - مصاريف التسويق والإعلانات الممولة', '605 - مصاريف الصيانة وقطع غيار الآلات', '606 - خسائر فروق أسعار صرف العملات', '607 - مصروفات إدارية وعمومية متنوعة']).map(c => <option key={c} value={c}>{c}</option>);
                 })()}
               </select>
             </div>
