@@ -44,12 +44,13 @@ const FACTORY_STAGES = [
 ];
 
 const EXPENSE_CATEGORIES = [
-  "502 - إيجار الورشة والمعمل والمحل الرئيسي",
-  "503 - كهرباء وماء وإنترنت واستضافة المتجر",
-  "501 - أجور ورواتب الخياطين والمطرزين والعاملين",
-  "504 - تسويق وإعلانات وممول التواصل الاجتماعي",
-  "505 - مصاريف شحن وتغليف وأكياس المتجر",
-  "506 - خسائر فروق أسعار الصرف"
+  "601 - أجور ورواتب الخياطين والمطرزين والموظفين",
+  "602 - إيجار المقرات والمعارض والورش",
+  "603 - مصاريف كهرباء وماء وإنترنت ومرافق",
+  "604 - مصاريف التسويق والإعلانات الممولة",
+  "605 - مصاريف الصيانة وقطع غيار الآلات",
+  "606 - خسائر فروق أسعار صرف العملات",
+  "607 - مصروفات إدارية وعمومية متنوعة"
 ];
 
 const ACCOUNT_TYPES = ["أصول", "خصوم", "حقوق ملكية", "إيرادات", "تكلفة المبيعات", "مصروفات", "أخرى"];
@@ -76,7 +77,10 @@ const INITIAL_ACCOUNTS = [
 
   // ── 3. حقوق الملكية (Equity) ──
   { id: "ACC-3", code: "3", name: "حقوق الملكية", name_en: "Equity", account_type: "حقوق ملكية", parent_id: null, level: 1, nature: "credit", is_group: 1, is_active: 1, balance: 0.0 },
-  { id: "ACC-301", code: "301", name: "رأس المال المباشر لمؤسسة Little Princesses", name_en: "Capital", account_type: "حقوق ملكية", parent_id: "3", level: 2, nature: "credit", is_group: 0, is_active: 1, balance: 0.0 },
+  { id: "ACC-301", code: "301", name: "رأس المال المباشر لمؤسسة Little Princesses", name_en: "Capital", account_type: "حقوق ملكية", parent_id: "3", level: 2, nature: "credit", is_group: 1, is_active: 1, balance: 0.0 },
+  { id: "ACC-301.01", code: "301.01", name: "حصة الشريك محمد فلاح", name_en: "Partner Mohammed Falah", account_type: "حقوق ملكية", parent_id: "301", level: 3, nature: "credit", is_group: 0, is_active: 1, balance: 0.0 },
+  { id: "ACC-301.02", code: "301.02", name: "حصة الشريك محمد علي", name_en: "Partner Mohammed Ali", account_type: "حقوق ملكية", parent_id: "301", level: 3, nature: "credit", is_group: 0, is_active: 1, balance: 0.0 },
+  { id: "ACC-301.03", code: "301.03", name: "حصة الشريك صادق", name_en: "Partner Sadeq", account_type: "حقوق ملكية", parent_id: "301", level: 3, nature: "credit", is_group: 0, is_active: 1, balance: 0.0 },
   { id: "ACC-302", code: "302", name: "الأرباح المبقاة / المحتجزة", name_en: "Retained Earnings", account_type: "حقوق ملكية", parent_id: "3", level: 2, nature: "credit", is_group: 0, is_active: 1, balance: 0.0 },
 
   // ── 4. الإيرادات (Revenue) ──
@@ -84,17 +88,21 @@ const INITIAL_ACCOUNTS = [
   { id: "ACC-401", code: "401", name: "إيرادات مبيعات الفساتين والزي", name_en: "Sales Revenue", account_type: "إيرادات", parent_id: "4", level: 2, nature: "credit", is_group: 0, is_active: 1, balance: 0.0 },
   { id: "ACC-402", code: "402", name: "أرباح فروق أسعار صرف العملات", name_en: "Forex Gains", account_type: "إيرادات", parent_id: "4", level: 2, nature: "credit", is_group: 0, is_active: 1, balance: 0.0 },
 
-  // ── 5. تكلفة المبيعات (Cost of Sales) ──
-  { id: "ACC-5", code: "5", name: "تكلفة المبيعات", name_en: "Cost of Sales", account_type: "تكلفة المبيعات", parent_id: null, level: 1, nature: "debit", is_group: 1, is_active: 1, balance: 0.0 },
+  // ── 5. تكلفة المبيعات (Cost of Goods Sold - COGS) ──
+  { id: "ACC-5", code: "5", name: "تكلفة المبيعات", name_en: "Cost of Goods Sold", account_type: "تكلفة المبيعات", parent_id: null, level: 1, nature: "debit", is_group: 1, is_active: 1, balance: 0.0 },
+  { id: "ACC-501", code: "501", name: "تكلفة الأقمشة والمواد الخام المباشرة", name_en: "Direct Fabrics & Raw Materials", account_type: "تكلفة المبيعات", parent_id: "5", level: 2, nature: "debit", is_group: 0, is_active: 1, balance: 0.0 },
+  { id: "ACC-502", code: "502", name: "تكلفة مستلزمات الخياطة والإكسسوارات والشك", name_en: "Sewing Accessories & Embellishments", account_type: "تكلفة المبيعات", parent_id: "5", level: 2, nature: "debit", is_group: 0, is_active: 1, balance: 0.0 },
+  { id: "ACC-503", code: "503", name: "تكلفة التغليف وعلب الفساتين الفاخرة", name_en: "Packaging & Luxury Boxes", account_type: "تكلفة المبيعات", parent_id: "5", level: 2, nature: "debit", is_group: 0, is_active: 1, balance: 0.0 },
 
-  // ── 6. المصروفات (Expenses) ──
-  { id: "ACC-6", code: "6", name: "المصروفات", name_en: "Expenses", account_type: "مصروفات", parent_id: null, level: 1, nature: "debit", is_group: 1, is_active: 1, balance: 0.0 },
-  { id: "ACC-501", code: "501", name: "أجور ورواتب الخياطين والمطرزين", name_en: "Salaries & Wages", account_type: "مصروفات", parent_id: "6", level: 2, nature: "debit", is_group: 0, is_active: 1, balance: 0.0 },
-  { id: "ACC-502", code: "502", name: "إيجار الورشة والمعمل والمحل الرئيسي", name_en: "Workshop Rent", account_type: "مصروفات", parent_id: "6", level: 2, nature: "debit", is_group: 0, is_active: 1, balance: 0.0 },
-  { id: "ACC-503", code: "503", name: "إيجار المحل والورشة", name_en: "Shop Rent", account_type: "مصروفات", parent_id: "6", level: 2, nature: "debit", is_group: 0, is_active: 1, balance: 0.0 },
-  { id: "ACC-504", code: "504", name: "مصاريف كهرباء وماء وإنترنت", name_en: "Utilities", account_type: "مصروفات", parent_id: "6", level: 2, nature: "debit", is_group: 0, is_active: 1, balance: 0.0 },
-  { id: "ACC-505", code: "505", name: "مصاريف التسويق والإعلانات الممولة", name_en: "Marketing", account_type: "مصروفات", parent_id: "6", level: 2, nature: "debit", is_group: 0, is_active: 1, balance: 0.0 },
-  { id: "ACC-506", code: "506", name: "خسائر فروق أسعار صرف العملات", name_en: "Forex Losses", account_type: "مصروفات", parent_id: "6", level: 2, nature: "debit", is_group: 0, is_active: 1, balance: 0.0 },
+  // ── 6. المصروفات التشغيلية والعمومية (Operating Expenses - OPEX) ──
+  { id: "ACC-6", code: "6", name: "المصروفات التشغيلية والعمومية", name_en: "Operating & General Expenses", account_type: "مصروفات", parent_id: null, level: 1, nature: "debit", is_group: 1, is_active: 1, balance: 0.0 },
+  { id: "ACC-601", code: "601", name: "أجور ورواتب الخياطين والمطرزين والموظفين", name_en: "Salaries & Wages", account_type: "مصروفات", parent_id: "6", level: 2, nature: "debit", is_group: 0, is_active: 1, balance: 0.0 },
+  { id: "ACC-602", code: "602", name: "إيجار المقرات والمعارض والورش", name_en: "Rent Expenses", account_type: "مصروفات", parent_id: "6", level: 2, nature: "debit", is_group: 0, is_active: 1, balance: 0.0 },
+  { id: "ACC-603", code: "603", name: "مصاريف كهرباء وماء وإنترنت ومرافق", name_en: "Utilities & Internet Expenses", account_type: "مصروفات", parent_id: "6", level: 2, nature: "debit", is_group: 0, is_active: 1, balance: 0.0 },
+  { id: "ACC-604", code: "604", name: "مصاريف التسويق والإعلانات الممولة", name_en: "Marketing & Advertising", account_type: "مصروفات", parent_id: "6", level: 2, nature: "debit", is_group: 0, is_active: 1, balance: 0.0 },
+  { id: "ACC-605", code: "605", name: "مصاريف الصيانة وقطع غيار الآلات", name_en: "Maintenance & Repairs", account_type: "مصروفات", parent_id: "6", level: 2, nature: "debit", is_group: 0, is_active: 1, balance: 0.0 },
+  { id: "ACC-606", code: "606", name: "خسائر فروق أسعار صرف العملات", name_en: "Forex Losses", account_type: "مصروفات", parent_id: "6", level: 2, nature: "debit", is_group: 0, is_active: 1, balance: 0.0 },
+  { id: "ACC-607", code: "607", name: "مصروفات إدارية وعمومية متنوعة", name_en: "General & Admin Expenses", account_type: "مصروفات", parent_id: "6", level: 2, nature: "debit", is_group: 0, is_active: 1, balance: 0.0 },
 
   // ── 7. حسابات أخرى ──
   { id: "ACC-7", code: "7", name: "حسابات أخرى", name_en: "Other Accounts", account_type: "أخرى", parent_id: null, level: 1, nature: "debit", is_group: 1, is_active: 1, balance: 0.0 }

@@ -2185,7 +2185,49 @@ var ChartOfAccountsController = {
     var jRows = SchemaMapper.readRows("journal_entries");
     var sheet = SchemaMapper.getOrCreateSheet("chart_of_accounts");
 
-    return raw.map(function(r, idx) {
+    // ─── إزالة التكرار من بيانات GAS قبل الإرسال ──────────────────────────
+    // إذا كان هناك سجلان بنفس كود الحساب، نحتفظ بالأفضل (الأعلى رصيداً أو الأحدث)
+    var seenCodes = {};
+    var dedupedRaw = [];
+    for (var di = 0; di < raw.length; di++) {
+      var dr = raw[di];
+      var dCode = String(dr.account_code || dr.code || dr.id || "").trim();
+      if (!dCode) { dedupedRaw.push(dr); continue; }
+      if (!seenCodes.hasOwnProperty(dCode)) {
+        seenCodes[dCode] = dedupedRaw.length;
+        dedupedRaw.push(dr);
+      } else {
+        var existIdx = seenCodes[dCode];
+        var exist = dedupedRaw[existIdx];
+        var existBal = Number(exist.opening_balance || exist.current_balance || 0);
+        var newBal = Number(dr.opening_balance || dr.current_balance || 0);
+        var existId = String(exist.id || "");
+        var newId_ = String(dr.id || "");
+        var newIsBetter = (newBal > existBal) ||
+                          (!exist.account_name_en && dr.account_name_en) ||
+                          (newId_ > existId);
+        if (newIsBetter) {
+          dedupedRaw[existIdx] = dr;
+          // تحديث الصف المكرر في الشيت: حذف الصف القديم الزائد
+          try {
+            // نعلم أن الصف di+2 هو التكرار - نحذف محتواه لتنظيف الشيت
+            sheet.getRange(di + 2, 1, 1, sheet.getLastColumn()).clearContent();
+          } catch(e) {}
+        } else {
+          // الصف الجديد (di+2) هو التكرار الأدنى - نمسحه
+          try {
+            sheet.getRange(di + 2, 1, 1, sheet.getLastColumn()).clearContent();
+          } catch(e) {}
+        }
+      }
+    }
+    // فلترة الصفوف الفارغة بعد المسح
+    dedupedRaw = dedupedRaw.filter(function(r) {
+      return String(r.account_code || r.code || r.id || "").trim() !== "";
+    });
+    // ─────────────────────────────────────────────────────────────────────────
+
+    return dedupedRaw.map(function(r, idx) {
       var code = String(r.account_code || r.code || r.id || "").trim();
       var name = String(r.account_name || r.name || code).trim();
       var pId = (r.parent_account_id !== undefined && r.parent_account_id !== null && r.parent_account_id !== "" && r.parent_account_id !== "0") ? r.parent_account_id : (r.parent_id || null);
@@ -2195,19 +2237,34 @@ var ChartOfAccountsController = {
       var openBal = Number(r.opening_balance || 0);
       var nature = r.normal_balance || r.nature || (['خصوم', 'حقوق ملكية', 'إيرادات'].indexOf(r.account_type) !== -1 ? 'credit' : 'debit');
 
-      // Compute dynamic movements from journal_entries sheet
+      // extractCode: استخراج الكود بدقة من نص القيد (بدون مطابقة أرقام داخل الأسماء)
+      var extractCode = function(str) {
+        if (!str) return '';
+        var s = String(str).trim();
+        if (/^\d+(\.\d+)?$/.test(s)) return s;
+        var m = s.match(/^ACC[-_]?(\d+(\.\d+)?)/i);
+        if (m) return m[1];
+        var m2 = s.match(/^(\d+(\.\d+)?)\b/);
+        if (m2) return m2[1];
+        return '';
+      };
+
+      // Compute dynamic movements from journal_entries sheet (بدون name-matching)
       var totalDebit = 0;
       var totalCredit = 0;
       var hasMovements = false;
 
       for (var j = 0; j < jRows.length; j++) {
         var je = jRows[j];
-        var dStr = String(je.debit_account_id || je.debit || "").trim();
-        var cStr = String(je.credit_account_id || je.credit || "").trim();
+        var dStr = String(je.debit_code || je.debit_account_id || je.debit || "").trim();
+        var cStr = String(je.credit_code || je.credit_account_id || je.credit || "").trim();
+        var dCode_ = extractCode(dStr);
+        var cCode_ = extractCode(cStr);
         var baseAmt = Number(je.base_amount !== undefined && je.base_amount !== "" ? je.base_amount : (Number(je.amount || 0) * Number(je.exchange_rate || 1)));
 
-        var matchD = dStr === code || dStr === String(r.id) || dStr.indexOf(code + " ") === 0 || dStr.indexOf(code + "-") === 0 || (name && dStr.indexOf(name) !== -1);
-        var matchC = cStr === code || cStr === String(r.id) || cStr.indexOf(code + " ") === 0 || cStr.indexOf(code + "-") === 0 || (name && cStr.indexOf(name) !== -1);
+        // المطابقة بالكود الصريح فقط (حُذفت name-matching لمنع التضاعف)
+        var matchD = dCode_ === code || dStr === code || dStr === String(r.id) || dStr.indexOf(code + " ") === 0 || dStr.indexOf(code + "-") === 0;
+        var matchC = cCode_ === code || cStr === code || cStr === String(r.id) || cStr.indexOf(code + " ") === 0 || cStr.indexOf(code + "-") === 0;
 
         if (matchD) { totalDebit += baseAmt; hasMovements = true; }
         if (matchC) { totalCredit += baseAmt; hasMovements = true; }
@@ -2256,6 +2313,7 @@ var ChartOfAccountsController = {
       };
     });
   },
+
 
   getChartOfAccountsTree: function() {
     var accs = this.getAccounts();
@@ -2314,18 +2372,52 @@ var ChartOfAccountsController = {
     if (parentId === "" || parentId === 0 || parentId === "0") parentId = null;
 
     var lastR = sheet.getLastRow();
-    var newId = data.id || data.account_id || ("ACC-" + Utilities.formatString("%06d", Math.max(1, lastR)));
+    var existingRowIdx = -1;
+    var newId = data.id || data.account_id || "";
+
+    // Check if account already exists - البحث بالكود أولاً ثم بالـ id
+    if (lastR >= 2) {
+      var colCount = Math.min(sheet.getLastColumn(), 3);
+      var allCodes = sheet.getRange(2, 1, lastR - 1, colCount).getValues();
+      for (var k = 0; k < allCodes.length; k++) {
+        var rId   = String(allCodes[k][0] || "").trim(); // العمود A = id
+        var rCode = String(allCodes[k][1] || "").trim(); // العمود B = account_code
+        // البحث بالكود أولاً (الأولوية) ثم بالـ id
+        if ((code && rCode === code) || (newId && rId === newId)) {
+          existingRowIdx = k + 2;
+          newId = rId || newId;
+          break;
+        }
+      }
+    }
+
+    if (!newId) {
+      newId = "ACC-" + Utilities.formatString("%06d", Math.max(1, lastR));
+    }
     
-    // Auto switch parent to is_group=1 and is_postable=0 if parentId exists
+    // Auto switch parent to is_group=1 and is_postable=0 if parentId exists & resolve clean parent code
+    var parentAccCode = String(data.parent_account_code || "").trim();
+    var parentAccId = String(data.parent_account_id || parentId || "").trim();
+    var lvl = Number(data.level || (parentId ? 2 : 1));
+    var accPath = String(data.account_path || code).trim();
+
     if (parentId && lastR >= 2) {
       var vals = sheet.getRange(2, 1, lastR - 1, Math.min(sheet.getLastColumn(), 12)).getValues();
       for (var r = 0; r < vals.length; r++) {
         var rowId = String(vals[r][0] || "").trim();
         var rowCode = String(vals[r][1] || "").trim();
-        if (rowId === String(parentId) || rowCode === String(parentId)) {
+        var rowLvl = Number(vals[r][8] || 1);
+        var rowPath = String(vals[r][9] || rowCode).trim();
+
+        if (rowId === String(parentId) || rowCode === String(parentId) || rowId === String(parentAccId) || rowCode === String(parentAccCode)) {
           var pRowIdx = r + 2;
           sheet.getRange(pRowIdx, 11).setValue(1); // Col K: is_group = 1
           sheet.getRange(pRowIdx, 12).setValue(0); // Col L: is_postable = 0
+          
+          parentAccCode = rowCode;
+          parentAccId = rowCode; // إجبارياً كود الحساب الأب الصريح (مثل 301 أو 101)
+          lvl = rowLvl + 1;
+          accPath = rowPath + " > " + code;
           break;
         }
       }
@@ -2333,7 +2425,6 @@ var ChartOfAccountsController = {
 
     var isGrp = Number(data.is_group || 0);
     var isPost = isGrp === 1 ? 0 : Number(data.is_postable !== undefined ? data.is_postable : 1);
-    var lvl = Number(data.level || (parentId ? 2 : 1));
     var nature = String(data.normal_balance || data.nature || "debit").trim();
     var bal = Number(data.current_balance !== undefined ? data.current_balance : (data.balance || 0));
 
@@ -2344,10 +2435,10 @@ var ChartOfAccountsController = {
       account_name_en: data.account_name_en || data.name_en || "",
       account_type: data.account_type || data.acc_type || "أصول",
       account_category: data.account_category || data.account_type || "أصول",
-      parent_account_id: parentId || "",
-      parent_account_code: data.parent_account_code || "",
+      parent_account_id: parentAccId || "",
+      parent_account_code: parentAccCode || "",
       level: lvl,
-      account_path: data.account_path || code,
+      account_path: accPath,
       is_group: isGrp,
       is_postable: isPost,
       is_active: Number(data.is_active !== undefined ? data.is_active : 1),
@@ -2362,8 +2453,13 @@ var ChartOfAccountsController = {
       created_by: data.created_by || "system"
     };
 
-    SchemaMapper.appendOrUpdateRow("chart_of_accounts", accountRecord);
-    return { success: true, id: newId, account_code: code, message: "تم حفظ الحساب بنجاح في دليل الحسابات" };
+    var rowArray = SchemaMapper.buildRowArray("chart_of_accounts", accountRecord);
+    if (existingRowIdx !== -1) {
+      sheet.getRange(existingRowIdx, 1, 1, rowArray.length).setValues([rowArray]);
+    } else {
+      sheet.appendRow(rowArray);
+    }
+    return { success: true, id: newId, account_code: code, message: "تم حفظ وتحديث الحساب بنجاح في دليل الحسابات" };
   }
 };
 
@@ -2657,13 +2753,17 @@ function resetAndSeedCleanChartOfAccounts(optionalSheet) {
     ["ACC-401", "401", "إيرادات مبيعات الفساتين والزي", "Sales Revenue", "إيرادات", "إيرادات تشغيلية", "ACC-4", "4", 2, "4 > 401", 0, 1, 1, "credit", 0, 0, "credit", "YER", "2026-01-01", "", "2026-01-01", "system"],
     ["ACC-402", "402", "أرباح فروق أسعار صرف العملات", "Foreign Exchange Gain", "إيرادات", "إيرادات أخرى", "ACC-4", "4", 2, "4 > 402", 0, 1, 1, "credit", 0, 0, "credit", "YER", "2026-01-01", "", "2026-01-01", "system"],
     ["ACC-5", "5", "تكلفة المبيعات", "Cost of Sales", "تكلفة المبيعات", "تكلفة المبيعات", "", "", 1, "5", 1, 0, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
-    ["ACC-6", "6", "المصروفات", "Expenses", "مصروفات", "مصروفات", "", "", 1, "6", 1, 0, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
-    ["ACC-501", "501", "أجور ورواتب الخياطين والمطرزين", "Salaries & Wages", "مصروفات", "مصروفات تشغيلية", "ACC-6", "6", 2, "6 > 501", 0, 1, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
-    ["ACC-502", "502", "إيجار الورشة والمعمل والمحل الرئيسي", "Workshop & Shop Rent", "مصروفات", "مصروفات تشغيلية", "ACC-6", "6", 2, "6 > 502", 0, 1, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
-    ["ACC-503", "503", "إيجار المحل والورشة", "Shop Rent", "مصروفات", "مصروفات تشغيلية", "ACC-6", "6", 2, "6 > 503", 0, 1, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
-    ["ACC-504", "504", "مصاريف كهرباء وماء وإنترنت", "Electricity, Water & Internet", "مصروفات", "مصروفات تشغيلية", "ACC-6", "6", 2, "6 > 504", 0, 1, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
-    ["ACC-505", "505", "مصاريف التسويق والإعلانات الممولة", "Marketing & Ads", "مصروفات", "مصاريف تسويقية", "ACC-6", "6", 2, "6 > 505", 0, 1, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
-    ["ACC-506", "506", "خسائر فروق أسعار صرف العملات", "Foreign Exchange Loss", "مصروفات", "مصروفات أخرى", "ACC-6", "6", 2, "6 > 506", 0, 1, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
+    ["ACC-501", "501", "تكلفة الأقمشة والمواد الخام المباشرة", "Direct Fabrics & Raw Materials", "تكلفة المبيعات", "تكاليف مباشرة", "ACC-5", "5", 2, "5 > 501", 0, 1, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
+    ["ACC-502", "502", "تكلفة مستلزمات الخياطة والإكسسوارات والشك", "Sewing Accessories & Embellishments", "تكلفة المبيعات", "تكاليف مباشرة", "ACC-5", "5", 2, "5 > 502", 0, 1, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
+    ["ACC-503", "503", "تكلفة التغليف وعلب الفساتين الفاخرة", "Packaging & Luxury Boxes", "تكلفة المبيعات", "تكاليف مباشرة", "ACC-5", "5", 2, "5 > 503", 0, 1, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
+    ["ACC-6", "6", "المصروفات التشغيلية والعمومية", "Operating & General Expenses", "مصروفات", "مصروفات", "", "", 1, "6", 1, 0, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
+    ["ACC-601", "601", "أجور ورواتب الخياطين والمطرزين والموظفين", "Salaries & Wages", "مصروفات", "مصروفات تشغيلية", "ACC-6", "6", 2, "6 > 601", 0, 1, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
+    ["ACC-602", "602", "إيجار المقرات والمعارض والورش", "Rent Expenses", "مصروفات", "مصروفات تشغيلية", "ACC-6", "6", 2, "6 > 602", 0, 1, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
+    ["ACC-603", "603", "مصاريف كهرباء وماء وإنترنت ومرافق", "Utilities & Internet Expenses", "مصروفات", "مصروفات تشغيلية", "ACC-6", "6", 2, "6 > 603", 0, 1, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
+    ["ACC-604", "604", "مصاريف التسويق والإعلانات الممولة", "Marketing & Advertising", "مصروفات", "مصاريف تسويقية", "ACC-6", "6", 2, "6 > 604", 0, 1, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
+    ["ACC-605", "605", "مصاريف الصيانة وقطع غيار الآلات", "Maintenance & Repairs", "مصروفات", "مصروفات تشغيلية", "ACC-6", "6", 2, "6 > 605", 0, 1, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
+    ["ACC-606", "606", "خسائر فروق أسعار صرف العملات", "Forex Losses", "مصروفات", "مصروفات أخرى", "ACC-6", "6", 2, "6 > 606", 0, 1, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
+    ["ACC-607", "607", "مصروفات إدارية وعمومية متنوعة", "General & Admin Expenses", "مصروفات", "مصروفات إدارية", "ACC-6", "6", 2, "6 > 607", 0, 1, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
     ["ACC-7", "7", "حسابات أخرى", "Other Accounts", "أخرى", "أخرى", "", "", 1, "7", 1, 0, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"]
   ];
 

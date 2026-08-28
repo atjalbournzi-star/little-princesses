@@ -2314,7 +2314,26 @@ var ChartOfAccountsController = {
     if (parentId === "" || parentId === 0 || parentId === "0") parentId = null;
 
     var lastR = sheet.getLastRow();
-    var newId = data.id || data.account_id || ("ACC-" + Utilities.formatString("%06d", Math.max(1, lastR)));
+    var existingRowIdx = -1;
+    var newId = data.id || data.account_id || "";
+
+    // Check if account already exists by id or by code
+    if (lastR >= 2) {
+      var allCodes = sheet.getRange(2, 1, lastR - 1, 2).getValues();
+      for (var k = 0; k < allCodes.length; k++) {
+        var rId = String(allCodes[k][0] || "").trim();
+        var rCode = String(allCodes[k][1] || "").trim();
+        if ((newId && rId === newId) || (code && rCode === code)) {
+          existingRowIdx = k + 2;
+          newId = rId || newId;
+          break;
+        }
+      }
+    }
+
+    if (!newId) {
+      newId = "ACC-" + Utilities.formatString("%06d", Math.max(1, lastR));
+    }
     
     // Auto switch parent to is_group=1 and is_postable=0 if parentId exists
     if (parentId && lastR >= 2) {
@@ -2362,8 +2381,13 @@ var ChartOfAccountsController = {
       created_by: data.created_by || "system"
     };
 
-    SchemaMapper.appendOrUpdateRow("chart_of_accounts", accountRecord);
-    return { success: true, id: newId, account_code: code, message: "تم حفظ الحساب بنجاح في دليل الحسابات" };
+    var rowArray = SchemaMapper.buildRowArray("chart_of_accounts", accountRecord);
+    if (existingRowIdx !== -1) {
+      sheet.getRange(existingRowIdx, 1, 1, rowArray.length).setValues([rowArray]);
+    } else {
+      sheet.appendRow(rowArray);
+    }
+    return { success: true, id: newId, account_code: code, message: "تم حفظ وتحديث الحساب بنجاح في دليل الحسابات" };
   }
 };
 
@@ -2657,13 +2681,17 @@ function resetAndSeedCleanChartOfAccounts(optionalSheet) {
     ["ACC-401", "401", "إيرادات مبيعات الفساتين والزي", "Sales Revenue", "إيرادات", "إيرادات تشغيلية", "ACC-4", "4", 2, "4 > 401", 0, 1, 1, "credit", 0, 0, "credit", "YER", "2026-01-01", "", "2026-01-01", "system"],
     ["ACC-402", "402", "أرباح فروق أسعار صرف العملات", "Foreign Exchange Gain", "إيرادات", "إيرادات أخرى", "ACC-4", "4", 2, "4 > 402", 0, 1, 1, "credit", 0, 0, "credit", "YER", "2026-01-01", "", "2026-01-01", "system"],
     ["ACC-5", "5", "تكلفة المبيعات", "Cost of Sales", "تكلفة المبيعات", "تكلفة المبيعات", "", "", 1, "5", 1, 0, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
-    ["ACC-6", "6", "المصروفات", "Expenses", "مصروفات", "مصروفات", "", "", 1, "6", 1, 0, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
-    ["ACC-501", "501", "أجور ورواتب الخياطين والمطرزين", "Salaries & Wages", "مصروفات", "مصروفات تشغيلية", "ACC-6", "6", 2, "6 > 501", 0, 1, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
-    ["ACC-502", "502", "إيجار الورشة والمعمل والمحل الرئيسي", "Workshop & Shop Rent", "مصروفات", "مصروفات تشغيلية", "ACC-6", "6", 2, "6 > 502", 0, 1, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
-    ["ACC-503", "503", "إيجار المحل والورشة", "Shop Rent", "مصروفات", "مصروفات تشغيلية", "ACC-6", "6", 2, "6 > 503", 0, 1, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
-    ["ACC-504", "504", "مصاريف كهرباء وماء وإنترنت", "Electricity, Water & Internet", "مصروفات", "مصروفات تشغيلية", "ACC-6", "6", 2, "6 > 504", 0, 1, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
-    ["ACC-505", "505", "مصاريف التسويق والإعلانات الممولة", "Marketing & Ads", "مصروفات", "مصاريف تسويقية", "ACC-6", "6", 2, "6 > 505", 0, 1, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
-    ["ACC-506", "506", "خسائر فروق أسعار صرف العملات", "Foreign Exchange Loss", "مصروفات", "مصروفات أخرى", "ACC-6", "6", 2, "6 > 506", 0, 1, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
+    ["ACC-501", "501", "تكلفة الأقمشة والمواد الخام المباشرة", "Direct Fabrics & Raw Materials", "تكلفة المبيعات", "تكاليف مباشرة", "ACC-5", "5", 2, "5 > 501", 0, 1, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
+    ["ACC-502", "502", "تكلفة مستلزمات الخياطة والإكسسوارات والشك", "Sewing Accessories & Embellishments", "تكلفة المبيعات", "تكاليف مباشرة", "ACC-5", "5", 2, "5 > 502", 0, 1, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
+    ["ACC-503", "503", "تكلفة التغليف وعلب الفساتين الفاخرة", "Packaging & Luxury Boxes", "تكلفة المبيعات", "تكاليف مباشرة", "ACC-5", "5", 2, "5 > 503", 0, 1, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
+    ["ACC-6", "6", "المصروفات التشغيلية والعمومية", "Operating & General Expenses", "مصروفات", "مصروفات", "", "", 1, "6", 1, 0, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
+    ["ACC-601", "601", "أجور ورواتب الخياطين والمطرزين والموظفين", "Salaries & Wages", "مصروفات", "مصروفات تشغيلية", "ACC-6", "6", 2, "6 > 601", 0, 1, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
+    ["ACC-602", "602", "إيجار المقرات والمعارض والورش", "Rent Expenses", "مصروفات", "مصروفات تشغيلية", "ACC-6", "6", 2, "6 > 602", 0, 1, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
+    ["ACC-603", "603", "مصاريف كهرباء وماء وإنترنت ومرافق", "Utilities & Internet Expenses", "مصروفات", "مصروفات تشغيلية", "ACC-6", "6", 2, "6 > 603", 0, 1, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
+    ["ACC-604", "604", "مصاريف التسويق والإعلانات الممولة", "Marketing & Advertising", "مصروفات", "مصاريف تسويقية", "ACC-6", "6", 2, "6 > 604", 0, 1, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
+    ["ACC-605", "605", "مصاريف الصيانة وقطع غيار الآلات", "Maintenance & Repairs", "مصروفات", "مصروفات تشغيلية", "ACC-6", "6", 2, "6 > 605", 0, 1, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
+    ["ACC-606", "606", "خسائر فروق أسعار صرف العملات", "Forex Losses", "مصروفات", "مصروفات أخرى", "ACC-6", "6", 2, "6 > 606", 0, 1, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
+    ["ACC-607", "607", "مصروفات إدارية وعمومية متنوعة", "General & Admin Expenses", "مصروفات", "مصروفات إدارية", "ACC-6", "6", 2, "6 > 607", 0, 1, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"],
     ["ACC-7", "7", "حسابات أخرى", "Other Accounts", "أخرى", "أخرى", "", "", 1, "7", 1, 0, 1, "debit", 0, 0, "debit", "YER", "2026-01-01", "", "2026-01-01", "system"]
   ];
 

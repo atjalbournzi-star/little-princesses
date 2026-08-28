@@ -3,9 +3,12 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 function Expenses({ expenses = [], setExpenses, accounts = [], setAccounts, vouchers = [], setVouchers, journal = [], setJournal, showToast, currency }) {
   const currencyDisplay = currency?.display || "YER ﷼";
   const [isSyncing, setIsSyncing] = useState(false);
+  const [showQuickAddCat, setShowQuickAddCat] = useState(false);
+  const [newCatName, setNewCatName] = useState('');
+  const [newCatCode, setNewCatCode] = useState('');
 
   const [formData, setFormData] = useState({
-    exp_category: typeof EXPENSE_CATEGORIES !== 'undefined' ? EXPENSE_CATEGORIES[0] : '502 - إيجار الورشة والمعمل والمحل الرئيسي',
+    exp_category: typeof EXPENSE_CATEGORIES !== 'undefined' ? EXPENSE_CATEGORIES[0] : '601 - أجور ورواتب الخياطين والمطرزين والموظفين',
     amount: '',
     currency: 'YER ﷼',
     date: TODAY_STR_ISO,
@@ -14,9 +17,91 @@ function Expenses({ expenses = [], setExpenses, accounts = [], setAccounts, vouc
     source_acc: '101 - الصندوق الرئيسي'
   });
 
+  const handleQuickAddCategory = async (e) => {
+    if (e) e.preventDefault();
+    if (!newCatName.trim()) return showToast('يرجى كتابة اسم بند المصروف ⚠️', 'error');
+
+    let codeToUse = newCatCode.trim();
+    if (!codeToUse) {
+      const expCodes = (accounts || [])
+        .filter(a => String(a.account_type || a.type || '').includes('مصروف') || String(a.code || a.acc_code).startsWith('6'))
+        .map(a => parseInt(String(a.code || a.acc_code || '0')))
+        .filter(n => !isNaN(n) && n >= 600 && n < 700);
+      const maxCode = expCodes.length > 0 ? Math.max(...expCodes) : 607;
+      codeToUse = String(maxCode + 1);
+    }
+
+    const newAcc = {
+      code: codeToUse,
+      account_code: codeToUse,
+      name: newCatName.trim(),
+      account_name: newCatName.trim(),
+      name_en: '',
+      account_type: 'مصروفات',
+      parent_id: '6',
+      parent_account_id: 'ACC-6',
+      parent_account_code: '6',
+      nature: 'debit',
+      is_group: 0,
+      is_active: 1,
+      balance: 0.0,
+      current_balance: 0.0,
+      notes: 'بند مصروف تشغيلي معتمد في شجرة الحسابات'
+    };
+
+    if (typeof setAccounts === 'function') {
+      setAccounts(prev => [...(prev || []), newAcc]);
+    }
+
+    const fullLabel = `${codeToUse} - ${newCatName.trim()}`;
+    setFormData(prev => ({ ...prev, exp_category: fullLabel }));
+
+    try {
+      fetch('/api/accounts/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newAcc)
+      }).catch(err => console.warn('Save account local note:', err));
+
+      if (typeof window.callGAS === 'function') {
+        await window.callGAS('addAccount', newAcc);
+      }
+
+      showToast(`تمت إضافة بند المصروف (${fullLabel}) إلى شجرة الحسابات وقوقل شيتس بنجاح 💸`);
+      setShowQuickAddCat(false);
+      setNewCatName('');
+      setNewCatCode('');
+    } catch (err) {
+      console.warn('Quick add expense account warning:', err);
+      showToast('تمت إضافة البند محلياً ⚡');
+      setShowQuickAddCat(false);
+    }
+  };
+
   const fetchFreshExpenses = useCallback(async () => {
     setIsSyncing(true);
     try {
+      // 1. Try local server first for instant response
+      try {
+        const [eRes, jRes, vRes] = await Promise.allSettled([
+          fetch('/api/expenses').then(r => r.json()),
+          fetch('/api/journal').then(r => r.json()),
+          fetch('/api/vouchers').then(r => r.json())
+        ]);
+        if (eRes.status === 'fulfilled' && eRes.value?.data && setExpenses) {
+          setExpenses(eRes.value.data);
+        }
+        if (jRes.status === 'fulfilled' && jRes.value?.data && setJournal) {
+          setJournal(jRes.value.data);
+        }
+        if (vRes.status === 'fulfilled' && vRes.value?.data && setVouchers) {
+          setVouchers(vRes.value.data);
+        }
+      } catch (localErr) {
+        console.warn("Local API fetch note:", localErr);
+      }
+
+      // 2. Sync with GAS Cloud
       if (typeof window.callGAS === 'function') {
         const [eRes, jRes, vRes] = await Promise.allSettled([
           window.callGAS('getExpenses'),
@@ -52,14 +137,17 @@ function Expenses({ expenses = [], setExpenses, accounts = [], setAccounts, vouc
     const rate = window.CurrencyService ? window.CurrencyService.getRate(currCode) : 1.0;
     const baseObj = window.CurrencyService ? window.CurrencyService.toBase(formData.amount, currCode, rate) : { base_amount: parseFloat(formData.amount) || 0, exchange_rate: rate };
 
-    // Extract exact expense account code & sub-account code without truncating decimals (e.g. 101.01)
-    const expCode = formData.exp_category ? (formData.exp_category.split(' - ')[0] || '').trim() : '502';
-    const sourceCode = formData.source_acc ? (formData.source_acc.split(' - ')[0] || '').trim() : '101';
+    // Extract exact expense account code & sub-account code without truncating decimals (e.g. 101.01, 601)
+    const rawExpStr = String(formData.exp_category || '601').trim();
+    const expCode = rawExpStr.includes(' - ') ? rawExpStr.split(' - ')[0].trim() : (rawExpStr.match(/\d+(\.\d+)?/)?.[0] || rawExpStr);
+    
+    const rawSourceStr = String(formData.source_acc || '101').trim();
+    const sourceCode = rawSourceStr.includes(' - ') ? rawSourceStr.split(' - ')[0].trim() : (rawSourceStr.match(/\d+(\.\d+)?/)?.[0] || rawSourceStr);
 
-    const expAccObj = (accounts || []).find(a => String(a.code || a.acc_code) === String(expCode));
+    const expAccObj = (accounts || []).find(a => String(a.code || a.acc_code) === String(expCode) || (a.name && rawExpStr.includes(a.name)));
     const debitAccLabel = expAccObj ? `${expAccObj.code || expAccObj.acc_code} - ${expAccObj.name || expAccObj.account_name}` : (formData.exp_category || expCode);
 
-    const sourceAccObj = (accounts || []).find(a => String(a.code || a.acc_code) === String(sourceCode));
+    const sourceAccObj = (accounts || []).find(a => String(a.code || a.acc_code) === String(sourceCode) || (a.name && rawSourceStr.includes(a.name)));
     const creditAccLabel = sourceAccObj ? `${sourceAccObj.code || sourceAccObj.acc_code} - ${sourceAccObj.name || sourceAccObj.account_name}` : (formData.source_acc || sourceCode);
 
     const expNo = `EXP-${Date.now().toString().slice(-6)}`;
@@ -124,24 +212,45 @@ function Expenses({ expenses = [], setExpenses, accounts = [], setAccounts, vouc
       status: 'posted'
     };
     
+    // Optimistic UI State Updates
+    if (setExpenses) setExpenses(prev => [newE, ...(prev || [])]);
+    if (setVouchers) setVouchers(prev => [newVoucher, ...(prev || [])]);
+    if (setJournal) setJournal(prev => [newJEntry, ...(prev || [])]);
+    
+    if (typeof setAccounts === 'function') {
+      setAccounts(prev => (prev || []).map(acc => {
+        const c = String(acc.code || acc.acc_code || '');
+        if (c === sourceCode || (sourceCode && c.startsWith(sourceCode))) {
+          const curBal = (parseFloat(acc.current_balance ?? acc.balance) || 0) - baseObj.base_amount;
+          return { ...acc, current_balance: curBal, balance: curBal };
+        }
+        if (c === expCode || (expCode && c.startsWith(expCode))) {
+          const curBal = (parseFloat(acc.current_balance ?? acc.balance) || 0) + baseObj.base_amount;
+          return { ...acc, current_balance: curBal, balance: curBal };
+        }
+        return acc;
+      }));
+    }
+
     try {
-      const res = await callGAS('addExpense', newE);
-      if (res.status === 'success' || res.id || !res.error) {
-        if (setExpenses) setExpenses(prev => [newE, ...(prev || [])]);
-        if (setVouchers) setVouchers(prev => [newVoucher, ...(prev || [])]);
-        if (setJournal) setJournal(prev => [newJEntry, ...(prev || [])]);
-        showToast('تم حفظ المصروف وترحيل السند المالي والقيد اليومي بنجاح 💸');
-      } else {
-        showToast('حدث خطأ أثناء الحفظ', 'error');
+      // 1. Send to Local Backend
+      fetch('/api/expenses/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newE)
+      }).catch(err => console.warn('Local expense post error:', err));
+
+      // 2. Send to Google Apps Script
+      if (typeof window.callGAS === 'function') {
+        await window.callGAS('addExpense', newE);
       }
+      showToast('تم حفظ المصروف وترحيل السند المالي والقيد اليومي بنجاح 💸');
     } catch (err) {
-      if (setExpenses) setExpenses(prev => [newE, ...(prev || [])]);
-      if (setVouchers) setVouchers(prev => [newVoucher, ...(prev || [])]);
-      if (setJournal) setJournal(prev => [newJEntry, ...(prev || [])]);
+      console.warn("Expense save fallback:", err);
       showToast('تم الحفظ محلياً ⚡');
     } finally {
       setFormData({
-        exp_category: typeof EXPENSE_CATEGORIES !== 'undefined' ? EXPENSE_CATEGORIES[0] : '502 - إيجار الورشة والمعمل والمحل الرئيسي',
+        exp_category: typeof EXPENSE_CATEGORIES !== 'undefined' ? EXPENSE_CATEGORIES[0] : '601 - أجور ورواتب الخياطين والمطرزين والموظفين',
         amount: '',
         currency: 'YER ﷼',
         date: TODAY_STR_ISO,
@@ -155,25 +264,30 @@ function Expenses({ expenses = [], setExpenses, accounts = [], setAccounts, vouc
   const handleDeleteExpense = async (eItem) => {
     if (!window.confirm('هل أنت متأكد من حذف هذا المصروف والسند المالي والقيد اليومي المرتبط به؟')) return;
     const targetId = eItem.id || eItem.expense_no;
+    
+    if (setExpenses) {
+      setExpenses(prev => (prev || []).filter(e => (e.id !== eItem.id && e.expense_no !== eItem.expense_no)));
+    }
+    if (setVouchers) {
+      setVouchers(prev => (prev || []).filter(v => (v.v_no !== `PV-${eItem.expense_no}` && v.v_no !== eItem.expense_no && v.id !== eItem.id)));
+    }
+    if (setJournal) {
+      setJournal(prev => (prev || []).filter(j => (j.entry_no !== `JV-${eItem.expense_no}` && j.ref_id !== eItem.expense_no && j.id !== eItem.id)));
+    }
+
     try {
+      fetch('/api/expenses/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: targetId, expense_no: eItem.expense_no || targetId })
+      }).catch(err => console.warn('Local expense delete note:', err));
+
       if (typeof window.callGAS === 'function') {
         await window.callGAS('deleteExpense', { id: targetId, expense_no: eItem.expense_no || targetId });
-      }
-      if (setExpenses) {
-        setExpenses(prev => (prev || []).filter(e => (e.id !== eItem.id && e.expense_no !== eItem.expense_no)));
-      }
-      if (setVouchers) {
-        setVouchers(prev => (prev || []).filter(v => (v.v_no !== `PV-${eItem.expense_no}` && v.v_no !== eItem.expense_no && v.id !== eItem.id)));
-      }
-      if (setJournal) {
-        setJournal(prev => (prev || []).filter(j => (j.entry_no !== `JV-${eItem.expense_no}` && j.ref_id !== eItem.expense_no && j.id !== eItem.id)));
       }
       showToast('تم حذف المصروف بنجاح 🗑️');
     } catch(err) {
       console.error(err);
-      if (setExpenses) {
-        setExpenses(prev => (prev || []).filter(e => (e.id !== eItem.id && e.expense_no !== eItem.expense_no)));
-      }
       showToast('تم الحذف بنجاح 🗑️');
     }
   };
@@ -246,9 +360,35 @@ function Expenses({ expenses = [], setExpenses, accounts = [], setAccounts, vouc
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4.5">
             <div>
-              <label className={labelCls}>بند المصروف <span className="text-[#D64545] font-bold">*</span></label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className={labelCls + " mb-0"}>بند المصروف <span className="text-[#D64545] font-bold">*</span></label>
+                <button
+                  type="button"
+                  onClick={() => setShowQuickAddCat(true)}
+                  className="text-[11px] font-bold text-[#C97300] hover:text-[#A35D00] bg-[#FFF1DC] hover:bg-[#FFE4B9] px-2 py-0.5 rounded-md flex items-center gap-1 cursor-pointer transition border border-[#FFE4B9]"
+                  title="إضافة بند مصروف جديد إلى شجرة الحسابات وقوقل شيتس"
+                >
+                  <span>💸 + بند جديد</span>
+                </button>
+              </div>
               <select className={inputCls} value={formData.exp_category} onChange={e => setFormData({...formData, exp_category: e.target.value})}>
-                {(typeof EXPENSE_CATEGORIES !== 'undefined' ? EXPENSE_CATEGORIES : ['إيجار','كهرباء','صيانة','ضيافة','تسويق','أخرى']).map(c => <option key={c} value={c}>{c}</option>)}
+                {(() => {
+                  const expAccs = (accounts || []).filter(a => {
+                    const type = String(a.account_type || a.type || a.nature || '');
+                    const code = String(a.code || a.acc_code || '');
+                    return type.includes('مصروف') || code.startsWith('5') || code.startsWith('6');
+                  });
+                  if (expAccs.length > 0) {
+                    return expAccs.map(a => {
+                      const code = a.code || a.acc_code || a.id;
+                      const rawName = a.name || a.account_name || a.acc_name || '';
+                      const name = (rawName && !rawName.includes('???')) ? rawName : (a.name_en || code);
+                      const label = `${code} - ${name}`;
+                      return <option key={code} value={label}>{label}</option>;
+                    });
+                  }
+                  return (typeof EXPENSE_CATEGORIES !== 'undefined' ? EXPENSE_CATEGORIES : ['502 - إيجار الورشة والمعمل والمحل الرئيسي','501 - رواتب وأجور العاملين','503 - كهرباء ومياه وطاقة','504 - صيانة دورية وتشغيلية','505 - تسويق وإعلانات','506 - مصروفات نثرية وعامة']).map(c => <option key={c} value={c}>{c}</option>);
+                })()}
               </select>
             </div>
             <div>
@@ -352,6 +492,65 @@ function Expenses({ expenses = [], setExpenses, accounts = [], setAccounts, vouc
           )}
         </div>
       </div>
+
+      {/* Quick Add Expense Category Modal */}
+      {showQuickAddCat && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-[#E8E5EA] space-y-4 text-right animate-scaleUp" dir="rtl">
+            <div className="flex items-center justify-between border-b border-[#E8E5EA] pb-3.5">
+              <div className="flex items-center gap-2.5">
+                <span className="w-8 h-8 rounded-lg bg-[#FFF1DC] text-[#C97300] flex items-center justify-center text-sm font-bold">💸</span>
+                <h3 className="text-sm font-bold text-[#25232A]">إضافة بند مصروف جديد للشجرة وقوقل شيتس</h3>
+              </div>
+              <button onClick={() => setShowQuickAddCat(false)} className="text-[#6F6B75] hover:text-[#25232A] text-sm font-bold cursor-pointer">✕</button>
+            </div>
+
+            <form onSubmit={handleQuickAddCategory} className="space-y-3.5">
+              <div>
+                <label className={labelCls}>اسم بند المصروف الجديد <span className="text-[#D64545] font-bold">*</span></label>
+                <input
+                  type="text"
+                  required
+                  placeholder="مثال: بترول ومواصلات، صيانة أدوات، ضيافة ونظافة..."
+                  value={newCatName}
+                  onChange={e => setNewCatName(e.target.value)}
+                  className={inputCls}
+                  autoFocus
+                />
+              </div>
+
+              <div>
+                <label className={labelCls}>كود الحساب في الشجرة (اختياري - يولد تلقائياً)</label>
+                <input
+                  type="text"
+                  placeholder="مثال: 507 أو 508..."
+                  value={newCatCode}
+                  onChange={e => setNewCatCode(e.target.value)}
+                  className={inputCls + " font-mono text-left"}
+                  dir="ltr"
+                />
+                <p className="text-[11px] text-[#6F6B75] mt-1">سيتم إدراج الحساب تلقائياً تحت قسم (6 - المصروفات) في شجرة الحسابات وقوقل شيتس.</p>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#E8E5EA]">
+                <button
+                  type="button"
+                  onClick={() => setShowQuickAddCat(false)}
+                  className="px-4 py-2 bg-[#FAFAFB] hover:bg-[#E8E5EA] text-[#25232A] rounded-xl text-xs font-bold border border-[#E8E5EA] cursor-pointer"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-[#C97300] hover:bg-[#A35D00] text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer flex items-center gap-1.5"
+                >
+                  <span>✓ حفظ وإدراج بالشجرة</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

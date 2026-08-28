@@ -6,9 +6,10 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
     '1': true, '2': true, '3': true, '4': true, '5': true, '6': true, '7': true,
     '101': true, '102': true, '103': true, '104': true, '105': true,
     '201': true, '202': true, '301': true, '302': true, '401': true, '402': true,
-    '501': true, '502': true, '503': true, '504': true, '505': true, '506': true,
+    '501': true, '502': true, '503': true,
+    '601': true, '602': true, '603': true, '604': true, '605': true, '606': true, '607': true,
     'ACC-1': true, 'ACC-2': true, 'ACC-3': true, 'ACC-4': true, 'ACC-5': true, 'ACC-6': true, 'ACC-7': true,
-    'ACC-101': true
+    'ACC-101': true, 'ACC-301': true
   });
   const [filterType, setFilterType] = useState('ALL');
   const [maxDepthFilter, setMaxDepthFilter] = useState('ALL');
@@ -174,7 +175,55 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
   const normalizedAccounts = useMemo(() => {
     const jList = Array.isArray(journal) ? journal : [];
 
-    return (accounts || []).map(a => {
+    // ─── مرحلة إزالة التكرار (Deduplication) ───────────────────────────────
+    // عند جمع البيانات من مصادر متعددة (محلي + Google Sheets)، قد يظهر
+    // نفس الحساب برقم كود واحد لكن بسجلات مختلفة. نحتفظ بالسجل الأكثر
+    // اكتمالاً (الأعلى رصيداً أو الأحدث أو الذي له account_name_en).
+    const seenCodes = new Map();
+    const dedupedAccounts = [];
+    for (const a of (accounts || [])) {
+      const codeKey = String(a.code || a.acc_code || a.id || '').trim();
+      if (!codeKey) { dedupedAccounts.push(a); continue; }
+
+      if (!seenCodes.has(codeKey)) {
+        seenCodes.set(codeKey, dedupedAccounts.length);
+        dedupedAccounts.push({ ...a });
+      } else {
+        // تكرار: احتفظ بالسجل الأحسن (الأعلى رصيداً أو الأحدث)
+        const existingIdx = seenCodes.get(codeKey);
+        const existing = dedupedAccounts[existingIdx];
+        const existingBal = parseFloat(existing.opening_balance || existing.balance || existing.current_balance || 0);
+        const newBal = parseFloat(a.opening_balance || a.balance || a.current_balance || 0);
+        // احتفظ بالسجل الأكثر اكتمالاً: له رصيد، أو له account_name_en، أو id أكبر
+        const newIsBetter = (
+          (newBal > existingBal) ||
+          (!existing.account_name_en && a.account_name_en) ||
+          (Number(a.id || 0) > Number(existing.id || 0))
+        );
+        if (newIsBetter) {
+          // دمج: الاحتفاظ بأفضل البيانات من السجلَين
+          dedupedAccounts[existingIdx] = {
+            ...existing,
+            ...a,
+            // حافظ على أعلى رصيد افتتاحي بدون مضاعفة
+            opening_balance: Math.max(existingBal, newBal),
+            balance: Math.max(existingBal, newBal),
+            current_balance: Math.max(existingBal, newBal),
+            // حافظ على parent_id الأكثر دقة (الرقمي يُفضّل على النصي)
+            parent_id: (a.parent_id !== undefined && a.parent_id !== null && a.parent_id !== '' && a.parent_id !== '0')
+              ? a.parent_id : existing.parent_id,
+            // حافظ على الاسم الأطول أو الأكثر اكتمالاً
+            name: (a.name && a.name.length > (existing.name || '').length && !a.name.includes('?')) ? a.name : existing.name,
+            name_en: a.name_en || existing.name_en || '',
+            account_name_en: a.account_name_en || existing.account_name_en || ''
+          };
+        }
+        // إذا السجل القديم أفضل: تجاهل الجديد (لا نضيف التكرار)
+      }
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
+    return dedupedAccounts.map(a => {
       const id = a.id || a.acc_code || a.code;
       const code = String(a.code || a.acc_code || id || '').trim();
       const name = String(a.name || a.acc_name || code).trim();
@@ -191,13 +240,31 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
       let totalCredit = 0.0;
       let hasMovements = false;
 
+      // extractCode: يستخرج كود الحساب من النص بدقة - يستهدف فقط النص الذي يبدأ برقم أو ACC-
+      const extractCode = (str) => {
+        if (!str) return '';
+        const s = String(str).trim();
+        // إذا كان النص كوداً صافياً (مثل "101.02" أو "301.01" أو رقماً بحتاً)
+        if (/^\d+(\.\d+)?$/.test(s)) return s;
+        // إذا كان يبدأ بـ ACC- أو ACC_
+        const accMatch = s.match(/^ACC[-_]?(\d+(\.\d+)?)/i);
+        if (accMatch) return accMatch[1];
+        // استخراج أول كود رقمي من البداية (قبل أي مسافة أو نص)
+        const startMatch = s.match(/^(\d+(\.\d+)?)\b/);
+        if (startMatch) return startMatch[1];
+        return '';
+      };
+
       jList.forEach(j => {
-        const dStr = String(j.debit || j.debit_account_id || '').trim();
-        const cStr = String(j.credit || j.credit_account_id || '').trim();
+        const dStr = String(j.debit_code || j.debit || j.debit_account_id || '').trim();
+        const cStr = String(j.credit_code || j.credit || j.credit_account_id || '').trim();
+        const dCode = extractCode(dStr);
+        const cCode = extractCode(cStr);
         const baseAmt = parseFloat(j.base_amount) || ((parseFloat(j.amount) || 0) * (parseFloat(j.exchange_rate) || 1.0));
 
-        const matchesDebit = dStr === code || dStr === String(id) || dStr.startsWith(code + ' ') || dStr.startsWith(code + '-') || (name && dStr.includes(name));
-        const matchesCredit = cStr === code || cStr === String(id) || cStr.startsWith(code + ' ') || cStr.startsWith(code + '-') || (name && cStr.includes(name));
+        // المطابقة بالكود الصريح فقط (بدون مطابقة الاسم لمنع التضاعف غير المقصود)
+        const matchesDebit = (code && (dCode === code || dStr === code || dStr.startsWith(code + ' ') || dStr.startsWith(code + '-') || dStr.includes(` ${code} `) || dStr.endsWith(` ${code}`) || dStr.includes(`-${code}`) || dStr.includes(`- ${code}`))) || dStr === String(id);
+        const matchesCredit = (code && (cCode === code || cStr === code || cStr.startsWith(code + ' ') || cStr.startsWith(code + '-') || cStr.includes(` ${code} `) || cStr.endsWith(` ${code}`) || cStr.includes(`-${code}`) || cStr.includes(`- ${code}`))) || cStr === String(id);
 
         if (matchesDebit) {
           totalDebit += baseAmt;
@@ -217,7 +284,7 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
           calculatedBal = openingBal + (totalDebit - totalCredit);
         }
       } else {
-        calculatedBal = parseFloat(a.balance || a.current_balance || openingBal) || 0.0;
+        calculatedBal = parseFloat(a.balance ?? a.current_balance ?? openingBal) || 0.0;
       }
 
       return {
@@ -256,12 +323,13 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
     const cParent = cleanCode(child.parent_id || child.parent_account_id || child.parent_account_code || '');
     const cParentRaw = String(child.parent_id || '').trim();
     const cCode = cleanCode(child.code || child.acc_code || child.id);
+    const cType = child.account_type || child.acc_type || '';
 
     if (!cCode || !pCode || cCode === pCode || String(child.id) === pId) return false;
 
     // 1. Explicit Parent ID / Code Match (Primary rule)
     if (cParent) {
-      return cParent === pCode || cParentRaw === pId || cParent === pId || cParentRaw === `ACC-${pCode}`;
+      if (cParent === pCode || cParentRaw === pId || cParent === pId || cParentRaw === `ACC-${pCode}` || cParentRaw === `ACC_${pCode}`) return true;
     }
 
     // 2. Hierarchical dot notation (e.g. 101.01 child of 101, 101.01.01 child of 101.01)
@@ -270,8 +338,19 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
       if (!rest.includes('.')) return true;
     }
 
-    // 3. Level 2 under Root Level 1 (only if no explicit parent)
-    if (pCode.length === 1 && cCode.length === 3 && cCode.startsWith(pCode)) {
+    // 3. Level 2 under Root Level 1 (only when no explicit parent):
+    // Root 5 (تكلفة المبيعات): all 5xx direct cost items
+    if (pCode === '5' && (!cParent || cParent === '5' || cParent === 'ACC-5') && (cType === 'تكلفة المبيعات' || cCode.startsWith('50') || cCode === '501' || cCode === '502' || cCode === '503')) {
+      return true;
+    }
+
+    // Root 6 (المصروفات التشغيلية والعمومية): all 6xx expense items
+    if (pCode === '6' && (!cParent || cParent === '6' || cParent === 'ACC-6') && (cType === 'مصروفات' || cCode.startsWith('60') || cCode.startsWith('6'))) {
+      return true;
+    }
+
+    // Standard single-digit root matching (101 under 1, 201 under 2, etc.)
+    if (pCode.length === 1 && cCode.length === 3 && cCode.startsWith(pCode) && !cParent) {
       return true;
     }
 
@@ -289,9 +368,11 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
 
     // Recursive calculation: Leaves provide their balance, Parents sum their children's recursive rollups
     const memoSum = {};
-    const calcNodeRollup = (acc) => {
+    const calcNodeRollup = (acc, visited = new Set()) => {
       const key = cleanCode(acc.code || acc.id);
       if (memoSum[key] !== undefined) return memoSum[key];
+      if (visited.has(key)) return parseFloat(acc.balance) || 0.0;
+      visited.add(key);
 
       const children = getDirectChildren(acc);
       if (children.length === 0) {
@@ -302,7 +383,7 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
       // Summary/Parent account -> recursive sum of own balance + all children's rollups
       let total = parseFloat(acc.balance) || 0.0;
       children.forEach(child => {
-        total += calcNodeRollup(child);
+        total += calcNodeRollup(child, new Set(visited));
       });
 
       memoSum[key] = total;
@@ -392,20 +473,55 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
     setShowModal(true);
   };
 
+  // Dedicated Helper: Open Modal Specifically for Adding a New Expense Item
+  const handleOpenAddExpenseModal = async () => {
+    setEditingAccount(null);
+    const expRoot = accountsWithRollupBalances.find(a => cleanCode(a.code || a.id) === '6' || a.name.includes('المصروفات') || a.account_type === 'مصروفات');
+    const parentId = expRoot ? String(expRoot.id || expRoot.code || '6') : '6';
+
+    let initialCode = '608';
+    try {
+      const expCodes = accountsWithRollupBalances
+        .filter(a => a.account_type === 'مصروفات' || cleanCode(a.code).startsWith('6'))
+        .map(a => parseInt(cleanCode(a.code)))
+        .filter(n => !isNaN(n) && n >= 600 && n < 700);
+      const maxCode = expCodes.length > 0 ? Math.max(...expCodes) : 607;
+      initialCode = String(maxCode + 1);
+    } catch (e) {
+      initialCode = '608';
+    }
+
+    setFormData({
+      id: null,
+      code: initialCode,
+      name: '',
+      name_en: '',
+      account_type: 'مصروفات',
+      parent_id: parentId,
+      nature: 'debit',
+      is_group: 0,
+      is_active: 1,
+      balance: '0',
+      notes: 'بند مصروف تشغيلي معتمد'
+    });
+    setShowModal(true);
+  };
+
   // Open Modal to Edit Existing Account
   const handleOpenEditModal = (acc) => {
     setEditingAccount(acc);
     setFormData({
-      id: acc.id,
-      code: acc.code,
-      name: acc.name,
-      name_en: acc.name_en || '',
-      account_type: acc.account_type,
-      parent_id: acc.parent_id !== null && acc.parent_id !== undefined ? String(acc.parent_id) : '',
-      nature: acc.nature || 'debit',
+      id: acc.id || acc.account_id || acc.code,
+      account_id: acc.account_id || acc.id || '',
+      code: acc.code || acc.account_code || '',
+      name: acc.name || acc.account_name || '',
+      name_en: acc.name_en || acc.account_name_en || '',
+      account_type: acc.account_type || acc.type || 'مصروفات',
+      parent_id: acc.parent_id !== null && acc.parent_id !== undefined ? String(acc.parent_id) : (acc.parent_account_id || ''),
+      nature: acc.nature || acc.normal_balance || 'debit',
       is_group: acc.hasChildren ? 1 : Number(acc.is_group || 0),
-      is_active: acc.is_active,
-      balance: String(acc.balance || 0),
+      is_active: Number(acc.is_active !== undefined ? acc.is_active : 1),
+      balance: String(acc.opening_balance ?? acc.balance ?? 0),
       notes: acc.notes || ''
     });
     setShowModal(true);
@@ -417,7 +533,25 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
     if (!formData.name.trim()) return showToast('اسم الحساب مطلوب', 'error');
     if (!formData.code.trim()) return showToast('كود الحساب مطلوب', 'error');
 
-    const existing = accountsWithRollupBalances.find(a => String(a.code) === String(formData.code) && String(a.id) !== String(formData.id));
+    const isEditingThisAccount = editingAccount && (
+      String(editingAccount.code || editingAccount.account_code) === String(formData.code) ||
+      (editingAccount.id && String(editingAccount.id) === String(formData.id)) ||
+      (editingAccount.account_id && String(editingAccount.account_id) === String(formData.account_id))
+    );
+
+    const existing = accountsWithRollupBalances.find(a => {
+      const sameCode = String(a.code || a.account_code) === String(formData.code);
+      if (!sameCode) return false;
+      if (isEditingThisAccount && (
+        String(a.code || a.account_code) === String(editingAccount.code || editingAccount.account_code) ||
+        String(a.id) === String(editingAccount.id) ||
+        String(a.account_id || '') === String(editingAccount.account_id || '')
+      )) {
+        return false;
+      }
+      return true;
+    });
+
     if (existing) {
       return showToast(`كود الحساب ${formData.code} مستخدم بالفعل للحساب (${existing.name})`, 'error');
     }
@@ -430,7 +564,9 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
 
     const payload = {
       ...formData,
-      balance: parseFloat(formData.balance) || 0.0,
+      balance: editingAccount ? (parseFloat(editingAccount.balance) || 0.0) : 0.0,
+      opening_balance: 0.0,
+      current_balance: editingAccount ? (parseFloat(editingAccount.balance) || 0.0) : 0.0,
       is_group: Number(formData.is_group),
       is_active: Number(formData.is_active)
     };
@@ -439,18 +575,23 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
       if (window.saveAccount) {
         const res = await window.saveAccount(payload);
         if (res.success !== false) {
-          showToast(res.message || 'تم حفظ الحساب بنجاح 👑', 'success');
+          showToast(res.message || 'تم حفظ وتحديث الحساب بنجاح 👑', 'success');
           
           // Auto-switch parent account to is_group=1 in local state
           const updatedList = accountsWithRollupBalances.map(a => {
             if (payload.parent_id && (String(a.id) === String(payload.parent_id) || String(a.code) === String(payload.parent_id))) {
               return { ...a, is_group: 1, is_postable: 0 };
             }
+            if (String(a.code || a.account_code) === String(payload.code) || String(a.id) === String(payload.id)) {
+              return { ...a, ...payload };
+            }
             return a;
-          }).filter(a => String(a.id) !== String(payload.id));
+          });
 
-          setAccounts([payload, ...updatedList]);
+          const existsInList = updatedList.some(a => String(a.code || a.account_code) === String(payload.code));
+          setAccounts(existsInList ? updatedList : [payload, ...updatedList]);
           setShowModal(false);
+          setEditingAccount(null);
         } else {
           showToast(res.error || 'فشل حفظ الحساب', 'error');
         }
@@ -459,11 +600,16 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
           if (payload.parent_id && (String(a.id) === String(payload.parent_id) || String(a.code) === String(payload.parent_id))) {
             return { ...a, is_group: 1, is_postable: 0 };
           }
+          if (String(a.code || a.account_code) === String(payload.code) || String(a.id) === String(payload.id)) {
+            return { ...a, ...payload };
+          }
           return a;
         });
-        setAccounts([payload, ...updatedList]);
-        showToast('تم إضافة الحساب محلياً', 'success');
+        const existsInList = updatedList.some(a => String(a.code || a.account_code) === String(payload.code));
+        setAccounts(existsInList ? updatedList : [payload, ...updatedList]);
         setShowModal(false);
+        setEditingAccount(null);
+        showToast('تم حفظ وتحديث الحساب محلياً ⚡', 'success');
       }
     } catch (err) {
       showToast(err.message || 'حدث خطأ أثناء حفظ الحساب', 'error');
@@ -619,13 +765,23 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
             </div>
 
             <div className="flex items-center gap-1">
-              <button
-                onClick={() => handleOpenAddModal(acc.id || acc.code)}
-                title="إضافة حساب فرعي تحته (+ فرع)"
-                className="px-2.5 py-1 bg-[#8F2A87] hover:bg-[#73216C] text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-xs cursor-pointer"
-              >
-                + فرع
-              </button>
+              {cleanCode(acc.code) === '6' || acc.name === 'المصروفات' ? (
+                <button
+                  onClick={() => handleOpenAddExpenseModal()}
+                  title="إضافة بند مصروف تشغيلي جديد (+ بند مصروف)"
+                  className="px-2.5 py-1 bg-[#C97300] hover:bg-[#A35D00] text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-xs cursor-pointer transition"
+                >
+                  <span>💸</span> + بند مصروف
+                </button>
+              ) : (
+                <button
+                  onClick={() => handleOpenAddModal(acc.id || acc.code)}
+                  title="إضافة حساب فرعي تحته (+ فرع)"
+                  className="px-2.5 py-1 bg-[#8F2A87] hover:bg-[#73216C] text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-xs cursor-pointer"
+                >
+                  + فرع
+                </button>
+              )}
 
               <button
                 onClick={() => handleOpenEditModal(acc)}
@@ -717,6 +873,14 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
             >
               <span className={isSyncing ? "animate-spin" : ""}>🔄</span>
               <span>{isSyncing ? 'جاري المزامنة...' : 'مزامنة دليل الحسابات مع السحابة ☁️'}</span>
+            </button>
+
+            <button
+              onClick={() => handleOpenAddExpenseModal()}
+              className="bg-[#FFF1DC] hover:bg-[#FFE4B9] text-[#C97300] border border-[#FFE4B9] font-bold px-4 py-2.5 rounded-xl shadow-xs flex items-center gap-2 text-xs cursor-pointer transition"
+              title="إضافة بند مصروف تشغيلي جديد تحت قسم المصروفات في شجرة الحسابات"
+            >
+              <span>💸</span> + بند مصروف جديد
             </button>
 
             <button
@@ -915,29 +1079,16 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-[#25232A] mb-1.5">الرصيد الافتتاحي</label>
-                  <input
-                    type="number"
-                    step="any"
-                    value={formData.balance}
-                    onChange={e => setFormData({ ...formData, balance: e.target.value })}
-                    className="w-full border border-[#E8E5EA] rounded-xl p-2.5 font-mono text-xs bg-white focus:border-[#8F2A87] outline-none h-11"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-[#25232A] mb-1.5">حالة الحساب</label>
-                  <select
-                    value={formData.is_active}
-                    onChange={e => setFormData({ ...formData, is_active: Number(e.target.value) })}
-                    className="w-full border border-[#E8E5EA] rounded-xl p-2.5 text-xs font-medium bg-white focus:border-[#8F2A87] outline-none h-11"
-                  >
-                    <option value={1}>نشط (Active)</option>
-                    <option value={0}>معطل (Disabled)</option>
-                  </select>
-                </div>
+              <div>
+                <label className="block text-xs font-bold text-[#25232A] mb-1.5">حالة الحساب</label>
+                <select
+                  value={formData.is_active}
+                  onChange={e => setFormData({ ...formData, is_active: Number(e.target.value) })}
+                  className="w-full border border-[#E8E5EA] rounded-xl p-2.5 text-xs font-medium bg-white focus:border-[#8F2A87] outline-none h-11"
+                >
+                  <option value={1}>نشط (Active)</option>
+                  <option value={0}>معطل (Disabled)</option>
+                </select>
               </div>
 
               <div>
