@@ -11,6 +11,7 @@ import hashlib
 import threading
 import time
 from datetime import datetime
+import uuid
 
 # ضبط ترميز المخرجات لدعم اللغة العربية
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
@@ -22,7 +23,10 @@ GAS_URL = 'https://script.google.com/macros/s/AKfycbziv1-w2mgI8_Q33eNsYLX4TDQB8y
 def get_db():
     conn = sqlite3.connect(DB_FILE, timeout=30.0)
     conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA busy_timeout=30000;")
+    try:
+        conn.execute("PRAGMA journal_mode=WAL;")
+        conn.execute("PRAGMA busy_timeout=30000;")
+    except Exception: pass
     return conn
 
 # ── نظام تشفير وإدارة كلمات المرور والصلاحيات ──
@@ -835,20 +839,23 @@ def suggest_next_account_code(parent_id, conn=None):
         except: pass
         
     if not parent_id or str(parent_id) == '0' or str(parent_id).strip() == '':
-        c.execute("SELECT MAX(CAST(code AS INTEGER)) FROM accounts WHERE parent_id IS NULL")
+        c.execute("SELECT MAX(CAST(code AS INTEGER)) FROM accounts WHERE parent_id IS NULL OR parent_id=''")
         mx = c.fetchone()[0]
         next_code = str((mx or 0) + 1)
     else:
-        c.execute("SELECT id, code FROM accounts WHERE id=? OR code=?", (parent_id, str(parent_id)))
+        pid_clean = str(parent_id).replace('ACC-', '').replace('ACC_', '').strip()
+        c.execute("SELECT id, code, account_id, account_code FROM accounts WHERE id=? OR code=? OR account_id=? OR account_code=? OR code=?", 
+                  (parent_id, str(parent_id), f"ACC-{pid_clean}", pid_clean, pid_clean))
         p = c.fetchone()
         if not p:
-            next_code = "101"
+            next_code = f"{pid_clean}.01" if pid_clean else "1111.01"
         else:
-            p_id = p[0] if isinstance(p, (list, tuple)) else p['id']
-            p_code = p[1] if isinstance(p, (list, tuple)) else p['code']
+            p_id = p['id'] if isinstance(p, dict) or hasattr(p, 'keys') else p[0]
+            p_code = p['code'] if isinstance(p, dict) or hasattr(p, 'keys') else p[1]
             
-            c.execute("SELECT code FROM accounts WHERE parent_id=?", (p_id,))
-            child_codes = [r[0] if isinstance(r, (list, tuple)) else r['code'] for r in c.fetchall()]
+            c.execute("SELECT code, account_code FROM accounts WHERE parent_id=? OR parent_account_id=? OR parent_account_code=?", (p_id, p_id, p_code))
+            child_rows = c.fetchall()
+            child_codes = [r[0] if isinstance(r, (list, tuple)) else (r['code'] or r['account_code']) for r in child_rows]
             
             max_seq = 0
             for cc in child_codes:
@@ -3860,9 +3867,11 @@ class UnifiedERPHandler(http.server.SimpleHTTPRequestHandler):
                     c.execute("SELECT * FROM accounts WHERE code=? OR account_code=?", (code, code))
                     old_row = c.fetchone()
 
+                is_leaf = 1 if is_group == 0 else 0
+
                 if old_row:
                     target_row_id = old_row['id']
-                    target_acc_id = old_row['account_id'] or acc_id or f"ACC-{int(target_row_id):06d}"
+                    target_acc_id = old_row.get('account_id') or acc_id or f"ACC-{code}"
                     old_val_str = json.dumps(dict(old_row), ensure_ascii=False)
                     
                     c.execute('''
@@ -3871,16 +3880,17 @@ class UnifiedERPHandler(http.server.SimpleHTTPRequestHandler):
                             account_category=?, parent_account_id=?, parent_account_code=?, level=?, account_path=?,
                             is_group=?, is_postable=?, is_active=?, normal_balance=?, opening_balance=?,
                             current_balance=?, balance_type=?, currency=?, establishment_date=?, notes=?,
-                            updated_at=CURRENT_TIMESTAMP, updated_by=?, code=?, name=?, parent_id=?,
-                            nature=?, balance=?, acc_code=?, acc_name=?, acc_type=?
+                            updated_at=CURRENT_TIMESTAMP, updated_by=?, code=?, name=?, name_ar=?, name_en=?,
+                            type=?, nature=?, is_leaf=?, parent_id=?, balance=?, acc_code=?, acc_name=?, acc_type=?
                         WHERE id=?
                     ''', (
                         target_acc_id, code, name, name_en, acc_type,
                         acc_cat, p_acc_id, p_acc_code, level, account_path,
                         is_group, is_postable, is_active, nature, open_bal,
                         curr_bal, nature, curr, est_date, notes,
-                        user_name, code, name, parent_id,
-                        nature, curr_bal, code, name, acc_type, target_row_id
+                        user_name, code, name, name, name_en,
+                        acc_type, nature, is_leaf, parent_id,
+                        curr_bal, code, name, acc_type, target_row_id
                     ))
                     acc_id = target_acc_id
                     c.execute("INSERT INTO audit_log (action, entity_type, entity_id, old_value, new_value, user, source) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -3891,33 +3901,32 @@ class UnifiedERPHandler(http.server.SimpleHTTPRequestHandler):
                     if c.fetchone():
                         raise Exception(f"كود الحساب {code} مستخدم بالفعل")
                     
+                    new_acc_uuid = raw_id or acc_id or str(uuid.uuid4())
+                    acc_id = f"ACC-{code}"
                     c.execute('''
                         INSERT INTO accounts (
-                            account_id, account_code, account_name, account_name_en, account_type,
+                            id, account_id, account_code, account_name, account_name_en, account_type,
                             account_category, parent_account_id, parent_account_code, level, account_path,
                             is_group, is_postable, is_active, normal_balance, opening_balance,
                             current_balance, balance_type, currency, establishment_date, notes,
-                            created_at, updated_at, created_by, updated_by, code, name, parent_id,
-                            nature, balance, acc_code, acc_name, acc_type
+                            created_at, updated_at, created_by, updated_by, code, name, name_ar, name_en,
+                            type, nature, is_leaf, parent_id, balance, acc_code, acc_name, acc_type
                         ) VALUES (
+                            ?, ?, ?, ?, ?, ?,
                             ?, ?, ?, ?, ?,
                             ?, ?, ?, ?, ?,
                             ?, ?, ?, ?, ?,
-                            ?, ?, ?, ?, ?,
-                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?,
-                            ?, ?, ?, ?, ?
+                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?,
+                            ?, ?, ?, ?, ?, ?, ?, ?
                         )
                     ''', (
-                        'TEMP', code, name, name_en, acc_type,
+                        new_acc_uuid, acc_id, code, name, name_en, acc_type,
                         acc_cat, p_acc_id, p_acc_code, level, account_path,
                         is_group, is_postable, is_active, nature, open_bal,
                         curr_bal, nature, curr, est_date, notes,
-                        user_name, user_name, code, name, parent_id,
-                        nature, curr_bal, code, name, acc_type
+                        user_name, user_name, code, name, name, name_en,
+                        acc_type, nature, is_leaf, parent_id, curr_bal, code, name, acc_type
                     ))
-                    new_id = c.lastrowid
-                    acc_id = f"ACC-{new_id:06d}"
-                    c.execute("UPDATE accounts SET account_id=? WHERE id=?", (acc_id, new_id))
                     
                     c.execute("INSERT INTO audit_log (action, entity_type, entity_id, old_value, new_value, user, source) VALUES (?, ?, ?, ?, ?, ?, ?)",
                               ('CREATE ACCOUNT', 'account', acc_id, '', json.dumps(data, ensure_ascii=False), user_name, 'Web Application'))
@@ -3932,11 +3941,22 @@ class UnifiedERPHandler(http.server.SimpleHTTPRequestHandler):
                 conn.close()
                 
                 # Async Sync to GAS Cloud in background
-                try:
-                    gas_payload = json.dumps({'action': 'addAccount', 'account_id': acc_id, 'account_code': code, 'account_name': name, 'account_type': acc_type, 'current_balance': curr_bal}).encode('utf-8')
-                    req = urllib.request.Request(GAS_URL, data=gas_payload, headers={'Content-Type': 'application/json'})
-                    urllib.request.urlopen(req, timeout=3)
-                except Exception: pass
+                def sync_to_gas_bg(payload_dict):
+                    try:
+                        gas_payload = json.dumps(payload_dict).encode('utf-8')
+                        req = urllib.request.Request(GAS_URL, data=gas_payload, headers={'Content-Type': 'application/json'})
+                        urllib.request.urlopen(req, timeout=5)
+                    except Exception: pass
+
+                threading.Thread(target=sync_to_gas_bg, args=({
+                    'action': 'addAccount',
+                    'account_id': acc_id,
+                    'account_code': code,
+                    'account_name': name,
+                    'account_type': acc_type,
+                    'parent_id': parent_id,
+                    'current_balance': curr_bal
+                },), daemon=True).start()
 
                 self.send_response(200)
                 self._send_cors_headers()

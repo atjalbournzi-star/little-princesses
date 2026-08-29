@@ -356,38 +356,48 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
     if (!child || !parentAcc) return false;
     const pCode = cleanCode(parentAcc.code || parentAcc.acc_code || parentAcc.id);
     const pId = String(parentAcc.id || '').trim();
+    const pAccId = String(parentAcc.account_id || '').trim();
     const cParent = cleanCode(child.parent_id || child.parent_account_id || child.parent_account_code || '');
-    const cParentRaw = String(child.parent_id || '').trim();
+    const cParentRaw = String(child.parent_id || child.parent_account_id || '').trim();
     const cCode = cleanCode(child.code || child.acc_code || child.id);
     const cType = child.account_type || child.acc_type || '';
 
     if (!cCode || !pCode || cCode === pCode || String(child.id) === pId) return false;
 
     // 1. Explicit Parent ID / Code Match (Primary rule)
-    if (cParent) {
-      if (cParent === pCode || cParentRaw === pId || cParent === pId || cParentRaw === `ACC-${pCode}` || cParentRaw === `ACC_${pCode}`) return true;
+    if (cParentRaw) {
+      if (
+        cParentRaw === pId ||
+        cParentRaw === pAccId ||
+        cParent === pCode ||
+        cParent === pId ||
+        cParentRaw === `ACC-${pCode}` ||
+        cParentRaw === `ACC_${pCode}` ||
+        (child.parent_account_code && cleanCode(child.parent_account_code) === pCode)
+      ) {
+        return true;
+      }
     }
 
-    // 2. Hierarchical dot notation (e.g. 101.01 child of 101, 101.01.01 child of 101.01)
-    if (pCode && cCode && cCode.startsWith(pCode + '.')) {
-      const rest = cCode.slice(pCode.length + 1);
-      if (!rest.includes('.')) return true;
+    // 2. Hierarchical prefix notation (supports dots: 3111.01, dashes: 3111-01 / 3111-01-01, slashes: 3111/01):
+    const separators = ['.', '-', '/', '_'];
+    for (let sep of separators) {
+      const prefix = pCode + sep;
+      if (cCode.startsWith(prefix)) {
+        const rest = cCode.slice(prefix.length);
+        if (!rest.includes(sep) || pCode.includes(sep)) {
+          return true;
+        }
+      }
     }
 
     // 3. Level 2 under Root Level 1 (only when no explicit parent):
-    // Root 5 (تكلفة المبيعات): all 5xx direct cost items
-    if (pCode === '5' && (!cParent || cParent === '5' || cParent === 'ACC-5') && (cType === 'تكلفة المبيعات' || cCode.startsWith('50') || cCode === '501' || cCode === '502' || cCode === '503')) {
-      return true;
-    }
-
-    // Root 6 (المصروفات التشغيلية والعمومية): all 6xx expense items
-    if (pCode === '6' && (!cParent || cParent === '6' || cParent === 'ACC-6') && (cType === 'مصروفات' || cCode.startsWith('60') || cCode.startsWith('6'))) {
-      return true;
-    }
-
-    // Standard single-digit root matching (101 under 1, 201 under 2, etc.)
-    if (pCode.length === 1 && cCode.length === 3 && cCode.startsWith(pCode) && !cParent) {
-      return true;
+    // 4-digit hierarchy: (11 under 1, 111 under 11, 1111 under 111)
+    if (cCode.startsWith(pCode) && !cCode.includes('.') && !cCode.includes('-') && !cCode.includes('/')) {
+      if (pCode.length === 1 && cCode.length === 2) return true;
+      if (pCode.length === 2 && cCode.length === 3) return true;
+      if (pCode.length === 3 && cCode.length === 4) return true;
+      if (pCode.length === 4 && cCode.length === 6) return true;
     }
 
     return false;
@@ -474,23 +484,33 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
   // Open Modal to Add New Account (+ فرع)
   const handleOpenAddModal = async (presetParentId = null) => {
     setEditingAccount(null);
-    const parentId = presetParentId ? String(presetParentId) : '';
-    let initialCode = '';
+    let parentId = '';
+    let parentCode = '';
     let initialType = 'أصول';
     let initialNature = 'debit';
 
-    if (parentId) {
-      const pAcc = accountsWithRollupBalances.find(a => String(a.id) === String(parentId) || String(a.code) === String(parentId));
+    if (presetParentId) {
+      const pAcc = accountsWithRollupBalances.find(a => 
+        String(a.id) === String(presetParentId) || 
+        String(a.code) === String(presetParentId) ||
+        String(a.account_id) === String(presetParentId)
+      );
       if (pAcc) {
-        initialType = pAcc.account_type;
-        initialNature = pAcc.nature;
+        parentId = String(pAcc.code || pAcc.id);
+        parentCode = String(pAcc.code || pAcc.id);
+        initialType = pAcc.account_type || 'أصول';
+        initialNature = pAcc.nature || 'debit';
+      } else {
+        parentId = String(presetParentId);
+        parentCode = String(presetParentId);
       }
     }
 
+    let initialCode = '';
     if (window.suggestAccountCode) {
-      initialCode = await window.suggestAccountCode(parentId);
+      initialCode = await window.suggestAccountCode(parentCode || parentId);
     } else {
-      initialCode = parentId ? `${parentId}.01` : '101';
+      initialCode = parentCode ? `${parentCode}.01` : '1111.01';
     }
 
     setFormData({

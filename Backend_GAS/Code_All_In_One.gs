@@ -2440,6 +2440,13 @@ var ChartOfAccountsController = {
     } else {
       sheet.appendRow(rowArray);
     }
+
+    try {
+      if (sheet.getLastRow() >= 3) {
+        sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).sort(2);
+      }
+    } catch(sortErr) {}
+
     return { success: true, id: newId, account_code: code, message: "تم حفظ وتحديث الحساب بنجاح في دليل الحسابات" };
   }
 };
