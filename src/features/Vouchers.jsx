@@ -1820,7 +1820,7 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
                           const code = a.code || a.acc_code || a.id;
                           const rawName = a.name || a.account_name || a.acc_name || '';
                           const name = (rawName && !rawName.includes('???')) ? rawName : (a.name_en || code);
-                          return <option key={code} value={`${code} - ${name}`}>{code} - ${name}</option>;
+                          return <option key={code} value={`${code} - ${name}`}>{code} - {name}</option>;
                         })}
                       </select>
                     )}
@@ -1883,7 +1883,7 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
                       </optgroup>
 
                       <optgroup label="👗 العملاء والمدينون">
-                        {(accounts || []).filter(a => String(a.code || a.acc_code).startsWith('104') && !a.is_group).map(a => {
+                        {(accounts || []).filter(a => (String(a.code || a.acc_code) === '1131' || String(a.code || a.acc_code) === '1141' || String(a.code || a.acc_code).startsWith('113') || String(a.code || a.acc_code).startsWith('104')) && !a.is_group).map(a => {
                           const code = a.code || a.acc_code || a.id;
                           const rawName = a.name || a.account_name || a.acc_name || '';
                           const name = (rawName && !rawName.includes('???')) ? rawName : (a.name_en || code);
@@ -1910,7 +1910,7 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
                       </optgroup>
 
                       <optgroup label="📦 تكاليف النشاط ومواد الخياطة">
-                        {(accounts || []).filter(a => String(a.code || a.acc_code).startsWith('5') && !a.is_group).map(a => {
+                        {(accounts || []).filter(a => String(a.code || a.acc_code).startsWith('51') && !a.is_group).map(a => {
                           const code = a.code || a.acc_code || a.id;
                           const rawName = a.name || a.account_name || a.acc_name || '';
                           const name = (rawName && !rawName.includes('???')) ? rawName : (a.name_en || code);
@@ -1919,7 +1919,7 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
                       </optgroup>
 
                       <optgroup label="💼 المصروفات التشغيلية والرواتب">
-                        {(accounts || []).filter(a => String(a.code || a.acc_code).startsWith('6') && !a.is_group).map(a => {
+                        {(accounts || []).filter(a => (String(a.code || a.acc_code).startsWith('52') || String(a.code || a.acc_code).startsWith('6')) && !a.is_group).map(a => {
                           const code = a.code || a.acc_code || a.id;
                           const rawName = a.name || a.account_name || a.acc_name || '';
                           const name = (rawName && !rawName.includes('???')) ? rawName : (a.name_en || code);
@@ -1928,7 +1928,7 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
                       </optgroup>
 
                       <optgroup label="🏢 الأصول الثابتة والمكائن">
-                        {(accounts || []).filter(a => (String(a.code || a.acc_code).startsWith('105') || String(a.code || a.acc_code).startsWith('106') || String(a.code || a.acc_code).startsWith('102')) && !a.is_group).map(a => {
+                        {(accounts || []).filter(a => (String(a.code || a.acc_code).startsWith('12') || String(a.code || a.acc_code).startsWith('105') || String(a.code || a.acc_code).startsWith('106') || String(a.code || a.acc_code).startsWith('102')) && !a.is_group).map(a => {
                           const code = a.code || a.acc_code || a.id;
                           const rawName = a.name || a.account_name || a.acc_name || '';
                           const name = (rawName && !rawName.includes('???')) ? rawName : (a.name_en || code);
@@ -1937,7 +1937,7 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
                       </optgroup>
 
                       <optgroup label="💵 الصناديق والبنوك (التحويلات)">
-                        {(accounts || []).filter(a => (String(a.code || a.acc_code).startsWith('101') || String(a.code || a.acc_code).startsWith('103')) && !a.is_group).map(a => {
+                        {(accounts || []).filter(a => (String(a.code || a.acc_code) === '1111' || String(a.code || a.acc_code) === '1121' || String(a.code || a.acc_code).startsWith('111') || String(a.code || a.acc_code).startsWith('101') || String(a.code || a.acc_code).startsWith('103')) && !a.is_group).map(a => {
                           const code = a.code || a.acc_code || a.id;
                           const rawName = a.name || a.account_name || a.acc_name || '';
                           const name = (rawName && !rawName.includes('???')) ? rawName : (a.name_en || code);
@@ -2074,6 +2074,8 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
 
           </div>
         </div>
+      )}
+
       {/* ── نافذة محرر قيد اليومية المركب (القيود المزدوجة المتزنة) ── */}
       {showCompoundModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn overflow-y-auto" dir="rtl">
