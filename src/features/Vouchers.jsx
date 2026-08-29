@@ -58,6 +58,200 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
   const [isSubmittingEdit, setIsSubmittingEdit] = useState(false);
   const [isDeletingId, setIsDeletingId] = useState(null);
 
+  // ── محرر قيد اليومية المركب (Compound Multi-Leg Balanced Journal) ──
+  const [showCompoundModal, setShowCompoundModal] = useState(false);
+  const [compoundForm, setCompoundForm] = useState({
+    entry_no: '',
+    date: TODAY_STR_ISO,
+    currency: 'YER ﷼',
+    exchange_rate: '1.0',
+    ref_type: 'قيد مركب',
+    ref_id: '',
+    general_notes: ''
+  });
+  const [compoundLines, setCompoundLines] = useState([
+    { id: 1, account_code: '101.01', link_subparty: false, party_type: 'customer', party_id: '', debit: '', credit: '', notes: '' },
+    { id: 2, account_code: '301', link_subparty: false, party_type: 'supplier', party_id: '', debit: '', credit: '', notes: '' }
+  ]);
+  const [isSubmittingCompound, setIsSubmittingCompound] = useState(false);
+
+  const compoundCurrCode = window.CurrencyService ? window.CurrencyService.normalizeCode(compoundForm.currency) : 'YER';
+
+  useEffect(() => {
+    if (window.CurrencyService) {
+      const rate = window.CurrencyService.getRate(compoundCurrCode);
+      setCompoundForm(prev => ({ ...prev, exchange_rate: String(rate) }));
+    }
+  }, [compoundForm.currency, compoundCurrCode]);
+
+  const compoundTotals = useMemo(() => {
+    let totalDebit = 0;
+    let totalCredit = 0;
+    compoundLines.forEach(l => {
+      totalDebit += parseFloat(l.debit) || 0;
+      totalCredit += parseFloat(l.credit) || 0;
+    });
+    const diff = Math.abs(totalDebit - totalCredit);
+    const isBalanced = diff < 0.01 && totalDebit > 0;
+    return { totalDebit, totalCredit, diff, isBalanced };
+  }, [compoundLines]);
+
+  const handleOpenCompoundModal = () => {
+    setCompoundForm({
+      entry_no: `JV-CMP-${Date.now().toString().slice(-6)}`,
+      date: TODAY_STR_ISO,
+      currency: 'YER ﷼',
+      exchange_rate: '1.0',
+      ref_type: 'قيد مركب',
+      ref_id: '',
+      general_notes: ''
+    });
+    setCompoundLines([
+      { id: 1, account_code: '101.01', link_subparty: false, party_type: 'customer', party_id: '', debit: '', credit: '', notes: '' },
+      { id: 2, account_code: '301', link_subparty: false, party_type: 'supplier', party_id: '', debit: '', credit: '', notes: '' }
+    ]);
+    setShowCompoundModal(true);
+  };
+
+  const handleAddCompoundLine = () => {
+    setCompoundLines(prev => [
+      ...prev,
+      { id: Date.now() + Math.random(), account_code: '', link_subparty: false, party_type: 'customer', party_id: '', debit: '', credit: '', notes: '' }
+    ]);
+  };
+
+  const handleDuplicateCompoundLine = (idx) => {
+    const target = compoundLines[idx];
+    if (!target) return;
+    const duplicated = { ...target, id: Date.now() + Math.random() };
+    const next = [...compoundLines];
+    next.splice(idx + 1, 0, duplicated);
+    setCompoundLines(next);
+  };
+
+  const handleDeleteCompoundLine = (idx) => {
+    if (compoundLines.length <= 2) {
+      showToast('يجب أن يحتوي القيد المركب على سطرين على الأقل ⚠️', 'warning');
+      return;
+    }
+    setCompoundLines(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleCompoundLineChange = (idx, field, val) => {
+    setCompoundLines(prev => {
+      const copy = [...prev];
+      if (field === 'debit' && val) {
+        copy[idx] = { ...copy[idx], debit: val, credit: '' };
+      } else if (field === 'credit' && val) {
+        copy[idx] = { ...copy[idx], credit: val, debit: '' };
+      } else {
+        copy[idx] = { ...copy[idx], [field]: val };
+      }
+      return copy;
+    });
+  };
+
+  const handleSubmitCompound = async (e) => {
+    if (e) e.preventDefault();
+    if (!compoundTotals.isBalanced) {
+      return showToast('القيد غير متوازن! يجب أن يتساوى إجمالي المدين مع إجمالي الدائن ⚠️', 'error');
+    }
+    const hasEmptyAccount = compoundLines.some(l => !l.account_code && ((parseFloat(l.debit) || 0) > 0 || (parseFloat(l.credit) || 0) > 0));
+    if (hasEmptyAccount) {
+      return showToast('يرجى تحديد حساب لكل سطر مالي ⚠️', 'error');
+    }
+
+    setIsSubmittingCompound(true);
+    try {
+      const rate = parseFloat(compoundForm.exchange_rate) || 1.0;
+      const txId = `TX-CMP-${Date.now()}`;
+      const entryNo = compoundForm.entry_no || `JV-CMP-${Date.now().toString().slice(-6)}`;
+
+      const debits = compoundLines.filter(l => (parseFloat(l.debit) || 0) > 0);
+      const credits = compoundLines.filter(l => (parseFloat(l.credit) || 0) > 0);
+
+      const generatedEntries = [];
+      const primaryDebitLabel = debits.map(d => `${d.account_code}: ${(parseFloat(d.debit) || 0).toLocaleString()} ${compoundCurrCode}`).join(' + ');
+      const primaryCreditLabel = credits.map(c => `${c.account_code}: ${(parseFloat(c.credit) || 0).toLocaleString()} ${compoundCurrCode}`).join(' + ');
+
+      compoundLines.forEach(l => {
+        const dAmt = parseFloat(l.debit) || 0;
+        const cAmt = parseFloat(l.credit) || 0;
+        const lineAmt = dAmt > 0 ? dAmt : cAmt;
+        if (lineAmt <= 0) return;
+
+        const isDebitLine = dAmt > 0;
+        const accCode = l.account_code;
+        const accObj = (accounts || []).find(a => String(a.code || a.acc_code) === String(accCode));
+        const accLabel = accObj ? `${accObj.code || accObj.acc_code} - ${accObj.name || accObj.account_name}` : accCode;
+
+        let subPartyNote = '';
+        if (l.link_subparty && l.party_id) {
+          subPartyNote = ` [الجهة: ${l.party_id}]`;
+        }
+
+        generatedEntries.push({
+          id: Date.now() + Math.random(),
+          transaction_id: txId,
+          entry_no: entryNo,
+          debit: isDebitLine ? accLabel : primaryDebitLabel,
+          credit: !isDebitLine ? accLabel : primaryCreditLabel,
+          debit_code: isDebitLine ? accCode : '',
+          credit_code: !isDebitLine ? accCode : '',
+          amount: lineAmt,
+          currency: compoundCurrCode,
+          exchange_rate: rate,
+          base_amount: lineAmt * rate,
+          ref_type: compoundForm.ref_type || 'قيد مركب',
+          ref_id: entryNo,
+          date: compoundForm.date || TODAY_STR_ISO,
+          notes: `${compoundForm.general_notes ? compoundForm.general_notes + ' | ' : ''}${l.notes || (isDebitLine ? 'طرف مدين' : 'طرف دائن')}${subPartyNote}`,
+          status: 'posted'
+        });
+      });
+
+      if (setJournal) {
+        setJournal(prev => [...generatedEntries, ...(prev || [])]);
+      }
+
+      // Update real-time account balances
+      if (typeof setAccounts === 'function') {
+        setAccounts(prev => (prev || []).map(acc => {
+          const c = String(acc.code || acc.acc_code || '');
+          let delta = 0;
+          compoundLines.forEach(l => {
+            if (String(l.account_code) === c) {
+              const dAmt = (parseFloat(l.debit) || 0) * rate;
+              const cAmt = (parseFloat(l.credit) || 0) * rate;
+              if (acc.type === 'أصول' || acc.type === 'مصروفات' || acc.type === 'تكلفة المبيعات' || acc.nature === 'debit') {
+                delta += (dAmt - cAmt);
+              } else {
+                delta += (cAmt - dAmt);
+              }
+            }
+          });
+          if (delta !== 0) {
+            const curBal = (parseFloat(acc.current_balance ?? acc.balance) || 0) + delta;
+            return { ...acc, current_balance: curBal, balance: curBal };
+          }
+          return acc;
+        }));
+      }
+
+      if (typeof window.callGAS === 'function') {
+        generatedEntries.forEach(j => window.callGAS('addJournalEntry', j).catch(e => console.error(e)));
+      }
+
+      showToast(`تم ترحيل واعتماد القيد المركب (${entryNo}) بنجاح 📑✨`);
+      setShowCompoundModal(false);
+    } catch (err) {
+      console.error("Compound entry submit error:", err);
+      showToast('حدث خطأ أثناء اعتماد القيد المركب', 'error');
+    } finally {
+      setIsSubmittingCompound(false);
+    }
+  };
+
   // تحديث سعر الصرف التلقائي للنافذة المتقدمة
   const advCurrCode = window.CurrencyService ? window.CurrencyService.normalizeCode(modalCurrency) : 'YER';
   useEffect(() => {
@@ -236,6 +430,37 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
       });
 
       if (setJournal) setJournal(prev => [...generatedEntries, ...(prev || [])]);
+
+      // Dynamic real-time accounts balance update in React state
+      if (typeof setAccounts === 'function') {
+        setAccounts(prev => (prev || []).map(acc => {
+          const c = String(acc.code || acc.acc_code || '');
+          let delta = 0;
+          // Cash accounts side
+          splitPayments.forEach(p => {
+            if ((parseFloat(p.amount) || 0) > 0 && String(p.acc_code) === c) {
+              const lineBase = (parseFloat(p.amount) || 0) * vRate;
+              delta += isReceipt ? lineBase : -lineBase;
+            }
+          });
+          // Target offset account side
+          if (String(modalTargetAcc) === c || (modalTargetAcc && c.startsWith(modalTargetAcc))) {
+            const isTargetAssetOrExpense = acc.type === 'أصول' || acc.type === 'مصروفات' || acc.type === 'تكلفة المبيعات' || acc.nature === 'debit';
+            if (isReceipt) {
+              // Receipt: Credit to target account
+              delta += isTargetAssetOrExpense ? -vBaseAmt : vBaseAmt;
+            } else {
+              // Payment: Debit to target account
+              delta += isTargetAssetOrExpense ? vBaseAmt : -vBaseAmt;
+            }
+          }
+          if (delta !== 0) {
+            const curBal = (parseFloat(acc.current_balance ?? acc.balance) || 0) + delta;
+            return { ...acc, current_balance: curBal, balance: curBal };
+          }
+          return acc;
+        }));
+      }
 
       // Save locally & to GAS
       fetch('/api/vouchers/create', {
@@ -919,14 +1144,26 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
                 <span>سندات الصرف</span>
               </button>
             </div>
-            <button
-              type="button"
-              onClick={() => handleOpenAdvancedModal('payment', 'تسوية قيود', 'قيد مركب')}
-              className="w-full py-2 px-3 rounded-xl bg-[#2d3748]/50 hover:bg-[#2d3748] text-gray-300 text-[11px] font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer border border-[#374151]"
-            >
-              <span>📑</span>
-              <span>القيود المركبة والتسويات</span>
-            </button>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => handleOpenAdvancedModal('receipt', 'محمد فلاح', 'إيداع حصة في رأس المال المباشر', '301')}
+                className="py-2 px-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 text-[11px] font-bold transition flex items-center justify-center gap-1 cursor-pointer border border-amber-500/20"
+                title="إصدار سند قبض إيداع رأس مال الشركاء والمؤسسين"
+              >
+                <span>👑</span>
+                <span>إيداع رأس مال</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleOpenCompoundModal}
+                className="py-2 px-2 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 text-[11px] font-bold transition flex items-center justify-center gap-1 cursor-pointer border border-cyan-500/20"
+                title="فتح محرر قيد اليومية المركب المتزن (Multi-Leg)"
+              >
+                <span>📑</span>
+                <span>قيد مركب متزن</span>
+              </button>
+            </div>
           </div>
 
           {/* المجموعة 2: شؤون وتحصيلات العميلات والطلبات */}
@@ -1626,20 +1863,85 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-bold text-gray-300 mb-1.5">الحساب المالي المقابل</label>
+                    <label className="block text-[11px] font-bold text-gray-300 mb-1.5">الحساب المالي المقابل (دليل الحسابات)</label>
                     <select
                       value={modalTargetAcc}
                       onChange={e => setModalTargetAcc(e.target.value)}
-                      className="w-full h-10 px-3 rounded-xl border border-[#374151] bg-[#111827] text-white text-xs focus:border-[#00E5FF] outline-none"
+                      className="w-full h-10 px-3 rounded-xl border border-[#374151] bg-[#111827] text-white text-xs font-semibold focus:border-[#00E5FF] outline-none"
                     >
-                      <option value="104">104 - ذمم ومدينات العملاء</option>
-                      <option value="201">201 - ذمم الموردين ومحلات الأقمشة</option>
-                      <option value="401">401 - إيرادات تفصيل وتصميم الفساتين</option>
-                      <option value="501">501 - تكلفة الأقمشة والمواد المستخدمة</option>
-                      <option value="502">502 - مستلزمات وإكسسوارات الخياطة</option>
-                      <option value="601">601 - أجور ومرتبات العاملين والمصممين</option>
-                      <option value="602">602 - مصروف إيجار المعمل والمعرض</option>
-                      <option value="604">604 - مصاريف تشغيلية ونثرية عامة</option>
+                      <option value="">-- اختر الحساب المقابل من الدليل --</option>
+                      
+                      <optgroup label="👑 حقوق الملكية ورأس المال">
+                        {(accounts || []).filter(a => String(a.code || a.acc_code).startsWith('3') && !a.is_group).map(a => {
+                          const code = a.code || a.acc_code || a.id;
+                          const rawName = a.name || a.account_name || a.acc_name || '';
+                          const name = (rawName && !rawName.includes('???')) ? rawName : (a.name_en || code);
+                          return <option key={code} value={code}>{code} - {name}</option>;
+                        })}
+                      </optgroup>
+
+                      <optgroup label="👗 العملاء والمدينون">
+                        {(accounts || []).filter(a => String(a.code || a.acc_code).startsWith('104') && !a.is_group).map(a => {
+                          const code = a.code || a.acc_code || a.id;
+                          const rawName = a.name || a.account_name || a.acc_name || '';
+                          const name = (rawName && !rawName.includes('???')) ? rawName : (a.name_en || code);
+                          return <option key={code} value={code}>{code} - {name}</option>;
+                        })}
+                      </optgroup>
+
+                      <optgroup label="🧵 الموردون والالتزامات">
+                        {(accounts || []).filter(a => String(a.code || a.acc_code).startsWith('2') && !a.is_group).map(a => {
+                          const code = a.code || a.acc_code || a.id;
+                          const rawName = a.name || a.account_name || a.acc_name || '';
+                          const name = (rawName && !rawName.includes('???')) ? rawName : (a.name_en || code);
+                          return <option key={code} value={code}>{code} - {name}</option>;
+                        })}
+                      </optgroup>
+
+                      <optgroup label="💎 الإيرادات والمبيعات">
+                        {(accounts || []).filter(a => String(a.code || a.acc_code).startsWith('4') && !a.is_group).map(a => {
+                          const code = a.code || a.acc_code || a.id;
+                          const rawName = a.name || a.account_name || a.acc_name || '';
+                          const name = (rawName && !rawName.includes('???')) ? rawName : (a.name_en || code);
+                          return <option key={code} value={code}>{code} - {name}</option>;
+                        })}
+                      </optgroup>
+
+                      <optgroup label="📦 تكاليف النشاط ومواد الخياطة">
+                        {(accounts || []).filter(a => String(a.code || a.acc_code).startsWith('5') && !a.is_group).map(a => {
+                          const code = a.code || a.acc_code || a.id;
+                          const rawName = a.name || a.account_name || a.acc_name || '';
+                          const name = (rawName && !rawName.includes('???')) ? rawName : (a.name_en || code);
+                          return <option key={code} value={code}>{code} - {name}</option>;
+                        })}
+                      </optgroup>
+
+                      <optgroup label="💼 المصروفات التشغيلية والرواتب">
+                        {(accounts || []).filter(a => String(a.code || a.acc_code).startsWith('6') && !a.is_group).map(a => {
+                          const code = a.code || a.acc_code || a.id;
+                          const rawName = a.name || a.account_name || a.acc_name || '';
+                          const name = (rawName && !rawName.includes('???')) ? rawName : (a.name_en || code);
+                          return <option key={code} value={code}>{code} - {name}</option>;
+                        })}
+                      </optgroup>
+
+                      <optgroup label="🏢 الأصول الثابتة والمكائن">
+                        {(accounts || []).filter(a => (String(a.code || a.acc_code).startsWith('105') || String(a.code || a.acc_code).startsWith('106') || String(a.code || a.acc_code).startsWith('102')) && !a.is_group).map(a => {
+                          const code = a.code || a.acc_code || a.id;
+                          const rawName = a.name || a.account_name || a.acc_name || '';
+                          const name = (rawName && !rawName.includes('???')) ? rawName : (a.name_en || code);
+                          return <option key={code} value={code}>{code} - {name}</option>;
+                        })}
+                      </optgroup>
+
+                      <optgroup label="💵 الصناديق والبنوك (التحويلات)">
+                        {(accounts || []).filter(a => (String(a.code || a.acc_code).startsWith('101') || String(a.code || a.acc_code).startsWith('103')) && !a.is_group).map(a => {
+                          const code = a.code || a.acc_code || a.id;
+                          const rawName = a.name || a.account_name || a.acc_name || '';
+                          const name = (rawName && !rawName.includes('???')) ? rawName : (a.name_en || code);
+                          return <option key={code} value={code}>{code} - {name}</option>;
+                        })}
+                      </optgroup>
                     </select>
                   </div>
                 </div>
@@ -1767,6 +2069,296 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
               </div>
 
             </form>
+
+          </div>
+        </div>
+      {/* ── نافذة محرر قيد اليومية المركب (القيود المزدوجة المتزنة) ── */}
+      {showCompoundModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn overflow-y-auto" dir="rtl">
+          <div className="bg-[#1e2433] text-white rounded-3xl border border-[#2d3748] shadow-2xl w-full max-w-6xl overflow-hidden my-8 transition-all">
+            
+            {/* رأس النافذة */}
+            <div className="px-6 py-4 border-b border-[#2d3748] flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#181d2a]">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[#E2F5F7]/10 text-[#00E5FF] flex items-center justify-center text-lg font-bold border border-[#00E5FF]/20">
+                  📑
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white flex items-center gap-2">
+                    <span>محرر قيد اليومية المركب (القيود المزدوجة المتزنة)</span>
+                    <span className="text-xs font-normal text-amber-400 bg-amber-400/10 px-2.5 py-0.5 rounded-full border border-amber-400/20">متعدد الأطراف Multi-Leg</span>
+                  </h3>
+                  <p className="text-xs text-[#94a3b8]">إنشاء قيد محاسبي مركب من عدة أسطر مدينة ودائنة مع التحقق الفوري من التوازن</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleAddCompoundLine}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-[#00E5FF] bg-[#00E5FF]/10 hover:bg-[#00E5FF]/20 border border-[#00E5FF]/30 transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+                >
+                  <span className="text-base leading-none">+</span>
+                  <span>إضافة سطر حساب</span>
+                </button>
+                
+                <button
+                  type="button"
+                  onClick={() => setShowCompoundModal(false)}
+                  className="w-9 h-9 rounded-xl bg-[#2d3748] hover:bg-[#374151] text-gray-300 flex items-center justify-center transition cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {/* بيانات رأس القيد العامة */}
+            <div className="p-6 bg-[#181d2a]/60 border-b border-[#2d3748]">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-300 mb-1.5">رقم القيد</label>
+                  <input
+                    type="text"
+                    value={compoundForm.entry_no}
+                    onChange={e => setCompoundForm({ ...compoundForm, entry_no: e.target.value })}
+                    className="w-full h-10 px-3 rounded-xl border border-[#374151] bg-[#111827] text-white text-xs font-mono font-bold focus:border-[#00E5FF] outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-300 mb-1.5">تاريخ القيد</label>
+                  <input
+                    type="date"
+                    value={compoundForm.date}
+                    onChange={e => setCompoundForm({ ...compoundForm, date: e.target.value })}
+                    className="w-full h-10 px-3 rounded-xl border border-[#374151] bg-[#111827] text-white text-xs font-mono focus:border-[#00E5FF] outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-300 mb-1.5">العملة</label>
+                  <select
+                    value={compoundForm.currency}
+                    onChange={e => setCompoundForm({ ...compoundForm, currency: e.target.value })}
+                    className="w-full h-10 px-3 rounded-xl border border-[#374151] bg-[#111827] text-white text-xs font-bold focus:border-[#00E5FF] outline-none"
+                  >
+                    {["YER ﷼", "SAR ﷼", "USD $"].map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-300 mb-1.5">سعر الصرف</label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={compoundForm.exchange_rate}
+                    onChange={e => setCompoundForm({ ...compoundForm, exchange_rate: e.target.value })}
+                    className="w-full h-10 px-3 rounded-xl border border-[#374151] bg-[#111827] text-white text-xs font-mono font-bold text-amber-400 focus:border-[#00E5FF] outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-300 mb-1.5">نوع المرجع / العملية</label>
+                  <select
+                    value={compoundForm.ref_type}
+                    onChange={e => setCompoundForm({ ...compoundForm, ref_type: e.target.value })}
+                    className="w-full h-10 px-3 rounded-xl border border-[#374151] bg-[#111827] text-white text-xs focus:border-[#00E5FF] outline-none"
+                  >
+                    {["قيد مركب", "تسوية شاملة", "إيداع وتوزيع رأس مال", "توزيع أرباح", "رواتب مجمعة", "مشتريات أقمشة متعددة", "تسوية عهد ومصروفات"].map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+
+                <div className="lg:col-span-5">
+                  <label className="block text-[11px] font-bold text-gray-300 mb-1.5">البيان العام للقيد المركب</label>
+                  <input
+                    type="text"
+                    placeholder="اكتب شرحاً عاماً وشاملاً لموضوع القيد المحاسبي المركب..."
+                    value={compoundForm.general_notes}
+                    onChange={e => setCompoundForm({ ...compoundForm, general_notes: e.target.value })}
+                    className="w-full h-10 px-3 rounded-xl border border-[#374151] bg-[#111827] text-white text-xs focus:border-[#00E5FF] outline-none placeholder:text-gray-500"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* جدول أسطر القيد المركب */}
+            <div className="p-6 overflow-x-auto">
+              <table className="w-full text-xs text-right border-collapse">
+                <thead>
+                  <tr className="bg-[#111827] text-gray-300 font-bold border-b border-[#2d3748]">
+                    <th className="px-3.5 py-3 text-right w-[30%]">رمز واسم الحساب في الدليل</th>
+                    <th className="px-3.5 py-3 text-right w-[20%]">ربط جهة فرعية (اختياري)</th>
+                    <th className="px-3.5 py-3 text-center w-[12%]">المدين (Debit)</th>
+                    <th className="px-3.5 py-3 text-center w-[12%]">الدائن (Credit)</th>
+                    <th className="px-3.5 py-3 text-right w-[20%]">شرح سطر الحساب</th>
+                    <th className="px-3.5 py-3 text-center w-[6%]">إجراء</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#2d3748] bg-[#1a202c]">
+                  {compoundLines.map((line, idx) => (
+                    <tr key={line.id} className="hover:bg-[#222a3a] transition-colors">
+                      {/* اختيار الحساب */}
+                      <td className="px-3.5 py-2.5">
+                        <select
+                          value={line.account_code}
+                          onChange={e => handleCompoundLineChange(idx, 'account_code', e.target.value)}
+                          className="w-full h-9 px-2.5 rounded-lg border border-[#374151] bg-[#111827] text-white text-xs font-semibold focus:border-[#00E5FF] outline-none"
+                        >
+                          <option value="">-- اختر حساب من الدليل --</option>
+                          {(accounts || []).filter(a => !a.is_group).map(a => {
+                            const code = a.code || a.acc_code || a.id;
+                            const rawName = a.name || a.account_name || a.acc_name || '';
+                            const name = (rawName && !rawName.includes('???')) ? rawName : (a.name_en || code);
+                            return <option key={code} value={code}>{code} - {name}</option>;
+                          })}
+                        </select>
+                      </td>
+
+                      {/* ربط جهة فرعية */}
+                      <td className="px-3.5 py-2.5">
+                        <div className="space-y-1.5">
+                          <label className="flex items-center gap-1.5 text-[11px] text-gray-300 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={line.link_subparty}
+                              onChange={e => handleCompoundLineChange(idx, 'link_subparty', e.target.checked)}
+                              className="rounded accent-[#00E5FF]"
+                            />
+                            <span>ربط جهة فرعية</span>
+                          </label>
+
+                          {line.link_subparty && (
+                            <div className="flex gap-1.5">
+                              <select
+                                value={line.party_type}
+                                onChange={e => handleCompoundLineChange(idx, 'party_type', e.target.value)}
+                                className="w-1/3 h-8 px-1.5 rounded-lg border border-[#374151] bg-[#111827] text-white text-[11px] outline-none"
+                              >
+                                <option value="customer">عميلة 👗</option>
+                                <option value="supplier">مورد 🧵</option>
+                                <option value="employee">موظف ✂️</option>
+                              </select>
+
+                              <select
+                                value={line.party_id}
+                                onChange={e => handleCompoundLineChange(idx, 'party_id', e.target.value)}
+                                className="w-2/3 h-8 px-2 rounded-lg border border-[#374151] bg-[#111827] text-white text-[11px] outline-none"
+                              >
+                                <option value="">-- اختر الاسم --</option>
+                                {line.party_type === 'customer' && (customers || []).map(c => <option key={c.id || c.name} value={c.name}>{c.name}</option>)}
+                                {line.party_type === 'supplier' && [...new Set((purchases || []).map(p => p.supplier || p.vendor_name).filter(Boolean))].map(s => <option key={s} value={s}>{s}</option>)}
+                                {line.party_type === 'employee' && (employees || []).map(emp => <option key={emp.id || emp.name} value={emp.name}>{emp.name}</option>)}
+                              </select>
+                            </div>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* مدين */}
+                      <td className="px-3.5 py-2.5">
+                        <input
+                          type="number"
+                          step="any"
+                          placeholder="0.00"
+                          value={line.debit}
+                          onChange={e => handleCompoundLineChange(idx, 'debit', e.target.value)}
+                          className="w-full h-9 px-2.5 rounded-lg border border-[#374151] bg-[#111827] text-[#00E5FF] font-mono font-bold text-xs text-left focus:border-[#00E5FF] outline-none"
+                        />
+                      </td>
+
+                      {/* دائن */}
+                      <td className="px-3.5 py-2.5">
+                        <input
+                          type="number"
+                          step="any"
+                          placeholder="0.00"
+                          value={line.credit}
+                          onChange={e => handleCompoundLineChange(idx, 'credit', e.target.value)}
+                          className="w-full h-9 px-2.5 rounded-lg border border-[#374151] bg-[#111827] text-amber-400 font-mono font-bold text-xs text-left focus:border-amber-400 outline-none"
+                        />
+                      </td>
+
+                      {/* ملاحظات السطر */}
+                      <td className="px-3.5 py-2.5">
+                        <input
+                          type="text"
+                          placeholder="ملاحظات السطر..."
+                          value={line.notes}
+                          onChange={e => handleCompoundLineChange(idx, 'notes', e.target.value)}
+                          className="w-full h-9 px-2.5 rounded-lg border border-[#374151] bg-[#111827] text-white text-xs focus:border-[#00E5FF] outline-none placeholder:text-gray-500"
+                        />
+                      </td>
+
+                      {/* إجراءات السطر */}
+                      <td className="px-3.5 py-2.5 text-center">
+                        <div className="flex items-center justify-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleDuplicateCompoundLine(idx)}
+                            title="تكرار هذا السطر"
+                            className="w-7 h-7 rounded-lg bg-[#2d3748] hover:bg-[#374151] text-gray-300 flex items-center justify-center text-xs font-bold transition cursor-pointer"
+                          >
+                            +
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteCompoundLine(idx)}
+                            title="حذف السطر"
+                            className="w-7 h-7 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 flex items-center justify-center text-xs transition cursor-pointer"
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* شريط المجاميع والتوازن وزر الاعتماد والترحيل */}
+            <div className="px-6 py-4 border-t border-[#2d3748] bg-[#111827] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-4 flex-wrap">
+                <div className="text-xs">
+                  <span className="text-gray-400 font-semibold">إجمالي المدين: </span>
+                  <span className="font-mono font-bold text-[#00E5FF] text-sm">{compoundTotals.totalDebit.toLocaleString('en-US', { minimumFractionDigits: 2 })} {compoundCurrCode}</span>
+                </div>
+
+                <div className="text-xs">
+                  <span className="text-gray-400 font-semibold">إجمالي الدائن: </span>
+                  <span className="font-mono font-bold text-amber-400 text-sm">{compoundTotals.totalCredit.toLocaleString('en-US', { minimumFractionDigits: 2 })} {compoundCurrCode}</span>
+                </div>
+
+                <div className="text-xs">
+                  <span className="text-gray-400 font-semibold">الفرق: </span>
+                  <span className={`font-mono font-bold text-sm px-2.5 py-0.5 rounded-full ${
+                    compoundTotals.isBalanced ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                  }`}>
+                    {compoundTotals.diff.toLocaleString('en-US', { minimumFractionDigits: 2 })} {compoundCurrCode} {compoundTotals.isBalanced ? '✓ متزن' : '⚠️ غير متزن'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowCompoundModal(false)}
+                  className="px-5 py-2.5 rounded-xl border border-[#374151] text-gray-300 hover:bg-[#2d3748] font-bold text-xs transition cursor-pointer"
+                >
+                  إلغاء
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSubmitCompound}
+                  disabled={!compoundTotals.isBalanced || isSubmittingCompound}
+                  className="px-6 py-2.5 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 transition flex items-center gap-2 cursor-pointer shadow-lg disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <span>✓</span>
+                  <span>{isSubmittingCompound ? 'جاري الاعتماد...' : 'اعتماد القيد المركب وترحيله'}</span>
+                </button>
+              </div>
+            </div>
 
           </div>
         </div>
