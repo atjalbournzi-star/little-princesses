@@ -222,8 +222,17 @@ function Reports({ orders = [], expenses = [], vouchers = [], journal = [], acco
       return { ...item, amount: Math.max(0, acc.balance_target || 0) };
     });
 
+    // Fixed Assets
+    const fixedAssets = [
+      { code: '1211', name: 'آلات ومعدات الخياطة والتطريز' }
+    ].map(item => {
+      const acc = liveAccountsMap[item.code] || liveAccountsMap['105'] || {};
+      return { ...item, amount: Math.max(0, acc.balance_target || 0) };
+    });
+
     const totalCurrentAssets = currentAssets.reduce((sum, a) => sum + a.amount, 0);
-    const totalAssets = totalCurrentAssets;
+    const totalFixedAssets = fixedAssets.reduce((sum, a) => sum + a.amount, 0);
+    const totalAssets = totalCurrentAssets + totalFixedAssets;
 
     // Current Liabilities
     const currentLiabilities = [

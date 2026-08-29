@@ -10,8 +10,8 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
     date: TODAY_STR_ISO,
     notes: '',
     pay_method: typeof PAY_METHODS !== 'undefined' ? PAY_METHODS[0] : 'نقدي',
-    acc_code: '101.01 - صندوق فرع الورشة والمعمل (صنعاء)',
-    target_acc: '201 - ذمم الموردين ومحلات الأقمشة'
+    acc_code: '1111 - الصندوق الرئيسي',
+    target_acc: '2111 - ذمم الموردين ومحلات الأقمشة'
   });
   
   const [selectedCustomer, setSelectedCustomer] = useState('');
@@ -35,7 +35,7 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
   const [modalTargetAcc, setModalTargetAcc] = useState('');
   const [modalNotes, setModalNotes] = useState('');
   const [splitPayments, setSplitPayments] = useState([
-    { id: 1, method: 'نقداً (صندوق الورشة)', acc_code: '101.01', amount: '' }
+    { id: 1, method: 'نقداً (الصندوق الرئيسي)', acc_code: '1111', amount: '' }
   ]);
   const [isSubmittingAdv, setIsSubmittingAdv] = useState(false);
 
@@ -50,8 +50,8 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
     currency: 'YER ﷼',
     exchange_rate: '1.0',
     pay_method: 'نقدي',
-    acc_code: '101.01 - صندوق فرع الورشة والمعمل (صنعاء)',
-    target_acc: '201 - ذمم الموردين ومحلات الأقمشة',
+    acc_code: '1111 - الصندوق الرئيسي',
+    target_acc: '2111 - ذمم الموردين ومحلات الأقمشة',
     date: TODAY_STR_ISO,
     notes: ''
   });
@@ -70,8 +70,8 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
     general_notes: ''
   });
   const [compoundLines, setCompoundLines] = useState([
-    { id: 1, account_code: '101.01', link_subparty: false, party_type: 'customer', party_id: '', debit: '', credit: '', notes: '' },
-    { id: 2, account_code: '301', link_subparty: false, party_type: 'supplier', party_id: '', debit: '', credit: '', notes: '' }
+    { id: 1, account_code: '1111', link_subparty: false, party_type: 'customer', party_id: '', debit: '', credit: '', notes: '' },
+    { id: 2, account_code: '3111', link_subparty: false, party_type: 'supplier', party_id: '', debit: '', credit: '', notes: '' }
   ]);
   const [isSubmittingCompound, setIsSubmittingCompound] = useState(false);
 
