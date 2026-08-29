@@ -187,7 +187,7 @@ function Marketing({ campaigns = [], setCampaigns, products = [], accounts = [],
       campaign_name: campaignName.trim(),
       platform,
       product_id: selectedProd ? selectedProd.id : null,
-      payment_account: paymentAccount || '505 - مصاريف التسويق والإعلانات',
+      payment_account: paymentAccount || '604 - مصاريف التسويق والإعلانات الممولة',
       objective,
       budget: parseFloat(budget) || 0,
       start_date: startDate,
@@ -754,7 +754,7 @@ function Marketing({ campaigns = [], setCampaigns, products = [], accounts = [],
                 <div>
                   <label className={labelCls}>حساب دفع الإعلان (ERP Account)</label>
                   <select value={paymentAccount} onChange={e => setPaymentAccount(e.target.value)} className={inputCls}>
-                    <option value="">505 - مصاريف التسويق والإعلانات</option>
+                    <option value="">604 - مصاريف التسويق والإعلانات الممولة</option>
                     {(accounts || []).map(a => {
                       const code = a.code || a.acc_code || a.id;
                       const rawName = a.name || a.account_name || a.acc_name || '';

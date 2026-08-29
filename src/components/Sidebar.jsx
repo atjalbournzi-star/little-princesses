@@ -34,10 +34,9 @@ window.Sidebar = function Sidebar({
       title: "المحاسبة والمالية",
       items: [
         { id: "accounts", label: "شجرة الحسابات", icon: Icons.Accounts, roles: ['admin', 'accountant'] },
-        { id: "vouchers", label: "السندات المالية", icon: Icons.Vouchers, roles: ['admin', 'accountant'] },
+        { id: "vouchers", label: "السندات والعمليات المالية", icon: Icons.Vouchers, roles: ['admin', 'accountant'] },
         { id: "expenses", label: "المصاريف التشغيلية", icon: Icons.Expenses, roles: ['admin', 'accountant'] },
-        { id: "journal", label: "القيود اليومية", icon: Icons.Journal, roles: ['admin', 'accountant'] },
-        { id: "reports", label: "التقارير المالية", icon: Icons.Reports, roles: ['admin', 'accountant'] },
+        { id: "reports", label: "التقارير المالية والأستاذ", icon: Icons.Reports, roles: ['admin', 'accountant'] },
       ]
     },
     {
