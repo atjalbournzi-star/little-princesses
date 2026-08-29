@@ -1861,45 +1861,50 @@ class UnifiedERPHandler(http.server.SimpleHTTPRequestHandler):
             rows_raw = [dict(r) for r in c.fetchall()]
             conn.close()
 
-            # ─── إزالة التكرار (Deduplication) بالكود المحاسبي ──────────────────
-            # عند وجود سجلات متكررة بنفس code، نحتفظ بالسجل الأكثر اكتمالاً
+            TYPE_MAP = {
+                'ASSET': 'أصول',
+                'LIABILITY': 'خصوم',
+                'EQUITY': 'حقوق ملكية',
+                'REVENUE': 'إيرادات',
+                'EXPENSE': 'مصروفات'
+            }
+
             seen_codes = {}
             deduped_rows = []
             for row in rows_raw:
                 code_key = str(row.get('code') or row.get('account_code') or row.get('acc_code') or '').strip()
                 if not code_key:
-                    deduped_rows.append(row)
                     continue
+
+                ar_name = row.get('name_ar') or row.get('name') or row.get('account_name') or code_key
+                row['name'] = ar_name
+                row['account_name'] = ar_name
+                row['acc_name'] = ar_name
+                row['name_ar'] = ar_name
+                
+                raw_type = str(row.get('type') or row.get('account_type') or 'ASSET').upper()
+                row['account_type'] = TYPE_MAP.get(raw_type, row.get('account_type') or 'أصول')
+                row['acc_type'] = row['account_type']
+                row['nature'] = str(row.get('nature') or 'debit').lower()
+                row['is_group'] = 0 if row.get('is_leaf') == 1 else 1
+                row['is_postable'] = 1 if row.get('is_leaf') == 1 else 0
+
                 if code_key not in seen_codes:
                     seen_codes[code_key] = len(deduped_rows)
                     deduped_rows.append(row)
                 else:
-                    # يوجد تكرار - قارن الأرصدة والاكتمال واحتفظ بالأفضل
                     existing_idx = seen_codes[code_key]
                     existing = deduped_rows[existing_idx]
-                    existing_bal = float(existing.get('opening_balance') or existing.get('balance') or existing.get('current_balance') or 0)
-                    new_bal = float(row.get('opening_balance') or row.get('balance') or row.get('current_balance') or 0)
-                    new_id = int(row.get('id') or 0)
-                    old_id = int(existing.get('id') or 0)
-                    # الأفضل: الأعلى رصيداً، أو له account_name_en، أو id أكبر (أحدث)
-                    new_is_better = (
-                        new_bal > existing_bal or
-                        (not existing.get('account_name_en') and row.get('account_name_en')) or
-                        new_id > old_id
-                    )
-                    if new_is_better:
-                        merged = {**existing, **row,
-                                  'opening_balance': max(existing_bal, new_bal),
-                                  'balance': max(existing_bal, new_bal),
-                                  'current_balance': max(existing_bal, new_bal)}
-                        deduped_rows[existing_idx] = merged
-            # ─────────────────────────────────────────────────────────────────────
+                    existing_bal = float(existing.get('current_balance') or 0)
+                    new_bal = float(row.get('current_balance') or 0)
+                    merged = {**existing, **row, 'current_balance': max(existing_bal, new_bal)}
+                    deduped_rows[existing_idx] = merged
 
             self.send_response(200)
             self._send_cors_headers()
             self.send_header('Content-Type', 'application/json; charset=utf-8')
             self.end_headers()
-            self.wfile.write(json.dumps({'success': True, 'data': deduped_rows}).encode('utf-8'))
+            self.wfile.write(json.dumps({'success': True, 'data': deduped_rows}, ensure_ascii=False).encode('utf-8'))
             return
 
 

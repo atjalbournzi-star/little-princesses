@@ -226,12 +226,48 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
     return dedupedAccounts.map(a => {
       const id = a.id || a.acc_code || a.code;
       const code = String(a.code || a.acc_code || id || '').trim();
-      const name = String(a.name || a.acc_name || code).trim();
+      
+      const ARABIC_STANDARD_NAMES = {
+        '1': 'الأصول',
+        '1111': 'الصندوق الرئيسي',
+        '1112': 'البنك / الشبكة وPOS',
+        '1121': 'عهد الورشة والمشغل',
+        '1131': 'ذمم العميلات',
+        '1141': 'سلف الخياطين والعاملين',
+        '1151': 'مخزون الأقمشة والخامات',
+        '1152': 'إنتاج تحت التشغيل (WIP)',
+        '1153': 'مخزون الفساتين التامة',
+        '2': 'الالتزامات (الخصوم)',
+        '2111': 'ذمم الموردين ومحلات الأقمشة',
+        '2121': 'دفعات مقدمة وعرابين حجز',
+        '2131': 'مستحقات وأجور الخياطين',
+        '3': 'حقوق الملكية',
+        '3111': 'رأس المال المباشر Little Princesses',
+        '3112': 'الأرباح المبقاة / المحتجزة',
+        '4': 'الإيرادات',
+        '4111': 'إيرادات تفصيل وتصميم الفساتين',
+        '4121': 'إيرادات مبيعات فساتين المعرض',
+        '4211': 'أرباح تسويات المخزون',
+        '5': 'المصروفات وتكاليف الإنتاج',
+        '5111': 'تكلفة الأقمشة والمواد المباعة',
+        '5121': 'أجور خياطة وتصنيع مباشرة',
+        '5211': 'مصاريف تشغيل وصيانة الورشة',
+        '5221': 'خسائر وفروقات عجز الجرد'
+      };
+
+      const rawName = String(a.name_ar || a.name || a.account_name || a.acc_name || code).trim();
+      const name = (rawName && !rawName.includes('?') && rawName !== code && !rawName.startsWith('ACC-') && !/^[A-Za-z\s&/()\-–—]+$/.test(rawName))
+        ? rawName
+        : (ARABIC_STANDARD_NAMES[code] || a.name_ar || a.name || code);
+
       const type = a.account_type || a.acc_type || 'أصول';
       const parent_id = (a.parent_id !== undefined && a.parent_id !== null && a.parent_id !== '' && a.parent_id !== '0') ? a.parent_id : null;
       const level = a.level || (code.includes('.') ? code.split('.').length : (code.length > 2 ? 3 : (code.length === 1 ? 1 : 2)));
       const is_group = a.is_group !== undefined ? Number(a.is_group) : (code.length <= 1 ? 1 : 0);
-      const nature = a.nature || (['خصوم', 'حقوق ملكية', 'إيرادات'].includes(type) ? 'credit' : 'debit');
+      
+      const rawNat = String(a.nature || '').toLowerCase();
+      const nature = (rawNat === 'credit' || rawNat === 'دائن' || (rawNat === '' && ['خصوم', 'حقوق ملكية', 'إيرادات', 'LIABILITY', 'EQUITY', 'REVENUE'].includes(String(a.account_type || a.type || '')))) ? 'credit' : 'debit';
+      
       const is_active = a.is_active !== undefined ? Number(a.is_active) : 1;
       const openingBal = parseFloat(a.opening_balance || a.open_bal || 0.0);
 
@@ -736,8 +772,6 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
             <span className="text-base">{isGroup ? '📁' : '📄'}</span>
             <span className="font-mono bg-[#F2E7F3] text-[#8F2A87] px-2 py-0.5 rounded-md text-xs font-bold">{acc.code}</span>
             <span className={`text-xs md:text-sm ${isGroup ? 'font-bold text-[#25232A]' : 'font-medium text-[#25232A]'}`}>{acc.name}</span>
-
-            {acc.name_en && <span className="text-[11px] text-[#6F6B75] font-mono hidden md:inline">({acc.name_en})</span>}
 
             <span className={`text-[10px] px-2 py-0.5 rounded-md font-bold ${
               isGroup ? 'bg-[#FFF1DC] text-[#C97300] border border-[#FFE4B9]' : 'bg-[#E2F5F7] text-[#007F8C] border border-[#C5ECF0]'
