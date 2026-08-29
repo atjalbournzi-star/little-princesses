@@ -2661,9 +2661,8 @@ function resetAndSeedCleanChartOfAccounts(optionalSheet) {
   if (!sh) return { success: false, message: "لم يتم العثور على شيت دليل_الحسابات" };
 
   var lastR = sh.getLastRow();
-  var lastC = Math.max(sh.getLastColumn(), 22);
   if (lastR >= 2) {
-    sh.getRange(2, 1, lastR - 1, lastC).clearContent();
+    sh.deleteRows(2, lastR - 1);
   }
 
   // مسح قيود اليومية المعاملاتية حتى لا تعيد احتساب الأرصدة القديمة
