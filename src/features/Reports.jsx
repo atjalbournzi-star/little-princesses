@@ -380,97 +380,157 @@ function Reports({ orders = [], expenses = [], vouchers = [], journal = [], acco
   }, [statementType, selectedPartyId, customers, purchases, orders, vouchers, toReportAmount]);
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // 6. EXCEL / CSV EXPORT ENGINE
+  // 6. EXCEL (XLS) & PRINT ENGINE
   // ─────────────────────────────────────────────────────────────────────────────
+  const getTabTitle = () => {
+    switch (activeTab) {
+      case 'pnl': return 'قائمة الدخل والأرباح والخسائر (P&L)';
+      case 'balance_sheet': return 'الميزانية العمومية والمركز المالي (Balance Sheet)';
+      case 'trial_balance': return 'ميزان المراجعة بالمجاميع والأرصدة الختامية';
+      case 'general_ledger': return `كشف حركة دفتر الأستاذ العام (حساب ${selectedLedgerAcc})`;
+      case 'statements': return statementType === 'customer' ? 'كشف حساب ومطابقات العميلات' : 'كشف حساب ومطابقات موردي الأقمشة';
+      default: return 'التقرير المالي والختامي';
+    }
+  };
+
   const handleExportExcel = useCallback(() => {
-    const rows = [];
-    let filename = `Little_Princesses_Report_${activeTab}_${dateRange.start || 'all'}_${dateRange.end || 'all'}.csv`;
+    let tableHtml = '';
+    let filename = `Little_Princesses_${activeTab}_${dateRange.start || 'all'}_${dateRange.end || 'all'}.xls`;
 
     if (activeTab === 'pnl') {
-      filename = `قائمة_الدخل_والأرباح_P&L_${reportCurrency.replace(/[^a-zA-Z]/g, '')}.csv`;
-      rows.push(['مؤسسة Little Princesses للأزياء الراقية - قائمة الدخل والأرباح والخسائر']);
-      rows.push([`الفترة: من ${dateRange.start || 'البداية'} إلى ${dateRange.end || 'اليوم'} | العملة: ${reportCurrency}`]);
-      rows.push([]);
-      rows.push(['البند المحاسبي', 'كود الحساب', 'المبلغ']);
-      rows.push(['=== 1. الإيرادات التشغيلية (Revenues) ===']);
-      pnlData.revAccounts.forEach(r => rows.push([r.name, r.code, r.amount]));
-      rows.push(['إجمالي الإيرادات', '', pnlData.totalRevenue]);
-      rows.push([]);
-      rows.push(['=== 2. تكلفة المبيعات المباشرة (COGS) ===']);
-      pnlData.cogsAccounts.forEach(c => rows.push([c.name, c.code, c.amount]));
-      rows.push(['إجمالي تكلفة المبيعات', '', pnlData.totalCOGS]);
-      rows.push([]);
-      rows.push(['مجمل الربح التجاري (Gross Profit)', '', pnlData.grossProfit]);
-      rows.push(['نسبة هامش مجمل الربح', '', `${pnlData.grossMarginPct.toFixed(2)}%`]);
-      rows.push([]);
-      rows.push(['=== 3. المصروفات التشغيلية والعمومية (OPEX) ===']);
-      pnlData.opexAccounts.forEach(o => rows.push([o.name, o.code, o.amount]));
-      rows.push(['إجمالي المصروفات التشغيلية', '', pnlData.totalOPEX]);
-      rows.push([]);
-      rows.push(['صافي الربح الفعلي للفترة (Net Profit)', '', pnlData.netProfit]);
-      rows.push(['نسبة هامش صافي الربح', '', `${pnlData.netMarginPct.toFixed(2)}%`]);
+      filename = `قائمة_الدخل_والأرباح_P&L_${reportCurrency.replace(/[^a-zA-Z]/g, '')}.xls`;
+      tableHtml = `
+        <tr style="background-color:#007F8C;color:#ffffff;"><th colspan="3" style="font-size:16px;padding:10px;">مؤسسة Little Princesses للأزياء الراقية - قائمة الدخل والأرباح (P&L)</th></tr>
+        <tr style="background-color:#f9fafb;"><td colspan="3">الفترة: من ${dateRange.start || 'البداية'} إلى ${dateRange.end || 'اليوم'} | العملة: ${reportCurrency}</td></tr>
+        <tr><th>كود الحساب</th><th>البند المحاسبي / البيان</th><th>المبلغ (${reportCurrency})</th></tr>
+        <tr style="background-color:#f3f4f6;font-weight:bold;"><td colspan="3">1. الإيرادات التشغيلية (Revenues)</td></tr>
+        ${pnlData.revAccounts.map(r => `<tr><td style="text-align:center;">${r.code}</td><td>${r.name}</td><td style="text-align:left;mso-number-format:'\\#\\,\\#\\#0\\.00';">${r.amount}</td></tr>`).join('')}
+        <tr style="background-color:#e0f2fe;font-weight:bold;"><td></td><td>إجمالي الإيرادات</td><td style="text-align:left;mso-number-format:'\\#\\,\\#\\#0\\.00';">${pnlData.totalRevenue}</td></tr>
+        <tr style="background-color:#f3f4f6;font-weight:bold;"><td colspan="3">2. تكلفة المبيعات المباشرة (Cost of Goods Sold - COGS)</td></tr>
+        ${pnlData.cogsAccounts.map(c => `<tr><td style="text-align:center;">${c.code}</td><td>${c.name}</td><td style="text-align:left;mso-number-format:'\\#\\,\\#\\#0\\.00';">${c.amount}</td></tr>`).join('')}
+        <tr style="background-color:#fef3c7;font-weight:bold;"><td></td><td>إجمالي تكلفة المبيعات</td><td style="text-align:left;mso-number-format:'\\#\\,\\#\\#0\\.00';">${pnlData.totalCOGS}</td></tr>
+        <tr style="background-color:#dcfce7;font-weight:bold;font-size:13px;"><td></td><td>مجمل الربح التجاري (Gross Profit) - هامش ${pnlData.grossMarginPct.toFixed(1)}%</td><td style="text-align:left;mso-number-format:'\\#\\,\\#\\#0\\.00';">${pnlData.grossProfit}</td></tr>
+        <tr style="background-color:#f3f4f6;font-weight:bold;"><td colspan="3">3. المصروفات التشغيلية والعمومية (Operating Expenses - OPEX)</td></tr>
+        ${pnlData.opexAccounts.map(o => `<tr><td style="text-align:center;">${o.code}</td><td>${o.name}</td><td style="text-align:left;mso-number-format:'\\#\\,\\#\\#0\\.00';">${o.amount}</td></tr>`).join('')}
+        <tr style="background-color:#fee2e2;font-weight:bold;"><td></td><td>إجمالي المصروفات التشغيلية</td><td style="text-align:left;mso-number-format:'\\#\\,\\#\\#0\\.00';">${pnlData.totalOPEX}</td></tr>
+        <tr style="background-color:#E2F5F7;font-weight:bold;font-size:14px;color:#007F8C;"><td></td><td>صافي الربح الفعلي والنهائي (Net Profit) - هامش ${pnlData.netMarginPct.toFixed(1)}%</td><td style="text-align:left;mso-number-format:'\\#\\,\\#\\#0\\.00';">${pnlData.netProfit}</td></tr>
+      `;
     } else if (activeTab === 'balance_sheet') {
-      filename = `الميزانية_العمومية_والمركز_المالي_${reportCurrency.replace(/[^a-zA-Z]/g, '')}.csv`;
-      rows.push(['مؤسسة Little Princesses للأزياء الراقية - الميزانية العمومية والمركز المالي']);
-      rows.push([`الفترة: حتى تاريخ ${dateRange.end || 'اليوم'} | العملة: ${reportCurrency}`]);
-      rows.push([]);
-      rows.push(['=== جانب الأصول (Assets) ===']);
-      rows.push(['كود الحساب', 'اسم الحساب', 'المبلغ']);
-      balanceSheetData.currentAssets.forEach(a => rows.push([a.code, a.name, a.amount]));
-      balanceSheetData.fixedAssets.forEach(a => rows.push([a.code, a.name, a.amount]));
-      rows.push(['إجمالي الأصول', '', balanceSheetData.totalAssets]);
-      rows.push([]);
-      rows.push(['=== جانب الخصوم وحقوق الملكية (Liabilities & Equity) ===']);
-      rows.push(['كود الحساب', 'اسم الحساب', 'المبلغ']);
-      balanceSheetData.currentLiabilities.forEach(l => rows.push([l.code, l.name, l.amount]));
-      balanceSheetData.equityAccounts.forEach(e => rows.push([e.code, e.name, e.amount]));
-      rows.push(['P&L', 'أرباح / (خسائر) الفترة الحالية المحققة', balanceSheetData.periodProfit]);
-      rows.push(['إجمالي الخصوم وحقوق الملكية', '', balanceSheetData.totalLiabilitiesAndEquity]);
-      rows.push(['حالة الاتزان المحاسبي', '', balanceSheetData.isBalanced ? 'متزن 100%' : 'غير متزن']);
+      filename = `الميزانية_العمومية_والمركز_المالي_${reportCurrency.replace(/[^a-zA-Z]/g, '')}.xls`;
+      tableHtml = `
+        <tr style="background-color:#007F8C;color:#ffffff;"><th colspan="3" style="font-size:16px;padding:10px;">مؤسسة Little Princesses للأزياء الراقية - الميزانية العمومية والمركز المالي</th></tr>
+        <tr style="background-color:#f9fafb;"><td colspan="3">حتى تاريخ: ${dateRange.end || 'اليوم'} | العملة: ${reportCurrency}</td></tr>
+        <tr><th>كود الحساب</th><th>اسم الحساب / البند</th><th>المبلغ (${reportCurrency})</th></tr>
+        <tr style="background-color:#f3f4f6;font-weight:bold;"><td colspan="3">1. جانب الأصول (Assets)</td></tr>
+        <tr style="background-color:#f9fafb;font-weight:bold;"><td colspan="3">الأصول المتداولة (Current Assets)</td></tr>
+        ${balanceSheetData.currentAssets.map(a => `<tr><td style="text-align:center;">${a.code}</td><td>${a.name}</td><td style="text-align:left;mso-number-format:'\\#\\,\\#\\#0\\.00';">${a.amount}</td></tr>`).join('')}
+        <tr style="background-color:#f9fafb;font-weight:bold;"><td colspan="3">الأصول الثابتة (Fixed Assets)</td></tr>
+        ${balanceSheetData.fixedAssets.map(a => `<tr><td style="text-align:center;">${a.code}</td><td>${a.name}</td><td style="text-align:left;mso-number-format:'\\#\\,\\#\\#0\\.00';">${a.amount}</td></tr>`).join('')}
+        <tr style="background-color:#E2F5F7;font-weight:bold;color:#007F8C;"><td></td><td>إجمالي الأصول (Total Assets)</td><td style="text-align:left;mso-number-format:'\\#\\,\\#\\#0\\.00';">${balanceSheetData.totalAssets}</td></tr>
+        <tr style="background-color:#f3f4f6;font-weight:bold;"><td colspan="3">2. جانب الخصوم وحقوق الملكية (Liabilities & Equity)</td></tr>
+        <tr style="background-color:#f9fafb;font-weight:bold;"><td colspan="3">الخصوم والالتزامات المتداولة (Liabilities)</td></tr>
+        ${balanceSheetData.currentLiabilities.map(l => `<tr><td style="text-align:center;">${l.code}</td><td>${l.name}</td><td style="text-align:left;mso-number-format:'\\#\\,\\#\\#0\\.00';">${l.amount}</td></tr>`).join('')}
+        <tr style="background-color:#f9fafb;font-weight:bold;"><td colspan="3">حقوق الملكية ورأس المال (Equity)</td></tr>
+        ${balanceSheetData.equityAccounts.map(e => `<tr><td style="text-align:center;">${e.code}</td><td>${e.name}</td><td style="text-align:left;mso-number-format:'\\#\\,\\#\\#0\\.00';">${e.amount}</td></tr>`).join('')}
+        <tr><td style="text-align:center;">P&L</td><td>صافي أرباح / (خسائر) الفترة المحققة</td><td style="text-align:left;mso-number-format:'\\#\\,\\#\\#0\\.00';">${balanceSheetData.periodProfit}</td></tr>
+        <tr style="background-color:#F2E7F3;font-weight:bold;color:#8F2A87;"><td></td><td>إجمالي الخصوم وحقوق الملكية</td><td style="text-align:left;mso-number-format:'\\#\\,\\#\\#0\\.00';">${balanceSheetData.totalLiabilitiesAndEquity}</td></tr>
+        <tr style="background-color:#dcfce7;font-weight:bold;"><td colspan="3">حالة الاتزان المحاسبي: ${balanceSheetData.isBalanced ? 'متزن ومطابق 100%' : 'يوجد فارق غير متزن'}</td></tr>
+      `;
     } else if (activeTab === 'trial_balance') {
-      filename = `ميزان_المراجعة_بالمجاميع_والأرصدة.csv`;
-      rows.push(['مؤسسة Little Princesses للأزياء الراقية - ميزان المراجعة بالمجاميع والأرصدة']);
-      rows.push([`الفترة: من ${dateRange.start || 'البداية'} إلى ${dateRange.end || 'اليوم'} | العملة: ${reportCurrency}`]);
-      rows.push([]);
-      rows.push(['كود الحساب', 'اسم الحساب', 'النوع', 'الطبيعة', 'مجموع المدين', 'مجموع الدائن', 'رصيد مدين', 'رصيد دائن']);
-      trialBalanceData.rows.forEach(r => rows.push([
-        r.code, r.name, r.type, r.nature === 'debit' ? 'مدين' : 'دائن',
-        r.total_debit_target, r.total_credit_target, r.debit_balance_target, r.credit_balance_target
-      ]));
-      rows.push([]);
-      rows.push(['المجاميع الإجمالية', '', '', '', trialBalanceData.grandDebit, trialBalanceData.grandCredit, trialBalanceData.grandDebitBal, trialBalanceData.grandCreditBal]);
+      filename = `ميزان_المراجعة_بالمجاميع_والأرصدة_${reportCurrency.replace(/[^a-zA-Z]/g, '')}.xls`;
+      tableHtml = `
+        <tr style="background-color:#007F8C;color:#ffffff;"><th colspan="8" style="font-size:16px;padding:10px;">مؤسسة Little Princesses للأزياء الراقية - ميزان المراجعة بالمجاميع والأرصدة</th></tr>
+        <tr style="background-color:#f9fafb;"><td colspan="8">الفترة: من ${dateRange.start || 'البداية'} إلى ${dateRange.end || 'اليوم'} | العملة: ${reportCurrency}</td></tr>
+        <tr><th>كود الحساب</th><th>اسم الحساب</th><th>النوع</th><th>الطبيعة</th><th>مجموع المدين</th><th>مجموع الدائن</th><th>رصيد مدين</th><th>رصيد دائن</th></tr>
+        ${trialBalanceData.rows.map(r => `
+          <tr>
+            <td style="text-align:center;">${r.code}</td>
+            <td>${r.name}</td>
+            <td style="text-align:center;">${r.type}</td>
+            <td style="text-align:center;">${r.nature === 'debit' ? 'مدين' : 'دائن'}</td>
+            <td style="text-align:left;mso-number-format:'\\#\\,\\#\\#0\\.00';">${r.total_debit_target}</td>
+            <td style="text-align:left;mso-number-format:'\\#\\,\\#\\#0\\.00';">${r.total_credit_target}</td>
+            <td style="text-align:left;mso-number-format:'\\#\\,\\#\\#0\\.00';">${r.debit_balance_target}</td>
+            <td style="text-align:left;mso-number-format:'\\#\\,\\#\\#0\\.00';">${r.credit_balance_target}</td>
+          </tr>
+        `).join('')}
+        <tr style="background-color:#E2F5F7;font-weight:bold;font-size:13px;">
+          <td colspan="4" style="text-align:center;">المجاميع الإجمالية وتأكيد التوازن:</td>
+          <td style="text-align:left;mso-number-format:'\\#\\,\\#\\#0\\.00';">${trialBalanceData.grandDebit}</td>
+          <td style="text-align:left;mso-number-format:'\\#\\,\\#\\#0\\.00';">${trialBalanceData.grandCredit}</td>
+          <td style="text-align:left;mso-number-format:'\\#\\,\\#\\#0\\.00';">${trialBalanceData.grandDebitBal}</td>
+          <td style="text-align:left;mso-number-format:'\\#\\,\\#\\#0\\.00';">${trialBalanceData.grandCreditBal}</td>
+        </tr>
+      `;
     } else if (activeTab === 'general_ledger') {
-      filename = `دفتر_الأستاذ_العام_حساب_${selectedLedgerAcc}.csv`;
-      rows.push(['مؤسسة Little Princesses للأزياء الراقية - كشف حركة دفتر الأستاذ العام']);
-      rows.push([`الحساب: ${selectedLedgerAcc} | الفترة: من ${dateRange.start || 'البداية'} إلى ${dateRange.end || 'اليوم'} | العملة: ${reportCurrency}`]);
-      rows.push([]);
-      rows.push(['التاريخ', 'رقم القيد / المرجع', 'البيان والتفاصيل', 'مدين', 'دائن', 'الرصيد التراكمي']);
-      generalLedgerRows.forEach(r => rows.push([
-        r.date, r.entry_no, r.notes, r.debit_target, r.credit_target, r.running_target
-      ]));
+      filename = `دفتر_الأستاذ_العام_حساب_${selectedLedgerAcc}.xls`;
+      tableHtml = `
+        <tr style="background-color:#007F8C;color:#ffffff;"><th colspan="6" style="font-size:16px;padding:10px;">مؤسسة Little Princesses للأزياء الراقية - كشف حركة دفتر الأستاذ العام</th></tr>
+        <tr style="background-color:#f9fafb;"><td colspan="6">الحساب: ${selectedLedgerAcc} | الفترة: من ${dateRange.start || 'البداية'} إلى ${dateRange.end || 'اليوم'} | العملة: ${reportCurrency}</td></tr>
+        <tr><th>التاريخ</th><th>رقم القيد / المرجع</th><th>البيان والتفاصيل</th><th>مدين (${targetCode})</th><th>دائن (${targetCode})</th><th>الرصيد التراكمي</th></tr>
+        ${generalLedgerRows.map(r => `
+          <tr>
+            <td style="text-align:center;">${r.date}</td>
+            <td style="text-align:center;">${r.entry_no}</td>
+            <td>${r.notes}</td>
+            <td style="text-align:left;mso-number-format:'\\#\\,\\#\\#0\\.00';">${r.debit_target || 0}</td>
+            <td style="text-align:left;mso-number-format:'\\#\\,\\#\\#0\\.00';">${r.credit_target || 0}</td>
+            <td style="text-align:left;mso-number-format:'\\#\\,\\#\\#0\\.00';">${r.running_target || 0}</td>
+          </tr>
+        `).join('')}
+      `;
     } else if (activeTab === 'statements') {
-      filename = `كشف_حساب_${statementType === 'customer' ? 'العميلات' : 'الموردين'}.csv`;
-      rows.push([`مؤسسة Little Princesses للأزياء الراقية - ${statementType === 'customer' ? 'كشف حساب عميلات' : 'كشف حساب موردين'}`]);
-      rows.push([`العملة: ${reportCurrency}`]);
-      rows.push([]);
-      rows.push(['الاسم / الطرف', statementType === 'customer' ? 'عدد الطلبات' : 'عدد فواتير الشراء', statementType === 'customer' ? 'إجمالي المبيعات' : 'إجمالي المشتريات', 'إجمالي المدفوع / المسدد', 'الرصيد المتبقي (Due)']);
-      statementData.forEach(s => rows.push([
-        s.name, statementType === 'customer' ? s.ordersCount : s.purchasesCount,
-        statementType === 'customer' ? s.totalSales : s.totalPurchases,
-        s.totalPaid, s.balanceDue
-      ]));
+      filename = `كشف_حساب_${statementType === 'customer' ? 'العميلات' : 'الموردين'}.xls`;
+      tableHtml = `
+        <tr style="background-color:#007F8C;color:#ffffff;"><th colspan="5" style="font-size:16px;padding:10px;">مؤسسة Little Princesses للأزياء الراقية - ${statementType === 'customer' ? 'كشف حساب ومطابقات العميلات' : 'كشف حساب ومطابقات موردي الأقمشة'}</th></tr>
+        <tr style="background-color:#f9fafb;"><td colspan="5">العملة: ${reportCurrency}</td></tr>
+        <tr><th>الاسم / الطرف</th><th>${statementType === 'customer' ? 'عدد الطلبات' : 'عدد فواتير الشراء'}</th><th>${statementType === 'customer' ? 'إجمالي المبيعات' : 'إجمالي المشتريات'}</th><th>إجمالي المدفوع / المسدد</th><th>الرصيد المتبقي (Due)</th></tr>
+        ${statementData.map(s => `
+          <tr>
+            <td>${s.name}</td>
+            <td style="text-align:center;">${statementType === 'customer' ? s.ordersCount : s.purchasesCount}</td>
+            <td style="text-align:left;mso-number-format:'\\#\\,\\#\\#0\\.00';">${statementType === 'customer' ? s.totalSales : s.totalPurchases}</td>
+            <td style="text-align:left;mso-number-format:'\\#\\,\\#\\#0\\.00';">${s.totalPaid}</td>
+            <td style="text-align:left;mso-number-format:'\\#\\,\\#\\#0\\.00';font-weight:bold;">${s.balanceDue}</td>
+          </tr>
+        `).join('')}
+      `;
     }
 
-    // Generate UTF-8 BOM CSV
-    const csvContent = '\uFEFF' + rows.map(r => r.map(cell => {
-      let val = cell === undefined || cell === null ? '' : String(cell);
-      if (val.includes(',') || val.includes('"') || val.includes('\n')) {
-        val = `"${val.replace(/"/g, '""')}"`;
-      }
-      return val;
-    }).join(',')).join('\r\n');
+    const excelTemplate = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+      <head>
+        <!--[if gte mso 9]>
+        <xml>
+          <x:ExcelWorkbook>
+            <x:ExcelWorksheets>
+              <x:ExcelWorksheet>
+                <x:Name>التقرير المالي</x:Name>
+                <x:WorksheetOptions>
+                  <x:DisplayRightToLeft/>
+                </x:WorksheetOptions>
+              </x:ExcelWorksheet>
+            </x:ExcelWorksheets>
+          </x:ExcelWorkbook>
+        </xml>
+        <![endif]-->
+        <meta http-equiv="content-type" content="text/plain; charset=UTF-8"/>
+        <style>
+          body { font-family: 'Arial', sans-serif; direction: rtl; }
+          table { border-collapse: collapse; width: 100%; direction: rtl; }
+          th { background-color: #007F8C; color: #ffffff; font-weight: bold; border: 1px solid #cccccc; padding: 8px; text-align: center; font-size: 12px; }
+          td { border: 1px solid #cccccc; padding: 6px 10px; font-size: 11px; }
+        </style>
+      </head>
+      <body dir="rtl">
+        <table dir="rtl" border="1">
+          ${tableHtml}
+        </table>
+      </body>
+      </html>
+    `;
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob(['\uFEFF' + excelTemplate], { type: 'application/vnd.ms-excel;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
     link.setAttribute('href', url);
@@ -479,16 +539,32 @@ function Reports({ orders = [], expenses = [], vouchers = [], journal = [], acco
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    if (showToast) showToast(`تم تصدير ملف الإكسل (${filename}) بنجاح 📊`);
-  }, [activeTab, dateRange, reportCurrency, pnlData, balanceSheetData, trialBalanceData, generalLedgerRows, statementData, statementType, selectedLedgerAcc, showToast]);
+    if (showToast) showToast(`تم تصدير ملف الإكسل المنسق (${filename}) بنجاح 📊`);
+  }, [activeTab, dateRange, reportCurrency, pnlData, balanceSheetData, trialBalanceData, generalLedgerRows, statementData, statementType, selectedLedgerAcc, showToast, targetCode]);
 
   const inputCls = "h-10 px-3 rounded-xl border border-[#E8E5EA] bg-white text-[#25232A] text-xs font-semibold placeholder:text-[#6F6B75] focus:border-[#009FAE] outline-none transition";
 
   return (
     <div className="space-y-6 animate-fadeIn text-right" dir="rtl">
       
-      {/* ── بطاقة الرأس والتحكم المالي ── */}
-      <div className="bg-white rounded-2xl border border-[#E8E5EA] shadow-[0_2px_12px_rgba(0,0,0,0.02)] overflow-hidden transition-all">
+      {/* ── ترويسة الطباعة الرسمية المعتمدة (تظهر فقط عند الطباعة والـ PDF) ── */}
+      <div className="print-only mb-6 border-b-2 border-[#25232A] pb-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-bold text-[#000000]">مؤسسة Little Princesses للأزياء الراقية 👑</h1>
+            <p className="text-xs text-[#555555]">Haute Couture & Luxury Fashion ERP System</p>
+            <h2 className="text-base font-bold text-[#007F8C] mt-2">{getTabTitle()}</h2>
+          </div>
+          <div className="text-left text-xs text-[#444444] space-y-1">
+            <p><strong>تاريخ الاستخراج:</strong> {window.TODAY_STR_ISO || new Date().toISOString().split('T')[0]}</p>
+            <p><strong>نطاق الفترة:</strong> من {dateRange.start || 'البداية'} إلى {dateRange.end || 'اليوم'}</p>
+            <p><strong>العملة المعتمدة:</strong> {reportCurrency}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* ── بطاقة الرأس والتحكم المالي (تختفي عند الطباعة) ── */}
+      <div className="print-hidden bg-white rounded-2xl border border-[#E8E5EA] shadow-[0_2px_12px_rgba(0,0,0,0.02)] overflow-hidden transition-all">
         <div className="px-6 py-4 border-b border-[#E8E5EA] flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-gradient-to-r from-white via-[#FAFAFB] to-white">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-[#E2F5F7] text-[#007F8C] flex items-center justify-center text-lg font-bold border border-[#C5ECF0]">
@@ -505,7 +581,7 @@ function Reports({ orders = [], expenses = [], vouchers = [], journal = [], acco
             <button
               type="button"
               onClick={handleExportExcel}
-              title="تصدير جدول التقرير النشط حالياً إلى ملف Excel (CSV)"
+              title="تصدير جدول التقرير النشط حالياً إلى ملف Excel منسق متعدد الأعمدة"
               className="h-10 px-3.5 rounded-xl font-bold text-xs text-[#007F8C] bg-[#E2F5F7] hover:bg-[#C5ECF0] border border-[#C5ECF0] transition flex items-center gap-2 cursor-pointer shadow-2xs"
             >
               <span>📊</span>
@@ -515,7 +591,7 @@ function Reports({ orders = [], expenses = [], vouchers = [], journal = [], acco
             <button
               type="button"
               onClick={() => window.print()}
-              title="حفظ التقرير المالي المنسق كملف PDF"
+              title="حفظ التقرير المالي المنسق كملف PDF رسمي مع الترويسة والتوقيعات"
               className="h-10 px-3.5 rounded-xl font-bold text-xs text-[#8F2A87] bg-[#F2E7F3] hover:bg-[#E5CEE7] border border-[#E5CEE7] transition flex items-center gap-2 cursor-pointer shadow-2xs"
             >
               <span>📑</span>

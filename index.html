@@ -169,6 +169,63 @@
       outline: 2px solid #B0005A;
       outline-offset: 1px;
     }
+
+    /* ── Official Financial Print & PDF Styling ── */
+    @media print {
+      @page {
+        size: A4 portrait;
+        margin: 12mm 10mm 15mm 10mm;
+      }
+      body {
+        background: #ffffff !important;
+        color: #000000 !important;
+        font-size: 11pt !important;
+      }
+      /* Hide all UI navigation and non-print elements */
+      aside, header, nav, footer, .sidebar, .mobile-nav, .no-print, button, input, select, .print-hidden {
+        display: none !important;
+      }
+      /* Expand workspace to 100% paper width */
+      main, .main-content, #root, div {
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: visible !important;
+        height: auto !important;
+        box-shadow: none !important;
+        border-color: #e5e7eb !important;
+      }
+      .print-only {
+        display: block !important;
+      }
+      table {
+        width: 100% !important;
+        border-collapse: collapse !important;
+        page-break-inside: auto !important;
+      }
+      tr {
+        page-break-inside: avoid !important;
+        page-break-after: auto !important;
+      }
+      th, td {
+        border: 1px solid #d1d5db !important;
+        padding: 6px 10px !important;
+        color: #111827 !important;
+      }
+      th {
+        background-color: #f3f4f6 !important;
+        font-weight: 700 !important;
+      }
+      .page-break-avoid {
+        page-break-inside: avoid !important;
+      }
+    }
+    @media screen {
+      .print-only {
+        display: none !important;
+      }
+    }
   </style>
 </head>
 <body class="bg-[#FAFAFB] text-[#25232A] antialiased selection:bg-[#FCE8F2] selection:text-[#B0005A]">
@@ -184,40 +241,40 @@
   </script>
 
   <!-- 1. Config & Services -->
-  <script src="./src/services/currencyService.js?v=106"></script>
-  <script src="./src/services/accountingEngine.js?v=106"></script>
-  <script type="text/babel" src="./src/config/constants.js?v=106"></script>
-  <script type="text/babel" src="./src/config/useCurrency.js?v=106"></script>
-  <script type="text/babel" src="./src/services/api.js?v=106"></script>
+  <script src="./src/services/currencyService.js?v=107"></script>
+  <script src="./src/services/accountingEngine.js?v=107"></script>
+  <script type="text/babel" src="./src/config/constants.js?v=107"></script>
+  <script type="text/babel" src="./src/config/useCurrency.js?v=107"></script>
+  <script type="text/babel" src="./src/services/api.js?v=107"></script>
 
   <!-- 2. UI Components -->
-  <script type="text/babel" src="./src/components/Icons.jsx?v=106"></script>
-  <script type="text/babel" src="./src/components/Toast.jsx?v=106"></script>
-  <script type="text/babel" src="./src/components/LoginModal.jsx?v=106"></script>
-  <script type="text/babel" src="./src/components/UsersModal.jsx?v=106"></script>
-  <script type="text/babel" src="./src/components/Sidebar.jsx?v=106"></script>
-  <script type="text/babel" src="./src/components/Header.jsx?v=106"></script>
-  <script type="text/babel" src="./src/components/MobileNav.jsx?v=106"></script>
+  <script type="text/babel" src="./src/components/Icons.jsx?v=107"></script>
+  <script type="text/babel" src="./src/components/Toast.jsx?v=107"></script>
+  <script type="text/babel" src="./src/components/LoginModal.jsx?v=107"></script>
+  <script type="text/babel" src="./src/components/UsersModal.jsx?v=107"></script>
+  <script type="text/babel" src="./src/components/Sidebar.jsx?v=107"></script>
+  <script type="text/babel" src="./src/components/Header.jsx?v=107"></script>
+  <script type="text/babel" src="./src/components/MobileNav.jsx?v=107"></script>
 
   <!-- 3. Feature Modules -->
-  <script type="text/babel" src="./src/features/Dashboard.jsx?v=106"></script>
-  <script type="text/babel" src="./src/features/Customers.jsx?v=106"></script>
-  <script type="text/babel" src="./src/features/Products.jsx?v=106"></script>
-  <script type="text/babel" src="./src/features/Orders.jsx?v=106"></script>
-  <script type="text/babel" src="./src/features/Purchases.jsx?v=106"></script>
-  <script type="text/babel" src="./src/features/Inventory.jsx?v=106"></script>
-  <script type="text/babel" src="./src/features/Accounts.jsx?v=106"></script>
-  <script type="text/babel" src="./src/features/Factory.jsx?v=106"></script>
-  <script type="text/babel" src="./src/features/Vouchers.jsx?v=106"></script>
-  <script type="text/babel" src="./src/features/Expenses.jsx?v=106"></script>
-  <script type="text/babel" src="./src/features/Journal.jsx?v=106"></script>
-  <script type="text/babel" src="./src/features/Reports.jsx?v=106"></script>
-  <script type="text/babel" src="./src/features/Marketing.jsx?v=106"></script>
-  <script type="text/babel" src="./src/features/HR.jsx?v=106"></script>
-  <script type="text/babel" src="./src/features/Feedback.jsx?v=106"></script>
-  <script type="text/babel" src="./src/features/Settings.jsx?v=106"></script>
+  <script type="text/babel" src="./src/features/Dashboard.jsx?v=107"></script>
+  <script type="text/babel" src="./src/features/Customers.jsx?v=107"></script>
+  <script type="text/babel" src="./src/features/Products.jsx?v=107"></script>
+  <script type="text/babel" src="./src/features/Orders.jsx?v=107"></script>
+  <script type="text/babel" src="./src/features/Purchases.jsx?v=107"></script>
+  <script type="text/babel" src="./src/features/Inventory.jsx?v=107"></script>
+  <script type="text/babel" src="./src/features/Accounts.jsx?v=107"></script>
+  <script type="text/babel" src="./src/features/Factory.jsx?v=107"></script>
+  <script type="text/babel" src="./src/features/Vouchers.jsx?v=107"></script>
+  <script type="text/babel" src="./src/features/Expenses.jsx?v=107"></script>
+  <script type="text/babel" src="./src/features/Journal.jsx?v=107"></script>
+  <script type="text/babel" src="./src/features/Reports.jsx?v=107"></script>
+  <script type="text/babel" src="./src/features/Marketing.jsx?v=107"></script>
+  <script type="text/babel" src="./src/features/HR.jsx?v=107"></script>
+  <script type="text/babel" src="./src/features/Feedback.jsx?v=107"></script>
+  <script type="text/babel" src="./src/features/Settings.jsx?v=107"></script>
 
   <!-- 4. Main App Entry Point -->
-  <script type="text/babel" src="./src/App.jsx?v=106"></script>
+  <script type="text/babel" src="./src/App.jsx?v=107"></script>
 </body>
 </html>
