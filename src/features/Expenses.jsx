@@ -8,13 +8,13 @@ function Expenses({ expenses = [], setExpenses, accounts = [], setAccounts, vouc
   const [newCatCode, setNewCatCode] = useState('');
 
   const [formData, setFormData] = useState({
-    exp_category: typeof EXPENSE_CATEGORIES !== 'undefined' ? EXPENSE_CATEGORIES[0] : '601 - أجور ورواتب الخياطين والمطرزين والموظفين',
+    exp_category: typeof EXPENSE_CATEGORIES !== 'undefined' ? EXPENSE_CATEGORIES[0] : '5211 - مصاريف تشغيل وصيانة الورشة',
     amount: '',
     currency: 'YER ﷼',
     date: TODAY_STR_ISO,
     notes: '',
     pay_method: typeof PAY_METHODS !== 'undefined' ? PAY_METHODS[0] : 'نقد (كاش)',
-    source_acc: '101 - الصندوق الرئيسي'
+    source_acc: '1111 - الصندوق الرئيسي'
   });
 
   const handleQuickAddCategory = async (e) => {
@@ -137,11 +137,11 @@ function Expenses({ expenses = [], setExpenses, accounts = [], setAccounts, vouc
     const rate = window.CurrencyService ? window.CurrencyService.getRate(currCode) : 1.0;
     const baseObj = window.CurrencyService ? window.CurrencyService.toBase(formData.amount, currCode, rate) : { base_amount: parseFloat(formData.amount) || 0, exchange_rate: rate };
 
-    // Extract exact expense account code & sub-account code without truncating decimals (e.g. 101.01, 601)
-    const rawExpStr = String(formData.exp_category || '601').trim();
+    // Extract exact expense account code & sub-account code without truncating decimals (e.g. 1111, 5211)
+    const rawExpStr = String(formData.exp_category || '5211').trim();
     const expCode = rawExpStr.includes(' - ') ? rawExpStr.split(' - ')[0].trim() : (rawExpStr.match(/\d+(\.\d+)?/)?.[0] || rawExpStr);
     
-    const rawSourceStr = String(formData.source_acc || '101').trim();
+    const rawSourceStr = String(formData.source_acc || '1111').trim();
     const sourceCode = rawSourceStr.includes(' - ') ? rawSourceStr.split(' - ')[0].trim() : (rawSourceStr.match(/\d+(\.\d+)?/)?.[0] || rawSourceStr);
 
     const expAccObj = (accounts || []).find(a => String(a.code || a.acc_code) === String(expCode) || (a.name && rawExpStr.includes(a.name)));

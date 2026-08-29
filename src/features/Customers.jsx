@@ -339,8 +339,8 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
           id: Date.now(),
           transaction_id: `TX-CUST-SALES-${custId}`,
           entry_no: 'AUTOSALES-' + custId,
-          debit: '104', // ذمم العملاء
-          credit: '401', // إيرادات المبيعات
+          debit: '1131', // ذمم العميلات
+          credit: '4111', // إيرادات تفصيل وتصميم الفساتين
           amount: payload.ledger.total_sales,
           currency: currCode,
           exchange_rate: rate,
@@ -357,8 +357,8 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
           id: Date.now() + 1,
           transaction_id: `TX-CUST-DEP-${custId}`,
           entry_no: 'AUTODEP-' + custId,
-          debit: '101', // الصندوق الرئيسي
-          credit: '104', // ذمم العملاء
+          debit: '1111', // الصندوق الرئيسي
+          credit: '1131', // ذمم العميلات
           amount: payload.ledger.deposit,
           currency: currCode,
           exchange_rate: rate,

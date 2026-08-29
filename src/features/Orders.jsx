@@ -158,14 +158,14 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
         }).catch(e => console.error("Local sync error", e));
 
         // ── ترحيل القيود اليومية المحاسبية تلقائياً (Double-Entry) ──
-        // 1. قيد إثبات المبيعات: من حـ/ ذمم العملاء (104) إلى حـ/ إيرادات المبيعات (401)
+        // 1. قيد إثبات المبيعات: من حـ/ ذمم العميلات (1131) إلى حـ/ إيرادات تفصيل وتصميم الفساتين (4111)
         if (tot > 0) {
           callGAS("addJournalEntry", {
             id: Date.now(),
             transaction_id: `TX-SALE-${ordNo}`,
             entry_no: `AUTO-SALE-${ordNo}`,
-            debit: "104",
-            credit: "401",
+            debit: "1131",
+            credit: "4111",
             amount: tot,
             currency: ordCurrCode,
             exchange_rate: ordRate,
@@ -177,14 +177,14 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
           }).catch(() => {});
         }
 
-        // 2. قيد تحصيل الدفعة المقدمة: من حـ/ الصندوق الرئيسي (101) إلى حـ/ ذمم العملاء (104)
+        // 2. قيد تحصيل الدفعة المقدمة: من حـ/ الصندوق الرئيسي (1111) إلى حـ/ ذمم العميلات (1131)
         if (pd > 0) {
           callGAS("addJournalEntry", {
             id: Date.now() + 1,
             transaction_id: `TX-DEP-${ordNo}`,
             entry_no: `AUTO-DEP-${ordNo}`,
-            debit: "101",
-            credit: "104",
+            debit: "1111",
+            credit: "1131",
             amount: pd,
             currency: ordCurrCode,
             exchange_rate: ordRate,

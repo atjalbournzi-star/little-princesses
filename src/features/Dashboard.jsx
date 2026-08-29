@@ -58,46 +58,34 @@ function Dashboard({ setActiveTab, orders = [], accounts = [], journal = [], vou
       if (a.id) accountBalances[String(a.id)] = calculatedBal;
     });
 
-    // 1. Cash Balance: Sum all accounts matching code 101 or 101.* (e.g. 101, 101.01, 101.02, 101.2, 101.3)
+    // 1. Cash Balance: Sum accounts matching 1111, 101, or 1121
+    let totalCash = (accountBalances['1111'] !== undefined ? accountBalances['1111'] : (accountBalances['101'] || 0.0));
     const cashChildAccs = accList.filter(a => {
       const code = String(a.code || a.acc_code || '');
-      return code.startsWith('101.') && code !== '101';
+      return (code.startsWith('1111.') || code.startsWith('101.') || code === '1121');
     });
-
-    let totalCash = 0.0;
     if (cashChildAccs.length > 0) {
-      let subSum = 0.0;
-      let hasSubMovements = false;
       cashChildAccs.forEach(ca => {
         const code = String(ca.code || ca.acc_code || '');
-        const b = (accountBalances[code] || 0.0);
-        subSum += b;
-        if (b !== 0) hasSubMovements = true;
+        if (code !== '1111' && code !== '101') {
+          totalCash += (accountBalances[code] || 0.0);
+        }
       });
-      totalCash = hasSubMovements ? subSum : (accountBalances['101'] !== undefined ? accountBalances['101'] : subSum);
-    } else {
-      totalCash = accountBalances['101'] || 0.0;
     }
 
-    // 2. Bank Balance: Sum all accounts matching code 103 or 103.*
+    // 2. Bank Balance: Sum accounts matching 1112 or 103
+    let totalBank = (accountBalances['1112'] !== undefined ? accountBalances['1112'] : (accountBalances['103'] || 0.0));
     const bankChildAccs = accList.filter(a => {
       const code = String(a.code || a.acc_code || '');
-      return code.startsWith('103.') && code !== '103';
+      return (code.startsWith('1112.') || code.startsWith('103.'));
     });
-
-    let totalBank = 0.0;
     if (bankChildAccs.length > 0) {
-      let subSum = 0.0;
-      let hasSubMovements = false;
       bankChildAccs.forEach(ba => {
         const code = String(ba.code || ba.acc_code || '');
-        const b = (accountBalances[code] || 0.0);
-        subSum += b;
-        if (b !== 0) hasSubMovements = true;
+        if (code !== '1112' && code !== '103') {
+          totalBank += (accountBalances[code] || 0.0);
+        }
       });
-      totalBank = hasSubMovements ? subSum : (accountBalances['103'] !== undefined ? accountBalances['103'] : subSum);
-    } else {
-      totalBank = accountBalances['103'] || 0.0;
     }
 
     // Convert from YER base to active currency

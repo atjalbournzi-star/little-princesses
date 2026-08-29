@@ -8,7 +8,7 @@ function Reports({ orders = [], expenses = [], vouchers = [], journal = [], acco
   const [reportCurrency, setReportCurrency] = useState(currencyDisplay);
   
   // Sub-filters for Ledger & Statements
-  const [selectedLedgerAcc, setSelectedLedgerAcc] = useState('101');
+  const [selectedLedgerAcc, setSelectedLedgerAcc] = useState('1111');
   const [statementType, setStatementType] = useState('customer'); // 'customer', 'supplier'
   const [selectedPartyId, setSelectedPartyId] = useState('');
 
@@ -130,10 +130,11 @@ function Reports({ orders = [], expenses = [], vouchers = [], journal = [], acco
   const pnlData = useMemo(() => {
     // 4. Revenues
     const revAccounts = [
-      { code: '401', name: 'إيرادات مبيعات الفساتين والزي المدرسي', defaultName: 'إيرادات مبيعات الفساتين والزي' },
-      { code: '402', name: 'أرباح فروق أسعار صرف العملات', defaultName: 'أرباح فروق أسعار صرف العملات' }
+      { code: '4111', name: 'إيرادات تفصيل وتصميم الفساتين', defaultName: 'إيرادات تفصيل وتصميم الفساتين' },
+      { code: '4121', name: 'إيرادات مبيعات فساتين المعرض', defaultName: 'إيرادات مبيعات فساتين المعرض' },
+      { code: '4211', name: 'أرباح تسويات المخزون', defaultName: 'أرباح تسويات المخزون' }
     ].map(item => {
-      const acc = liveAccountsMap[item.code] || {};
+      const acc = liveAccountsMap[item.code] || liveAccountsMap['401'] || {};
       const amt = Math.max(0, acc.balance_target || 0);
       return { ...item, amount: amt };
     });
@@ -154,9 +155,8 @@ function Reports({ orders = [], expenses = [], vouchers = [], journal = [], acco
 
     // 5. Cost of Goods Sold (COGS)
     const cogsAccounts = [
-      { code: '501', name: 'تكلفة الأقمشة والمواد الخام المباشرة' },
-      { code: '502', name: 'تكلفة مستلزمات الخياطة والإكسسوارات والشك' },
-      { code: '503', name: 'تكلفة التغليف وعلب الفساتين الفاخرة' }
+      { code: '5111', name: 'تكلفة الأقمشة والمواد المباعة' },
+      { code: '5121', name: 'أجور خياطة وتصنيع مباشرة' }
     ].map(item => {
       const acc = liveAccountsMap[item.code] || {};
       return { ...item, amount: Math.max(0, acc.balance_target || 0) };
@@ -168,19 +168,14 @@ function Reports({ orders = [], expenses = [], vouchers = [], journal = [], acco
 
     // 6. Operating Expenses (OPEX)
     const opexAccounts = [
-      { code: '601', name: 'أجور ورواتب الخياطين والمطرزين والموظفين' },
-      { code: '602', name: 'إيجار المقرات والمعارض والورش' },
-      { code: '603', name: 'مصاريف كهرباء وماء وإنترنت ومرافق' },
-      { code: '604', name: 'مصاريف التسويق والإعلانات الممولة' },
-      { code: '605', name: 'مصاريف الصيانة وقطع غيار الآلات' },
-      { code: '606', name: 'خسائر فروق أسعار صرف العملات' },
-      { code: '607', name: 'مصروفات إدارية وعمومية متنوعة' }
+      { code: '5211', name: 'مصاريف تشغيل وصيانة الورشة' },
+      { code: '5221', name: 'خسائر وفروقات عجز الجرد' }
     ].map(item => {
       const acc = liveAccountsMap[item.code] || {};
       return { ...item, amount: Math.max(0, acc.balance_target || 0) };
     });
 
-    // Fallback: incorporate recorded expenses if journal has no lines for 6xx
+    // Fallback: incorporate recorded expenses if journal has no lines for 52xx
     const directExpensesTotal = (expenses || []).filter(e => {
       const d = (e.date || e.created_at || '').split('T')[0];
       if (dateRange.start && d < dateRange.start) return false;
@@ -214,34 +209,27 @@ function Reports({ orders = [], expenses = [], vouchers = [], journal = [], acco
   const balanceSheetData = useMemo(() => {
     // Current Assets
     const currentAssets = [
-      { code: '101.01', name: 'صندوق فرع الورشة والمعمل (صنعاء)' },
-      { code: '101.02', name: 'صندوق محمد فلاح' },
-      { code: '101.03', name: 'صندوق الريال السعودي (SAR)' },
-      { code: '101.04', name: 'صندوق الدولار الأمريكي (USD)' },
-      { code: '102', name: 'مخزون الأقمشة والمستلزمات' },
-      { code: '103', name: 'الحساب البنكي والمحافظ الإلكترونية' },
-      { code: '104', name: 'ذمم العملاء (مستحقات آجلة)' }
-    ].map(item => {
-      const acc = liveAccountsMap[item.code] || {};
-      return { ...item, amount: Math.max(0, acc.balance_target || 0) };
-    });
-
-    // Fixed Assets
-    const fixedAssets = [
-      { code: '105', name: 'الأصول الثابتة (آلات ومعدات الخياطة)' }
+      { code: '1111', name: 'الصندوق الرئيسي' },
+      { code: '1112', name: 'البنك / الشبكة وPOS' },
+      { code: '1121', name: 'عهد الورشة والمشغل' },
+      { code: '1131', name: 'ذمم العميلات' },
+      { code: '1141', name: 'سلف الخياطين والعاملين' },
+      { code: '1151', name: 'مخزون الأقمشة والخامات' },
+      { code: '1152', name: 'إنتاج تحت التشغيل (WIP)' },
+      { code: '1153', name: 'مخزون الفساتين التامة' }
     ].map(item => {
       const acc = liveAccountsMap[item.code] || {};
       return { ...item, amount: Math.max(0, acc.balance_target || 0) };
     });
 
     const totalCurrentAssets = currentAssets.reduce((sum, a) => sum + a.amount, 0);
-    const totalFixedAssets = fixedAssets.reduce((sum, a) => sum + a.amount, 0);
-    const totalAssets = totalCurrentAssets + totalFixedAssets;
+    const totalAssets = totalCurrentAssets;
 
     // Current Liabilities
     const currentLiabilities = [
-      { code: '201', name: 'ذمم الموردين ومحلات الأقمشة (آجل)' },
-      { code: '202', name: 'عرابين وأمانات العملاء' }
+      { code: '2111', name: 'ذمم الموردين ومحلات الأقمشة' },
+      { code: '2121', name: 'دفعات مقدمة وعرابين حجز' },
+      { code: '2131', name: 'مستحقات وأجور الخياطين' }
     ].map(item => {
       const acc = liveAccountsMap[item.code] || {};
       return { ...item, amount: Math.max(0, acc.balance_target || 0) };
@@ -251,10 +239,8 @@ function Reports({ orders = [], expenses = [], vouchers = [], journal = [], acco
 
     // Equity
     const equityAccounts = [
-      { code: '301.01', name: 'حصة الشريك محمد فلاح في رأس المال' },
-      { code: '301.02', name: 'حصة الشريك محمد علي في رأس المال' },
-      { code: '301.03', name: 'حصة الشريك صادق في رأس المال' },
-      { code: '302', name: 'الأرباح المبقاة / المحتجزة' }
+      { code: '3111', name: 'رأس المال المباشر Little Princesses' },
+      { code: '3112', name: 'الأرباح المبقاة / المحتجزة' }
     ].map(item => {
       const acc = liveAccountsMap[item.code] || {};
       return { ...item, amount: Math.max(0, acc.balance_target || 0) };

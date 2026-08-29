@@ -190,9 +190,8 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
             grand_total_yer: lineTotalBaseYER,
             total_amount_yer: lineTotalBaseYER,
             payment_method: headerData.pay_type || defaultPayType,
-            pay_type: headerData.pay_type || defaultPayType,
-            payment_account_code: headerData.payment_source || (headerData.pay_type === 'آجل' ? '201' : '101'),
-            payment_source: headerData.payment_source || (headerData.pay_type === 'آجل' ? '201' : '101'),
+            payment_account_code: headerData.payment_source || (headerData.pay_type === 'آجل' ? '2111' : '1111'),
+            payment_source: headerData.payment_source || (headerData.pay_type === 'آجل' ? '2111' : '1111'),
             transaction_ref: headerData.transfer_no || (`TX-${headerData.bill_no}`),
             transaction_id: headerData.transfer_no || (`TX-${headerData.bill_no}`),
             transfer_no: headerData.transfer_no || (`TX-${headerData.bill_no}`),
@@ -324,7 +323,7 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
           exchange_rate: purRate,
           base_amount: purBaseObj.base_amount,
           pay_method: headerData.pay_type || defaultPayType,
-          payment_source: headerData.payment_source || '101 - الصندوق الرئيسي',
+          payment_source: headerData.payment_source || '1111 - الصندوق الرئيسي',
           transfer_no: headerData.transfer_no || '',
           image_path: headerData.receipt_url || '',
           receipt_url: headerData.receipt_url || '',
@@ -338,10 +337,10 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
 
       // 6. تحديث واجهة القيود اليومية (Journal Entries State)
       if (setJournal) {
-        const debitAccount = '102'; // مخزون الأقمشة
+        const debitAccount = '1151'; // مخزون الأقمشة والخامات
         const creditAccount = headerData.pay_type !== 'آجل' 
-          ? (headerData.payment_source ? headerData.payment_source.split(' - ')[0] : '101')
-          : '201'; // ذمم الموردين
+          ? (headerData.payment_source ? headerData.payment_source.split(' - ')[0] : '1111')
+          : '2111'; // ذمم الموردين ومحلات الأقمشة
         
         const newJournalEntry = {
           id: Date.now() + 2,
