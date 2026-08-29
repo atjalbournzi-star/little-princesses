@@ -1,3 +1,5 @@
+const { useState, useEffect, useMemo, useCallback, useRef } = React;
+
 function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, journal = [], setJournal, showToast, customers = [], setCustomers, orders = [], setOrders, currency, expenses = [], setExpenses, purchases = [], employees = [] }) {
   const currencyDisplay = currency?.display || "SAR";
 
@@ -2367,3 +2369,5 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
     </div>
   );
 }
+
+window.Vouchers = Vouchers;

@@ -1186,3 +1186,5 @@ function Reports({ orders = [], expenses = [], vouchers = [], journal = [], acco
   );
 }
 
+window.Reports = Reports;
+
