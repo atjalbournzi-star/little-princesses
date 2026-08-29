@@ -1,6 +1,4 @@
-const { useState, useEffect, useMemo, useCallback, useRef } = React;
-
-function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, journal = [], setJournal, showToast, customers = [], setCustomers, orders = [], setOrders, currency, expenses = [], setExpenses }) {
+function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, journal = [], setJournal, showToast, customers = [], setCustomers, orders = [], setOrders, currency, expenses = [], setExpenses, purchases = [], employees = [] }) {
   const currencyDisplay = currency?.display || "SAR";
 
   const [formData, setFormData] = useState({
@@ -12,8 +10,8 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
     date: TODAY_STR_ISO,
     notes: '',
     pay_method: typeof PAY_METHODS !== 'undefined' ? PAY_METHODS[0] : 'نقدي',
-    acc_code: '101 - الصندوق الرئيسي',
-    target_acc: '201 - ذمم الموردين'
+    acc_code: '101.01 - صندوق فرع الورشة والمعمل (صنعاء)',
+    target_acc: '201 - ذمم الموردين ومحلات الأقمشة'
   });
   
   const [selectedCustomer, setSelectedCustomer] = useState('');
@@ -22,6 +20,24 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
   const [typeFilter, setTypeFilter] = useState('الكل'); // 'الكل' | 'سند قبض' | 'سند صرف'
   const [viewVoucher, setViewVoucher] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // ── بوابة العمليات المالية المركزية (Financial Hub) ──
+  const [activeHubCategory, setActiveHubCategory] = useState('general'); // 'general' | 'customers' | 'hr' | 'inventory'
+
+  // ── حالة نافذة إصدار السند المتقدم بتعدد طرق الدفع (Split Payments Modal) ──
+  const [showAdvancedModal, setShowAdvancedModal] = useState(false);
+  const [modalMode, setModalMode] = useState('receipt'); // 'receipt' | 'payment'
+  const [modalDocType, setModalDocType] = useState('subparty'); // 'subparty' | 'account'
+  const [modalParty, setModalParty] = useState('');
+  const [modalPhone, setModalPhone] = useState('');
+  const [modalCurrency, setModalCurrency] = useState('YER ﷼');
+  const [modalExchangeRate, setModalExchangeRate] = useState('1.0');
+  const [modalTargetAcc, setModalTargetAcc] = useState('');
+  const [modalNotes, setModalNotes] = useState('');
+  const [splitPayments, setSplitPayments] = useState([
+    { id: 1, method: 'نقداً (صندوق الورشة)', acc_code: '101.01', amount: '' }
+  ]);
+  const [isSubmittingAdv, setIsSubmittingAdv] = useState(false);
 
   // حالة تعديل وحذف السند المالي
   const [editingVoucher, setEditingVoucher] = useState(null);
@@ -34,13 +50,214 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
     currency: 'YER ﷼',
     exchange_rate: '1.0',
     pay_method: 'نقدي',
-    acc_code: '101 - الصندوق الرئيسي',
-    target_acc: '201 - ذمم الموردين',
+    acc_code: '101.01 - صندوق فرع الورشة والمعمل (صنعاء)',
+    target_acc: '201 - ذمم الموردين ومحلات الأقمشة',
     date: TODAY_STR_ISO,
     notes: ''
   });
   const [isSubmittingEdit, setIsSubmittingEdit] = useState(false);
   const [isDeletingId, setIsDeletingId] = useState(null);
+
+  // تحديث سعر الصرف التلقائي للنافذة المتقدمة
+  const advCurrCode = window.CurrencyService ? window.CurrencyService.normalizeCode(modalCurrency) : 'YER';
+  useEffect(() => {
+    if (window.CurrencyService) {
+      const rate = window.CurrencyService.getRate(advCurrCode);
+      setModalExchangeRate(String(rate));
+    }
+  }, [modalCurrency, advCurrCode]);
+
+  // دوال إدارة أسطر طرق الدفع المتعددة
+  const handleAddPaymentRow = () => {
+    setSplitPayments(prev => [
+      ...prev,
+      { id: Date.now() + Math.random(), method: 'تحويل بنكي (الكريمي)', acc_code: '103', amount: '' }
+    ]);
+  };
+
+  const handleDuplicatePaymentRow = (idx) => {
+    const target = splitPayments[idx];
+    if (!target) return;
+    const duplicated = { ...target, id: Date.now() + Math.random() };
+    const next = [...splitPayments];
+    next.splice(idx + 1, 0, duplicated);
+    setSplitPayments(next);
+  };
+
+  const handleDeletePaymentRow = (idx) => {
+    if (splitPayments.length <= 1) {
+      showToast('يجب أن يحتوي السند على طريقة دفع واحدة على الأقل ⚠️', 'warning');
+      return;
+    }
+    setSplitPayments(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const handlePaymentRowChange = (idx, field, val) => {
+    setSplitPayments(prev => {
+      const copy = [...prev];
+      copy[idx] = { ...copy[idx], [field]: val };
+      return copy;
+    });
+  };
+
+  const splitTotalAmount = useMemo(() => {
+    return splitPayments.reduce((sum, r) => sum + (parseFloat(r.amount) || 0), 0);
+  }, [splitPayments]);
+
+  const handleOpenAdvancedModal = (mode = 'receipt', defaultParty = '', defaultNotes = '', defaultAcc = '') => {
+    setModalMode(mode);
+    setModalDocType('subparty');
+    setModalParty(defaultParty || '');
+    setModalPhone('');
+    if (defaultParty) {
+      const foundCust = (customers || []).find(c => c.name === defaultParty);
+      if (foundCust && foundCust.phone) setModalPhone(foundCust.phone);
+    }
+    setModalCurrency('YER ﷼');
+    setModalExchangeRate('1.0');
+    setModalTargetAcc(defaultAcc || (mode === 'receipt' ? '104' : '201'));
+    setModalNotes(defaultNotes || '');
+    setSplitPayments([
+      { id: 1, method: mode === 'receipt' ? 'نقداً (صندوق الورشة)' : 'نقداً (صندوق الورشة)', acc_code: '101.01', amount: '' }
+    ]);
+    setShowAdvancedModal(true);
+  };
+
+  // إرسال إشعار WhatsApp رسمي للسند
+  const handleSendWhatsAppNotification = (v) => {
+    if (!v) return;
+    const vNo = v.v_no || v.id;
+    const vType = v.v_type;
+    const vParty = v.party;
+    const vAmt = Number(v.amount).toLocaleString('en-US');
+    const vCurr = v.currency;
+    const vDate = v.date;
+    const vMethod = v.pay_method;
+    const vNotes = v.notes && v.notes !== '—' ? v.notes : 'تسديد دفعة حساب';
+
+    let targetPhone = '';
+    const foundCust = (customers || []).find(c => c.name === vParty);
+    if (foundCust && foundCust.phone) targetPhone = foundCust.phone.replace(/[^0-9]/g, '');
+
+    const message = `👑 *مؤسسة Little Princesses للأزياء الراقية والفساتين الفاخرة*\n\n` +
+      `📄 *إشعار ${vType} معتمد رسمياً:*\n` +
+      `━━━━━━━━━━━━━━━━━━\n` +
+      `🔹 *رقم السند:* ${vNo}\n` +
+      `🔹 *الطرف المستفيد:* ${vParty}\n` +
+      `🔹 *المبلغ المسدد:* ${vAmt} ${vCurr}\n` +
+      `🔹 *طريقة الدفع:* ${vMethod}\n` +
+      `🔹 *التاريخ:* ${vDate}\n` +
+      `🔹 *البيان:* ${vNotes}\n` +
+      `━━━━━━━━━━━━━━━━━━\n` +
+      `✨ نشكركم لتعاملكم الراقي مع دار Little Princesses للأزياء.`;
+
+    const cleanPhone = targetPhone ? (targetPhone.startsWith('967') || targetPhone.startsWith('966') ? targetPhone : `967${targetPhone.replace(/^0+/, '')}`) : '';
+    const waUrl = cleanPhone 
+      ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`
+      : `https://wa.me/?text=${encodeURIComponent(message)}`;
+
+    window.open(waUrl, '_blank');
+  };
+
+  // اعتماد وحفظ السند المتقدم بتعدد طرق الدفع
+  const handleSubmitAdvancedVoucher = async (e) => {
+    if (e) e.preventDefault();
+    if (!modalParty) return showToast('يرجى اختيار أو كتابة اسم الطرف المستفيد ⚠️', 'error');
+    if (splitTotalAmount <= 0) return showToast('يرجى إدخال مبالغ الدفع في السند ⚠️', 'error');
+
+    setIsSubmittingAdv(true);
+    try {
+      const isReceipt = modalMode === 'receipt';
+      const voucherNo = `${isReceipt ? 'RV' : 'PV'}-${Date.now().toString().slice(-6)}`;
+      const vCurr = advCurrCode;
+      const vRate = parseFloat(modalExchangeRate) || 1.0;
+      const vBaseAmt = splitTotalAmount * vRate;
+
+      // Primary pay method summary
+      const payMethodsSummary = splitPayments.map(p => `${p.method}: ${(parseFloat(p.amount) || 0).toLocaleString()} ${vCurr}`).join(' + ');
+
+      const newV = {
+        id: Date.now(),
+        v_no: voucherNo,
+        voucher_no: voucherNo,
+        payment_no: voucherNo,
+        v_type: isReceipt ? 'سند قبض' : 'سند صرف',
+        voucher_type: isReceipt ? 'سند قبض' : 'سند صرف',
+        payment_type: isReceipt ? 'سند قبض' : 'سند صرف',
+        party: modalParty,
+        party_name: modalParty,
+        phone: modalPhone || '',
+        amount: splitTotalAmount,
+        currency: vCurr,
+        exchange_rate: vRate,
+        base_amount: vBaseAmt,
+        date: TODAY_STR_ISO,
+        date_created: TODAY_STR_ISO,
+        notes: modalNotes || `${isReceipt ? 'سند قبض' : 'سند صرف'} - ${modalParty} (${payMethodsSummary})`,
+        pay_method: payMethodsSummary,
+        payment_method: payMethodsSummary,
+        acc_code: splitPayments[0]?.acc_code || '101.01',
+        target_acc: modalTargetAcc || (isReceipt ? '104' : '201')
+      };
+
+      if (setVouchers) setVouchers(prev => [newV, ...(prev || [])]);
+
+      // Generate Journal Entries for each payment method line
+      const generatedEntries = splitPayments.filter(p => (parseFloat(p.amount) || 0) > 0).map(p => {
+        const lineAmt = parseFloat(p.amount) || 0;
+        const lineBaseAmt = lineAmt * vRate;
+        const cashAccCode = p.acc_code || '101.01';
+        const targetAccCode = modalTargetAcc || (isReceipt ? '104' : '201');
+
+        const debitAcc = isReceipt ? cashAccCode : targetAccCode;
+        const creditAcc = isReceipt ? targetAccCode : cashAccCode;
+
+        const debitObj = (accounts || []).find(a => String(a.code || a.acc_code) === String(debitAcc));
+        const creditObj = (accounts || []).find(a => String(a.code || a.acc_code) === String(creditAcc));
+
+        return {
+          id: Date.now() + Math.random(),
+          transaction_id: `TX-VCH-${voucherNo}`,
+          entry_no: 'AUTO-VCH-' + voucherNo,
+          debit: debitObj ? `${debitObj.code || debitObj.acc_code} - ${debitObj.name || debitObj.account_name}` : debitAcc,
+          credit: creditObj ? `${creditObj.code || creditObj.acc_code} - ${creditObj.name || creditObj.account_name}` : creditAcc,
+          debit_code: debitAcc,
+          credit_code: creditAcc,
+          amount: lineAmt,
+          currency: vCurr,
+          exchange_rate: vRate,
+          base_amount: lineBaseAmt,
+          ref_type: isReceipt ? 'RECEIPT_VOUCHER' : 'PAYMENT_VOUCHER',
+          ref_id: voucherNo,
+          date: TODAY_STR_ISO,
+          notes: `سند ${isReceipt ? 'قبض' : 'صرف'} [${p.method}]: ${modalParty} - ${modalNotes || ''}`,
+          status: 'posted'
+        };
+      });
+
+      if (setJournal) setJournal(prev => [...generatedEntries, ...(prev || [])]);
+
+      // Save locally & to GAS
+      fetch('/api/vouchers/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newV)
+      }).catch(err => console.warn('Local voucher save error:', err));
+
+      if (typeof window.callGAS === 'function') {
+        window.callGAS('addVoucher', newV).catch(e => console.error(e));
+        generatedEntries.forEach(j => window.callGAS('addJournalEntry', j).catch(e => console.error(e)));
+      }
+
+      showToast(`تم إصدار وتمرير ${isReceipt ? 'سند القبض' : 'سند الصرف'} (${voucherNo}) بنجاح 🧾✨`);
+      setShowAdvancedModal(false);
+    } catch (err) {
+      console.error("Advanced voucher error:", err);
+      showToast('حدث خطأ أثناء إصدار السند', 'error');
+    } finally {
+      setIsSubmittingAdv(false);
+    }
+  };
 
   const normalizeVoucher = (v) => {
     if (!v) return null;
@@ -649,145 +866,217 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
         </div>
       </div>
 
-      {/* ── نموذج إضافة سند مالي جديد ── */}
-      <div className="bg-white rounded-2xl border border-[#E8E5EA] shadow-[0_2px_12px_rgba(0,0,0,0.02)] overflow-hidden transition-all">
-        <div className="px-6 py-4 border-b border-[#E8E5EA] flex items-center justify-between bg-gradient-to-r from-white via-[#FAFAFB] to-white">
-          <div className="flex items-center gap-3">
-            <span className="text-lg">{formData.v_type === 'سند قبض' ? '📥' : '📤'}</span>
+      {/* ── بوابة العمليات المالية المركزية (Financial Operations Hub) ── */}
+      <div className="bg-[#1e2433] text-white rounded-3xl border border-[#2d3748] shadow-2xl p-6 space-y-6">
+        
+        {/* شريط البحث السريع والعلوي */}
+        <div className="flex flex-col md:flex-row items-center justify-between gap-4 border-b border-[#2d3748] pb-5">
+          <div className="flex items-center gap-3 w-full md:w-auto">
+            <div className="w-10 h-10 rounded-2xl bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center justify-center text-lg font-bold">
+              🏛️
+            </div>
             <div>
-              <h2 className="text-sm font-bold text-[#25232A]">إضافة سند مالي جديد ({formData.v_type})</h2>
-              <p className="text-[11px] text-[#6F6B75] font-normal">تسجيل المقبوضات والمدفوعات وربطها بالصناديق وشجرة الحسابات</p>
+              <h2 className="text-sm font-bold text-white">إدارة الشؤون والعمليات المالية 👑</h2>
+              <p className="text-[11px] text-[#94a3b8]">بوابة التحصيل والصرف والقيود المحاسبية لمؤسسة Little Princesses</p>
             </div>
           </div>
-          <span className="text-xs text-[#6F6B75]">
-            <span className="text-[#D64545] font-bold">*</span> الحقول الإلزامية
+
+          {/* محرك البحث السريع الشامل */}
+          <div className="relative w-full md:w-96">
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="🔍 البحث السريع في العميلات، الموردين، العقود، السندات..."
+              className="w-full h-11 pl-4 pr-10 rounded-2xl border border-[#374151] bg-[#111827] text-white text-xs placeholder:text-gray-500 focus:border-[#00E5FF] outline-none transition"
+            />
+            <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-500 text-xs">🔍</span>
+          </div>
+        </div>
+
+        {/* المجموعات الأربع للعمليات المالية المركزية */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          
+          {/* المجموعة 1: المالية والقيود العامة */}
+          <div className="bg-[#181d2a] p-4 rounded-2xl border border-[#2d3748] space-y-3 hover:border-amber-400/40 transition">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-amber-400">🏛️ المالية والقيود العامة</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => handleOpenAdvancedModal('receipt')}
+                className="py-2.5 px-3 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <span>📥</span>
+                <span>سندات القبض</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleOpenAdvancedModal('payment')}
+                className="py-2.5 px-3 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <span>📤</span>
+                <span>سندات الصرف</span>
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleOpenAdvancedModal('payment', 'تسوية قيود', 'قيد مركب')}
+              className="w-full py-2 px-3 rounded-xl bg-[#2d3748]/50 hover:bg-[#2d3748] text-gray-300 text-[11px] font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer border border-[#374151]"
+            >
+              <span>📑</span>
+              <span>القيود المركبة والتسويات</span>
+            </button>
+          </div>
+
+          {/* المجموعة 2: شؤون وتحصيلات العميلات والطلبات */}
+          <div className="bg-[#181d2a] p-4 rounded-2xl border border-[#2d3748] space-y-3 hover:border-[#00E5FF]/40 transition">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-[#00E5FF]">👗 شؤون وتحصيلات العميلات</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => handleOpenAdvancedModal('receipt', '', 'تحصيل دفعة فستان/طلب')}
+                className="py-2 px-2.5 rounded-xl bg-[#00E5FF]/10 hover:bg-[#00E5FF]/20 text-[#00E5FF] text-[11px] font-bold transition flex items-center justify-center gap-1 cursor-pointer border border-[#00E5FF]/20"
+              >
+                <span>👗</span>
+                <span>تحصيل الطلبات</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleOpenAdvancedModal('receipt', '', 'عربون حجز فستان')}
+                className="py-2 px-2.5 rounded-xl bg-[#00E5FF]/10 hover:bg-[#00E5FF]/20 text-[#00E5FF] text-[11px] font-bold transition flex items-center justify-center gap-1 cursor-pointer border border-[#00E5FF]/20"
+              >
+                <span>💎</span>
+                <span>عرابين الحجوزات</span>
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => handleOpenAdvancedModal('receipt', 'مبيعات معرض فورية', 'مبيعات فساتين جاهزة')}
+                className="py-1.5 px-2 rounded-xl bg-[#2d3748]/50 hover:bg-[#2d3748] text-gray-300 text-[10px] font-semibold transition flex items-center justify-center gap-1 cursor-pointer border border-[#374151]"
+              >
+                <span>🛍️</span>
+                <span>مبيعات المعرض</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleOpenAdvancedModal('payment', '', 'تسوية مرتجع فستان')}
+                className="py-1.5 px-2 rounded-xl bg-[#2d3748]/50 hover:bg-[#2d3748] text-gray-300 text-[10px] font-semibold transition flex items-center justify-center gap-1 cursor-pointer border border-[#374151]"
+              >
+                <span>🔄</span>
+                <span>مرتجع وتسويات</span>
+              </button>
+            </div>
+          </div>
+
+          {/* المجموعة 3: الموارد البشرية وأجور المشغل والعهد */}
+          <div className="bg-[#181d2a] p-4 rounded-2xl border border-[#2d3748] space-y-3 hover:border-purple-400/40 transition">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-purple-400">🧵 أجور المشغل والعهد</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => handleOpenAdvancedModal('payment', '', 'صرف أجور خياطين بالقطعة', '601')}
+                className="py-2 px-2.5 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 text-[11px] font-bold transition flex items-center justify-center gap-1 cursor-pointer border border-purple-500/20"
+              >
+                <span>✂️</span>
+                <span>أجور الخياطين</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleOpenAdvancedModal('payment', '', 'سلفة موظف شهرية', '104')}
+                className="py-2 px-2.5 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 text-[11px] font-bold transition flex items-center justify-center gap-1 cursor-pointer border border-purple-500/20"
+              >
+                <span>📅</span>
+                <span>السلف الشهرية</span>
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => handleOpenAdvancedModal('payment', 'عهدة المعمل', 'صرف عهدة نقدية للمشغل')}
+                className="py-1.5 px-2 rounded-xl bg-[#2d3748]/50 hover:bg-[#2d3748] text-gray-300 text-[10px] font-semibold transition flex items-center justify-center gap-1 cursor-pointer border border-[#374151]"
+              >
+                <span>💼</span>
+                <span>عهد الورشة</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleOpenAdvancedModal('receipt', 'تسوية عهدة', 'استرداد متبقي عهدة')}
+                className="py-1.5 px-2 rounded-xl bg-[#2d3748]/50 hover:bg-[#2d3748] text-gray-300 text-[10px] font-semibold transition flex items-center justify-center gap-1 cursor-pointer border border-[#374151]"
+              >
+                <span>⚖️</span>
+                <span>تسوية العهد</span>
+              </button>
+            </div>
+          </div>
+
+          {/* المجموعة 4: مشتريات ومخزون الأقمشة */}
+          <div className="bg-[#181d2a] p-4 rounded-2xl border border-[#2d3748] space-y-3 hover:border-emerald-400/40 transition">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-emerald-400">📦 مشتريات الأقمشة والمخزون</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => handleOpenAdvancedModal('payment', '', 'سداد فاتورة توريد أقمشة', '201')}
+                className="py-2 px-2.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-[11px] font-bold transition flex items-center justify-center gap-1 cursor-pointer border border-emerald-500/20"
+              >
+                <span>🧵</span>
+                <span>توريد أقمشة</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleOpenAdvancedModal('payment', '', 'مستلزمات وإكسسوارات خياطة', '502')}
+                className="py-2 px-2.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-[11px] font-bold transition flex items-center justify-center gap-1 cursor-pointer border border-emerald-500/20"
+              >
+                <span>🪡</span>
+                <span>تسليم مستلزمات</span>
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleOpenAdvancedModal('payment', '', 'تسوية جرد مخزون الأقمشة', '102')}
+              className="w-full py-1.5 px-2 rounded-xl bg-[#2d3748]/50 hover:bg-[#2d3748] text-gray-300 text-[10px] font-semibold transition flex items-center justify-center gap-1 cursor-pointer border border-[#374151]"
+            >
+              <span>📊</span>
+              <span>مراجعة وتسوية فروقات الجرد</span>
+            </button>
+          </div>
+
+        </div>
+
+        {/* أزرار الإصدار المباشرة الكبيرة */}
+        <div className="flex items-center justify-between pt-2 border-t border-[#2d3748] flex-wrap gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
+            <button
+              type="button"
+              onClick={() => handleOpenAdvancedModal('receipt')}
+              className="px-6 py-3 rounded-2xl font-bold text-xs text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 transition flex items-center gap-2 cursor-pointer shadow-lg"
+            >
+              <span className="text-base font-bold">+</span>
+              <span>إصدار سند قبض جديد 📥</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleOpenAdvancedModal('payment')}
+              className="px-6 py-3 rounded-2xl font-bold text-xs text-white bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 transition flex items-center gap-2 cursor-pointer shadow-lg"
+            >
+              <span className="text-base font-bold">+</span>
+              <span>إصدار سند صرف جديد 📤</span>
+            </button>
+          </div>
+
+          <span className="text-xs text-gray-400">
+            👑 سندات موثقة ومربوطة آلياً بالأستاذ العام وقوقل شيتس
           </span>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-5">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            {/* الصف الأول: نوع السند | رقم السند (تلقائي) | اسم المستفيد/العميل | المبلغ والعملة */}
-            <div>
-              <label className={labelCls}>نوع السند <span className="text-[#D64545] font-bold">*</span></label>
-              <select className={inputCls} value={formData.v_type} onChange={e => { setFormData({...formData, v_type: e.target.value}); setSelectedCustomer(''); setSelectedOrder(''); }}>
-                <option value="سند صرف">سند صرف (دفع / مشتريات / مصاريف)</option>
-                <option value="سند قبض">سند قبض (استلام نقدية / حوالة)</option>
-              </select>
-            </div>
-
-            <div>
-              <label className={labelCls}>رقم السند (تلقائي)</label>
-              <input type="text" className={inputCls + " font-mono"} placeholder="تلقائي..." value={formData.v_no} onChange={e => setFormData({...formData, v_no: e.target.value})} />
-            </div>
-            
-            <div>
-              <label className={labelCls}>
-                {formData.v_type === 'سند قبض' ? 'اسم العميلة (استلمنا من)' : 'اسم المستفيد / المورد'} <span className="text-[#D64545] font-bold">*</span>
-              </label>
-              {formData.v_type === 'سند قبض' ? (
-                <select 
-                  className={inputCls}
-                  value={selectedCustomer}
-                  onChange={(e) => {
-                    setSelectedCustomer(e.target.value);
-                    setFormData({...formData, party: e.target.value});
-                    setSelectedOrder('');
-                  }}
-                >
-                  <option value="">-- اختر العميلة من السجل --</option>
-                  {(customers || []).map(c => <option key={c.customer_id || c.id || c.name} value={c.name}>{c.name} {c.phone ? `(${c.phone})` : ''}</option>)}
-                </select>
-              ) : (
-                <input type="text" required className={inputCls} placeholder="اسم المورد أو المستفيد..." value={formData.party} onChange={e => setFormData({...formData, party: e.target.value})} />
-              )}
-            </div>
-
-            <div>
-              <label className={labelCls}>المبلغ والعملة <span className="text-[#D64545] font-bold">*</span></label>
-              <div className="flex gap-2">
-                <input type="number" step="0.01" required className={inputCls + " flex-1 font-mono font-bold text-[#25232A]"} placeholder="0.00" value={formData.amount} onChange={e => setFormData({...formData, amount: e.target.value})} />
-                <select className={inputCls + " w-24 shrink-0 font-medium"} value={formData.currency} onChange={e => setFormData({...formData, currency: e.target.value})}>
-                  {(typeof CURRENCIES !== 'undefined' ? CURRENCIES : ['SAR','USD','YER']).map(c => <option key={typeof c === "object" ? c.value : c} value={typeof c === "object" ? c.value : c}>{typeof c === "object" ? c.label : c}</option>)}
-                </select>
-              </div>
-            </div>
-
-            {/* الصف الثاني: طريقة الدفع | حساب الصندوق/البنك | الحساب المدين/المقابل | تاريخ السند */}
-            <div>
-              <label className={labelCls}>طريقة الدفع</label>
-              <select className={inputCls} value={formData.pay_method} onChange={e => setFormData({...formData, pay_method: e.target.value})}>
-                {(typeof PAY_METHODS !== 'undefined' ? PAY_METHODS : ['نقدي','حوالة بنكية','تحويل إلكتروني']).map(p => <option key={p} value={p}>{p}</option>)}
-              </select>
-            </div>
-
-            <div>
-              <label className={labelCls}>حساب الصندوق / البنك (الدفع/الاستلام)</label>
-              <select className={inputCls} value={formData.acc_code} onChange={e => setFormData({...formData, acc_code: e.target.value})}>
-                <option value="">-- اختر حساب --</option>
-                {accounts.map(a => {
-                  const code = a.code || a.acc_code || a.id;
-                  const rawName = a.name || a.account_name || a.acc_name || '';
-                  const name = (rawName && !rawName.includes('???')) ? rawName : (a.name_en || code);
-                  const label = `${code} - ${name}`;
-                  return <option key={code} value={label}>{label}</option>;
-                })}
-              </select>
-            </div>
-
-            <div>
-              <label className={labelCls}>
-                {formData.v_type === 'سند صرف' ? 'الحساب المدين (بند المصروف / المورد)' : 'الحساب الدائن (العميل / الإيراد)'} <span className="text-[#D64545] font-bold">*</span>
-              </label>
-              <select className={inputCls} value={formData.target_acc} onChange={e => setFormData({...formData, target_acc: e.target.value})}>
-                <option value="">-- اختر الحساب المقابل --</option>
-                {accounts.map(a => {
-                  const code = a.code || a.acc_code || a.id;
-                  const rawName = a.name || a.account_name || a.acc_name || '';
-                  const name = (rawName && !rawName.includes('???')) ? rawName : (a.name_en || code);
-                  const label = `${code} - ${name}`;
-                  return <option key={code} value={label}>{label}</option>;
-                })}
-              </select>
-            </div>
-
-            <div>
-              <label className={labelCls}>تاريخ السند</label>
-              <input type="date" className={inputCls + " font-mono text-center dir-ltr"} value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} />
-            </div>
-
-            {/* الصف الثالث: البيان وملاحظات السند (كامل العرض col-span-full) */}
-            <div className="col-span-1 md:col-span-4">
-              <label className={labelCls}>البيان وملاحظات السند</label>
-              <input type="text" className={inputCls} placeholder="ملاحظات وتفاصيل الدفعة..." value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} />
-            </div>
-
-            {/* ربط اختياري بطلب في حال سند قبض */}
-            {formData.v_type === 'سند قبض' && selectedCustomer && (
-              <div className="col-span-1 md:col-span-4">
-                <label className={labelCls}>ربط بطلب محدد للعميلة (اختياري)</label>
-                <select
-                  className={inputCls}
-                  value={selectedOrder}
-                  onChange={(e) => setSelectedOrder(e.target.value)}
-                >
-                  <option value="">-- اختياري: غير مربوط بطلب معين --</option>
-                  {(orders || []).filter(o => o.customer_name === selectedCustomer).map(o => (
-                    <option key={o.order_no} value={o.order_no}>
-                      {o.order_no} - {o.product_name} (متبقي: {(o.remaining || 0)})
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-          </div>
-
-          <div className="flex justify-end pt-2">
-            <button type="submit" className="w-full sm:w-auto px-8 py-3 rounded-xl font-bold text-xs text-white bg-[#009FAE] hover:bg-[#007F8C] transition shadow-xs flex items-center justify-center gap-2 cursor-pointer">
-              <Icons.Check className="w-4 h-4" />
-              <span>حفظ السند المالي 💾</span>
-            </button>
-          </div>
-        </form>
       </div>
 
       {/* ── جدول سجل السندات المالية ── */}
@@ -917,6 +1206,14 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
                       {/* الخلية 8 (إجراءات - أقصى اليسار): أزرار الإجراءات (معاينة، تعديل، حذف) */}
                       <td className="px-3 py-3 text-center align-middle whitespace-nowrap">
                         <div className="flex items-center justify-center gap-1.5">
+                          <button 
+                            type="button"
+                            onClick={() => handleSendWhatsAppNotification(v)}
+                            title="إرسال إشعار رسمي بالسند عبر واتساب WhatsApp"
+                            className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 border border-emerald-200 rounded-lg transition cursor-pointer flex items-center justify-center font-bold"
+                          >
+                            <span className="text-xs">⚡</span>
+                          </button>
                           <button 
                             type="button"
                             onClick={() => setViewVoucher(v)} 
@@ -1141,6 +1438,336 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── نافذة إصدار سند مالي متقدم بتعدد طرق الدفع (Split Payments & WhatsApp) ── */}
+      {showAdvancedModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn overflow-y-auto" dir="rtl">
+          <div className="bg-[#1e2433] text-white rounded-3xl border border-[#2d3748] shadow-2xl w-full max-w-4xl overflow-hidden my-8 transition-all">
+            
+            {/* رأس النافذة */}
+            <div className="px-6 py-4 border-b border-[#2d3748] flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#181d2a]">
+              <div className="flex items-center gap-3">
+                <div className={`w-11 h-11 rounded-2xl flex items-center justify-center text-xl font-bold border shadow-xs ${
+                  modalMode === 'receipt' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                }`}>
+                  {modalMode === 'receipt' ? '📥' : '📤'}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-bold text-white">
+                      إصدار {modalMode === 'receipt' ? 'سند قبض تحصيل' : 'سند صرف نقدية'}
+                    </h3>
+                    <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${
+                      modalMode === 'receipt' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border-rose-500/30'
+                    }`}>
+                      {modalMode === 'receipt' ? 'RECEIPT VOUCHER' : 'PAYMENT VOUCHER'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-[#94a3b8]">توثيق وتوزيع الدفعات على الصناديق والبنوك مع الترحيل التلقائي لدفتر الأستاذ</p>
+                </div>
+              </div>
+
+              {/* تبديل نوع السند وإغلاق */}
+              <div className="flex items-center gap-2.5">
+                <div className="bg-[#111827] p-1 rounded-xl border border-[#2d3748] flex gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setModalMode('receipt')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                      modalMode === 'receipt' ? 'bg-emerald-500 text-white shadow-xs' : 'text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    سند قبض 🟢
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setModalMode('payment')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                      modalMode === 'payment' ? 'bg-rose-500 text-white shadow-xs' : 'text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    سند صرف 🔴
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowAdvancedModal(false)}
+                  className="w-9 h-9 rounded-xl bg-[#2d3748] hover:bg-[#374151] text-gray-300 flex items-center justify-center transition cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {/* محتوى الاستمارة */}
+            <form onSubmit={handleSubmitAdvancedVoucher} className="p-6 space-y-5">
+              
+              {/* خيارات تحديد الطرف: مستفيد فرعي أو حساب عام */}
+              <div className="p-4 rounded-2xl bg-[#181d2a]/70 border border-[#2d3748] space-y-4">
+                <div className="flex items-center justify-between border-b border-[#2d3748] pb-3">
+                  <span className="text-xs font-bold text-gray-300">الجهة المستهدفة والطرف المالي:</span>
+                  <div className="flex items-center gap-3">
+                    <label className="flex items-center gap-1.5 text-xs text-gray-300 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="docType"
+                        checked={modalDocType === 'subparty'}
+                        onChange={() => setModalDocType('subparty')}
+                        className="accent-[#00E5FF]"
+                      />
+                      <span>جهة فرعية (عميلة / مورد / موظف)</span>
+                    </label>
+                    <label className="flex items-center gap-1.5 text-xs text-gray-300 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="docType"
+                        checked={modalDocType === 'account'}
+                        onChange={() => setModalDocType('account')}
+                        className="accent-[#00E5FF]"
+                      />
+                      <span>حساب عام من الدليل</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                  <div className="sm:col-span-2">
+                    <label className="block text-[11px] font-bold text-gray-300 mb-1.5">
+                      {modalMode === 'receipt' ? 'اسم العميلة / الطرف المسدد *' : 'اسم المستفيد / المورد / الموظف *'}
+                    </label>
+                    {modalDocType === 'subparty' ? (
+                      <div className="space-y-1.5">
+                        <select
+                          value={modalParty}
+                          onChange={e => {
+                            const val = e.target.value;
+                            setModalParty(val);
+                            const found = (customers || []).find(c => c.name === val) || (employees || []).find(emp => emp.name === val);
+                            if (found && found.phone) setModalPhone(found.phone);
+                          }}
+                          className="w-full h-10 px-3 rounded-xl border border-[#374151] bg-[#111827] text-white text-xs font-semibold focus:border-[#00E5FF] outline-none"
+                        >
+                          <option value="">-- اختر من السجلات المسجلة أو اكتب أدناه --</option>
+                          <optgroup label="👗 العميلات المسجلات">
+                            {(customers || []).map(c => <option key={c.id || c.name} value={c.name}>{c.name} {c.phone ? `(${c.phone})` : ''}</option>)}
+                          </optgroup>
+                          <optgroup label="🧵 موردو الأقمشة">
+                            {[...new Set((purchases || []).map(p => p.supplier || p.vendor_name).filter(Boolean))].map(s => <option key={s} value={s}>{s}</option>)}
+                          </optgroup>
+                          <optgroup label="✂️ الموظفون والخياطون">
+                            {(employees || []).map(emp => <option key={emp.id || emp.name} value={emp.name}>{emp.name}</option>)}
+                          </optgroup>
+                        </select>
+                        <input
+                          type="text"
+                          placeholder="أو اكتب اسماً جديداً يدوياً..."
+                          value={modalParty}
+                          onChange={e => setModalParty(e.target.value)}
+                          className="w-full h-9 px-3 rounded-xl border border-[#374151] bg-[#111827] text-white text-xs placeholder:text-gray-500 focus:border-[#00E5FF] outline-none"
+                        />
+                      </div>
+                    ) : (
+                      <select
+                        value={modalParty}
+                        onChange={e => setModalParty(e.target.value)}
+                        className="w-full h-10 px-3 rounded-xl border border-[#374151] bg-[#111827] text-white text-xs font-semibold focus:border-[#00E5FF] outline-none"
+                      >
+                        <option value="">-- اختر حساب من الدليل --</option>
+                        {(accounts || []).map(a => {
+                          const code = a.code || a.acc_code || a.id;
+                          const rawName = a.name || a.account_name || a.acc_name || '';
+                          const name = (rawName && !rawName.includes('???')) ? rawName : (a.name_en || code);
+                          return <option key={code} value={`${code} - ${name}`}>{code} - ${name}</option>;
+                        })}
+                      </select>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-300 mb-1.5 flex items-center justify-between">
+                      <span>رقم الهاتف (واتساب / إشعار)</span>
+                      <span className="text-emerald-400 font-normal">WhatsApp 📱</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="770000000"
+                      value={modalPhone}
+                      onChange={e => setModalPhone(e.target.value)}
+                      className="w-full h-10 px-3 rounded-xl border border-[#374151] bg-[#111827] text-white text-xs font-mono focus:border-emerald-400 outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 pt-2">
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-300 mb-1.5">عملة السند</label>
+                    <select
+                      value={modalCurrency}
+                      onChange={e => setModalCurrency(e.target.value)}
+                      className="w-full h-10 px-3 rounded-xl border border-[#374151] bg-[#111827] text-white text-xs font-bold focus:border-[#00E5FF] outline-none"
+                    >
+                      {["YER ﷼", "SAR ﷼", "USD $"].map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-300 mb-1.5">سعر الصرف (مقابل YER)</label>
+                    <input
+                      type="number"
+                      step="any"
+                      value={modalExchangeRate}
+                      onChange={e => setModalExchangeRate(e.target.value)}
+                      className="w-full h-10 px-3 rounded-xl border border-[#374151] bg-[#111827] text-amber-400 text-xs font-mono font-bold focus:border-[#00E5FF] outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-300 mb-1.5">الحساب المالي المقابل</label>
+                    <select
+                      value={modalTargetAcc}
+                      onChange={e => setModalTargetAcc(e.target.value)}
+                      className="w-full h-10 px-3 rounded-xl border border-[#374151] bg-[#111827] text-white text-xs focus:border-[#00E5FF] outline-none"
+                    >
+                      <option value="104">104 - ذمم ومدينات العملاء</option>
+                      <option value="201">201 - ذمم الموردين ومحلات الأقمشة</option>
+                      <option value="401">401 - إيرادات تفصيل وتصميم الفساتين</option>
+                      <option value="501">501 - تكلفة الأقمشة والمواد المستخدمة</option>
+                      <option value="502">502 - مستلزمات وإكسسوارات الخياطة</option>
+                      <option value="601">601 - أجور ومرتبات العاملين والمصممين</option>
+                      <option value="602">602 - مصروف إيجار المعمل والمعرض</option>
+                      <option value="604">604 - مصاريف تشغيلية ونثرية عامة</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* قسم توزيع وسائل وطرق الدفع المتعددة */}
+              <div className="p-4 rounded-2xl bg-[#181d2a]/70 border border-[#2d3748] space-y-3.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-amber-400">💳 طرق وتوزيع دفعات التحصيل (Payment Distribution)</span>
+                    <span className="text-[11px] text-gray-400">يمكنك توزيع المبلغ على أكثر من صندوق أو حساب بنكي</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAddPaymentRow}
+                    className="px-3 py-1.5 rounded-xl bg-[#00E5FF]/10 hover:bg-[#00E5FF]/20 text-[#00E5FF] border border-[#00E5FF]/30 text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                  >
+                    <span>+</span>
+                    <span>إضافة طريقة دفع</span>
+                  </button>
+                </div>
+
+                <div className="space-y-2.5">
+                  {splitPayments.map((row, idx) => (
+                    <div key={row.id} className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-center bg-[#111827] p-2.5 rounded-xl border border-[#2d3748]">
+                      <div className="sm:col-span-6">
+                        <select
+                          value={`${row.method}__${row.acc_code}`}
+                          onChange={e => {
+                            const [m, c] = e.target.value.split('__');
+                            handlePaymentRowChange(idx, 'method', m);
+                            handlePaymentRowChange(idx, 'acc_code', c);
+                          }}
+                          className="w-full h-9 px-2.5 rounded-lg border border-[#374151] bg-[#181d2a] text-white text-xs font-semibold focus:border-[#00E5FF] outline-none"
+                        >
+                          <option value="نقداً (صندوق الورشة)__101.01">💵 نقداً - صندوق فرع الورشة والمعمل (101.01)</option>
+                          <option value="نقداً (صندوق محمد فلاح)__101.02">💵 نقداً - صندوق الإدارة محمد فلاح (101.02)</option>
+                          <option value="تحويل بنكي (الكريمي)__103">🏦 تحويل بنكي - حساب بنك الكريمي (103)</option>
+                          <option value="محفظة إلكترونية (جوالي/كاش)__103">📱 محفظة إلكترونية - جوالي / كاش / فلوسك (103)</option>
+                          <option value="شبكة نقاط بيع POS__103">💳 شبكة ومدى نقاط بيع POS (103)</option>
+                        </select>
+                      </div>
+
+                      <div className="sm:col-span-4">
+                        <div className="relative">
+                          <input
+                            type="number"
+                            step="any"
+                            placeholder="0.00"
+                            value={row.amount}
+                            onChange={e => handlePaymentRowChange(idx, 'amount', e.target.value)}
+                            className="w-full h-9 px-3 rounded-lg border border-[#374151] bg-[#181d2a] text-[#00E5FF] font-mono font-bold text-xs text-left focus:border-[#00E5FF] outline-none"
+                          />
+                          <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-gray-400">{advCurrCode}</span>
+                        </div>
+                      </div>
+
+                      <div className="sm:col-span-2 flex items-center justify-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleDuplicatePaymentRow(idx)}
+                          title="تكرار سطر الدفع"
+                          className="w-8 h-8 rounded-lg bg-[#2d3748] hover:bg-[#374151] text-gray-300 flex items-center justify-center text-xs font-bold transition cursor-pointer"
+                        >
+                          +
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeletePaymentRow(idx)}
+                          title="حذف سطر الدفع"
+                          className="w-8 h-8 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 flex items-center justify-center text-xs transition cursor-pointer"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* شريط الإجمالي الكلي للدفعة */}
+                <div className="flex items-center justify-between bg-[#111827] px-4 py-2.5 rounded-xl border border-[#2d3748]">
+                  <span className="text-xs font-bold text-gray-300">إجمالي المبلغ المسدد في السند:</span>
+                  <span className="font-mono font-bold text-base text-amber-400">
+                    {splitTotalAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })} {advCurrCode}
+                  </span>
+                </div>
+              </div>
+
+              {/* البيان والملاحظات */}
+              <div>
+                <label className="block text-[11px] font-bold text-gray-300 mb-1.5">البيان والشرح المحاسبي للسند</label>
+                <textarea
+                  rows="2"
+                  placeholder="اكتب شرحاً مفصلاً للعملية وملاحظات الدفعة..."
+                  value={modalNotes}
+                  onChange={e => setModalNotes(e.target.value)}
+                  className="w-full p-3 rounded-xl border border-[#374151] bg-[#111827] text-white text-xs placeholder:text-gray-500 focus:border-[#00E5FF] outline-none"
+                ></textarea>
+              </div>
+
+              {/* أزرار الحفظ والإلغاء */}
+              <div className="flex items-center justify-between pt-3 border-t border-[#2d3748]">
+                <button
+                  type="button"
+                  onClick={() => setShowAdvancedModal(false)}
+                  className="px-5 py-2.5 rounded-xl border border-[#374151] text-gray-300 hover:bg-[#2d3748] font-bold text-xs transition cursor-pointer"
+                >
+                  إلغاء الأمر
+                </button>
+
+                <div className="flex items-center gap-3">
+                  <button
+                    type="submit"
+                    disabled={isSubmittingAdv || splitTotalAmount <= 0 || !modalParty}
+                    className={`px-8 py-3 rounded-2xl font-bold text-xs text-white transition flex items-center gap-2 cursor-pointer shadow-lg disabled:opacity-40 disabled:cursor-not-allowed ${
+                      modalMode === 'receipt'
+                        ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500'
+                        : 'bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500'
+                    }`}
+                  >
+                    <span>✓</span>
+                    <span>{isSubmittingAdv ? 'جاري الاعتماد والترحيل...' : `اعتماد وتمرير ${modalMode === 'receipt' ? 'سند القبض' : 'سند الصرف'} 💾`}</span>
+                  </button>
+                </div>
+              </div>
+
+            </form>
+
           </div>
         </div>
       )}

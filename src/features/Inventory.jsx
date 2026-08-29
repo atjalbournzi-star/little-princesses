@@ -276,30 +276,30 @@ function Inventory({ inventory = [], setInventory, purchases = [], orders = [], 
               </div>
             </div>
 
-            <div className="overflow-x-auto rounded-xl border border-[#E8E5EA]">
+            <div className="rounded-xl border border-[#E8E5EA] overflow-hidden bg-white">
               {filteredInventory.length === 0 ? (
                 <div className="text-center py-12 text-[#6F6B75] text-xs font-medium">
                   لا توجد أصناف مسجلة في المخزون تطابق البحث 📦
                 </div>
               ) : (
-                <table className="w-full text-xs">
+                <table className="w-full text-xs table-fixed border-collapse">
                   <thead>
-                    <tr className="bg-[#FAFAFB] text-[#6F6B75] font-semibold border-b border-[#E8E5EA]">
-                      <th className="px-4 py-3 text-right">رمز الصنف</th>
-                      <th className="px-4 py-3 text-right">اسم الخامة / الصنف</th>
-                      <th className="px-4 py-3 text-right">التصنيف</th>
-                      <th className="px-4 py-3 text-right">الكمية الحالية</th>
-                      <th className="px-4 py-3 text-right">التكلفة (متوسط مرجح)</th>
-                      <th className="px-4 py-3 text-right">إجمالي القيمة</th>
-                      <th className="px-4 py-3 text-right">المورد</th>
-                      <th className="px-4 py-3 text-right">موقع التخزين</th>
-                      <th className="px-4 py-3 text-right">تاريخ التوريد</th>
+                    <tr className="bg-[#FAFAFB] text-[#6F6B75] font-bold border-b border-[#E8E5EA]">
+                      <th className="px-2 py-3 text-right w-[6%]">رمز الصنف</th>
+                      <th className="px-2.5 py-3 text-right w-[18%]">اسم الخامة / الصنف</th>
+                      <th className="px-2 py-3 text-right w-[10%]">التصنيف</th>
+                      <th className="px-2 py-3 text-left w-[10%]">الكمية الحالية</th>
+                      <th className="px-2 py-3 text-left w-[13%]">التكلفة (متوسط مرجح)</th>
+                      <th className="px-2 py-3 text-left w-[14%]">إجمالي القيمة</th>
+                      <th className="px-2 py-3 text-right w-[11%]">المورد</th>
+                      <th className="px-2 py-3 text-right w-[10%]">موقع التخزين</th>
+                      <th className="px-2 py-3 text-center w-[8%]">تاريخ التوريد</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#E8E5EA] bg-white">
                     {filteredInventory.map((i, idx) => {
                       const name = getItemName(i);
-                      const code = i.item_code || i.code || `MAT-${String(i.id||idx).slice(-4)}`;
+                      const code = i.item_code || i.code || i.id || (idx + 1);
                       const qty = getItemQty(i);
                       const cost = getItemCost(i);
                       const totalValue = parseFloat(i.total_value) || (qty * cost) || 0;
@@ -312,21 +312,71 @@ function Inventory({ inventory = [], setInventory, purchases = [], orders = [], 
                       const supplier = i.supplier_id || i.supplier || i.supplier_name || 'مورد عام';
                       const loc = i.location || 'المستودع الرئيسي';
                       return (
-                        <tr key={i.id || name || idx} className="hover:bg-[#FAFAFB] transition-colors">
-                          <td className="px-4 py-3 font-mono text-[#6F6B75] text-[11px]">{code}</td>
-                          <td className="px-4 py-3 font-bold text-[#25232A] flex items-center gap-2">
-                            <span>{name}</span>
-                            {isLow && <span className="text-[10px] bg-[#FFF1DC] text-[#C97300] border border-[#FFE4B9] px-1.5 py-0.2 rounded font-bold">منخفض ⚠️</span>}
+                        <tr key={i.id || name || idx} className="hover:bg-[#FAFAFB] transition-colors border-b border-[#E8E5EA]/60">
+                          {/* الخلية 1: رمز الصنف (6% - يمين) */}
+                          <td className="px-2 py-2.5 font-mono text-[#8F2A87] font-bold text-xs text-right align-middle truncate" title={String(code)}>
+                            {code}
                           </td>
-                          <td className="px-4 py-3">
-                            <span className="bg-[#FAFAFB] text-[#25232A] border border-[#E8E5EA] px-2.5 py-0.5 rounded-md text-[10.5px] font-semibold">{i.category || 'أقمشة وخامات'}</span>
+
+                          {/* الخلية 2: اسم الخامة / الصنف (18% - يمين) */}
+                          <td className="px-2.5 py-2.5 font-bold text-[#25232A] text-right align-middle truncate" title={name}>
+                            <div className="flex items-center gap-1.5 truncate">
+                              <span className="truncate">{name}</span>
+                              {isLow && <span className="text-[9px] bg-[#FFF1DC] text-[#C97300] border border-[#FFE4B9] px-1 py-0.2 rounded font-bold shrink-0">منخفض ⚠️</span>}
+                            </div>
                           </td>
-                          <td className="px-4 py-3 font-bold font-mono text-[#25232A]">{qty.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} <span className="text-[10px] font-normal text-[#6F6B75]">{i.unit || 'متر'}</span></td>
-                          <td className="px-4 py-3 font-mono text-[#6F6B75]">{cost > 0 ? `${cost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${curr}` : '0.00'}</td>
-                          <td className="px-4 py-3 font-bold font-mono text-[#007F8C]">{totalValue > 0 ? `${totalValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${curr}` : '0.00'}</td>
-                          <td className="px-4 py-3 text-[#25232A] font-medium">{supplier}</td>
-                          <td className="px-4 py-3 text-[#6F6B75] text-[11px]">{loc}</td>
-                          <td className="px-4 py-3 text-[#6F6B75] font-mono text-[11px]">{dateStr}</td>
+
+                          {/* الخلية 3: التصنيف (10% - يمين) */}
+                          <td className="px-2 py-2.5 text-right align-middle truncate">
+                            <span className="bg-[#FAFAFB] text-[#25232A] border border-[#E8E5EA] px-1.5 py-0.5 rounded text-[10px] font-semibold inline-block truncate max-w-full">
+                              {i.category || 'أقمشة وخامات'}
+                            </span>
+                          </td>
+
+                          {/* الخلية 4: الكمية الحالية (10% - يسار) */}
+                          <td className="px-2 py-2.5 text-left align-middle truncate">
+                            <span className="font-bold font-mono text-[#25232A] tabular-nums dir-ltr">
+                              {qty.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                            </span>
+                            <span className="text-[10px] font-normal text-[#6F6B75] font-sans mr-0.5">
+                              {i.unit || 'متر'}
+                            </span>
+                          </td>
+
+                          {/* الخلية 5: التكلفة متوسط مرجح (13% - يسار) */}
+                          <td className="px-2 py-2.5 text-left align-middle truncate">
+                            <span className="font-mono text-[#6F6B75] font-semibold tabular-nums dir-ltr">
+                              {cost > 0 ? cost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
+                            </span>
+                            <span className="text-[9.5px] font-normal font-sans text-[#6F6B75] mr-0.5">
+                              {curr}
+                            </span>
+                          </td>
+
+                          {/* الخلية 6: إجمالي القيمة (14% - يسار) */}
+                          <td className="px-2 py-2.5 text-left align-middle truncate">
+                            <span className="font-bold font-mono text-[#007F8C] tabular-nums dir-ltr">
+                              {totalValue > 0 ? totalValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
+                            </span>
+                            <span className="text-[9.5px] font-normal font-sans text-[#007F8C] mr-0.5">
+                              {curr}
+                            </span>
+                          </td>
+
+                          {/* الخلية 7: المورد (11% - يمين) */}
+                          <td className="px-2 py-2.5 text-[#25232A] font-medium text-right align-middle truncate text-[11px]" title={supplier}>
+                            {supplier}
+                          </td>
+
+                          {/* الخلية 8: موقع التخزين (10% - يمين) */}
+                          <td className="px-2 py-2.5 text-[#6F6B75] text-[11px] text-right align-middle truncate" title={loc}>
+                            {loc}
+                          </td>
+
+                          {/* الخلية 9: تاريخ التوريد (8% - وسط) */}
+                          <td className="px-2 py-2.5 text-[#6F6B75] font-mono text-[11px] text-center tabular-nums align-middle truncate">
+                            {dateStr}
+                          </td>
                         </tr>
                       );
                     })}

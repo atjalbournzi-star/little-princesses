@@ -245,24 +245,83 @@ def init_accounts_db(conn=None):
             except Exception: pass
     conn.commit()
 
-    # Create Journal Entries & Lines & Audit Log Tables
+    # Create Vouchers, Expenses, Journal Entries & Lines & Audit Log Tables
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS vouchers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            voucher_no TEXT UNIQUE,
+            voucher_type TEXT DEFAULT 'سند صرف',
+            party_name TEXT DEFAULT '',
+            amount REAL DEFAULT 0.0,
+            currency TEXT DEFAULT 'YER',
+            exchange_rate REAL DEFAULT 1.0,
+            base_amount REAL DEFAULT 0.0,
+            pay_method TEXT DEFAULT 'نقد (كاش)',
+            transfer_no TEXT DEFAULT '',
+            account_id TEXT DEFAULT '101',
+            target_acc TEXT DEFAULT '201',
+            date_created TEXT DEFAULT '',
+            notes TEXT DEFAULT '',
+            status TEXT DEFAULT 'posted',
+            image_path TEXT DEFAULT '',
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS expenses (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            expense_no TEXT UNIQUE,
+            category TEXT DEFAULT '',
+            amount REAL DEFAULT 0.0,
+            currency TEXT DEFAULT 'YER',
+            exchange_rate REAL DEFAULT 1.0,
+            base_amount REAL DEFAULT 0.0,
+            transaction_id TEXT DEFAULT '',
+            date TEXT DEFAULT '',
+            payment_method TEXT DEFAULT 'نقد (كاش)',
+            recipient TEXT DEFAULT '',
+            account_id TEXT DEFAULT '101',
+            status TEXT DEFAULT 'posted',
+            notes TEXT DEFAULT '',
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            created_by TEXT DEFAULT 'المستخدم'
+        )
+    ''')
+
     c.execute('''
         CREATE TABLE IF NOT EXISTS journal_entries (
-            journal_id TEXT PRIMARY KEY,
-            journal_number TEXT UNIQUE NOT NULL,
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            journal_id TEXT,
+            journal_number TEXT,
+            entry_no TEXT UNIQUE,
+            transaction_id TEXT DEFAULT '',
+            date TEXT DEFAULT '',
             transaction_date TEXT DEFAULT CURRENT_TIMESTAMP,
+            debit TEXT DEFAULT '',
+            credit TEXT DEFAULT '',
+            debit_account_id TEXT DEFAULT '',
+            credit_account_id TEXT DEFAULT '',
+            debit_code TEXT DEFAULT '',
+            credit_code TEXT DEFAULT '',
+            amount REAL DEFAULT 0.0,
+            currency TEXT DEFAULT 'YER',
+            exchange_rate REAL DEFAULT 1.0,
+            base_amount REAL DEFAULT 0.0,
+            ref_type TEXT DEFAULT 'قيد يدوي',
+            ref_id TEXT DEFAULT '',
+            notes TEXT DEFAULT '',
+            statement TEXT DEFAULT '',
             description TEXT DEFAULT '',
-            reference_type TEXT DEFAULT '',
-            reference_id TEXT DEFAULT '',
+            status TEXT DEFAULT 'posted',
             created_by TEXT DEFAULT 'المستخدم',
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            status TEXT DEFAULT 'posted'
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
         )
     ''')
     c.execute('''
         CREATE TABLE IF NOT EXISTS journal_lines (
             line_id TEXT PRIMARY KEY,
-            journal_id TEXT NOT NULL REFERENCES journal_entries(journal_id),
+            journal_id TEXT NOT NULL,
             account_id TEXT NOT NULL,
             account_code TEXT NOT NULL,
             debit REAL DEFAULT 0.0,
@@ -300,8 +359,83 @@ def init_accounts_db(conn=None):
     c.execute("INSERT OR IGNORE INTO exchange_rates (currency_code, currency_name, symbol, rate_to_yer, is_base, decimals) VALUES ('SAR', 'ريال سعودي', '﷼', 142.0, 0, 2)")
     c.execute("INSERT OR IGNORE INTO exchange_rates (currency_code, currency_name, symbol, rate_to_yer, is_base, decimals) VALUES ('USD', 'دولار أمريكي', '$', 535.0, 0, 2)")
 
-    # Ensure exchange_rate and base_amount columns exist across all financial tables
-    for tbl in ('journal_entries', 'purchases', 'vouchers', 'expenses', 'sales_orders', 'orders'):
+    # Ensure all required columns exist across all financial tables
+    table_cols_needed = {
+        'expenses': {
+            'expense_no': 'TEXT',
+            'category': 'TEXT',
+            'amount': 'REAL DEFAULT 0.0',
+            'currency': "TEXT DEFAULT 'YER'",
+            'exchange_rate': 'REAL DEFAULT 1.0',
+            'base_amount': 'REAL DEFAULT 0.0',
+            'transaction_id': "TEXT DEFAULT ''",
+            'date': "TEXT DEFAULT ''",
+            'payment_method': "TEXT DEFAULT 'نقد (كاش)'",
+            'recipient': "TEXT DEFAULT ''",
+            'account_id': "TEXT DEFAULT '101'",
+            'status': "TEXT DEFAULT 'posted'",
+            'notes': "TEXT DEFAULT ''",
+            'created_at': 'TEXT DEFAULT CURRENT_TIMESTAMP',
+            'created_by': "TEXT DEFAULT 'المستخدم'"
+        },
+        'vouchers': {
+            'voucher_no': 'TEXT',
+            'voucher_type': "TEXT DEFAULT 'سند صرف'",
+            'party_name': "TEXT DEFAULT ''",
+            'amount': 'REAL DEFAULT 0.0',
+            'currency': "TEXT DEFAULT 'YER'",
+            'exchange_rate': 'REAL DEFAULT 1.0',
+            'base_amount': 'REAL DEFAULT 0.0',
+            'pay_method': "TEXT DEFAULT 'نقد (كاش)'",
+            'transfer_no': "TEXT DEFAULT ''",
+            'account_id': "TEXT DEFAULT '101'",
+            'target_acc': "TEXT DEFAULT '201'",
+            'date_created': "TEXT DEFAULT ''",
+            'notes': "TEXT DEFAULT ''",
+            'status': "TEXT DEFAULT 'posted'",
+            'image_path': "TEXT DEFAULT ''",
+            'created_at': 'TEXT DEFAULT CURRENT_TIMESTAMP'
+        },
+        'journal_entries': {
+            'entry_no': 'TEXT',
+            'transaction_id': "TEXT DEFAULT ''",
+            'date': "TEXT DEFAULT ''",
+            'transaction_date': 'TEXT DEFAULT CURRENT_TIMESTAMP',
+            'debit': "TEXT DEFAULT ''",
+            'credit': "TEXT DEFAULT ''",
+            'debit_account_id': "TEXT DEFAULT ''",
+            'credit_account_id': "TEXT DEFAULT ''",
+            'debit_code': "TEXT DEFAULT ''",
+            'credit_code': "TEXT DEFAULT ''",
+            'amount': 'REAL DEFAULT 0.0',
+            'currency': "TEXT DEFAULT 'YER'",
+            'exchange_rate': 'REAL DEFAULT 1.0',
+            'base_amount': 'REAL DEFAULT 0.0',
+            'ref_type': "TEXT DEFAULT 'قيد يدوي'",
+            'ref_id': "TEXT DEFAULT ''",
+            'notes': "TEXT DEFAULT ''",
+            'statement': "TEXT DEFAULT ''",
+            'description': "TEXT DEFAULT ''",
+            'status': "TEXT DEFAULT 'posted'",
+            'created_by': "TEXT DEFAULT 'المستخدم'",
+            'created_at': 'TEXT DEFAULT CURRENT_TIMESTAMP'
+        }
+    }
+
+    for tbl, cols_map in table_cols_needed.items():
+        try:
+            c.execute(f"PRAGMA table_info({tbl})")
+            existing = set(r[1] if isinstance(r, (list, tuple)) else r['name'] for r in c.fetchall())
+            for col, col_def in cols_map.items():
+                if col not in existing:
+                    try:
+                        c.execute(f"ALTER TABLE {tbl} ADD COLUMN {col} {col_def}")
+                    except Exception as ce:
+                        pass
+        except Exception:
+            pass
+
+    for tbl in ('purchases', 'sales_orders', 'orders'):
         try:
             c.execute(f"PRAGMA table_info({tbl})")
             cols = set(r[1] if isinstance(r, (list, tuple)) else r['name'] for r in c.fetchall())
@@ -1670,6 +1804,41 @@ class UnifiedERPHandler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps({'success': True, 'data': vouchers, 'count': len(vouchers)}, ensure_ascii=False).encode('utf-8'))
             return
 
+        if path in ('/api/expenses', '/api/expenses/list'):
+            conn = get_db()
+            c = conn.cursor()
+            c.execute("SELECT * FROM expenses ORDER BY id DESC")
+            expenses = [dict(r) for r in c.fetchall()]
+            conn.close()
+            for e in expenses:
+                e['expense_no'] = e.get('expense_no') or f"EXP-{e.get('id')}"
+                e['exp_category'] = e.get('category') or 'مصروفات عامة'
+                e['payment_source'] = e.get('account_id') or '101'
+                e['pay_method'] = e.get('payment_method') or 'نقد (كاش)'
+            self.send_response(200)
+            self._send_cors_headers()
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.end_headers()
+            self.wfile.write(json.dumps({'success': True, 'data': expenses, 'count': len(expenses)}, ensure_ascii=False).encode('utf-8'))
+            return
+
+        if path in ('/api/journal', '/api/journal/list', '/api/journal-entries'):
+            conn = get_db()
+            c = conn.cursor()
+            c.execute("SELECT * FROM journal_entries ORDER BY id DESC")
+            entries = [dict(r) for r in c.fetchall()]
+            conn.close()
+            for j in entries:
+                j['entry_no'] = j.get('entry_no') or j.get('journal_number') or f"JV-{j.get('id')}"
+                j['date'] = j.get('date') or j.get('entry_date') or j.get('transaction_date') or ''
+                j['notes'] = j.get('notes') or j.get('statement') or j.get('description') or ''
+            self.send_response(200)
+            self._send_cors_headers()
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.end_headers()
+            self.wfile.write(json.dumps({'success': True, 'data': entries, 'count': len(entries)}, ensure_ascii=False).encode('utf-8'))
+            return
+
         if path.startswith('/api/pricing/quick-quote'):
             self.send_response(200)
             self._send_cors_headers()
@@ -1827,14 +1996,50 @@ class UnifiedERPHandler(http.server.SimpleHTTPRequestHandler):
             conn = get_db()
             c = conn.cursor()
             c.execute("SELECT * FROM accounts ORDER BY account_code ASC, code ASC")
-            rows = [dict(r) for r in c.fetchall()]
+            rows_raw = [dict(r) for r in c.fetchall()]
             conn.close()
+
+            # ─── إزالة التكرار (Deduplication) بالكود المحاسبي ──────────────────
+            # عند وجود سجلات متكررة بنفس code، نحتفظ بالسجل الأكثر اكتمالاً
+            seen_codes = {}
+            deduped_rows = []
+            for row in rows_raw:
+                code_key = str(row.get('code') or row.get('account_code') or row.get('acc_code') or '').strip()
+                if not code_key:
+                    deduped_rows.append(row)
+                    continue
+                if code_key not in seen_codes:
+                    seen_codes[code_key] = len(deduped_rows)
+                    deduped_rows.append(row)
+                else:
+                    # يوجد تكرار - قارن الأرصدة والاكتمال واحتفظ بالأفضل
+                    existing_idx = seen_codes[code_key]
+                    existing = deduped_rows[existing_idx]
+                    existing_bal = float(existing.get('opening_balance') or existing.get('balance') or existing.get('current_balance') or 0)
+                    new_bal = float(row.get('opening_balance') or row.get('balance') or row.get('current_balance') or 0)
+                    new_id = int(row.get('id') or 0)
+                    old_id = int(existing.get('id') or 0)
+                    # الأفضل: الأعلى رصيداً، أو له account_name_en، أو id أكبر (أحدث)
+                    new_is_better = (
+                        new_bal > existing_bal or
+                        (not existing.get('account_name_en') and row.get('account_name_en')) or
+                        new_id > old_id
+                    )
+                    if new_is_better:
+                        merged = {**existing, **row,
+                                  'opening_balance': max(existing_bal, new_bal),
+                                  'balance': max(existing_bal, new_bal),
+                                  'current_balance': max(existing_bal, new_bal)}
+                        deduped_rows[existing_idx] = merged
+            # ─────────────────────────────────────────────────────────────────────
+
             self.send_response(200)
             self._send_cors_headers()
             self.send_header('Content-Type', 'application/json; charset=utf-8')
             self.end_headers()
-            self.wfile.write(json.dumps({'success': True, 'data': rows}).encode('utf-8'))
+            self.wfile.write(json.dumps({'success': True, 'data': deduped_rows}).encode('utf-8'))
             return
+
 
         if path == '/api/accounts/summary':
             conn = get_db()
@@ -3722,7 +3927,7 @@ class UnifiedERPHandler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(json.dumps({'success': True, 'message': 'تم تحديث المزامنة محلياً', 'status': '🟢 متصل'}).encode('utf-8'))
             return
 
-        if parsed_url.path in ('/api/accounts/save', '/api/accounts'):
+        if parsed_url.path in ('/api/accounts/save', '/api/accounts', '/api/accounts/create', '/api/accounts/add'):
             content_length = int(self.headers.get('Content-Length', 0))
             post_data = self.rfile.read(content_length)
             try:
@@ -3760,38 +3965,38 @@ class UnifiedERPHandler(http.server.SimpleHTTPRequestHandler):
                 if not code:
                     code = suggest_next_account_code(parent_id, conn)
                     
-                # Determine level and path
+                # Determine level, parent_code, and account_path
                 level = 1
                 account_path = code
+                p_acc_id = ''
+                p_acc_code = ''
                 if parent_id:
-                    c.execute("SELECT level, code, account_id, account_path FROM accounts WHERE id=? OR account_id=? OR code=?", (parent_id, parent_id, parent_id))
+                    c.execute("SELECT level, code, account_id, account_path FROM accounts WHERE id=? OR account_id=? OR code=? OR account_code=?", (parent_id, parent_id, parent_id, parent_id))
                     p_row = c.fetchone()
                     if p_row:
                         p_lvl = p_row['level'] if isinstance(p_row, dict) else p_row[0]
                         p_code = p_row['code'] if isinstance(p_row, dict) else p_row[1]
                         p_aid = p_row['account_id'] if isinstance(p_row, dict) else p_row[2]
                         p_path = p_row['account_path'] if isinstance(p_row, dict) else p_row[3]
-                        level = p_lvl + 1
-                        p_acc_id = p_aid
-                        p_acc_code = p_code
-                        account_path = f"{p_path}/{code}"
+                        level = (int(p_lvl) if p_lvl else 1) + 1
+                        p_acc_code = str(p_code).strip()
+                        p_acc_id = p_acc_code  # اجبارياً كود الحساب الأب الصريح
+                        parent_id = p_acc_code
+                        account_path = f"{p_path or p_code} > {code}"
                         
-                # Check uniqueness of code
-                if raw_id or acc_id:
-                    c.execute("SELECT id FROM accounts WHERE (code=? OR account_code=?) AND id!=? AND account_id!=?", (code, code, raw_id or 0, acc_id or ''))
-                else:
-                    c.execute("SELECT id FROM accounts WHERE code=? OR account_code=?", (code, code))
-                if c.fetchone():
-                    raise Exception(f"كود الحساب {code} مستخدم بالفعل")
-
-                # Insert or Update
+                # Check if this is an update of an existing account (by id, account_id, or matching code)
+                old_row = None
                 if raw_id or acc_id:
                     c.execute("SELECT * FROM accounts WHERE id=? OR account_id=?", (raw_id or 0, acc_id or ''))
                     old_row = c.fetchone()
-                    old_val_str = json.dumps(dict(old_row), ensure_ascii=False) if old_row else ""
-                    target_row_id = old_row['id'] if old_row else raw_id
-                    
-                    if not acc_id: acc_id = f"ACC-{int(target_row_id):06d}"
+                if not old_row and code:
+                    c.execute("SELECT * FROM accounts WHERE code=? OR account_code=?", (code, code))
+                    old_row = c.fetchone()
+
+                if old_row:
+                    target_row_id = old_row['id']
+                    target_acc_id = old_row['account_id'] or acc_id or f"ACC-{int(target_row_id):06d}"
+                    old_val_str = json.dumps(dict(old_row), ensure_ascii=False)
                     
                     c.execute('''
                         UPDATE accounts SET
@@ -3803,17 +4008,22 @@ class UnifiedERPHandler(http.server.SimpleHTTPRequestHandler):
                             nature=?, balance=?, acc_code=?, acc_name=?, acc_type=?
                         WHERE id=?
                     ''', (
-                        acc_id, code, name, name_en, acc_type,
+                        target_acc_id, code, name, name_en, acc_type,
                         acc_cat, p_acc_id, p_acc_code, level, account_path,
                         is_group, is_postable, is_active, nature, open_bal,
                         curr_bal, nature, curr, est_date, notes,
                         user_name, code, name, parent_id,
                         nature, curr_bal, code, name, acc_type, target_row_id
                     ))
-                    
+                    acc_id = target_acc_id
                     c.execute("INSERT INTO audit_log (action, entity_type, entity_id, old_value, new_value, user, source) VALUES (?, ?, ?, ?, ?, ?, ?)",
                               ('UPDATE ACCOUNT', 'account', acc_id, old_val_str, json.dumps(data, ensure_ascii=False), user_name, 'Web Application'))
                 else:
+                    # New Account Creation - Ensure code is unique
+                    c.execute("SELECT id FROM accounts WHERE code=? OR account_code=?", (code, code))
+                    if c.fetchone():
+                        raise Exception(f"كود الحساب {code} مستخدم بالفعل")
+                    
                     c.execute('''
                         INSERT INTO accounts (
                             account_id, account_code, account_name, account_name_en, account_type,
@@ -3914,7 +4124,139 @@ class UnifiedERPHandler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(json.dumps({'success': False, 'error': str(e)}).encode('utf-8'))
                 return
 
+        # ─── قيد يومية الرصيد الافتتاحي لرأس المال (Opening Capital Journal Entry) ───
+        if parsed_url.path == '/api/accounts/opening-entry':
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length)
+            try:
+                data = json.loads(post_data.decode('utf-8'))
+                # capital_acc_code: كود حساب رأس المال (مثل 301.01) - الجانب الدائن
+                # cash_acc_code: كود حساب الصندوق المقابل (مثل 101.02) - الجانب المدين
+                capital_code = str(data.get('capital_acc_code') or '301.01').strip()
+                cash_code = str(data.get('cash_acc_code') or '101.02').strip()
+                amount = float(data.get('amount') or 0.0)
+                description = str(data.get('description') or f'قيد رأس المال الافتتاحي - {capital_code}').strip()
+                user_name = str(data.get('user_name') or 'المستخدم').strip()
+                entry_date = str(data.get('date') or '').strip() or None
+
+                if amount <= 0:
+                    raise Exception('المبلغ يجب أن يكون أكبر من صفر')
+
+                conn = get_db()
+                c = conn.cursor()
+
+                # جلب بيانات حساب رأس المال
+                c.execute("SELECT id, code, name, nature, current_balance, account_id FROM accounts WHERE code=? OR account_code=? LIMIT 1", (capital_code, capital_code))
+                cap_row = c.fetchone()
+                if not cap_row:
+                    raise Exception(f'حساب رأس المال {capital_code} غير موجود في قاعدة البيانات')
+
+                # جلب بيانات حساب الصندوق
+                c.execute("SELECT id, code, name, nature, current_balance, account_id FROM accounts WHERE code=? OR account_code=? LIMIT 1", (cash_code, cash_code))
+                cash_row = c.fetchone()
+                if not cash_row:
+                    raise Exception(f'حساب الصندوق {cash_code} غير موجود في قاعدة البيانات')
+
+                # منع التسجيل المزدوج: تحقق إن كان قيد مشابه موجوداً بالفعل
+                c.execute("""SELECT id FROM journal_entries WHERE 
+                    ((debit=? OR debit_code=?) AND (credit=? OR credit_code=?) AND ABS(amount-?)<=1)
+                    OR ((debit_account_id=? AND credit_account_id=? AND ABS(amount-?)<=1))
+                    LIMIT 1""",
+                    (cash_code, cash_code, capital_code, capital_code, amount,
+                     str(cap_row['account_id'] if hasattr(cap_row, 'keys') else cap_row[5]),
+                     str(cash_row['account_id'] if hasattr(cash_row, 'keys') else cash_row[5]),
+                     amount))
+                if c.fetchone():
+                    conn.close()
+                    self.send_response(200)
+                    self._send_cors_headers()
+                    self.send_header('Content-Type', 'application/json; charset=utf-8')
+                    self.end_headers()
+                    self.wfile.write(json.dumps({'success': True, 'message': 'القيد موجود بالفعل - لا حاجة لإعادة التسجيل', 'duplicate': True}).encode('utf-8'))
+                    return
+
+                import datetime
+                today = entry_date or datetime.date.today().isoformat()
+                cap_id = str(cap_row['account_id'] if hasattr(cap_row, 'keys') else cap_row[5])
+                cap_name = str(cap_row['name'] if hasattr(cap_row, 'keys') else cap_row[2])
+                cash_id = str(cash_row['account_id'] if hasattr(cash_row, 'keys') else cash_row[5])
+                cash_name = str(cash_row['name'] if hasattr(cash_row, 'keys') else cash_row[2])
+
+                # تسجيل قيد اليومية:
+                # مدين: حساب الصندوق (cash_code) | دائن: حساب رأس المال (capital_code)
+                c.execute("""
+                    INSERT INTO journal_entries (
+                        entry_no, debit, credit, amount, currency, base_amount, exchange_rate,
+                        ref_type, date, entry_date, transaction_date,
+                        debit_acc, credit_acc, debit_code, credit_code,
+                        debit_account_id, credit_account_id,
+                        statement, description, notes, status, created_by, created_at
+                    ) VALUES (
+                        ?, ?, ?, ?, 'YER', ?, 1.0,
+                        'OPENING_CAPITAL', ?, ?, ?,
+                        ?, ?, ?, ?,
+                        ?, ?,
+                        ?, ?, ?, 'POSTED', ?, CURRENT_TIMESTAMP
+                    )
+                """, (
+                    f'OC-{capital_code}-{today}',
+                    cash_code, capital_code,
+                    amount, amount,
+                    today, today, today,
+                    cash_code, capital_code,
+                    cash_code, capital_code,
+                    cash_id, cap_id,
+                    description, description,
+                    f'قيد رأس المال الافتتاحي: مدين {cash_name} ({cash_code}) | دائن {cap_name} ({capital_code}) | المبلغ: {amount:,.0f} ريال',
+                    user_name
+                ))
+
+                # تحديث رصيد حساب الصندوق (مدين → يزيد)
+                c.execute("""UPDATE accounts SET 
+                    current_balance = COALESCE(current_balance, 0) + ?,
+                    balance = COALESCE(balance, 0) + ?,
+                    updated_at = CURRENT_TIMESTAMP
+                    WHERE code=? OR account_code=?""", (amount, amount, cash_code, cash_code))
+
+                # تأكيد رصيد حساب رأس المال (دائن - لا تغيير إن كان opening_balance موجوداً)
+                c.execute("""UPDATE accounts SET 
+                    current_balance = CASE WHEN current_balance < ? THEN ? ELSE current_balance END,
+                    balance = CASE WHEN balance < ? THEN ? ELSE balance END,
+                    updated_at = CURRENT_TIMESTAMP
+                    WHERE code=? OR account_code=?""", (amount, amount, amount, amount, capital_code, capital_code))
+
+                c.execute("INSERT INTO audit_log (action, entity_type, entity_id, old_value, new_value, user, source) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                          ('OPENING_ENTRY', 'journal', f'OC-{capital_code}', '', json.dumps(data, ensure_ascii=False), user_name, 'Web Application'))
+
+                conn.commit()
+
+                # جلب الحسابات المحدثة
+                c.execute("SELECT id, code, name, nature, current_balance, balance, opening_balance FROM accounts WHERE code IN (?, ?) ORDER BY code", (cash_code, capital_code))
+                updated_accs = [dict(r) for r in c.fetchall()]
+                conn.close()
+
+                self.send_response(200)
+                self._send_cors_headers()
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({
+                    'success': True,
+                    'message': f'✅ تم تسجيل قيد رأس المال الافتتاحي بنجاح | مدين: {cash_name} ({cash_code}) | دائن: {cap_name} ({capital_code}) | {amount:,.0f} ريال',
+                    'updated_accounts': updated_accs
+                }, ensure_ascii=False).encode('utf-8'))
+            except Exception as e:
+                try: conn.close()
+                except: pass
+                self.send_response(400)
+                self._send_cors_headers()
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({'success': False, 'error': str(e)}).encode('utf-8'))
+            return
+        # ─────────────────────────────────────────────────────────────────────────────
+
         if parsed_url.path in ('/api/accounts/clean-reset', '/api/accounts/reset'):
+
             try:
                 conn = get_db()
                 c = conn.cursor()
@@ -3947,6 +4289,261 @@ class UnifiedERPHandler(http.server.SimpleHTTPRequestHandler):
                 return
             except Exception as e:
                 self.send_response(500)
+                self._send_cors_headers()
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({'success': False, 'error': str(e)}).encode('utf-8'))
+                return
+
+        # ── CREATE / SAVE EXPENSE (Full Financial Integration) ──
+        if parsed_url.path in ('/api/expenses/create', '/api/expenses/save', '/api/expenses/add'):
+            try:
+                content_len = int(self.headers.get('Content-Length', 0))
+                post_body = self.rfile.read(content_len) if content_len > 0 else b'{}'
+                data = json.loads(post_body.decode('utf-8'))
+                payload = data.get('data') or data
+                
+                exp_no = payload.get('expense_no') or f"EXP-{int(time.time())}"
+                category = payload.get('category') or payload.get('exp_category') or 'مصروفات عامة'
+                amount = float(payload.get('amount') or 0.0)
+                curr = str(payload.get('currency') or 'YER').replace(' ﷼', '').replace(' $', '').strip()
+                rate = float(payload.get('exchange_rate') or 1.0)
+                base_amt = float(payload.get('base_amount') or (amount * rate))
+                date_val = payload.get('date') or datetime.now().strftime('%Y-%m-%d')
+                pay_method = payload.get('payment_method') or payload.get('pay_method') or 'نقد (كاش)'
+                account_id = payload.get('account_id') or payload.get('payment_source') or '101'
+                recipient = payload.get('recipient') or ''
+                notes = payload.get('notes') or ''
+                tx_id = payload.get('transaction_id') or f"TX-{exp_no}"
+                
+                conn = get_db()
+                c = conn.cursor()
+                
+                # 1. Save to expenses table (populating all schema columns)
+                c.execute('''
+                    INSERT OR REPLACE INTO expenses (
+                        expense_no, exp_type, category, amount, currency, exchange_rate, base_amount,
+                        transaction_id, date, payment_method, pay_method, recipient, account_id, source_acc, status, notes
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'posted', ?)
+                ''', (exp_no, category, category, amount, curr, rate, base_amt, tx_id, date_val, pay_method, pay_method, recipient, account_id, account_id, notes))
+                
+                # 2. Auto-create Payment Voucher in vouchers table
+                voucher_no = f"PV-{exp_no}"
+                c.execute('''
+                    INSERT OR REPLACE INTO vouchers (
+                        voucher_no, voucher_type, party_name, amount, currency, exchange_rate,
+                        base_amount, pay_method, account_id, target_acc, date_created, notes, status
+                    ) VALUES (?, 'سند صرف', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'posted')
+                ''', (voucher_no, category, amount, curr, rate, base_amt, pay_method, account_id, category, date_val, f"سند صرف مصروف: {category} - {notes}"))
+                
+                # 3. Auto-create Journal Entry in journal_entries table
+                j_no = f"JV-{exp_no}"
+                c.execute('''
+                    INSERT OR REPLACE INTO journal_entries (
+                        entry_no, transaction_id, date, debit, credit, debit_account_id, credit_account_id,
+                        amount, currency, exchange_rate, base_amount, ref_type, ref_id, notes, statement, status
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'EXPENSE', ?, ?, ?, 'posted')
+                ''', (j_no, tx_id, date_val, category, account_id, category, account_id, amount, curr, rate, base_amt, exp_no, f"قيد مصروف تشغيلي: {category} - {notes}", f"قيد مصروف تشغيلي: {category} - {notes}"))
+                
+                # 4. Update account balances in accounts table
+                src_code = account_id.split(' - ')[0].strip() if ' - ' in str(account_id) else str(account_id).strip()
+                cat_code = category.split(' - ')[0].strip() if ' - ' in str(category) else str(category).strip()
+                
+                # Deduct from cash/bank
+                c.execute("UPDATE accounts SET current_balance = current_balance - ?, balance = balance - ? WHERE code = ? OR account_code = ? OR id = ?", (base_amt, base_amt, src_code, src_code, src_code))
+                # Add to expense account
+                c.execute("UPDATE accounts SET current_balance = current_balance + ?, balance = balance + ? WHERE code = ? OR account_code = ? OR id = ?", (base_amt, base_amt, cat_code, cat_code, cat_code))
+                
+                conn.commit()
+                conn.close()
+                
+                self.send_response(200)
+                self._send_cors_headers()
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({'success': True, 'message': 'تم حفظ المصروف وترحيل السند المالي والقيد اليومي بنجاح 💸', 'expense_no': exp_no}).encode('utf-8'))
+                return
+            except Exception as e:
+                self.send_response(400)
+                self._send_cors_headers()
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({'success': False, 'error': str(e)}).encode('utf-8'))
+                return
+
+        # ── DELETE EXPENSE ──
+        if parsed_url.path in ('/api/expenses/delete',):
+            try:
+                content_len = int(self.headers.get('Content-Length', 0))
+                post_body = self.rfile.read(content_len) if content_len > 0 else b'{}'
+                req_data = json.loads(post_body.decode('utf-8'))
+                target_id = req_data.get('id')
+                exp_no = req_data.get('expense_no') or target_id
+                
+                conn = get_db()
+                c = conn.cursor()
+                if exp_no:
+                    c.execute("DELETE FROM expenses WHERE expense_no = ? OR id = ?", (exp_no, exp_no))
+                    c.execute("DELETE FROM vouchers WHERE voucher_no IN (?, ?) OR id = ?", (f"PV-{exp_no}", exp_no, exp_no))
+                    c.execute("DELETE FROM journal_entries WHERE entry_no IN (?, ?) OR ref_id = ? OR id = ?", (f"JV-{exp_no}", exp_no, exp_no, exp_no))
+                conn.commit()
+                conn.close()
+                
+                self.send_response(200)
+                self._send_cors_headers()
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({'success': True, 'message': 'تم حذف المصروف والسند المالي والقيد بنجاح 🗑️'}).encode('utf-8'))
+                return
+            except Exception as e:
+                self.send_response(400)
+                self._send_cors_headers()
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({'success': False, 'error': str(e)}).encode('utf-8'))
+                return
+
+        # ── CREATE / SAVE VOUCHER ──
+        if parsed_url.path in ('/api/vouchers/create', '/api/vouchers/save', '/api/vouchers/add'):
+            try:
+                content_len = int(self.headers.get('Content-Length', 0))
+                post_body = self.rfile.read(content_len) if content_len > 0 else b'{}'
+                data = json.loads(post_body.decode('utf-8'))
+                payload = data.get('data') or data
+                
+                v_type = payload.get('v_type') or payload.get('voucher_type') or 'سند صرف'
+                is_receipt = v_type == 'سند قبض'
+                v_no = payload.get('v_no') or payload.get('voucher_no') or f"{'RV' if is_receipt else 'PV'}-{int(time.time())}"
+                party = payload.get('party') or payload.get('party_name') or ''
+                amount = float(payload.get('amount') or 0.0)
+                curr = str(payload.get('currency') or 'YER').replace(' ﷼', '').replace(' $', '').strip()
+                rate = float(payload.get('exchange_rate') or 1.0)
+                base_amt = float(payload.get('base_amount') or (amount * rate))
+                pay_method = payload.get('pay_method') or payload.get('payment_method') or 'نقد (كاش)'
+                account_id = payload.get('acc_code') or payload.get('account_id') or payload.get('payment_source') or '101'
+                target_acc = payload.get('target_acc') or ('104' if is_receipt else '201')
+                date_val = payload.get('date') or payload.get('date_created') or datetime.now().strftime('%Y-%m-%d')
+                notes = payload.get('notes') or ''
+                
+                conn = get_db()
+                c = conn.cursor()
+                
+                # 1. Save Voucher
+                c.execute('''
+                    INSERT OR REPLACE INTO vouchers (
+                        voucher_no, voucher_type, party_name, amount, currency, exchange_rate,
+                        base_amount, pay_method, account_id, target_acc, date_created, notes, status
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'posted')
+                ''', (v_no, v_type, party, amount, curr, rate, base_amt, pay_method, account_id, target_acc, date_val, notes))
+                
+                # 2. Auto-create Journal Entry
+                debit_label = account_id if is_receipt else target_acc
+                credit_label = target_acc if is_receipt else account_id
+                j_no = f"AUTO-VCH-{v_no}"
+                c.execute('''
+                    INSERT OR REPLACE INTO journal_entries (
+                        entry_no, transaction_id, date, debit, credit, debit_account_id, credit_account_id,
+                        amount, currency, exchange_rate, base_amount, ref_type, ref_id, notes, statement, status
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'posted')
+                ''', (j_no, f"TX-VCH-{v_no}", date_val, debit_label, credit_label, debit_label, credit_label, amount, curr, rate, base_amt, 'RECEIPT_VOUCHER' if is_receipt else 'PAYMENT_VOUCHER', v_no, f"قيد آلي: {notes or v_type + ' - ' + party}", f"قيد آلي: {notes or v_type + ' - ' + party}"))
+                
+                # 3. If payment voucher for an expense, add to expenses table
+                if not is_receipt and any(str(target_acc).startswith(p) for p in ['5', '6']) or 'مصروف' in str(target_acc) or 'إيجار' in str(target_acc) or 'كهرباء' in str(target_acc):
+                    c.execute('''
+                        INSERT OR REPLACE INTO expenses (
+                            expense_no, exp_type, category, amount, currency, exchange_rate, base_amount,
+                            transaction_id, date, payment_method, pay_method, recipient, account_id, source_acc, status, notes
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'posted', ?)
+                    ''', (v_no, target_acc, target_acc, amount, curr, rate, base_amt, f"TX-{v_no}", date_val, pay_method, pay_method, party, account_id, account_id, notes or f"سند صرف: {party}"))
+                
+                # 4. Update account balances
+                acc_code = account_id.split(' - ')[0].strip() if ' - ' in str(account_id) else str(account_id).strip()
+                tgt_code = target_acc.split(' - ')[0].strip() if ' - ' in str(target_acc) else str(target_acc).strip()
+                if is_receipt:
+                    c.execute("UPDATE accounts SET current_balance = current_balance + ?, balance = balance + ? WHERE code = ? OR account_code = ?", (base_amt, base_amt, acc_code, acc_code))
+                else:
+                    c.execute("UPDATE accounts SET current_balance = current_balance - ?, balance = balance - ? WHERE code = ? OR account_code = ?", (base_amt, base_amt, acc_code, acc_code))
+                
+                conn.commit()
+                conn.close()
+                
+                self.send_response(200)
+                self._send_cors_headers()
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({'success': True, 'message': 'تم حفظ السند المالي وترحيل القيد بنجاح 🧾', 'voucher_no': v_no}).encode('utf-8'))
+                return
+            except Exception as e:
+                self.send_response(400)
+                self._send_cors_headers()
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({'success': False, 'error': str(e)}).encode('utf-8'))
+                return
+
+        # ── CREATE / SAVE JOURNAL ENTRY ──
+        if parsed_url.path in ('/api/journal/create', '/api/journal/save', '/api/journal/add'):
+            try:
+                content_len = int(self.headers.get('Content-Length', 0))
+                post_body = self.rfile.read(content_len) if content_len > 0 else b'{}'
+                data = json.loads(post_body.decode('utf-8'))
+                payload = data.get('data') or data
+                
+                entry_no = payload.get('entry_no') or f"JV-{int(time.time())}"
+                debit = payload.get('debit') or payload.get('debit_account_id') or ''
+                credit = payload.get('credit') or payload.get('credit_account_id') or ''
+                amount = float(payload.get('amount') or 0.0)
+                curr = str(payload.get('currency') or 'YER').replace(' ﷼', '').replace(' $', '').strip()
+                rate = float(payload.get('exchange_rate') or 1.0)
+                base_amt = float(payload.get('base_amount') or (amount * rate))
+                ref_type = payload.get('ref_type') or 'قيد يدوي'
+                ref_id = payload.get('ref_id') or ''
+                date_val = payload.get('date') or datetime.now().strftime('%Y-%m-%d')
+                notes = payload.get('notes') or payload.get('statement') or ''
+                tx_id = payload.get('transaction_id') or f"TX-{entry_no}"
+                
+                conn = get_db()
+                c = conn.cursor()
+                c.execute('''
+                    INSERT OR REPLACE INTO journal_entries (
+                        entry_no, transaction_id, date, debit, credit, debit_account_id, credit_account_id,
+                        amount, currency, exchange_rate, base_amount, ref_type, ref_id, notes, statement, status
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'posted')
+                ''', (entry_no, tx_id, date_val, debit, credit, debit, credit, amount, curr, rate, base_amt, ref_type, ref_id, notes, notes))
+                
+                # Update account balances respecting accounting nature (Debit vs Credit)
+                def update_acc_balance(acc_code, is_debit_side, amt):
+                    if not acc_code: return
+                    c.execute("SELECT nature, account_type FROM accounts WHERE code = ? OR account_code = ?", (acc_code, acc_code))
+                    row = c.fetchone()
+                    nature = 'debit'
+                    if row:
+                        nature = row['nature'] if isinstance(row, dict) else row[0]
+                        acc_type = row['account_type'] if isinstance(row, dict) else row[1]
+                        if not nature:
+                            nature = 'credit' if acc_type in ('خصوم', 'حقوق ملكية', 'إيرادات') else 'debit'
+                    
+                    # Debit nature (Assets/Expenses): Debit adds (+), Credit subtracts (-)
+                    # Credit nature (Liabilities/Equity/Revenue): Credit adds (+), Debit subtracts (-)
+                    delta = amt if ((nature == 'debit' and is_debit_side) or (nature == 'credit' and not is_debit_side)) else -amt
+                    c.execute("UPDATE accounts SET current_balance = COALESCE(current_balance, 0) + ?, balance = COALESCE(balance, 0) + ? WHERE code = ? OR account_code = ?", (delta, delta, acc_code, acc_code))
+
+                d_code = debit.split(' - ')[0].strip() if ' - ' in str(debit) else str(debit).strip()
+                c_code = credit.split(' - ')[0].strip() if ' - ' in str(credit) else str(credit).strip()
+                update_acc_balance(d_code, True, base_amt)
+                update_acc_balance(c_code, False, base_amt)
+                
+                conn.commit()
+                conn.close()
+                
+                self.send_response(200)
+                self._send_cors_headers()
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({'success': True, 'message': 'تم حفظ وترحيل القيد اليومي بنجاح 📑', 'entry_no': entry_no}).encode('utf-8'))
+                return
+            except Exception as e:
+                self.send_response(400)
                 self._send_cors_headers()
                 self.send_header('Content-Type', 'application/json; charset=utf-8')
                 self.end_headers()
@@ -4391,6 +4988,75 @@ class UnifiedERPHandler(http.server.SimpleHTTPRequestHandler):
                 data = json.loads(post_data.decode('utf-8'))
                 if isinstance(data, dict):
                     data['valueInputOption'] = 'USER_ENTERED'
+                    action = data.get('action')
+                    payload = data.get('data') or data
+                    
+                    # Local SQLite Sync for GAS actions
+                    try:
+                        conn_sync = get_db()
+                        c_sync = conn_sync.cursor()
+                        if action in ('addExpense', 'createExpense'):
+                            exp_no = payload.get('expense_no') or f"EXP-{int(time.time())}"
+                            cat = payload.get('category') or payload.get('exp_category') or 'مصروفات عامة'
+                            amt = float(payload.get('amount') or 0.0)
+                            curr = str(payload.get('currency') or 'YER').replace(' ﷼', '').replace(' $', '').strip()
+                            rate = float(payload.get('exchange_rate') or 1.0)
+                            b_amt = float(payload.get('base_amount') or (amt * rate))
+                            d_val = payload.get('date') or datetime.now().strftime('%Y-%m-%d')
+                            p_meth = payload.get('payment_method') or payload.get('pay_method') or 'نقد (كاش)'
+                            acc_id = payload.get('account_id') or payload.get('payment_source') or '101'
+                            rec = payload.get('recipient') or ''
+                            nts = payload.get('notes') or ''
+                            t_id = payload.get('transaction_id') or f"TX-{exp_no}"
+                            
+                            c_sync.execute("INSERT OR REPLACE INTO expenses (expense_no, exp_type, category, amount, currency, exchange_rate, base_amount, transaction_id, date, payment_method, pay_method, recipient, account_id, source_acc, status, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'posted', ?)", (exp_no, cat, cat, amt, curr, rate, b_amt, t_id, d_val, p_meth, p_meth, rec, acc_id, acc_id, nts))
+                            c_sync.execute("INSERT OR REPLACE INTO vouchers (voucher_no, voucher_type, party_name, amount, currency, exchange_rate, base_amount, pay_method, account_id, target_acc, date_created, notes, status) VALUES (?, 'سند صرف', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'posted')", (f"PV-{exp_no}", cat, amt, curr, rate, b_amt, p_meth, acc_id, cat, d_val, f"سند صرف مصروف: {cat} - {nts}"))
+                            c_sync.execute("INSERT OR REPLACE INTO journal_entries (entry_no, transaction_id, date, debit, credit, debit_account_id, credit_account_id, amount, currency, exchange_rate, base_amount, ref_type, ref_id, notes, statement, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'EXPENSE', ?, ?, ?, 'posted')", (f"JV-{exp_no}", t_id, d_val, cat, acc_id, cat, acc_id, amt, curr, rate, b_amt, exp_no, f"قيد مصروف تشغيلي: {cat} - {nts}", f"قيد مصروف تشغيلي: {cat} - {nts}"))
+                        
+                        elif action in ('addVoucher', 'createVoucher'):
+                            v_tp = payload.get('v_type') or payload.get('voucher_type') or 'سند صرف'
+                            is_r = v_tp == 'سند قبض'
+                            v_no = payload.get('v_no') or payload.get('voucher_no') or f"{'RV' if is_r else 'PV'}-{int(time.time())}"
+                            pty = payload.get('party') or payload.get('party_name') or ''
+                            amt = float(payload.get('amount') or 0.0)
+                            curr = str(payload.get('currency') or 'YER').replace(' ﷼', '').replace(' $', '').strip()
+                            rate = float(payload.get('exchange_rate') or 1.0)
+                            b_amt = float(payload.get('base_amount') or (amt * rate))
+                            p_meth = payload.get('pay_method') or payload.get('payment_method') or 'نقد (كاش)'
+                            acc_id = payload.get('acc_code') or payload.get('account_id') or payload.get('payment_source') or '101'
+                            tgt_acc = payload.get('target_acc') or ('104' if is_r else '201')
+                            d_val = payload.get('date') or payload.get('date_created') or datetime.now().strftime('%Y-%m-%d')
+                            nts = payload.get('notes') or ''
+                            
+                            c_sync.execute("INSERT OR REPLACE INTO vouchers (voucher_no, voucher_type, party_name, amount, currency, exchange_rate, base_amount, pay_method, account_id, target_acc, date_created, notes, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'posted')", (v_no, v_tp, pty, amt, curr, rate, b_amt, p_meth, acc_id, tgt_acc, d_val, nts))
+                            d_lbl = acc_id if is_r else tgt_acc
+                            c_lbl = tgt_acc if is_r else acc_id
+                            c_sync.execute("INSERT OR REPLACE INTO journal_entries (entry_no, transaction_id, date, debit, credit, debit_account_id, credit_account_id, amount, currency, exchange_rate, base_amount, ref_type, ref_id, notes, statement, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'posted')", (f"AUTO-VCH-{v_no}", f"TX-VCH-{v_no}", d_val, d_lbl, c_lbl, d_lbl, c_lbl, amt, curr, rate, b_amt, 'RECEIPT_VOUCHER' if is_r else 'PAYMENT_VOUCHER', v_no, f"قيد آلي: {nts or v_tp + ' - ' + pty}", f"قيد آلي: {nts or v_tp + ' - ' + pty}"))
+                            
+                            if not is_r and (any(str(tgt_acc).startswith(p) for p in ['5', '6']) or 'مصروف' in str(tgt_acc)):
+                                c_sync.execute("INSERT OR REPLACE INTO expenses (expense_no, category, amount, currency, exchange_rate, base_amount, transaction_id, date, payment_method, recipient, account_id, status, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'posted', ?)", (v_no, tgt_acc, amt, curr, rate, b_amt, f"TX-{v_no}", d_val, p_meth, pty, acc_id, nts or f"سند صرف: {pty}"))
+                        
+                        elif action in ('addJournalEntry', 'createJournalEntry'):
+                            e_no = payload.get('entry_no') or f"JV-{int(time.time())}"
+                            deb = payload.get('debit') or payload.get('debit_account_id') or ''
+                            crd = payload.get('credit') or payload.get('credit_account_id') or ''
+                            amt = float(payload.get('amount') or 0.0)
+                            curr = str(payload.get('currency') or 'YER').replace(' ﷼', '').replace(' $', '').strip()
+                            rate = float(payload.get('exchange_rate') or 1.0)
+                            b_amt = float(payload.get('base_amount') or (amt * rate))
+                            r_tp = payload.get('ref_type') or 'قيد يدوي'
+                            r_id = payload.get('ref_id') or ''
+                            d_val = payload.get('date') or datetime.now().strftime('%Y-%m-%d')
+                            nts = payload.get('notes') or payload.get('statement') or ''
+                            t_id = payload.get('transaction_id') or f"TX-{e_no}"
+                            
+                            c_sync.execute("INSERT OR REPLACE INTO journal_entries (entry_no, transaction_id, date, debit, credit, debit_account_id, credit_account_id, amount, currency, exchange_rate, base_amount, ref_type, ref_id, notes, statement, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'posted')", (e_no, t_id, d_val, deb, crd, deb, crd, amt, curr, rate, b_amt, r_tp, r_id, nts, nts))
+
+                        conn_sync.commit()
+                        conn_sync.close()
+                    except Exception as sync_e:
+                        print(f"[GAS Proxy Local Sync Warning]: {sync_e}")
+
                 post_data = json.dumps(data, ensure_ascii=False).encode('utf-8')
             except Exception:
                 pass
