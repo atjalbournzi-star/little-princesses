@@ -3,13 +3,13 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouchers = [], setVouchers, showToast, currency = { display: 'YER ﷼', symbol: '﷼', code: 'YER' } }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedNodes, setExpandedNodes] = useState({
-    '1': true, '2': true, '3': true, '4': true, '5': true, '6': true, '7': true,
-    '101': true, '102': true, '103': true, '104': true, '105': true,
-    '201': true, '202': true, '301': true, '302': true, '401': true, '402': true,
-    '501': true, '502': true, '503': true,
-    '601': true, '602': true, '603': true, '604': true, '605': true, '606': true, '607': true,
-    'ACC-1': true, 'ACC-2': true, 'ACC-3': true, 'ACC-4': true, 'ACC-5': true, 'ACC-6': true, 'ACC-7': true,
-    'ACC-101': true, 'ACC-301': true
+    '1': true, '2': true, '3': true, '4': true, '5': true,
+    '1111': true, '1112': true, '1121': true, '1131': true, '1141': true, '1151': true, '1152': true, '1153': true,
+    '2111': true, '2121': true, '2131': true,
+    '3111': true, '3112': true,
+    '4111': true, '4121': true, '4211': true,
+    '5111': true, '5121': true, '5211': true, '5221': true,
+    'ACC-1': true, 'ACC-2': true, 'ACC-3': true, 'ACC-4': true, 'ACC-5': true
   });
   const [filterType, setFilterType] = useState('ALL');
   const [maxDepthFilter, setMaxDepthFilter] = useState('ALL');

@@ -1147,7 +1147,7 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
-                onClick={() => handleOpenAdvancedModal('receipt', 'محمد فلاح', 'إيداع حصة في رأس المال المباشر', '301')}
+                onClick={() => handleOpenAdvancedModal('receipt', 'محمد فلاح', 'إيداع حصة في رأس المال المباشر', '3111')}
                 className="py-2 px-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 text-[11px] font-bold transition flex items-center justify-center gap-1 cursor-pointer border border-amber-500/20"
                 title="إصدار سند قبض إيداع رأس مال الشركاء والمؤسسين"
               >
@@ -1174,7 +1174,7 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
-                onClick={() => handleOpenAdvancedModal('receipt', '', 'تحصيل دفعة فستان/طلب')}
+                onClick={() => handleOpenAdvancedModal('receipt', '', 'تحصيل دفعة فستان / تسليم طلب', '4111')}
                 className="py-2 px-2.5 rounded-xl bg-[#00E5FF]/10 hover:bg-[#00E5FF]/20 text-[#00E5FF] text-[11px] font-bold transition flex items-center justify-center gap-1 cursor-pointer border border-[#00E5FF]/20"
               >
                 <span>👗</span>
@@ -1182,7 +1182,7 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
               </button>
               <button
                 type="button"
-                onClick={() => handleOpenAdvancedModal('receipt', '', 'عربون حجز فستان')}
+                onClick={() => handleOpenAdvancedModal('receipt', '', 'عربون حجز فستان للعميلة', '2121')}
                 className="py-2 px-2.5 rounded-xl bg-[#00E5FF]/10 hover:bg-[#00E5FF]/20 text-[#00E5FF] text-[11px] font-bold transition flex items-center justify-center gap-1 cursor-pointer border border-[#00E5FF]/20"
               >
                 <span>💎</span>
@@ -1192,7 +1192,7 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
-                onClick={() => handleOpenAdvancedModal('receipt', 'مبيعات معرض فورية', 'مبيعات فساتين جاهزة')}
+                onClick={() => handleOpenAdvancedModal('receipt', 'مبيعات معرض فورية', 'مبيعات فستان جاهز من المعرض', '4121')}
                 className="py-1.5 px-2 rounded-xl bg-[#2d3748]/50 hover:bg-[#2d3748] text-gray-300 text-[10px] font-semibold transition flex items-center justify-center gap-1 cursor-pointer border border-[#374151]"
               >
                 <span>🛍️</span>
@@ -1200,7 +1200,7 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
               </button>
               <button
                 type="button"
-                onClick={() => handleOpenAdvancedModal('payment', '', 'تسوية مرتجع فستان')}
+                onClick={() => handleOpenAdvancedModal('payment', '', 'تسوية مرتجع فستان / استرداد دفعة', '4111')}
                 className="py-1.5 px-2 rounded-xl bg-[#2d3748]/50 hover:bg-[#2d3748] text-gray-300 text-[10px] font-semibold transition flex items-center justify-center gap-1 cursor-pointer border border-[#374151]"
               >
                 <span>🔄</span>
@@ -1217,7 +1217,7 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
-                onClick={() => handleOpenAdvancedModal('payment', '', 'صرف أجور خياطين بالقطعة', '601')}
+                onClick={() => handleOpenAdvancedModal('payment', '', 'صرف أجور خياطة وتصنيع مباشرة', '5121')}
                 className="py-2 px-2.5 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 text-[11px] font-bold transition flex items-center justify-center gap-1 cursor-pointer border border-purple-500/20"
               >
                 <span>✂️</span>
@@ -1225,7 +1225,7 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
               </button>
               <button
                 type="button"
-                onClick={() => handleOpenAdvancedModal('payment', '', 'سلفة موظف شهرية', '104')}
+                onClick={() => handleOpenAdvancedModal('payment', '', 'صرف سلفة نقدية للخياط/العامل', '1141')}
                 className="py-2 px-2.5 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 text-[11px] font-bold transition flex items-center justify-center gap-1 cursor-pointer border border-purple-500/20"
               >
                 <span>📅</span>
@@ -1235,7 +1235,7 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
-                onClick={() => handleOpenAdvancedModal('payment', 'عهدة المعمل', 'صرف عهدة نقدية للمشغل')}
+                onClick={() => handleOpenAdvancedModal('payment', 'مشرف الورشة والمعمل', 'صرف عهدة نقدية للمشغل', '1121')}
                 className="py-1.5 px-2 rounded-xl bg-[#2d3748]/50 hover:bg-[#2d3748] text-gray-300 text-[10px] font-semibold transition flex items-center justify-center gap-1 cursor-pointer border border-[#374151]"
               >
                 <span>💼</span>
@@ -1243,7 +1243,7 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
               </button>
               <button
                 type="button"
-                onClick={() => handleOpenAdvancedModal('receipt', 'تسوية عهدة', 'استرداد متبقي عهدة')}
+                onClick={() => handleOpenAdvancedModal('receipt', 'مشرف الورشة والمعمل', 'تسوية عهدة واسترداد المتبقي', '1121')}
                 className="py-1.5 px-2 rounded-xl bg-[#2d3748]/50 hover:bg-[#2d3748] text-gray-300 text-[10px] font-semibold transition flex items-center justify-center gap-1 cursor-pointer border border-[#374151]"
               >
                 <span>⚖️</span>
@@ -1260,7 +1260,7 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
-                onClick={() => handleOpenAdvancedModal('payment', '', 'سداد فاتورة توريد أقمشة', '201')}
+                onClick={() => handleOpenAdvancedModal('payment', '', 'سداد فاتورة توريد أقمشة وخامات', '2111')}
                 className="py-2 px-2.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-[11px] font-bold transition flex items-center justify-center gap-1 cursor-pointer border border-emerald-500/20"
               >
                 <span>🧵</span>
@@ -1268,7 +1268,7 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
               </button>
               <button
                 type="button"
-                onClick={() => handleOpenAdvancedModal('payment', '', 'مستلزمات وإكسسوارات خياطة', '502')}
+                onClick={() => handleOpenAdvancedModal('payment', '', 'صرف أقمشة ومستلزمات للتشغيل (WIP)', '1152')}
                 className="py-2 px-2.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-[11px] font-bold transition flex items-center justify-center gap-1 cursor-pointer border border-emerald-500/20"
               >
                 <span>🪡</span>
@@ -1277,7 +1277,7 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
             </div>
             <button
               type="button"
-              onClick={() => handleOpenAdvancedModal('payment', '', 'تسوية جرد مخزون الأقمشة', '102')}
+              onClick={() => handleOpenAdvancedModal('payment', '', 'تسوية فروقات عجز الجرد', '5221')}
               className="w-full py-1.5 px-2 rounded-xl bg-[#2d3748]/50 hover:bg-[#2d3748] text-gray-300 text-[10px] font-semibold transition flex items-center justify-center gap-1 cursor-pointer border border-[#374151]"
             >
               <span>📊</span>
@@ -1977,11 +1977,11 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
                           }}
                           className="w-full h-9 px-2.5 rounded-lg border border-[#374151] bg-[#181d2a] text-white text-xs font-semibold focus:border-[#00E5FF] outline-none"
                         >
-                          <option value="نقداً (صندوق الورشة)__101.01">💵 نقداً - صندوق فرع الورشة والمعمل (101.01)</option>
-                          <option value="نقداً (صندوق محمد فلاح)__101.02">💵 نقداً - صندوق الإدارة محمد فلاح (101.02)</option>
-                          <option value="تحويل بنكي (الكريمي)__103">🏦 تحويل بنكي - حساب بنك الكريمي (103)</option>
-                          <option value="محفظة إلكترونية (جوالي/كاش)__103">📱 محفظة إلكترونية - جوالي / كاش / فلوسك (103)</option>
-                          <option value="شبكة نقاط بيع POS__103">💳 شبكة ومدى نقاط بيع POS (103)</option>
+                          <option value="نقداً (الصندوق الرئيسي)__1111">💵 نقداً - الصندوق الرئيسي (1111)</option>
+                          <option value="تحويل بنكي (الكريمي)__1112">🏦 تحويل بنكي - حساب بنك الكريمي (1112)</option>
+                          <option value="محفظة إلكترونية (جوالي/كاش)__1112">📱 محفظة إلكترونية - جوالي / كاش / فلوسك (1112)</option>
+                          <option value="شبكة نقاط بيع POS__1112">💳 شبكة ومدى نقاط بيع POS (1112)</option>
+                          <option value="عهدة الورشة والمشغل__1121">💼 عهد الورشة والمشغل (1121)</option>
                         </select>
                       </div>
 

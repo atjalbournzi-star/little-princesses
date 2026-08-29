@@ -76,6 +76,399 @@
       };
     },
 
+    // ──────────────────────────────────────────────────────────────────────────
+    // 🏢 12 Enterprise Operational Accounting Generators (وفق معايير دار الأزياء)
+    // ──────────────────────────────────────────────────────────────────────────
+
+    // 1. سند صرف (Payment Voucher)
+    createPaymentVoucher: function(p) {
+      var debitCode = p.debitAccount || '5211';
+      var creditCode = p.creditAccount || '1111';
+      var amount = parseFloat(p.amount) || 0;
+      var rate = parseFloat(p.exchangeRate) || 1.0;
+      var entryNo = p.entryNumber || ('PV-' + Date.now().toString().slice(-6));
+      return {
+        entry_number: entryNo,
+        entry_date: p.date || (window.TODAY_STR_ISO || new Date().toISOString().split('T')[0]),
+        description: p.description || ('سند صرف - ' + (p.partyName || '')),
+        source_module: 'PAYMENT_VOUCHER',
+        source_id: p.sourceId || entryNo,
+        total_amount: amount,
+        currency: p.currency || 'YER',
+        exchange_rate: rate,
+        base_amount: amount * rate,
+        is_posted: true,
+        lines: [
+          { account_id: debitCode, debit: amount, credit: 0, line_description: p.description, sub_ledger_type: p.subLedgerType || 'NONE', sub_ledger_id: p.subLedgerId || p.partyName },
+          { account_id: creditCode, debit: 0, credit: amount, line_description: p.description, sub_ledger_type: 'NONE', sub_ledger_id: '' }
+        ]
+      };
+    },
+
+    // 2. سند قبض (Receipt Voucher)
+    createReceiptVoucher: function(p) {
+      var debitCode = p.debitAccount || '1111';
+      var creditCode = p.creditAccount || '4111';
+      var amount = parseFloat(p.amount) || 0;
+      var rate = parseFloat(p.exchangeRate) || 1.0;
+      var entryNo = p.entryNumber || ('RV-' + Date.now().toString().slice(-6));
+      return {
+        entry_number: entryNo,
+        entry_date: p.date || (window.TODAY_STR_ISO || new Date().toISOString().split('T')[0]),
+        description: p.description || ('سند قبض - ' + (p.partyName || '')),
+        source_module: 'RECEIPT_VOUCHER',
+        source_id: p.sourceId || entryNo,
+        total_amount: amount,
+        currency: p.currency || 'YER',
+        exchange_rate: rate,
+        base_amount: amount * rate,
+        is_posted: true,
+        lines: [
+          { account_id: debitCode, debit: amount, credit: 0, line_description: p.description, sub_ledger_type: 'NONE', sub_ledger_id: '' },
+          { account_id: creditCode, debit: 0, credit: amount, line_description: p.description, sub_ledger_type: p.subLedgerType || 'NONE', sub_ledger_id: p.subLedgerId || p.partyName }
+        ]
+      };
+    },
+
+    // 3. عربون حجز فستان (Booking Deposit)
+    createBookingDeposit: function(p) {
+      var debitCode = p.cashAccount || '1111'; // 1111 صندوق أو 1112 بنك
+      var creditCode = '2121'; // دفعات مقدمة وعرابين حجز
+      var amount = parseFloat(p.depositAmount) || 0;
+      var rate = parseFloat(p.exchangeRate) || 1.0;
+      var entryNo = 'DEP-' + (p.orderId || Date.now().toString().slice(-6));
+      return {
+        entry_number: entryNo,
+        entry_date: p.date || (window.TODAY_STR_ISO || new Date().toISOString().split('T')[0]),
+        description: p.description || ('عربون حجز فستان للعميلة: ' + (p.customerName || '')),
+        source_module: 'BOOKING_DEPOSIT',
+        source_id: String(p.orderId || entryNo),
+        total_amount: amount,
+        currency: p.currency || 'YER',
+        exchange_rate: rate,
+        base_amount: amount * rate,
+        is_posted: true,
+        lines: [
+          { account_id: debitCode, debit: amount, credit: 0, line_description: 'استلام عربون حجز', sub_ledger_type: 'NONE', sub_ledger_id: '' },
+          { account_id: creditCode, debit: 0, credit: amount, line_description: 'عربون دائن بذمة المشغل للعميلة', sub_ledger_type: 'CUSTOMER', sub_ledger_id: p.customerId || p.customerName }
+        ]
+      };
+    },
+
+    // 4. تحصيل الطلب والتسليم النهائي (Order Collection & Revenue Recognition)
+    createOrderCollection: function(p) {
+      var totalOrder = parseFloat(p.totalAmount) || 0;
+      var depositUsed = parseFloat(p.depositAmount) || 0;
+      var remainingCash = parseFloat(p.remainingPaid) || (totalOrder - depositUsed);
+      var cashAcc = p.cashAccount || '1111';
+      var rate = parseFloat(p.exchangeRate) || 1.0;
+      var entryNo = 'ORD-REC-' + (p.orderId || Date.now().toString().slice(-6));
+
+      var lines = [];
+      if (remainingCash > 0) {
+        lines.push({ account_id: cashAcc, debit: remainingCash, credit: 0, line_description: 'تحصيل متبقي قيمة الفستان', sub_ledger_type: 'NONE', sub_ledger_id: '' });
+      }
+      if (depositUsed > 0) {
+        lines.push({ account_id: '2121', debit: depositUsed, credit: 0, line_description: 'إقفال واستحقاق العربون المحجوز', sub_ledger_type: 'CUSTOMER', sub_ledger_id: p.customerId || p.customerName });
+      }
+      lines.push({ account_id: '4111', debit: 0, credit: totalOrder, line_description: 'إيراد تفصيل وتصميم الفستان كاملاً', sub_ledger_type: 'CUSTOMER', sub_ledger_id: p.customerId || p.customerName });
+
+      return {
+        entry_number: entryNo,
+        entry_date: p.date || (window.TODAY_STR_ISO || new Date().toISOString().split('T')[0]),
+        description: p.description || ('تسليم فستان وتحصيل إيراد الطلب: ' + (p.orderId || '')),
+        source_module: 'ORDER_COLLECTION',
+        source_id: String(p.orderId || entryNo),
+        total_amount: totalOrder,
+        currency: p.currency || 'YER',
+        exchange_rate: rate,
+        base_amount: totalOrder * rate,
+        is_posted: true,
+        lines: lines
+      };
+    },
+
+    // 5. مبيعات فساتين المعرض الجاهزة (Showroom Ready-Made Sale + Stock Cost)
+    createShowroomSale: function(p) {
+      var salePrice = parseFloat(p.salePrice) || 0;
+      var costPrice = parseFloat(p.costPrice) || 0;
+      var cashAcc = p.cashAccount || '1111';
+      var rate = parseFloat(p.exchangeRate) || 1.0;
+      var entryNo = 'SHW-' + Date.now().toString().slice(-6);
+
+      var lines = [
+        { account_id: cashAcc, debit: salePrice, credit: 0, line_description: 'مقبوضات مبيعات فستان معرض', sub_ledger_type: 'NONE', sub_ledger_id: '' },
+        { account_id: '4121', debit: 0, credit: salePrice, line_description: 'إيراد بيع فستان جاهز من المعرض', sub_ledger_type: 'NONE', sub_ledger_id: '' }
+      ];
+
+      // إذا توفرت تكلفة الفستان يتم توليد أسطر تكلفة البضاعة والمخزون التام
+      if (costPrice > 0) {
+        lines.push({ account_id: '5111', debit: costPrice, credit: 0, line_description: 'تكلفة الفستان المباع', sub_ledger_type: 'NONE', sub_ledger_id: '' });
+        lines.push({ account_id: '1153', debit: 0, credit: costPrice, line_description: 'تخفيض مخزون الفساتين التامة', sub_ledger_type: 'NONE', sub_ledger_id: '' });
+      }
+
+      return {
+        entry_number: entryNo,
+        entry_date: p.date || (window.TODAY_STR_ISO || new Date().toISOString().split('T')[0]),
+        description: p.description || ('مبيعات فستان معرض: ' + (p.dressName || '')),
+        source_module: 'SHOWROOM_SALE',
+        source_id: String(p.saleId || entryNo),
+        total_amount: salePrice,
+        currency: p.currency || 'YER',
+        exchange_rate: rate,
+        base_amount: salePrice * rate,
+        is_posted: true,
+        lines: lines
+      };
+    },
+
+    // 6. مرتجع وتسويات العميلات (Customer Return & Refund)
+    createCustomerReturn: function(p) {
+      var refundAmt = parseFloat(p.amount) || 0;
+      var cashAcc = p.cashAccount || '1111';
+      var rate = parseFloat(p.exchangeRate) || 1.0;
+      var entryNo = 'RET-' + Date.now().toString().slice(-6);
+      return {
+        entry_number: entryNo,
+        entry_date: p.date || (window.TODAY_STR_ISO || new Date().toISOString().split('T')[0]),
+        description: p.description || ('مرتجع / استرداد دفعة عميلة: ' + (p.customerName || '')),
+        source_module: 'CUSTOMER_RETURN',
+        source_id: String(p.returnId || entryNo),
+        total_amount: refundAmt,
+        currency: p.currency || 'YER',
+        exchange_rate: rate,
+        base_amount: refundAmt * rate,
+        is_posted: true,
+        lines: [
+          { account_id: '4111', debit: refundAmt, credit: 0, line_description: 'عكس إيراد الفستان المرتجع', sub_ledger_type: 'CUSTOMER', sub_ledger_id: p.customerName },
+          { account_id: cashAcc, debit: 0, credit: refundAmt, line_description: 'صرف المبلغ المسترد للعميلة', sub_ledger_type: 'NONE', sub_ledger_id: '' }
+        ]
+      };
+    },
+
+    // 7. سلف الخياطين والعاملين (Tailor Advance)
+    createTailorAdvance: function(p) {
+      var amount = parseFloat(p.amount) || 0;
+      var cashAcc = p.cashAccount || '1111';
+      var rate = parseFloat(p.exchangeRate) || 1.0;
+      var entryNo = 'ADV-' + Date.now().toString().slice(-6);
+      return {
+        entry_number: entryNo,
+        entry_date: p.date || (window.TODAY_STR_ISO || new Date().toISOString().split('T')[0]),
+        description: p.description || ('صرف سلفة نقدية للخياط: ' + (p.tailorName || '')),
+        source_module: 'TAILOR_ADVANCE',
+        source_id: String(p.advanceId || entryNo),
+        total_amount: amount,
+        currency: p.currency || 'YER',
+        exchange_rate: rate,
+        base_amount: amount * rate,
+        is_posted: true,
+        lines: [
+          { account_id: '1141', debit: amount, credit: 0, line_description: 'سلفة في ذمة الخياط', sub_ledger_type: 'TAILOR', sub_ledger_id: p.tailorId || p.tailorName },
+          { account_id: cashAcc, debit: 0, credit: amount, line_description: 'صرف السلفة من الصندوق', sub_ledger_type: 'NONE', sub_ledger_id: '' }
+        ]
+      };
+    },
+
+    // 8. تصفية أجور الخياطين مع خصم السلف (Tailor Payroll Settlement)
+    createTailorWageSettlement: function(p) {
+      var grossWage = parseFloat(p.grossWage) || 0;
+      var advanceDeducted = parseFloat(p.advanceDeducted) || 0;
+      var netPaid = parseFloat(p.netPaid) || (grossWage - advanceDeducted);
+      var cashAcc = p.cashAccount || '1111';
+      var rate = parseFloat(p.exchangeRate) || 1.0;
+      var entryNo = 'PAY-' + Date.now().toString().slice(-6);
+
+      var lines = [
+        { account_id: '5121', debit: grossWage, credit: 0, line_description: 'إجمالي أجور خياطة وتصنيع مباشرة', sub_ledger_type: 'TAILOR', sub_ledger_id: p.tailorId || p.tailorName }
+      ];
+      if (advanceDeducted > 0) {
+        lines.push({ account_id: '1141', debit: 0, credit: advanceDeducted, line_description: 'استقطاع وسداد السلفة السابقة', sub_ledger_type: 'TAILOR', sub_ledger_id: p.tailorId || p.tailorName });
+      }
+      if (netPaid > 0) {
+        lines.push({ account_id: cashAcc, debit: 0, credit: netPaid, line_description: 'صرف صافي أجر الخياط نقداً', sub_ledger_type: 'NONE', sub_ledger_id: '' });
+      }
+
+      return {
+        entry_number: entryNo,
+        entry_date: p.date || (window.TODAY_STR_ISO || new Date().toISOString().split('T')[0]),
+        description: p.description || ('تصفية وصرف أجور الخياط: ' + (p.tailorName || '')),
+        source_module: 'TAILOR_WAGE',
+        source_id: String(p.settlementId || entryNo),
+        total_amount: grossWage,
+        currency: p.currency || 'YER',
+        exchange_rate: rate,
+        base_amount: grossWage * rate,
+        is_posted: true,
+        lines: lines
+      };
+    },
+
+    // 9. صرف عهدة نقدية للورشة (Workshop Petty Cash Issuance)
+    createPettyCashIssue: function(p) {
+      var amount = parseFloat(p.amount) || 0;
+      var cashAcc = p.cashAccount || '1111';
+      var rate = parseFloat(p.exchangeRate) || 1.0;
+      var entryNo = 'CSH-ISS-' + Date.now().toString().slice(-6);
+      return {
+        entry_number: entryNo,
+        entry_date: p.date || (window.TODAY_STR_ISO || new Date().toISOString().split('T')[0]),
+        description: p.description || ('صرف عهدة نقدية لمشرف الورشة: ' + (p.supervisorName || '')),
+        source_module: 'PETTY_CASH_ISSUE',
+        source_id: String(p.custodyId || entryNo),
+        total_amount: amount,
+        currency: p.currency || 'YER',
+        exchange_rate: rate,
+        base_amount: amount * rate,
+        is_posted: true,
+        lines: [
+          { account_id: '1121', debit: amount, credit: 0, line_description: 'عهدة نقدية في ذمة المشرف', sub_ledger_type: 'CUSTODY_HOLDER', sub_ledger_id: p.supervisorId || p.supervisorName },
+          { account_id: cashAcc, debit: 0, credit: amount, line_description: 'صرف العهدة من الصندوق', sub_ledger_type: 'NONE', sub_ledger_id: '' }
+        ]
+      };
+    },
+
+    // 10. تسوية وإقفال العهدة النقدية (Petty Cash Settlement)
+    createPettyCashSettlement: function(p) {
+      var invoicesTotal = parseFloat(p.invoicesTotal) || 0;
+      var cashReturned = parseFloat(p.cashReturned) || 0;
+      var totalCustody = invoicesTotal + cashReturned;
+      var cashAcc = p.cashAccount || '1111';
+      var rate = parseFloat(p.exchangeRate) || 1.0;
+      var entryNo = 'CSH-SET-' + Date.now().toString().slice(-6);
+
+      var lines = [
+        { account_id: '5211', debit: invoicesTotal, credit: 0, line_description: 'مصاريف تشغيل وصيانة المشغل بالفواتير', sub_ledger_type: 'NONE', sub_ledger_id: '' }
+      ];
+      if (cashReturned > 0) {
+        lines.push({ account_id: cashAcc, debit: cashReturned, credit: 0, line_description: 'استرجاع متبقي العهدة للصندوق', sub_ledger_type: 'NONE', sub_ledger_id: '' });
+      }
+      lines.push({ account_id: '1121', debit: 0, credit: totalCustody, line_description: 'إقفال وتصفير العهدة النقدية للمشرف', sub_ledger_type: 'CUSTODY_HOLDER', sub_ledger_id: p.supervisorId || p.supervisorName });
+
+      return {
+        entry_number: entryNo,
+        entry_date: p.date || (window.TODAY_STR_ISO || new Date().toISOString().split('T')[0]),
+        description: p.description || ('تسوية وإقفال عهدة: ' + (p.supervisorName || '')),
+        source_module: 'PETTY_CASH_SETTLEMENT',
+        source_id: String(p.settlementId || entryNo),
+        total_amount: totalCustody,
+        currency: p.currency || 'YER',
+        exchange_rate: rate,
+        base_amount: totalCustody * rate,
+        is_posted: true,
+        lines: lines
+      };
+    },
+
+    // 11. توريد أقمشة ومستلزمات (Fabric Procurement)
+    createInventoryPurchase: function(p) {
+      var amount = parseFloat(p.amount) || 0;
+      var isCash = p.isCash || false;
+      var creditAcc = isCash ? (p.cashAccount || '1111') : '2111';
+      var rate = parseFloat(p.exchangeRate) || 1.0;
+      var entryNo = 'FAB-PUR-' + Date.now().toString().slice(-6);
+      return {
+        entry_number: entryNo,
+        entry_date: p.date || (window.TODAY_STR_ISO || new Date().toISOString().split('T')[0]),
+        description: p.description || ('توريد أقمشة وخامات من المورد: ' + (p.supplierName || '')),
+        source_module: 'INVENTORY_PURCHASE',
+        source_id: String(p.purchaseId || entryNo),
+        total_amount: amount,
+        currency: p.currency || 'YER',
+        exchange_rate: rate,
+        base_amount: amount * rate,
+        is_posted: true,
+        lines: [
+          { account_id: '1151', debit: amount, credit: 0, line_description: 'إثبات استلام أقمشة في المخزن', sub_ledger_type: 'NONE', sub_ledger_id: '' },
+          { account_id: creditAcc, debit: 0, credit: amount, line_description: isCash ? 'سداد نقدي لتوريد الأقمشة' : 'مستحقات المورد الآجلة', sub_ledger_type: isCash ? 'NONE' : 'SUPPLIER', sub_ledger_id: p.supplierId || p.supplierName }
+        ]
+      };
+    },
+
+    // 12. تسليم أقمشة للورشة وبدء التشغيل (Issue to Production / WIP)
+    createInventoryIssueToWIP: function(p) {
+      var costAmt = parseFloat(p.amount) || 0;
+      var rate = parseFloat(p.exchangeRate) || 1.0;
+      var entryNo = 'WIP-' + Date.now().toString().slice(-6);
+      return {
+        entry_number: entryNo,
+        entry_date: p.date || (window.TODAY_STR_ISO || new Date().toISOString().split('T')[0]),
+        description: p.description || ('صرف قماش لبدء خياطة الفستان: ' + (p.orderId || p.dressName || '')),
+        source_module: 'INVENTORY_ISSUE',
+        source_id: String(p.issueId || entryNo),
+        total_amount: costAmt,
+        currency: p.currency || 'YER',
+        exchange_rate: rate,
+        base_amount: costAmt * rate,
+        is_posted: true,
+        lines: [
+          { account_id: '1152', debit: costAmt, credit: 0, line_description: 'إنتاج تحت التشغيل (أقمشة قيد الخياطة)', sub_ledger_type: 'NONE', sub_ledger_id: '' },
+          { account_id: '1151', debit: 0, credit: costAmt, line_description: 'صرف قماش من مخزون الخامات', sub_ledger_type: 'NONE', sub_ledger_id: '' }
+        ]
+      };
+    },
+
+    // 13. مراجعة وتسوية فروقات الجرد (Inventory Stock Audit)
+    createInventoryAudit: function(p) {
+      var diffAmt = parseFloat(p.amount) || 0;
+      var isShortage = p.type === 'shortage' || p.isShortage;
+      var rate = parseFloat(p.exchangeRate) || 1.0;
+      var entryNo = 'AUD-' + Date.now().toString().slice(-6);
+
+      var lines = [];
+      if (isShortage) {
+        lines.push({ account_id: '5221', debit: diffAmt, credit: 0, line_description: 'خسائر وفروقات عجز الجرد', sub_ledger_type: 'NONE', sub_ledger_id: '' });
+        lines.push({ account_id: '1151', debit: 0, credit: diffAmt, line_description: 'تخفيض المخزون لمطابقة الجرد الفعلي', sub_ledger_type: 'NONE', sub_ledger_id: '' });
+      } else {
+        lines.push({ account_id: '1151', debit: diffAmt, credit: 0, line_description: 'زيادة المخزون لمطابقة الجرد الفعلي', sub_ledger_type: 'NONE', sub_ledger_id: '' });
+        lines.push({ account_id: '4211', debit: 0, credit: diffAmt, line_description: 'أرباح تسويات وفائض المخزون', sub_ledger_type: 'NONE', sub_ledger_id: '' });
+      }
+
+      return {
+        entry_number: entryNo,
+        entry_date: p.date || (window.TODAY_STR_ISO || new Date().toISOString().split('T')[0]),
+        description: p.description || ('تسوية فروقات جرد مخزون الأقمشة: ' + (isShortage ? 'عجز' : 'زيادة')),
+        source_module: 'INVENTORY_AUDIT',
+        source_id: String(p.auditId || entryNo),
+        total_amount: diffAmt,
+        currency: p.currency || 'YER',
+        exchange_rate: rate,
+        base_amount: diffAmt * rate,
+        is_posted: true,
+        lines: lines
+      };
+    },
+
+    // 14. القيد المركب اليدوي المتزن (Manual Balanced Journal Entry)
+    createManualJournal: function(p) {
+      var lines = Array.isArray(p.lines) ? p.lines : [];
+      var totalDebit = lines.reduce(function(sum, l) { return sum + (parseFloat(l.debit) || 0); }, 0);
+      var totalCredit = lines.reduce(function(sum, l) { return sum + (parseFloat(l.credit) || 0); }, 0);
+      if (Math.abs(totalDebit - totalCredit) > 0.01) {
+        throw new Error('القيد غير متوازن! إجمالي المدين (' + totalDebit + ') لا يساوي إجمالي الدائن (' + totalCredit + ')');
+      }
+
+      var rate = parseFloat(p.exchangeRate) || 1.0;
+      var entryNo = p.entryNumber || ('JV-MAN-' + Date.now().toString().slice(-6));
+      return {
+        entry_number: entryNo,
+        entry_date: p.date || (window.TODAY_STR_ISO || new Date().toISOString().split('T')[0]),
+        description: p.description || 'قيد مركب وتسويات يدوية',
+        source_module: 'MANUAL',
+        source_id: String(p.sourceId || entryNo),
+        total_amount: totalDebit,
+        currency: p.currency || 'YER',
+        exchange_rate: rate,
+        base_amount: totalDebit * rate,
+        is_posted: true,
+        lines: lines
+      };
+    },
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // 📊 General Ledger & Reporting Pipeline
+    // ──────────────────────────────────────────────────────────────────────────
+
     // Derives General Ledger (دفتر الأستاذ العام) on the fly from Journal Entries
     generateGeneralLedger: function(journalEntries, accounts, filterAccountId, dateRange) {
       var entries = Array.isArray(journalEntries) ? journalEntries : [];
