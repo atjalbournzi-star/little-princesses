@@ -2121,6 +2121,27 @@ var ChartOfAccountsController = {
   ensureAllMasterAccounts: function() {
     var sheet = SchemaMapper.getOrCreateSheet("chart_of_accounts");
     var raw = SchemaMapper.readRows("chart_of_accounts");
+
+    // ── Auto-purge legacy 3-digit accounts from the sheet automatically ──
+    var legacyCodes = {
+      "101": 1, "101.01": 1, "101.02": 1, "101.03": 1, "101.04": 1,
+      "102": 1, "103": 1, "104": 1, "105": 1,
+      "201": 1, "202": 1,
+      "301": 1, "302": 1,
+      "401": 1, "402": 1,
+      "501": 1, "502": 1, "503": 1,
+      "6": 1, "601": 1, "602": 1, "603": 1, "604": 1, "605": 1, "606": 1, "607": 1,
+      "7": 1
+    };
+    for (var ri = raw.length - 1; ri >= 0; ri--) {
+      var cCode = String(raw[ri].account_code || raw[ri].code || raw[ri].id || "").trim();
+      if (legacyCodes[cCode]) {
+        try { sheet.deleteRow(ri + 2); } catch(delErr) {}
+      }
+    }
+
+    // Re-read after purge
+    raw = SchemaMapper.readRows("chart_of_accounts");
     var existingCodes = {};
     for (var i = 0; i < raw.length; i++) {
       var c = String(raw[i].account_code || raw[i].code || raw[i].id || "").trim();
@@ -2128,46 +2149,71 @@ var ChartOfAccountsController = {
     }
 
     var defaultMaster = [
+      // 1. الأصول
       { id: "ACC-1", code: "1", name: "الأصول", name_en: "Assets", type: "أصول", cat: "أصول", pId: "", pCode: "", lvl: 1, path: "1", isGrp: 1, isPost: 0, nature: "debit", cur: "YER" },
-      { id: "ACC-2", code: "2", name: "الخصوم (الالتزامات)", name_en: "Liabilities", type: "خصوم", cat: "خصوم", pId: "", pCode: "", lvl: 1, path: "2", isGrp: 1, isPost: 0, nature: "credit", cur: "YER" },
+      { id: "ACC-11", code: "11", name: "الأصول المتداولة", name_en: "Current Assets", type: "أصول", cat: "أصول متداولة", pId: "ACC-1", pCode: "1", lvl: 2, path: "1 > 11", isGrp: 1, isPost: 0, nature: "debit", cur: "YER" },
+      { id: "ACC-111", code: "111", name: "النقدية وما في حكمها", name_en: "Cash and Cash Equivalents", type: "أصول", cat: "نقدية وبنوك", pId: "ACC-11", pCode: "11", lvl: 3, path: "1 > 11 > 111", isGrp: 1, isPost: 0, nature: "debit", cur: "YER" },
+      { id: "ACC-1111", code: "1111", name: "الصندوق الرئيسي", name_en: "Main Cash Box", type: "أصول", cat: "نقدية وبنوك", pId: "ACC-111", pCode: "111", lvl: 4, path: "1 > 11 > 111 > 1111", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
+      { id: "ACC-1112", code: "1112", name: "البنك / الشبكة وPOS", name_en: "Bank & POS Accounts", type: "أصول", cat: "نقدية وبنوك", pId: "ACC-111", pCode: "111", lvl: 4, path: "1 > 11 > 111 > 1112", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
+      { id: "ACC-112", code: "112", name: "العهد النقدية", name_en: "Petty Cash & Advances", type: "أصول", cat: "عهد نقدية", pId: "ACC-11", pCode: "11", lvl: 3, path: "1 > 11 > 112", isGrp: 1, isPost: 0, nature: "debit", cur: "YER" },
+      { id: "ACC-1121", code: "1121", name: "عهد الورشة والمشغل", name_en: "Workshop Petty Cash", type: "أصول", cat: "عهد نقدية", pId: "ACC-112", pCode: "112", lvl: 4, path: "1 > 11 > 112 > 1121", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
+      { id: "ACC-113", code: "113", name: "العملاء والمدينون", name_en: "Accounts Receivable", type: "أصول", cat: "ذمم مدينة", pId: "ACC-11", pCode: "11", lvl: 3, path: "1 > 11 > 113", isGrp: 1, isPost: 0, nature: "debit", cur: "YER" },
+      { id: "ACC-1131", code: "1131", name: "ذمم العميلات", name_en: "Clients Receivable", type: "أصول", cat: "ذمم مدينة", pId: "ACC-113", pCode: "113", lvl: 4, path: "1 > 11 > 113 > 1131", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
+      { id: "ACC-114", code: "114", name: "السلف والمدينون الآخرون", name_en: "Staff Advances & Other Receivables", type: "أصول", cat: "ذمم مدينة", pId: "ACC-11", pCode: "11", lvl: 3, path: "1 > 11 > 114", isGrp: 1, isPost: 0, nature: "debit", cur: "YER" },
+      { id: "ACC-1141", code: "1141", name: "سلف الخياطين والعاملين", name_en: "Tailors & Staff Advances", type: "أصول", cat: "ذمم مدينة", pId: "ACC-114", pCode: "114", lvl: 4, path: "1 > 11 > 114 > 1141", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
+      { id: "ACC-115", code: "115", name: "المخزون السلعي", name_en: "Inventory", type: "أصول", cat: "مخزون", pId: "ACC-11", pCode: "11", lvl: 3, path: "1 > 11 > 115", isGrp: 1, isPost: 0, nature: "debit", cur: "YER" },
+      { id: "ACC-1151", code: "1151", name: "مخزون الأقمشة والخامات", name_en: "Raw Fabrics & Materials Inventory", type: "أصول", cat: "مخزون", pId: "ACC-115", pCode: "115", lvl: 4, path: "1 > 11 > 115 > 1151", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
+      { id: "ACC-1152", code: "1152", name: "إنتاج تحت التشغيل (WIP)", name_en: "Work In Progress Inventory", type: "أصول", cat: "مخزون", pId: "ACC-115", pCode: "115", lvl: 4, path: "1 > 11 > 115 > 1152", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
+      { id: "ACC-1153", code: "1153", name: "مخزون الفساتين التامة", name_en: "Finished Goods Inventory", type: "أصول", cat: "مخزون", pId: "ACC-115", pCode: "115", lvl: 4, path: "1 > 11 > 115 > 1153", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
+      { id: "ACC-12", code: "12", name: "الأصول الثابتة", name_en: "Fixed Assets", type: "أصول", cat: "أصول غير متداولة", pId: "ACC-1", pCode: "1", lvl: 2, path: "1 > 12", isGrp: 1, isPost: 0, nature: "debit", cur: "YER" },
+      { id: "ACC-121", code: "121", name: "الآلات والمعدات", name_en: "Machinery & Equipment", type: "أصول", cat: "أصول غير متداولة", pId: "ACC-12", pCode: "12", lvl: 3, path: "1 > 12 > 121", isGrp: 1, isPost: 0, nature: "debit", cur: "YER" },
+      { id: "ACC-1211", code: "1211", name: "آلات ومعدات الخياطة والتطريز", name_en: "Sewing & Embroidery Machines", type: "أصول", cat: "أصول غير متداولة", pId: "ACC-121", pCode: "121", lvl: 4, path: "1 > 12 > 121 > 1211", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
+
+      // 2. الالتزامات
+      { id: "ACC-2", code: "2", name: "الالتزامات", name_en: "Liabilities", type: "خصوم", cat: "خصوم", pId: "", pCode: "", lvl: 1, path: "2", isGrp: 1, isPost: 0, nature: "credit", cur: "YER" },
+      { id: "ACC-21", code: "21", name: "الالتزامات المتداولة", name_en: "Current Liabilities", type: "خصوم", cat: "خصوم متداولة", pId: "ACC-2", pCode: "2", lvl: 2, path: "2 > 21", isGrp: 1, isPost: 0, nature: "credit", cur: "YER" },
+      { id: "ACC-211", code: "211", name: "الموردون والدائنون", name_en: "Accounts Payable", type: "خصوم", cat: "ذمم دائنة", pId: "ACC-21", pCode: "21", lvl: 3, path: "2 > 21 > 211", isGrp: 1, isPost: 0, nature: "credit", cur: "YER" },
+      { id: "ACC-2111", code: "2111", name: "ذمم الموردين ومحلات الأقمشة", name_en: "Suppliers & Vendors Payable", type: "خصوم", cat: "ذمم دائنة", pId: "ACC-211", pCode: "211", lvl: 4, path: "2 > 21 > 211 > 2111", isGrp: 0, isPost: 1, nature: "credit", cur: "YER" },
+      { id: "ACC-212", code: "212", name: "الدفعات المقدمة من العميلات", name_en: "Customer Advances & Deposits", type: "خصوم", cat: "أمانات ودفعات", pId: "ACC-21", pCode: "21", lvl: 3, path: "2 > 21 > 212", isGrp: 1, isPost: 0, nature: "credit", cur: "YER" },
+      { id: "ACC-2121", code: "2121", name: "دفعات مقدمة وعرابين حجز", name_en: "Clients Deposits & Prepayments", type: "خصوم", cat: "أمانات ودفعات", pId: "ACC-212", pCode: "212", lvl: 4, path: "2 > 21 > 212 > 2121", isGrp: 0, isPost: 1, nature: "credit", cur: "YER" },
+      { id: "ACC-213", code: "213", name: "المستحقات التشغيلية والرواتب", name_en: "Accrued Expenses & Wages", type: "خصوم", cat: "مستحقات", pId: "ACC-21", pCode: "21", lvl: 3, path: "2 > 21 > 213", isGrp: 1, isPost: 0, nature: "credit", cur: "YER" },
+      { id: "ACC-2131", code: "2131", name: "مستحقات وأجور الخياطين", name_en: "Accrued Tailors Wages", type: "خصوم", cat: "مستحقات", pId: "ACC-213", pCode: "213", lvl: 4, path: "2 > 21 > 213 > 2131", isGrp: 0, isPost: 1, nature: "credit", cur: "YER" },
+
+      // 3. حقوق الملكية
       { id: "ACC-3", code: "3", name: "حقوق الملكية", name_en: "Equity", type: "حقوق ملكية", cat: "حقوق ملكية", pId: "", pCode: "", lvl: 1, path: "3", isGrp: 1, isPost: 0, nature: "credit", cur: "YER" },
+      { id: "ACC-31", code: "31", name: "رأس المال والاحتياطيات", name_en: "Capital & Reserves", type: "حقوق ملكية", cat: "رأس مال", pId: "ACC-3", pCode: "3", lvl: 2, path: "3 > 31", isGrp: 1, isPost: 0, nature: "credit", cur: "YER" },
+      { id: "ACC-311", code: "311", name: "رأس المال المباشر", name_en: "Direct Capital", type: "حقوق ملكية", cat: "رأس مال", pId: "ACC-31", pCode: "31", lvl: 3, path: "3 > 31 > 311", isGrp: 1, isPost: 0, nature: "credit", cur: "YER" },
+      { id: "ACC-3111", code: "3111", name: "رأس المال المباشر Little Princesses", name_en: "Paid-in Capital Little Princesses", type: "حقوق ملكية", cat: "رأس مال", pId: "ACC-311", pCode: "311", lvl: 4, path: "3 > 31 > 311 > 3111", isGrp: 0, isPost: 1, nature: "credit", cur: "YER" },
+      { id: "ACC-312", code: "312", name: "الأرباح والاحتياطيات", name_en: "Retained Earnings & Reserves", type: "حقوق ملكية", cat: "أرباح", pId: "ACC-31", pCode: "31", lvl: 3, path: "3 > 31 > 312", isGrp: 1, isPost: 0, nature: "credit", cur: "YER" },
+      { id: "ACC-3121", code: "3121", name: "الأرباح المبقاة / المحتجزة", name_en: "Retained Earnings", type: "حقوق ملكية", cat: "أرباح", pId: "ACC-312", pCode: "312", lvl: 4, path: "3 > 31 > 312 > 3121", isGrp: 0, isPost: 1, nature: "credit", cur: "YER" },
+
+      // 4. الإيرادات
       { id: "ACC-4", code: "4", name: "الإيرادات", name_en: "Revenue", type: "إيرادات", cat: "إيرادات", pId: "", pCode: "", lvl: 1, path: "4", isGrp: 1, isPost: 0, nature: "credit", cur: "YER" },
-      { id: "ACC-5", code: "5", name: "تكلفة المبيعات", name_en: "Cost of Sales", type: "تكلفة المبيعات", cat: "تكلفة المبيعات", pId: "", pCode: "", lvl: 1, path: "5", isGrp: 1, isPost: 0, nature: "debit", cur: "YER" },
-      { id: "ACC-6", code: "6", name: "المصروفات", name_en: "Expenses", type: "مصروفات", cat: "مصروفات", pId: "", pCode: "", lvl: 1, path: "6", isGrp: 1, isPost: 0, nature: "debit", cur: "YER" },
-      { id: "ACC-7", code: "7", name: "حسابات أخرى", name_en: "Other Accounts", type: "أخرى", cat: "أخرى", pId: "", pCode: "", lvl: 1, path: "7", isGrp: 1, isPost: 0, nature: "debit", cur: "YER" },
+      { id: "ACC-41", code: "41", name: "إيرادات النشاط التشغيلي", name_en: "Operating Revenue", type: "إيرادات", cat: "إيرادات مبيعات", pId: "ACC-4", pCode: "4", lvl: 2, path: "4 > 41", isGrp: 1, isPost: 0, nature: "credit", cur: "YER" },
+      { id: "ACC-411", code: "411", name: "إيرادات التفصيل والتصميم", name_en: "Custom Tailoring Revenue", type: "إيرادات", cat: "إيرادات مبيعات", pId: "ACC-41", pCode: "41", lvl: 3, path: "4 > 41 > 411", isGrp: 1, isPost: 0, nature: "credit", cur: "YER" },
+      { id: "ACC-4111", code: "4111", name: "إيرادات تفصيل وتصميم الفساتين", name_en: "Custom Dressmaking Revenue", type: "إيرادات", cat: "إيرادات مبيعات", pId: "ACC-411", pCode: "411", lvl: 4, path: "4 > 41 > 411 > 4111", isGrp: 0, isPost: 1, nature: "credit", cur: "YER" },
+      { id: "ACC-412", code: "412", name: "إيرادات الفساتين الجاهزة", name_en: "Ready-made Dresses Revenue", type: "إيرادات", cat: "إيرادات مبيعات", pId: "ACC-41", pCode: "41", lvl: 3, path: "4 > 41 > 412", isGrp: 1, isPost: 0, nature: "credit", cur: "YER" },
+      { id: "ACC-4121", code: "4121", name: "إيرادات مبيعات فساتين المعرض", name_en: "Showroom Ready Dresses Sales", type: "إيرادات", cat: "إيرادات مبيعات", pId: "ACC-412", pCode: "412", lvl: 4, path: "4 > 41 > 412 > 4121", isGrp: 0, isPost: 1, nature: "credit", cur: "YER" },
+      { id: "ACC-42", code: "42", name: "إيرادات أخرى وتسويات", name_en: "Other Income & Adjustments", type: "إيرادات", cat: "إيرادات أخرى", pId: "ACC-4", pCode: "4", lvl: 2, path: "4 > 42", isGrp: 1, isPost: 0, nature: "credit", cur: "YER" },
+      { id: "ACC-421", code: "421", name: "أرباح تسويات المخزون", name_en: "Inventory Adjustment Gains", type: "إيرادات", cat: "إيرادات أخرى", pId: "ACC-42", pCode: "42", lvl: 3, path: "4 > 42 > 421", isGrp: 1, isPost: 0, nature: "credit", cur: "YER" },
+      { id: "ACC-4211", code: "4211", name: "أرباح تسويات المخزون", name_en: "Inventory Gain Adjustments", type: "إيرادات", cat: "إيرادات أخرى", pId: "ACC-421", pCode: "421", lvl: 4, path: "4 > 42 > 421 > 4211", isGrp: 0, isPost: 1, nature: "credit", cur: "YER" },
 
-      { id: "ACC-101", code: "101", name: "الصندوق / الخزينة الرئيسية", name_en: "Main Cash", type: "أصول", cat: "أصول متداولة", pId: "1", pCode: "1", lvl: 2, path: "1 > 101", isGrp: 1, isPost: 0, nature: "debit", cur: "YER" },
-      { id: "ACC-101.01", code: "101.01", name: "صندوق فرع الورشة والمعمل (صنعاء)", name_en: "Workshop Cash", type: "أصول", cat: "نقدية وما في حكمها", pId: "101", pCode: "101", lvl: 3, path: "1 > 101 > 101.01", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
-      { id: "ACC-101.02", code: "101.02", name: "صندوق محمد فلاح", name_en: "Mohammed Falah Cash", type: "أصول", cat: "نقدية وما في حكمها", pId: "101", pCode: "101", lvl: 3, path: "1 > 101 > 101.02", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
-      { id: "ACC-101.03", code: "101.03", name: "صندوق الريال السعودي (SAR)", name_en: "SAR Cash Box", type: "أصول", cat: "نقدية وما في حكمها", pId: "101", pCode: "101", lvl: 3, path: "1 > 101 > 101.03", isGrp: 0, isPost: 1, nature: "debit", cur: "SAR" },
-      { id: "ACC-101.04", code: "101.04", name: "صندوق الدولار الأمريكي (USD)", name_en: "USD Cash Box", type: "أصول", cat: "نقدية وما في حكمها", pId: "101", pCode: "101", lvl: 3, path: "1 > 101 > 101.04", isGrp: 0, isPost: 1, nature: "debit", cur: "USD" },
-      { id: "ACC-102", code: "102", name: "مخزون الأقمشة والمستلزمات", name_en: "Fabrics & Supplies Inventory", type: "أصول", cat: "أصول متداولة", pId: "1", pCode: "1", lvl: 2, path: "1 > 102", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
-      { id: "ACC-103", code: "103", name: "الحساب البنكي / الحوالات والمحافظ", name_en: "Bank & Wallets (YER)", type: "أصول", cat: "أصول متداولة", pId: "1", pCode: "1", lvl: 2, path: "1 > 103", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
-      { id: "ACC-104", code: "104", name: "ذمم العملاء (مستحقات خارجية)", name_en: "Accounts Receivable", type: "أصول", cat: "أصول متداولة", pId: "1", pCode: "1", lvl: 2, path: "1 > 104", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
-      { id: "ACC-105", code: "105", name: "أصول ثابتة (آلات ومعدات)", name_en: "Fixed Assets", type: "أصول", cat: "أصول غير متداولة", pId: "1", pCode: "1", lvl: 2, path: "1 > 105", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
-
-      { id: "ACC-201", code: "201", name: "ذمم الموردين ومحلات الأقمشة (آجل)", name_en: "Accounts Payable", type: "خصوم", cat: "خصوم متداولة", pId: "2", pCode: "2", lvl: 2, path: "2 > 201", isGrp: 0, isPost: 1, nature: "credit", cur: "YER" },
-      { id: "ACC-202", code: "202", name: "مصروفات مستحقة الدفع", name_en: "Accrued Expenses", type: "خصوم", cat: "خصوم متداولة", pId: "2", pCode: "2", lvl: 2, path: "2 > 202", isGrp: 0, isPost: 1, nature: "credit", cur: "YER" },
-
-      { id: "ACC-301", code: "301", name: "رأس المال المباشر لمؤسسة Little Princesses", name_en: "Paid Capital", type: "حقوق ملكية", cat: "رأس المال", pId: "3", pCode: "3", lvl: 2, path: "3 > 301", isGrp: 0, isPost: 1, nature: "credit", cur: "YER" },
-      { id: "ACC-302", code: "302", name: "الأرباح المبقاة / المحتجزة", name_en: "Retained Earnings", type: "حقوق ملكية", cat: "أرباح مرحلة", pId: "3", pCode: "3", lvl: 2, path: "3 > 302", isGrp: 0, isPost: 1, nature: "credit", cur: "YER" },
-
-      { id: "ACC-401", code: "401", name: "إيرادات مبيعات الفساتين والزي", name_en: "Sales Revenue", type: "إيرادات", cat: "إيرادات تشغيلية", pId: "4", pCode: "4", lvl: 2, path: "4 > 401", isGrp: 0, isPost: 1, nature: "credit", cur: "YER" },
-      { id: "ACC-402", code: "402", name: "أرباح فروق أسعار صرف العملات", name_en: "Foreign Exchange Gain", type: "إيرادات", cat: "إيرادات أخرى", pId: "4", pCode: "4", lvl: 2, path: "4 > 402", isGrp: 0, isPost: 1, nature: "credit", cur: "YER" },
-
-      // ── 5. تكلفة المبيعات (Cost of Sales - COGS) ──
-      { id: "ACC-501", code: "501", name: "تكلفة الأقمشة والمواد الخام المباشرة", name_en: "Direct Fabrics & Raw Materials", type: "تكلفة المبيعات", cat: "تكاليف مباشرة", pId: "5", pCode: "5", lvl: 2, path: "5 > 501", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
-      { id: "ACC-502", code: "502", name: "تكلفة مستلزمات الخياطة والإكسسوارات والشك", name_en: "Sewing Accessories & Embellishments", type: "تكلفة المبيعات", cat: "تكاليف مباشرة", pId: "5", pCode: "5", lvl: 2, path: "5 > 502", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
-      { id: "ACC-503", code: "503", name: "تكلفة التغليف وعلب الفساتين الفاخرة", name_en: "Packaging & Luxury Boxes", type: "تكلفة المبيعات", cat: "تكاليف مباشرة", pId: "5", pCode: "5", lvl: 2, path: "5 > 503", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
-
-      // ── 6. المصروفات التشغيلية والعمومية (Operating Expenses - OPEX) ──
-      { id: "ACC-601", code: "601", name: "أجور ورواتب الخياطين والمطرزين والموظفين", name_en: "Salaries & Wages", type: "مصروفات", cat: "مصروفات تشغيلية", pId: "6", pCode: "6", lvl: 2, path: "6 > 601", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
-      { id: "ACC-602", code: "602", name: "إيجار المقرات والمعارض والورش", name_en: "Rent Expenses", type: "مصروفات", cat: "مصروفات تشغيلية", pId: "6", pCode: "6", lvl: 2, path: "6 > 602", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
-      { id: "ACC-603", code: "603", name: "مصاريف كهرباء وماء وإنترنت ومرافق", name_en: "Utilities & Internet Expenses", type: "مصروفات", cat: "مصروفات تشغيلية", pId: "6", pCode: "6", lvl: 2, path: "6 > 603", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
-      { id: "ACC-604", code: "604", name: "مصاريف التسويق والإعلانات الممولة", name_en: "Marketing & Advertising", type: "مصروفات", cat: "مصاريف تسويقية", pId: "6", pCode: "6", lvl: 2, path: "6 > 604", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
-      { id: "ACC-605", code: "605", name: "مصاريف الصيانة وقطع غيار الآلات", name_en: "Maintenance & Repairs", type: "مصروفات", cat: "مصروفات تشغيلية", pId: "6", pCode: "6", lvl: 2, path: "6 > 605", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
-      { id: "ACC-606", code: "606", name: "خسائر فروق أسعار صرف العملات", name_en: "Forex Losses", type: "مصروفات", cat: "مصروفات أخرى", pId: "6", pCode: "6", lvl: 2, path: "6 > 606", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
-      { id: "ACC-607", code: "607", name: "مصروفات إدارية وعمومية متنوعة", name_en: "General & Admin Expenses", type: "مصروفات", cat: "مصروفات إدارية", pId: "6", pCode: "6", lvl: 2, path: "6 > 607", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" }
+      // 5. المصروفات والتكاليف
+      { id: "ACC-5", code: "5", name: "المصروفات والتكاليف", name_en: "Expenses & Production Costs", type: "مصروفات", cat: "مصروفات", pId: "", pCode: "", lvl: 1, path: "5", isGrp: 1, isPost: 0, nature: "debit", cur: "YER" },
+      { id: "ACC-51", code: "51", name: "تكلفة النشاط والمبيعات (COGS)", name_en: "Cost of Goods Sold (COGS)", type: "مصروفات", cat: "تكلفة مبيعات", pId: "ACC-5", pCode: "5", lvl: 2, path: "5 > 51", isGrp: 1, isPost: 0, nature: "debit", cur: "YER" },
+      { id: "ACC-511", code: "511", name: "تكلفة الخامات والمواد المستهلكة", name_en: "Raw Materials Consumed Cost", type: "مصروفات", cat: "تكلفة مبيعات", pId: "ACC-51", pCode: "51", lvl: 3, path: "5 > 51 > 511", isGrp: 1, isPost: 0, nature: "debit", cur: "YER" },
+      { id: "ACC-5111", code: "5111", name: "تكلفة الأقمشة والمواد المباعة", name_en: "Fabrics & Accessories Cost of Sales", type: "مصروفات", cat: "تكلفة مبيعات", pId: "ACC-511", pCode: "511", lvl: 4, path: "5 > 51 > 511 > 5111", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
+      { id: "ACC-512", code: "512", name: "أجور الخياطة والتصنيع المباشرة", name_en: "Direct Labor Costs", type: "مصروفات", cat: "تكلفة مبيعات", pId: "ACC-51", pCode: "51", lvl: 3, path: "5 > 51 > 512", isGrp: 1, isPost: 0, nature: "debit", cur: "YER" },
+      { id: "ACC-5121", code: "5121", name: "أجور خياطة وتصنيع مباشرة", name_en: "Direct Tailoring & Sewing Wages", type: "مصروفات", cat: "تكلفة مبيعات", pId: "ACC-512", pCode: "512", lvl: 4, path: "5 > 51 > 512 > 5121", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
+      { id: "ACC-52", code: "52", name: "المصاريف التشغيلية والإدارية", name_en: "Operating & General Expenses", type: "مصروفات", cat: "مصروفات تشغيلية", pId: "ACC-5", pCode: "5", lvl: 2, path: "5 > 52", isGrp: 1, isPost: 0, nature: "debit", cur: "YER" },
+      { id: "ACC-521", code: "521", name: "المصاريف التشغيلية والإدارية", name_en: "Operating & Administrative Expenses", type: "مصروفات", cat: "مصروفات تشغيلية", pId: "ACC-52", pCode: "52", lvl: 3, path: "5 > 52 > 521", isGrp: 1, isPost: 0, nature: "debit", cur: "YER" },
+      { id: "ACC-5211", code: "5211", name: "مصاريف تشغيل وصيانة الورشة", name_en: "Workshop Maintenance & Utilities", type: "مصروفات", cat: "مصروفات تشغيلية", pId: "ACC-521", pCode: "521", lvl: 4, path: "5 > 52 > 521 > 5211", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
+      { id: "ACC-5212", code: "5212", name: "فواتير الكهرباء والمياه والطاقة", name_en: "Electricity & Water Utilities", type: "مصروفات", cat: "مصروفات تشغيلية", pId: "ACC-521", pCode: "521", lvl: 4, path: "5 > 52 > 521 > 5212", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
+      { id: "ACC-5213", code: "5213", name: "مصاريف الدعاية والتسويق", name_en: "Marketing & Advertising Expenses", type: "مصروفات", cat: "مصروفات تشغيلية", pId: "ACC-521", pCode: "521", lvl: 4, path: "5 > 52 > 521 > 5213", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
+      { id: "ACC-5214", code: "5214", name: "رواتب ومكافآت الإدارة", name_en: "Management & Administrative Salaries", type: "مصروفات", cat: "مصروفات تشغيلية", pId: "ACC-521", pCode: "521", lvl: 4, path: "5 > 52 > 521 > 5214", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
+      { id: "ACC-5215", code: "5215", name: "مصاريف إدارية وعمومية أخرى", name_en: "Other General & Admin Expenses", type: "مصروفات", cat: "مصروفات تشغيلية", pId: "ACC-521", pCode: "521", lvl: 4, path: "5 > 52 > 521 > 5215", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" },
+      { id: "ACC-522", code: "522", name: "الخسائر وفروقات الجرد", name_en: "Inventory Loss & Deficit", type: "مصروفات", cat: "خسائر تسويات", pId: "ACC-52", pCode: "52", lvl: 3, path: "5 > 52 > 522", isGrp: 1, isPost: 0, nature: "debit", cur: "YER" },
+      { id: "ACC-5221", code: "5221", name: "خسائر وفروقات عجز الجرد", name_en: "Inventory Deficit Losses", type: "مصروفات", cat: "خسائر تسويات", pId: "ACC-522", pCode: "522", lvl: 4, path: "5 > 52 > 522 > 5221", isGrp: 0, isPost: 1, nature: "debit", cur: "YER" }
     ];
 
     var now = todayISO();
