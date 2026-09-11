@@ -3,6 +3,23 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 function Products({ products = [], setProducts, inventory = [], showToast, currency }) {
   const currencyDisplay = currency?.display || "YER ﷼";
 
+  // Universal currency code and display helpers
+  const getCurrencyCode = useCallback((c) => {
+    if (!c) return 'YER';
+    if (typeof c === 'object') return c.code || 'YER';
+    const s = String(c).toUpperCase();
+    if (s.includes('SAR') || s.includes('سعودي')) return 'SAR';
+    if (s.includes('USD') || s.includes('$') || s.includes('دولار')) return 'USD';
+    return 'YER';
+  }, []);
+
+  const getCurrencyLabel = useCallback((c) => {
+    const code = getCurrencyCode(c);
+    if (code === 'SAR') return 'SAR ﷼';
+    if (code === 'USD') return 'USD $';
+    return 'YER ﷼';
+  }, [getCurrencyCode]);
+
   const [modelName, setModelName] = useState("");
   const [category, setCategory] = useState("(Princess) فستان أميرة");
   const [editId, setEditId] = useState(null);
@@ -10,9 +27,14 @@ function Products({ products = [], setProducts, inventory = [], showToast, curre
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("الكل");
   
-  // Dynamic Fabric Array Matrix
+  // Model Pricing Currency: defaults to active currency or YER
+  const [formCurrency, setFormCurrency] = useState(() => getCurrencyCode(currency) || "YER");
+  const activeModelCurrency = useMemo(() => getCurrencyCode(formCurrency), [formCurrency, getCurrencyCode]);
+  const activeModelCurrencyLabel = useMemo(() => getCurrencyLabel(formCurrency), [formCurrency, getCurrencyLabel]);
+
+  // Dynamic Fabric Array Matrix with individual currency tracking
   const [fabricsList, setFabricsList] = useState([
-    { id: Date.now(), name: "", meters_1_2: "", meters_3_5: "", meters_6_9: "", meters_10_13: "", cost: 0 }
+    { id: Date.now(), name: "", currency: "YER", meters_1_2: "", meters_3_5: "", meters_6_9: "", meters_10_13: "", cost: 0 }
   ]);
 
   const [laborCost, setLaborCost] = useState("");
@@ -27,7 +49,6 @@ function Products({ products = [], setProducts, inventory = [], showToast, curre
   const handlePriceChange = (bracket, value) => {
     setPricesMatrix(prev => ({ ...prev, [bracket]: value }));
   };
-  const [formCurrency, setFormCurrency] = useState(currencyDisplay);
   const [calcDate, setCalcDate] = useState(TODAY_STR_ISO);
 
   // Age Chart Configuration
@@ -46,19 +67,25 @@ function Products({ products = [], setProducts, inventory = [], showToast, curre
   };
 
   useEffect(() => {
-    if (currency?.display) {
-      setFormCurrency(currency.display);
+    if (currency?.code && !editId) {
+      setFormCurrency(getCurrencyCode(currency));
     }
-  }, [currency]);
+  }, [currency, editId, getCurrencyCode]);
 
-  // Sync fabric costs from inventory when dropdown changes
+  // Sync fabric costs and true currency from inventory when dropdown changes
   const handleFabricChange = (id, field, value) => {
     const newList = fabricsList.map(fab => {
       if (fab.id === id) {
         let updatedFab = { ...fab, [field]: value };
         if (field === 'name') {
-          const invItem = (inventory || []).find(inv => inv.item_name === value);
-          updatedFab.cost = invItem ? (parseFloat(invItem.cost || invItem.cost_per_meter) || 0) : 0;
+          const invItem = (inventory || []).find(inv => (inv.item_name || inv.name) === value);
+          if (invItem) {
+            updatedFab.cost = parseFloat(invItem.cost || invItem.cost_per_meter || invItem.unit_cost || 0);
+            updatedFab.currency = getCurrencyCode(invItem.currency || 'YER');
+          } else {
+            updatedFab.cost = 0;
+            updatedFab.currency = activeModelCurrency;
+          }
         }
         return updatedFab;
       }
@@ -68,7 +95,7 @@ function Products({ products = [], setProducts, inventory = [], showToast, curre
   };
 
   const addFabricRow = () => {
-    setFabricsList([...fabricsList, { id: Date.now(), name: "", meters_1_2: "", meters_3_5: "", meters_6_9: "", meters_10_13: "", cost: 0 }]);
+    setFabricsList([...fabricsList, { id: Date.now(), name: "", currency: activeModelCurrency, meters_1_2: "", meters_3_5: "", meters_6_9: "", meters_10_13: "", cost: 0 }]);
   };
 
   const removeFabricRow = (id) => {
@@ -77,12 +104,22 @@ function Products({ products = [], setProducts, inventory = [], showToast, curre
     }
   };
 
-  // Calculations (Matrix based)
+  // Convert fabric unit cost to activeModelCurrency for unified BOM calculations
+  const getFabricCostInModelCurrency = useCallback((f) => {
+    const rawCost = parseFloat(f.cost || 0);
+    const fCurr = getCurrencyCode(f.currency || 'YER');
+    if (!window.CurrencyService || fCurr === activeModelCurrency) {
+      return rawCost;
+    }
+    return window.CurrencyService.convert(rawCost, fCurr, activeModelCurrency);
+  }, [activeModelCurrency, getCurrencyCode]);
+
+  // Calculations (Matrix based in activeModelCurrency)
   const costsPerBracket = {
-    '1-2 سنة': fabricsList.reduce((acc, f) => acc + (parseFloat(f.meters_1_2 || 0) * (f.cost || 0)), 0),
-    '3-5 سنوات': fabricsList.reduce((acc, f) => acc + (parseFloat(f.meters_3_5 || 0) * (f.cost || 0)), 0),
-    '6-9 سنوات': fabricsList.reduce((acc, f) => acc + (parseFloat(f.meters_6_9 || 0) * (f.cost || 0)), 0),
-    '10-13 سنة': fabricsList.reduce((acc, f) => acc + (parseFloat(f.meters_10_13 || 0) * (f.cost || 0)), 0),
+    '1-2 سنة': fabricsList.reduce((acc, f) => acc + (parseFloat(f.meters_1_2 || 0) * getFabricCostInModelCurrency(f)), 0),
+    '3-5 سنوات': fabricsList.reduce((acc, f) => acc + (parseFloat(f.meters_3_5 || 0) * getFabricCostInModelCurrency(f)), 0),
+    '6-9 سنوات': fabricsList.reduce((acc, f) => acc + (parseFloat(f.meters_6_9 || 0) * getFabricCostInModelCurrency(f)), 0),
+    '10-13 سنة': fabricsList.reduce((acc, f) => acc + (parseFloat(f.meters_10_13 || 0) * getFabricCostInModelCurrency(f)), 0),
   };
 
   // Use average or 6-9 as baseline for general display
@@ -100,6 +137,7 @@ function Products({ products = [], setProducts, inventory = [], showToast, curre
     const bomArray = fabricsList.map(f => ({
        fabric_name: f.name || 'قماش جديد',
        unit_cost: f.cost,
+       currency: getCurrencyCode(f.currency || 'YER'),
        brackets: {
          '1-2 سنة': parseFloat(f.meters_1_2 || 0),
          '3-5 سنوات': parseFloat(f.meters_3_5 || 0),
@@ -125,7 +163,7 @@ function Products({ products = [], setProducts, inventory = [], showToast, curre
         '6-9 سنوات': parseFloat(pricesMatrix['6-9 سنوات'] || 0),
         '10-13 سنة': parseFloat(pricesMatrix['10-13 سنة'] || 0)
       },
-      currency: formCurrency,
+      currency: activeModelCurrencyLabel,
       profit: computedProfit,
       calc_date: calcDate,
       bom: bomArray,
@@ -135,24 +173,34 @@ function Products({ products = [], setProducts, inventory = [], showToast, curre
     if (editId) {
       if (setProducts) setProducts(products.map(p => p.id === editId ? newP : p));
       try {
-        await callGAS("updateProduct", newP);
-        showToast("تم تحديث الموديل سحابياً ☁️🧮");
+        if (window.bomAPI && window.bomAPI.saveModel) {
+          const res = await window.bomAPI.saveModel(newP);
+          showToast(res.message || "تم تحديث الموديل سحابياً ☁️🧮");
+        } else {
+          await callGAS("updateProduct", newP);
+          showToast("تم تحديث الموديل سحابياً ☁️🧮");
+        }
       } catch (err) {
-        showToast("تم التحديث محلياً 🧮");
+        showToast(err.message || "تم التحديث محلياً 🧮");
       }
       setEditId(null);
     } else {
       if (setProducts) setProducts([newP, ...(products || [])]);
       try {
-        await callGAS("addProduct", newP);
-        showToast("تم إضافة وتوثيق الموديل وحساب التكلفة سحابياً ☁️🧮");
+        if (window.bomAPI && window.bomAPI.saveModel) {
+          const res = await window.bomAPI.saveModel(newP);
+          showToast(res.message || "تم إضافة وتوثيق الموديل وحساب التكلفة سحابياً ☁️🧮");
+        } else {
+          await callGAS("addProduct", newP);
+          showToast("تم إضافة وتوثيق الموديل وحساب التكلفة سحابياً ☁️🧮");
+        }
       } catch (err) {
-        showToast("تم الحفظ محلياً 🧮");
+        showToast(err.message || "تم الحفظ محلياً 🧮");
       }
     }
 
     setModelName("");
-    setFabricsList([{ id: Date.now(), name: "", meters_1_2: "1.0", meters_3_5: "1.5", meters_6_9: "2.0", meters_10_13: "2.5", cost: 12.0 }]);
+    setFabricsList([{ id: Date.now(), name: "", currency: activeModelCurrency, meters_1_2: "1.0", meters_3_5: "1.5", meters_6_9: "2.0", meters_10_13: "2.5", cost: 0 }]);
     setActiveTab("catalog");
   };
 
@@ -162,6 +210,9 @@ function Products({ products = [], setProducts, inventory = [], showToast, curre
     setCategory(p.category || "(Princess) فستان أميرة");
     setLaborCost(p.labor_cost);
     setPackagingCost(p.packaging_cost);
+    if (p.currency) {
+      setFormCurrency(getCurrencyCode(p.currency));
+    }
     
     if (p.price_matrix) {
        setPricesMatrix({
@@ -186,6 +237,7 @@ function Products({ products = [], setProducts, inventory = [], showToast, curre
           id: Date.now() + i,
           name: b.fabric_name,
           cost: b.unit_cost,
+          currency: getCurrencyCode(b.currency || 'YER'),
           meters_1_2: (br['1-2 سنة'] ?? (b.meters || 0)).toString(),
           meters_3_5: (br['3-5 سنوات'] ?? (b.meters || 0)).toString(),
           meters_6_9: (br['6-9 سنوات'] ?? (b.meters || 0)).toString(),
@@ -210,8 +262,13 @@ function Products({ products = [], setProducts, inventory = [], showToast, curre
     }
     
     try {
-      await callGAS("deleteProduct", { id });
-      showToast("تم الحذف سحابياً 🗑️");
+      if (window.bomAPI && window.bomAPI.deleteModel) {
+        const res = await window.bomAPI.deleteModel(id);
+        showToast(res.message || "تم الحذف سحابياً 🗑️");
+      } else {
+        await callGAS("deleteProduct", { id });
+        showToast("تم الحذف سحابياً 🗑️");
+      }
     } catch (e) {
       showToast("تم الحذف محلياً 🗑️");
     }
@@ -323,7 +380,7 @@ function Products({ products = [], setProducts, inventory = [], showToast, curre
           </div>
 
           {/* Basic Model Info */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4.5">
             <div>
               <label className={labelCls}>اسم الموديل <span className="text-[#D64545] font-bold">*</span></label>
               <input required type="text" value={modelName} onChange={e=>setModelName(e.target.value)} className={inputCls} placeholder="" />
@@ -335,8 +392,20 @@ function Products({ products = [], setProducts, inventory = [], showToast, curre
               </select>
             </div>
             <div>
+              <label className={labelCls}>عملة التكلفة والتسعير (BOM Currency)</label>
+              <select 
+                value={activeModelCurrency} 
+                onChange={e => setFormCurrency(e.target.value)} 
+                className={inputCls + " font-bold text-[#8F2A87] bg-[#FDF8FE] border-[#E5CEE7]"}
+              >
+                <option value="YER">ريال يمني (YER ﷼)</option>
+                <option value="SAR">ريال سعودي (SAR ﷼)</option>
+                <option value="USD">دولار أمريكي (USD $)</option>
+              </select>
+            </div>
+            <div>
               <label className={labelCls}>تاريخ الحساب والتسعير</label>
-              <input type="date" value={calcDate} onChange={e=>setCalcDate(e.target.value)} className={inputCls} />
+              <input type="date" lang="en-GB" dir="ltr" value={calcDate} onChange={e=>setCalcDate(e.target.value)} className={inputCls} />
             </div>
           </div>
 
@@ -362,9 +431,22 @@ function Products({ products = [], setProducts, inventory = [], showToast, curre
                     <span className="text-[11px] text-[#6F6B75] font-semibold block mb-1">نوع القماش / البطانة</span>
                     <select value={fab.name} onChange={e => handleFabricChange(fab.id, 'name', e.target.value)} className={inputCls}>
                       <option value="">-- اختر من المخزون --</option>
-                      {(inventory || []).map(inv => (
-                        <option key={inv.id} value={inv.item_name}>{inv.item_name} ({inv.cost || inv.cost_per_meter || 0} {currencyDisplay}/متر)</option>
-                      ))}
+                      {(inventory || []).map(inv => {
+                        const invCurr = getCurrencyCode(inv.currency || 'YER');
+                        const invCurrLabel = getCurrencyLabel(invCurr);
+                        const invCost = parseFloat(inv.cost || inv.cost_per_meter || inv.unit_cost || 0);
+                        let convText = "";
+                        if (invCurr !== activeModelCurrency && window.CurrencyService) {
+                          const convVal = window.CurrencyService.convert(invCost, invCurr, activeModelCurrency);
+                          const dec = activeModelCurrency === 'YER' ? 0 : 2;
+                          convText = ` ≈ ${convVal.toFixed(dec)} ${activeModelCurrencyLabel}`;
+                        }
+                        return (
+                          <option key={inv.id} value={inv.item_name || inv.name}>
+                            {inv.item_name || inv.name} ({invCost} {invCurrLabel}/متر{convText})
+                          </option>
+                        );
+                      })}
                     </select>
                   </div>
                   
@@ -398,12 +480,12 @@ function Products({ products = [], setProducts, inventory = [], showToast, curre
 
             {/* Dynamic Cost Summary per Bracket */}
             <div className="pt-3 border-t border-[#E8E5EA]">
-              <span className="text-xs font-bold text-[#25232A] block mb-2">📊 تكلفة الأقمشة التلقائية لكل شريحة عمرية:</span>
+              <span className="text-xs font-bold text-[#25232A] block mb-2">📊 تكلفة الأقمشة التلقائية لكل شريحة عمرية ({activeModelCurrencyLabel}):</span>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
                 {['1-2 سنة', '3-5 سنوات', '6-9 سنوات', '10-13 سنة'].map(brk => (
                   <div key={brk} className="bg-white p-3 rounded-xl border border-[#E8E5EA]">
                     <span className="text-[11px] text-[#6F6B75] font-semibold block">{brk}</span>
-                    <span className="text-xs font-bold text-[#8F2A87] font-mono mt-0.5 block">{costsPerBracket[brk].toFixed(1)} {currencyDisplay}</span>
+                    <span className="text-xs font-bold text-[#8F2A87] font-mono mt-0.5 block">{costsPerBracket[brk].toFixed(activeModelCurrency === 'YER' ? 1 : 2)} {activeModelCurrencyLabel}</span>
                   </div>
                 ))}
               </div>
@@ -435,15 +517,15 @@ function Products({ products = [], setProducts, inventory = [], showToast, curre
           {/* Additional Direct Costs */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4.5">
             <div>
-              <label className={labelCls}>متوسط تكلفة الأقمشة ({currencyDisplay})</label>
-              <input readOnly type="number" value={computedFabricTotal.toFixed(1)} className={inputCls + " bg-[#FAFAFB] font-mono font-bold text-[#8F2A87]"} />
+              <label className={labelCls}>متوسط تكلفة الأقمشة ({activeModelCurrencyLabel})</label>
+              <input readOnly type="number" value={computedFabricTotal.toFixed(activeModelCurrency === 'YER' ? 1 : 2)} className={inputCls + " bg-[#FAFAFB] font-mono font-bold text-[#8F2A87]"} />
             </div>
             <div>
-              <label className={labelCls}>أجرة الخياطة والعمالة ({currencyDisplay})</label>
+              <label className={labelCls}>أجرة الخياطة والعمالة ({activeModelCurrencyLabel})</label>
               <input type="number" value={laborCost} onChange={e=>setLaborCost(e.target.value)} className={inputCls + " font-mono font-bold"} />
             </div>
             <div>
-              <label className={labelCls}>التغليف والإكسسوارات ({currencyDisplay})</label>
+              <label className={labelCls}>التغليف والإكسسوارات ({activeModelCurrencyLabel})</label>
               <input type="number" value={packagingCost} onChange={e=>setPackagingCost(e.target.value)} className={inputCls + " font-mono font-bold"} />
             </div>
           </div>
@@ -451,7 +533,7 @@ function Products({ products = [], setProducts, inventory = [], showToast, curre
           {/* Pricing Summary Matrix Card */}
           <div className="bg-[#25232A] text-white p-6 rounded-2xl shadow-sm space-y-4">
             <h3 className="text-white text-center text-xs font-bold flex items-center justify-center gap-2">
-              <span className="text-[#F28A00]">💎</span> مصفوفة التكلفة، أسعار البيع، وصافي الأرباح لكل شريحة عمرية
+              <span className="text-[#F28A00]">💎</span> مصفوفة التكلفة، أسعار البيع، وصافي الأرباح لكل شريحة عمرية ({activeModelCurrencyLabel})
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-center">
               {['1-2 سنة', '3-5 سنوات', '6-9 سنوات', '10-13 سنة'].map(bracket => {
@@ -465,7 +547,7 @@ function Products({ products = [], setProducts, inventory = [], showToast, curre
                     <div className="space-y-2 text-[11px]">
                       <div className="flex justify-between items-center bg-black/20 p-2 rounded-lg font-mono">
                         <span className="text-[10px] text-slate-300">إجمالي التكلفة:</span>
-                        <span className="font-bold text-white">{totalCostForBracket.toFixed(1)} {currencyDisplay}</span>
+                        <span className="font-bold text-white">{totalCostForBracket.toFixed(activeModelCurrency === 'YER' ? 1 : 2)} {activeModelCurrencyLabel}</span>
                       </div>
                       <div className="flex justify-between items-center bg-white p-1.5 rounded-lg text-[#25232A]">
                         <span className="text-[10px] font-semibold text-[#6F6B75]">سعر البيع:</span>
@@ -473,7 +555,7 @@ function Products({ products = [], setProducts, inventory = [], showToast, curre
                       </div>
                       <div className="flex justify-between items-center pt-2 border-t border-white/15">
                         <span className="text-[10px] text-slate-300">الربح الصافي:</span>
-                        <span className="text-[#009FAE] font-bold font-mono">+{bracketProfit.toFixed(1)} {currencyDisplay}</span>
+                        <span className="text-[#009FAE] font-bold font-mono">+{bracketProfit.toFixed(activeModelCurrency === 'YER' ? 1 : 2)} {activeModelCurrencyLabel}</span>
                       </div>
                     </div>
                   </div>
@@ -549,7 +631,7 @@ function Products({ products = [], setProducts, inventory = [], showToast, curre
                       <td className="px-4 py-3 font-mono tabular-nums whitespace-nowrap">{(parseFloat(p.fabric_cost) || 0).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</td>
                       <td className="px-4 py-3 font-mono tabular-nums whitespace-nowrap">{(parseFloat(p.labor_cost) || 0).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</td>
                       <td className="px-4 py-3 font-mono tabular-nums whitespace-nowrap">{(parseFloat(p.packaging_cost) || 0).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</td>
-                      <td className="px-4 py-3 font-bold font-mono tabular-nums text-[#25232A] whitespace-nowrap">{(parseFloat(p.total_cost) || 0).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} <span className="text-[10px] font-medium text-[#6F6B75] font-sans">{p.currency || currencyDisplay}</span></td>
+                      <td className="px-4 py-3 font-bold font-mono tabular-nums text-[#25232A] whitespace-nowrap">{(parseFloat(p.total_cost) || 0).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} <span className="text-[10px] font-medium text-[#6F6B75] font-sans">{p.currency ? getCurrencyLabel(p.currency) : activeModelCurrencyLabel}</span></td>
                       <td className="px-4 py-3 font-bold font-mono tabular-nums text-[#007F8C] whitespace-nowrap">{(parseFloat(p.sell_price) || 0).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</td>
                       <td className="px-4 py-3 font-bold font-mono tabular-nums text-[#8F2A87] whitespace-nowrap">+{(parseFloat(p.profit) || 0).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</td>
                       <td className="px-4 py-3 flex items-center gap-1.5 justify-center whitespace-nowrap">

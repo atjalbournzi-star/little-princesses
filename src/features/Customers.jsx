@@ -242,6 +242,33 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [selectedJobCard, setSelectedJobCard] = useState(null);
 
+  // ── فتح وتعديل ملف العميلة ──
+  const loadCustomerForEdit = (c) => {
+    if (!c) return;
+    setCustId(c.id || c.customer_id || genCustId());
+    setName(c.name || c.customer_name || '');
+    setPhone(c.phone || '');
+    setPhoneAlt(c.phone_alt || '');
+    setPlatform(c.platform || 'واتساب (WhatsApp)');
+    setHandle(c.handle || '');
+    setCity(c.city || '');
+    setStreet(c.street || c.address || '');
+    setCategory(c.category || 'جديد');
+    setRegDate(c.reg_date || TODAY_STR_ISO);
+    setNotes(c.notes || '');
+    if (Array.isArray(c.measurements) && c.measurements.length > 0) {
+      setMeasurements(c.measurements);
+    }
+    const salesVal = c.total_sales !== undefined ? c.total_sales : (c.ledger?.total_sales !== undefined ? c.ledger.total_sales : '');
+    const paidVal = c.total_paid !== undefined ? c.total_paid : (c.ledger?.total_paid !== undefined ? c.ledger.total_paid : '');
+    const depVal = c.deposit !== undefined ? c.deposit : (c.ledger?.deposit !== undefined ? c.ledger.deposit : '');
+    if (salesVal) setTotalSales(String(salesVal));
+    if (paidVal) setTotalPaid(String(paidVal));
+    if (depVal) setDeposit(String(depVal));
+    setActiveCustomerSubTab('crm');
+    showToast(`تم فتح وتعديل ملف العميلة: ${c.name || c.customer_name} 👑`);
+  };
+
   // ── دالة الحفظ الرئيسية ──
   const handleSubmit = async (e) => {
     if (e && e.preventDefault) e.preventDefault();
@@ -325,9 +352,28 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
     };
 
     try {
-      const response = await callGAS('addCustomer', payload);
-      const newRecord = (response && response.data) ? response.data : { ...payload, id: custId };
-      if (setCustomers) setCustomers(prev => [newRecord, ...(prev || [])]);
+      let apiRes = null;
+      try {
+        const res = await fetch('/api/crm/customers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        apiRes = await res.json();
+        if (!res.ok || apiRes.success === false) {
+          throw new Error(apiRes.error || 'فشل حفظ بيانات العميلة');
+        }
+      } catch (backendErr) {
+        if (backendErr.message && backendErr.message.includes('مسجل مسبقاً')) {
+          setLoading(false);
+          setActiveCustomerSubTab('crm');
+          return showToast(backendErr.message, 'error');
+        }
+        apiRes = await callGAS('addCustomer', payload);
+      }
+
+      const newRecord = (apiRes && (apiRes.data || apiRes.customer)) ? (apiRes.data || apiRes.customer) : { ...payload, id: custId };
+      if (setCustomers) setCustomers(prev => [newRecord, ...(prev || []).filter(c => (c.customer_id || c.id) !== custId)]);
       
       // -- الترحيل التلقائي إلى القيود اليومية (Synergy) --
       const currCode = window.CurrencyService ? window.CurrencyService.normalizeCode(currency?.display || 'YER') : 'YER';
@@ -665,7 +711,7 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
               {/* 9. تاريخ التسجيل */}
               <div>
                 <label className={labelCls}>تاريخ التسجيل</label>
-                <input type="date" value={regDate} onChange={e => setRegDate(e.target.value)} className={inputCls} />
+                <input type="date" lang="en-GB" dir="ltr" value={regDate} onChange={e => setRegDate(e.target.value)} className={inputCls} />
               </div>
 
               {/* 10. ملاحظات إضافية */}
@@ -773,11 +819,11 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
                   </div>
                   <div>
                     <label className={labelCls}>تاريخ أخذ المقاس</label>
-                    <input type="date" value={currM.meas_date} onChange={e => updateMeasurement(activeChildIdx,'meas_date',e.target.value)} className={inputCls} />
+                    <input type="date" lang="en-GB" dir="ltr" value={currM.meas_date} onChange={e => updateMeasurement(activeChildIdx,'meas_date',e.target.value)} className={inputCls} />
                   </div>
                   <div>
                     <label className={labelCls}>تاريخ المناسبة / التسليم</label>
-                    <input type="date" value={currM.event_date} onChange={e => updateMeasurement(activeChildIdx,'event_date',e.target.value)} className={inputCls} />
+                    <input type="date" lang="en-GB" dir="ltr" value={currM.event_date} onChange={e => updateMeasurement(activeChildIdx,'event_date',e.target.value)} className={inputCls} />
                   </div>
                   <div>
                     <label className={labelCls}>لون الفستان المختار</label>
@@ -1153,6 +1199,10 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
                             </span>
                           </td>
                           <td className="px-4 py-3 flex items-center gap-1.5 justify-center whitespace-nowrap">
+                            <button onClick={() => loadCustomerForEdit(c)} title="فتح وتعديل ملف العميلة 👑" 
+                              className="w-8 h-8 rounded-xl bg-white hover:bg-[#F2E7F3] text-[#6F6B75] hover:text-[#8F2A87] border border-[#E8E5EA] transition-all flex items-center justify-center cursor-pointer">
+                              <Icons.Edit className="w-3.5 h-3.5" />
+                            </button>
                             <button onClick={() => setSelectedInvoice(c)} title="طباعة فاتورة مالية (PDF)" 
                               className="w-8 h-8 rounded-xl bg-white hover:bg-[#FCE8F2] text-[#6F6B75] hover:text-[#B0005A] border border-[#E8E5EA] transition-all flex items-center justify-center cursor-pointer">
                               <Icons.Vouchers className="w-3.5 h-3.5" />
@@ -1178,172 +1228,42 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
         )}
       </div>
 
-      {selectedInvoice && ReactDOM.createPortal(
-        <InvoiceModal customer={selectedInvoice} onClose={() => setSelectedInvoice(null)} currency={currency} />,
-        document.body
+      {/* مودال الطباعة الحرارية وبطاقة المعمل الموحد */}
+      {selectedInvoice && typeof PrintModal !== 'undefined' && (
+        <PrintModal
+          isOpen={!!selectedInvoice}
+          onClose={() => setSelectedInvoice(null)}
+          customer={selectedInvoice}
+          order={{
+            order_no: `INV-${selectedInvoice.customer_id || selectedInvoice.id}`,
+            customer_name: selectedInvoice.name,
+            phone: selectedInvoice.phone,
+            total: parseFloat(selectedInvoice.ledger?.total_sales || 0),
+            paid: parseFloat(selectedInvoice.ledger?.total_paid || 0),
+            currency: currency?.display || 'YER ﷼'
+          }}
+          defaultTemplate="thermal"
+        />
       )}
-      {selectedJobCard && ReactDOM.createPortal(
-        <JobCardModal customer={selectedJobCard} onClose={() => setSelectedJobCard(null)} />
-      , document.body)}
-    </div>
-  );
-}
 
-// ============================================================
-// InvoiceModal — فاتورة مالية للطباعة
-// ============================================================
-function InvoiceModal({ customer, onClose, currency = { display: 'YER' } }) {
-  if (!customer) return null;
-  const cur = currency.display || "YER ريال";
-  const ledger = customer.ledger || {};
-  const remaining = Math.max(0, (parseFloat(ledger.total_sales) || 0) - (parseFloat(ledger.total_paid) || 0));
-
-  const handlePrint = () => {
-    const html = `
-      <html dir="rtl"><head><meta charset="utf-8"><title>فاتورة - ${customer.name}</title>
-      <style>
-        body { font-family: Arial, sans-serif; padding: 30px; color: #25232A; }
-        h2 { color: #B0005A; text-align: center; margin: 0 0 4px; }
-        h3 { text-align: center; color: #6F6B75; margin: 0 0 20px; }
-        hr { border: none; border-top: 1px dashed #E8E5EA; margin: 16px 0; }
-        .row { display: flex; justify-content: space-between; margin: 8px 0; font-size: 14px; }
-        .label { color: #6F6B75; }
-        .val { font-weight: bold; }
-        .rem { color: ${remaining > 0 ? '#C97300' : '#007F8C'}; font-weight: 900; font-size: 16px; }
-        .children { background:#FAFAFB; border: 1px solid #E8E5EA; border-radius:8px; padding:12px; margin:12px 0; }
-        .child-row { font-size:12px; color:#6F6B75; margin:4px 0; }
-        .qr { text-align: center; margin-top: 20px; }
-        .footer { text-align:center; font-size:11px; color:#6F6B75; margin-top:20px; }
-      </style></head><body>
-      <h2>👑 Little Princesses ERP</h2>
-      <h3>كشف حساب وفاتورة عميلة</h3>
-      <hr/>
-      <div class="row"><span class="label">اسم العميلة</span><span class="val">${customer.name || '—'}</span></div>
-      <div class="row"><span class="label">رقم الهاتف</span><span class="val">${customer.phone || '—'}</span></div>
-      <div class="row"><span class="label">المدينة</span><span class="val">${customer.city || '—'}</span></div>
-      <div class="row"><span class="label">الفئة</span><span class="val">${customer.category || '—'}</span></div>
-      <hr/>
-      <div class="row"><span class="label">إجمالي المبيعات</span><span class="val">${(parseFloat(ledger.total_sales)||0).toLocaleString('en-US')} ${cur}</span></div>
-      <div class="row"><span class="label">إجمالي المدفوعات</span><span class="val">${(parseFloat(ledger.total_paid)||0).toLocaleString('en-US')} ${cur}</span></div>
-      <div class="row"><span class="label">المبلغ المتبقي</span><span class="rem">${remaining.toLocaleString('en-US')} ${cur} ${remaining===0?'✅':''}</span></div>
-      ${customer.measurements && customer.measurements.length > 0 ? `
-      <hr/>
-      <div class="children"><strong>الأطفال المسجلون والفساتين:</strong>
-      ${customer.measurements.map(m => `<div class="child-row">• ${m.child_name||'—'} | العمر: ${m.estimated_age||'—'} | الموديل: ${m.selected_model||'—'} | التسليم: ${m.event_date||'—'}</div>`).join('')}
-      </div>` : ''}
-      <div class="qr">
-        <img src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=Customer:${customer.customer_id}|Remaining:${remaining}" alt="QR"/>
-        <p style="font-size:11px;color:#6F6B75;">امسح الكود لعرض ملف العميلة</p>
-      </div>
-      <div class="footer">👑 Little Princesses ERP — تاريخ الطباعة: ${new Date().toLocaleDateString('ar-SA')}</div>
-      </body></html>`;
-    const w = window.open('', '', 'width=680,height=900');
-    w.document.write(html);
-    w.document.close();
-    w.focus();
-    setTimeout(() => w.print(), 600);
-  };
-
-  return (
-    <div style={{position:'fixed',inset:0,background:'rgba(37,35,42,0.6)',zIndex:9999,display:'flex',alignItems:'center',justifyContent:'center'}} onClick={onClose}>
-      <div style={{background:'#fff',borderRadius:16,padding:28,maxWidth:460,width:'90%',boxShadow:'0 20px 60px rgba(0,0,0,0.15)',border:'1px solid #E8E5EA'}} onClick={e=>e.stopPropagation()}>
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
-          <h3 style={{margin:0,color:'#B0005A',fontSize:16,fontWeight:'bold'}}>👑 فاتورة العميلة: {customer.name}</h3>
-          <button onClick={onClose} style={{background:'#FAFAFB',border:'1px solid #E8E5EA',borderRadius:8,padding:'4px 10px',cursor:'pointer',fontSize:16,color:'#6F6B75'}}>✕</button>
-        </div>
-        <div style={{fontSize:13,lineHeight:2,color:'#25232A'}}>
-          <div><strong>📞 الهاتف:</strong> {customer.phone || '—'}</div>
-          <div><strong>🏙️ المدينة:</strong> {customer.city || '—'}</div>
-          <div><strong>💰 إجمالي المبيعات:</strong> {(parseFloat(customer.ledger?.total_sales)||0).toLocaleString('en-US')} {cur}</div>
-          <div><strong>✅ المدفوع:</strong> {(parseFloat(customer.ledger?.total_paid)||0).toLocaleString('en-US')} {cur}</div>
-          <div style={{color: remaining>0?'#C97300':'#007F8C', fontWeight:900}}>
-            <strong>⚠️ المتبقي:</strong> {remaining.toLocaleString('en-US')} {cur} {remaining===0?'(مسدد بالكامل ✅)':''}
-          </div>
-        </div>
-        <div style={{display:'flex',gap:8,marginTop:20}}>
-          <button onClick={handlePrint} style={{flex:1,padding:'10px',background:'#B0005A',color:'#fff',border:'none',borderRadius:10,fontWeight:700,cursor:'pointer',fontSize:13}}>
-            🖨️ طباعة الفاتورة
-          </button>
-          <button onClick={onClose} style={{padding:'10px 16px',background:'#FAFAFB',border:'1px solid #E8E5EA',borderRadius:10,cursor:'pointer',fontWeight:600,color:'#25232A'}}>
-            إغلاق
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ============================================================
-// JobCardModal — بطاقة المعمل للخياطة
-// ============================================================
-function JobCardModal({ customer, onClose }) {
-  if (!customer) return null;
-
-  const handlePrint = () => {
-    const html = `
-      <html dir="rtl"><head><meta charset="utf-8"><title>بطاقة المعمل - ${customer.name}</title>
-      <style>
-        body { font-family: Arial, sans-serif; padding: 24px; color: #25232A; }
-        h2 { color: #8F2A87; text-align: center; margin:0 0 4px; }
-        hr { border:none; border-top:1px dashed #E8E5EA; margin:14px 0; }
-        .card { background:#FAFAFB; border:1px solid #E8E5EA; border-radius:10px; padding:14px; margin:12px 0; }
-        .row { display:flex; justify-content:space-between; font-size:13px; margin:6px 0; }
-        .label { color:#8F2A87; font-weight:600; }
-        .val { font-weight:bold; color:#25232A; }
-        .footer { text-align:center; font-size:11px; color:#6F6B75; margin-top:20px; }
-      </style></head><body>
-      <h2>✂️ بطاقة المعمل والقص — Little Princesses</h2>
-      <hr/>
-      <div class="row"><span class="label">العميلة</span><span class="val">${customer.name || '—'}</span></div>
-      <div class="row"><span class="label">الهاتف</span><span class="val">${customer.phone || '—'}</span></div>
-      ${(customer.measurements||[]).map((m,i) => `
-      <div class="card">
-        <strong>الطفلة ${i+1}: ${m.child_name||'غير مسمى'}</strong>
-        <div class="row"><span class="label">الموديل المعتمد</span><span class="val">${m.selected_model||'—'}</span></div>
-        <div class="row"><span class="label">العمر التقديري</span><span class="val">${m.estimated_age||'—'}</span></div>
-        <div class="row"><span class="label">موعد التسليم</span><span class="val">${m.event_date||'—'}</span></div>
-        <div class="row"><span class="label">الطول الكلي</span><span class="val">${m.total_height||'—'} ${m.unit||'سم'}</span></div>
-        <div class="row"><span class="label">محيط الصدر</span><span class="val">${m.chest_circ||'—'} ${m.unit||'سم'}</span></div>
-        <div class="row"><span class="label">محيط الخصر</span><span class="val">${m.waist_circ||'—'} ${m.unit||'سم'}</span></div>
-        <div class="row"><span class="label">طول الفستان</span><span class="val">${m.dress_length||'—'} ${m.unit||'سم'}</span></div>
-        <div class="row"><span class="label">ملاحظات وتوجيهات الخياطة</span><span class="val">${m.sewing_notes||'—'}</span></div>
-      </div>`).join('')}
-      <div class="footer">✂️ Little Princesses ERP — ${new Date().toLocaleDateString('ar-SA')}</div>
-      </body></html>`;
-    const w = window.open('', '', 'width=680,height=960');
-    w.document.write(html);
-    w.document.close();
-    w.focus();
-    setTimeout(() => w.print(), 600);
-  };
-
-  return (
-    <div style={{position:'fixed',inset:0,background:'rgba(37,35,42,0.6)',zIndex:9999,display:'flex',alignItems:'center',justifyContent:'center'}} onClick={onClose}>
-      <div style={{background:'#fff',borderRadius:16,padding:28,maxWidth:480,width:'90%',boxShadow:'0 20px 60px rgba(0,0,0,0.15)',maxHeight:'85vh',overflowY:'auto',border:'1px solid #E8E5EA'}} onClick={e=>e.stopPropagation()}>
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
-          <h3 style={{margin:0,color:'#8F2A87',fontSize:16,fontWeight:'bold'}}>✂️ بطاقة المعمل: {customer.name}</h3>
-          <button onClick={onClose} style={{background:'#FAFAFB',border:'1px solid #E8E5EA',borderRadius:8,padding:'4px 10px',cursor:'pointer',fontSize:16,color:'#6F6B75'}}>✕</button>
-        </div>
-        {(customer.measurements||[]).length === 0 ? (
-          <p style={{textAlign:'center',color:'#6F6B75'}}>لا توجد مقاسات مسجلة لهذه العميلة</p>
-        ) : (customer.measurements||[]).map((m,i) => (
-          <div key={i} style={{background:'#FAFAFB',borderRadius:12,padding:14,marginBottom:10,fontSize:12,lineHeight:1.8,border:'1px solid #E8E5EA'}}>
-            <div style={{fontWeight:'bold',color:'#8F2A87',marginBottom:6}}>الطفلة: {m.child_name||'غير مسمى'} — {m.selected_model||'بدون موديل'}</div>
-            <div><strong>العمر:</strong> {m.estimated_age||'—'} | <strong>التسليم:</strong> {m.event_date||'—'}</div>
-            <div><strong>الطول الكلي:</strong> {m.total_height||'—'} | <strong>محيط الصدر:</strong> {m.chest_circ||'—'} | <strong>الخصر:</strong> {m.waist_circ||'—'}</div>
-            <div><strong>طول الفستان:</strong> {m.dress_length||'—'} | <strong>طول الكم:</strong> {m.sleeve_length||'—'}</div>
-            {m.sewing_notes && <div style={{color:'#6F6B75',marginTop:4}}>📝 {m.sewing_notes}</div>}
-          </div>
-        ))}
-        <div style={{display:'flex',gap:8,marginTop:16}}>
-          <button onClick={handlePrint} style={{flex:1,padding:'10px',background:'#8F2A87',color:'#fff',border:'none',borderRadius:10,fontWeight:700,cursor:'pointer',fontSize:13}}>
-            🖨️ طباعة بطاقة المعمل
-          </button>
-          <button onClick={onClose} style={{padding:'10px 16px',background:'#FAFAFB',border:'1px solid #E8E5EA',borderRadius:10,cursor:'pointer',fontWeight:600,color:'#25232A'}}>
-            إغلاق
-          </button>
-        </div>
-      </div>
+      {selectedJobCard && typeof PrintModal !== 'undefined' && (
+        <PrintModal
+          isOpen={!!selectedJobCard}
+          onClose={() => setSelectedJobCard(null)}
+          customer={selectedJobCard}
+          order={{
+            order_no: `JOB-${selectedJobCard.customer_id || selectedJobCard.id}`,
+            customer_name: selectedJobCard.name,
+            phone: selectedJobCard.phone,
+            product_name: selectedJobCard.measurements?.[0]?.selected_model || 'تفصيل فستان مخصص',
+            child_name: selectedJobCard.measurements?.[0]?.child_name || 'الأميرة',
+            delivery_date: selectedJobCard.measurements?.[0]?.event_date || 'يحدد لاحقاً',
+            currency: currency?.display || 'YER ﷼'
+          }}
+          measurements={selectedJobCard.measurements?.[0] || {}}
+          defaultTemplate="job_ticket"
+        />
+      )}
     </div>
   );
 }

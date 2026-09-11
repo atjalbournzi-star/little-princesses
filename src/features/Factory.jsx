@@ -21,8 +21,9 @@ function Factory({ factory = [], setFactory, employees = [], orders = [], produc
     order_no: '', customer: '', product: '', tailor: '', stage: FACTORY_STAGES[0], progress: '20', start_date: TODAY_STR_ISO, due_date: ''
   });
   const [selectedJobCustomer, setSelectedJobCustomer] = useState(null);
-  const [stageFilter, setStageFilter] = useState('الكل');
-  const [search, setSearch] = useState('');
+  const [printModalData, setPrintModalData]           = useState(null);
+  const [stageFilter, setStageFilter]                 = useState('الكل');
+  const [search, setSearch]                           = useState('');
 
   // Calculate 4 days from a date string
   const addDays = (dateStr, days) => {
@@ -34,17 +35,17 @@ function Factory({ factory = [], setFactory, employees = [], orders = [], produc
 
   const handleOrderSelect = (e) => {
     const val = e.target.value;
-    const ord = orders.find(o => o.order_no === val);
+    const ord = orders.find(o => o.order_no === val || o.id === val);
     if (ord) {
-      const existing = factory.find(f => f.order_no === val);
+      const existing = factory.find(f => f.order_no === val || f.id === val);
       if (existing) {
         setForm({
           order_no: val,
-          customer: existing.customer || existing.customer_name || `${ord.customer_name} ${ord.child_name ? '- ' + ord.child_name : ''}`,
-          product: existing.product || existing.product_name || ord.product_name,
-          tailor: existing.tailor || '',
+          customer: existing.customer || existing.customer_name || `${ord.customer_name || ''} ${ord.child_name || ord.child_id ? '- ' + (ord.child_name || ord.child_id) : ''}`,
+          product: existing.product || existing.product_name || ord.product_name || ord.product_id || '',
+          tailor: existing.tailor || (employees?.find(emp => emp.status === 'نشط')?.name || 'المعلم سليم (خياط أول)'),
           stage: existing.stage || FACTORY_STAGES[0],
-          progress: existing.progress || STAGE_PROGRESS[existing.stage || FACTORY_STAGES[0]] || 20,
+          progress: existing.progress ? String(existing.progress).replace('%', '') : STAGE_PROGRESS[existing.stage || FACTORY_STAGES[0]] || 20,
           start_date: existing.start_date || TODAY_STR_ISO,
           due_date: existing.due_date || addDays(ord.order_date || TODAY_STR_ISO, 4)
         });
@@ -52,8 +53,12 @@ function Factory({ factory = [], setFactory, employees = [], orders = [], produc
         setForm({
           ...form,
           order_no: val,
-          customer: `${ord.customer_name} ${ord.child_name ? '- ' + ord.child_name : ''}`,
-          product: ord.product_name,
+          customer: `${ord.customer_name || ''} ${ord.child_name || ord.child_id ? '- ' + (ord.child_name || ord.child_id) : ''}`,
+          product: ord.product_name || ord.product_id || '',
+          tailor: form.tailor || (employees?.find(emp => emp.status === 'نشط')?.name || 'المعلم سليم (خياط أول)'),
+          stage: FACTORY_STAGES[0],
+          progress: 20,
+          start_date: TODAY_STR_ISO,
           due_date: addDays(ord.order_date || TODAY_STR_ISO, 4)
         });
       }
@@ -64,17 +69,53 @@ function Factory({ factory = [], setFactory, employees = [], orders = [], produc
 
   const handleStageChange = (e) => {
     const stage = e.target.value;
-    setForm({ ...form, stage, progress: STAGE_PROGRESS[stage] || 0 });
+    setForm({ ...form, stage, progress: STAGE_PROGRESS[stage] || 20 });
+  };
+
+  const advanceToNextStage = async (f) => {
+    const curIdx = FACTORY_STAGES.indexOf(f.stage);
+    if (curIdx < FACTORY_STAGES.length - 1) {
+      const nextStage = FACTORY_STAGES[curIdx + 1];
+      const nextProg = STAGE_PROGRESS[nextStage] || 100;
+      const updatedF = {
+        ...f,
+        stage: nextStage,
+        progress: nextProg,
+        order_no: f.order_no || f.id
+      };
+      
+      try {
+        let res = null;
+        if (window.productionAPI && typeof window.productionAPI.updateStage === 'function') {
+          res = await window.productionAPI.updateStage(updatedF);
+        } else {
+          res = await callGAS('updateFactory', updatedF);
+        }
+
+        setFactory(prev => prev.map(item => (item.order_no === f.order_no || item.id === f.id) ? { ...item, stage: nextStage, progress: nextProg } : item));
+        
+        if (nextProg === 100) {
+          showToast(`تم إنجاز الطلب ${f.order_no} وترحيل قيد إقفال المخزون (Dr 1153 / Cr 1152) بنجاح 📦✨`, 'success');
+        } else {
+          showToast(`تم ترقية الطلب ${f.order_no} إلى مرحلة [${nextStage}] بنجاح 🧵`, 'success');
+        }
+      } catch (err) {
+        setFactory(prev => prev.map(item => (item.order_no === f.order_no || item.id === f.id) ? { ...item, stage: nextStage, progress: nextProg } : item));
+        showToast(`تم ترقية الطلب إلى ${nextStage} محلياً ⚡`, 'warning');
+      }
+    } else {
+      showToast('الطلب في مرحلته النهائية بالفعل (جاهز للتسليم 📦)', 'info');
+    }
   };
 
   const loadIntoForm = (f) => {
     setForm({
-      order_no: f.order_no,
+      order_no: f.order_no || f.id,
       customer: f.customer || f.customer_name || '',
       product: f.product || f.product_name || '',
       tailor: f.tailor || '',
       stage: f.stage || FACTORY_STAGES[0],
-      progress: f.progress || STAGE_PROGRESS[f.stage] || 20,
+      progress: f.progress ? String(f.progress).replace('%', '') : (STAGE_PROGRESS[f.stage] || 20),
       start_date: f.start_date || TODAY_STR_ISO,
       due_date: f.due_date || ''
     });
@@ -86,7 +127,7 @@ function Factory({ factory = [], setFactory, employees = [], orders = [], produc
     if (!form.order_no) return showToast('يرجى اختيار الطلب ⚠️', 'error');
     if (!form.tailor) return showToast('يرجى تحديد الخياط ⚠️', 'error');
 
-    // 1. Inventory Deduction Logic
+    // 1. Inventory Deduction Logic for Cutting Stage
     if (form.stage === 'القص والتحضير ✂️') {
       const pDef = products.find(p => p.name === form.product);
       if (pDef && pDef.fabric_name && pDef.yards_used) {
@@ -109,7 +150,7 @@ function Factory({ factory = [], setFactory, employees = [], orders = [], produc
       }
     }
 
-    const existing = factory.find(f => f.order_no === form.order_no);
+    const existing = factory.find(f => f.order_no === form.order_no || f.id === form.order_no);
     const newF = { 
       id: existing ? existing.id : Date.now(), 
       ...form,
@@ -118,25 +159,28 @@ function Factory({ factory = [], setFactory, employees = [], orders = [], produc
     };
     
     try {
-      const res = await callGAS('updateFactory', newF);
-      if (res.status === 'success' || res.id) {
-        if (existing) {
-          setFactory(factory.map(f => f.order_no === form.order_no ? newF : f));
-        } else {
-          setFactory([newF, ...factory]);
-        }
-        showToast('تم تحديث حالة المشغل سحابياً 🚀');
-        
-        if (form.stage === 'الفحص والتشطيب النهائي 🔍' || form.stage === 'جاهز للتسليم 📦') {
-           showToast('جاهز لاحتساب الأجر في مسير الرواتب 💸', 'success');
-        }
+      let res = null;
+      if (window.productionAPI && typeof window.productionAPI.updateStage === 'function') {
+        res = await window.productionAPI.updateStage(newF);
       } else {
-        showToast('حدث خطأ', 'error');
+        res = await callGAS('updateFactory', newF);
+      }
+
+      if (existing) {
+        setFactory(factory.map(f => (f.order_no === form.order_no || f.id === form.order_no) ? newF : f));
+      } else {
+        setFactory([newF, ...factory]);
+      }
+
+      if (res && res.accounting_completed) {
+        showToast('تم تحديث المشغل وترحيل قيد إقفال المخزون التام (Dr 1153 / Cr 1152) بنجاح 📦👑', 'success');
+      } else {
+        showToast(res && res.message ? res.message : 'تم تحديث حالة المشغل بنجاح 🚀', 'success');
       }
     } catch (err) {
       showToast('تم التحديث محلياً ⚡', 'warning');
       if (existing) {
-        setFactory(factory.map(f => f.order_no === form.order_no ? newF : f));
+        setFactory(factory.map(f => (f.order_no === form.order_no || f.id === form.order_no) ? newF : f));
       } else {
         setFactory([newF, ...factory]);
       }
@@ -147,8 +191,8 @@ function Factory({ factory = [], setFactory, employees = [], orders = [], produc
     if (!dueDate) return '—';
     const diff = new Date(dueDate) - new Date();
     const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
-    if (days < 0) return <span className="text-[#D64545] font-bold bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200">متأخر {-days} يوم</span>;
-    if (days === 0) return <span className="text-[#C97300] font-bold bg-[#FFF1DC] px-2 py-0.5 rounded-md border border-[#FFE4B9]">التسليم اليوم!</span>;
+    if (days < 0) return <span className="text-[#D64545] font-bold bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200">متأخر {-days} يوم ⚠️</span>;
+    if (days === 0) return <span className="text-[#C97300] font-bold bg-[#FFF1DC] px-2 py-0.5 rounded-md border border-[#FFE4B9]">التسليم اليوم! 🔥</span>;
     return <span className="text-[#007F8C] font-bold bg-[#E2F5F7] px-2 py-0.5 rounded-md border border-[#C5ECF0]">متبقي {days} يوم</span>;
   };
 
@@ -219,26 +263,28 @@ function Factory({ factory = [], setFactory, employees = [], orders = [], produc
             <div>
               <label className={labelCls}>رقم الطلب والفاتورة <span className="text-[#D64545] font-bold">*</span></label>
               <select className={inputCls} value={form.order_no} onChange={handleOrderSelect}>
-                <option value="">-- اختر الطلب --</option>
+                <option value="">-- اختر الطلب المعمد --</option>
                 {orders.map(o => (
-                  <option key={o.order_no} value={o.order_no}>{o.order_no} - {o.customer_name}</option>
+                  <option key={o.order_no || o.id} value={o.order_no || o.id}>
+                    {o.order_no || o.id} - {o.customer_name || ''} {o.child_name ? `(${o.child_name})` : ''} {o.paid > 0 ? '🟢 مسدد العربون' : ''}
+                  </option>
                 ))}
               </select>
             </div>
             <div>
               <label className={labelCls}>العميلة / الطفلة</label>
-              <input type="text" className={inputCls + " bg-[#FAFAFB] font-bold text-[#25232A]"} value={form.customer} readOnly />
+              <input type="text" className={inputCls + " bg-[#FAFAFB] font-bold text-[#25232A]"} value={form.customer} placeholder="اسم العميلة والطفلة" readOnly />
             </div>
             <div>
               <label className={labelCls}>المنتج / الموديل</label>
-              <input type="text" className={inputCls + " bg-[#FAFAFB] font-bold text-[#25232A]"} value={form.product} readOnly />
+              <input type="text" className={inputCls + " bg-[#FAFAFB] font-bold text-[#25232A]"} value={form.product} placeholder="اسم الموديل والتصميم" readOnly />
             </div>
             <div>
               <label className={labelCls}>الخياط / الفني المسند إليه <span className="text-[#D64545] font-bold">*</span></label>
               <select className={inputCls} value={form.tailor} onChange={e => setForm({...form, tailor: e.target.value})}>
-                <option value="">-- اختر الفني --</option>
-                {employees?.filter(e => e.status === 'نشط').map(emp => (
-                  <option key={emp.id} value={emp.name}>{emp.name} ({emp.type})</option>
+                <option value="">-- اختر الفني المسؤول --</option>
+                {employees?.filter(e => e.status === 'نشط' || !e.status).map(emp => (
+                  <option key={emp.id || emp.name} value={emp.name}>{emp.name} ({emp.job_title || emp.role || emp.type || 'فني مشغل'})</option>
                 ))}
               </select>
             </div>
@@ -251,11 +297,11 @@ function Factory({ factory = [], setFactory, employees = [], orders = [], produc
             </div>
             <div>
               <label className={labelCls}>تاريخ البدء</label>
-              <input type="date" className={inputCls} value={form.start_date} onChange={e => setForm({...form, start_date: e.target.value})} />
+              <input type="date" lang="en-GB" dir="ltr" className={inputCls} value={form.start_date} onChange={e => setForm({...form, start_date: e.target.value})} />
             </div>
             <div>
               <label className={labelCls}>موعد التسليم المتوقع</label>
-              <input type="date" className={inputCls + " bg-[#FAFAFB] font-mono"} value={form.due_date} readOnly />
+              <input type="date" lang="en-GB" dir="ltr" className={inputCls + " bg-[#FAFAFB] font-mono"} value={form.due_date} readOnly />
             </div>
           </div>
           
@@ -344,25 +390,47 @@ function Factory({ factory = [], setFactory, employees = [], orders = [], produc
                     {getDaysLeft(f.due_date)}
                   </td>
                   <td className="px-4 py-3 text-center">
-                    <div className="flex gap-1.5 justify-center">
-                      <button onClick={() => loadIntoForm(f)} className="text-xs bg-[#FAFAFB] hover:bg-[#E8E5EA] text-[#25232A] font-bold px-3 py-1.5 rounded-lg transition border border-[#E8E5EA] cursor-pointer">
+                    <div className="flex gap-1.5 justify-center flex-wrap">
+                      {f.progress != 100 && (
+                        <button 
+                          onClick={() => advanceToNextStage(f)} 
+                          title="ترقية للمرحلة التالية"
+                          className="text-xs bg-[#E2F5F7] hover:bg-[#C5ECF0] text-[#007F8C] font-bold px-2.5 py-1.5 rounded-lg transition border border-[#C5ECF0] cursor-pointer flex items-center gap-1">
+                          <span>المرحلة التالية ⏩</span>
+                        </button>
+                      )}
+                      <button onClick={() => loadIntoForm(f)} className="text-xs bg-[#FAFAFB] hover:bg-[#E8E5EA] text-[#25232A] font-bold px-2.5 py-1.5 rounded-lg transition border border-[#E8E5EA] cursor-pointer">
                         تحديث ⚙️
                       </button>
                       <button 
                         onClick={() => {
-                          const ord = orders.find(o => o.order_no === f.order_no);
-                          if (ord) {
-                            const c = customers.find(c => (c.name || c.customer_name || '').trim() === (ord.customer_name || '').trim());
-                            if (c) {
-                              c.customer_id = f.order_no;
-                              setSelectedJobCustomer(c);
-                            } else {
-                              showToast('لم يتم العثور على ملف العميلة', 'error');
-                            }
-                          }
+                          const ord = orders.find(o => o.order_no === f.order_no || o.id === f.order_no) || {
+                            order_no: f.order_no,
+                            customer_name: f.customer || f.customer_name,
+                            product_name: f.product || f.product_name,
+                            child_name: f.child_name,
+                            delivery_date: f.due_date
+                          };
+                          const targetCust = (ord.customer_name || f.customer || f.customer_name || '').trim();
+                          const c = customers.find(c => {
+                            const cName = (c.name || c.customer_name || '').trim();
+                            return cName === targetCust || targetCust.includes(cName) || (cName && cName.length > 3 && targetCust.includes(cName));
+                          });
+                          const targetChild = ord.child_name || f.child_name;
+                          const childMeas = c?.measurements?.find(m => m.child_name === targetChild) || c?.measurements?.[0];
+                          
+                          setPrintModalData({
+                            order: {
+                              ...ord,
+                              child_name: ord.child_name || f.child_name || (childMeas ? childMeas.child_name : 'الأميرة'),
+                              product_name: ord.product_name || f.product || f.product_name
+                            },
+                            customer: c,
+                            measurements: childMeas
+                          });
                         }}
-                        className="text-xs bg-[#F2E7F3] hover:bg-[#E5CEE7] text-[#8F2A87] font-bold px-3 py-1.5 rounded-lg transition border border-[#E5CEE7] cursor-pointer">
-                        بطاقة التشغيل 📋
+                        className="text-xs bg-[#F2E7F3] hover:bg-[#E5CEE7] text-[#8F2A87] font-bold px-2.5 py-1.5 rounded-lg transition border border-[#E5CEE7] cursor-pointer flex items-center gap-1">
+                        <span>بطاقة التشغيل 📋</span>
                       </button>
                     </div>
                   </td>
@@ -372,6 +440,19 @@ function Factory({ factory = [], setFactory, employees = [], orders = [], produc
           </table>
         </div>
       </div>
+
+      {/* Modern Workshop Job Ticket & Print Engine Modal */}
+      {printModalData && typeof PrintModal !== 'undefined' && (
+        <PrintModal
+          isOpen={!!printModalData}
+          order={printModalData.order}
+          customer={printModalData.customer}
+          measurements={printModalData.measurements}
+          defaultTemplate="job_ticket"
+          onClose={() => setPrintModalData(null)}
+        />
+      )}
+
       {selectedJobCustomer && typeof JobCardModal !== 'undefined' && (
         <JobCardModal customer={selectedJobCustomer} onClose={() => setSelectedJobCustomer(null)} />
       )}

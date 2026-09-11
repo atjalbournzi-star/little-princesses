@@ -473,7 +473,7 @@ function Marketing({ campaigns = [], setCampaigns, products = [], accounts = [],
                     <div className="flex items-center justify-between text-xs font-black">
                       <span className="text-slate-800">{step.stage}</span>
                       <div className="flex items-center gap-3">
-                        <span className="text-indigo-600">{Number(step.count).toLocaleString()}</span>
+                        <span className="text-indigo-600">{Number(step.count).toLocaleString('en-US')}</span>
                         <span className="text-[10px] text-slate-400 font-mono">({step.pct}%)</span>
                       </div>
                     </div>
@@ -538,7 +538,7 @@ function Marketing({ campaigns = [], setCampaigns, products = [], accounts = [],
                         <tr key={i} className="hover:bg-slate-50 transition">
                           <td className="px-3 py-2 font-black text-slate-900">{p.model_name}</td>
                           <td className="px-3 py-2 text-center font-bold text-indigo-600">{p.orders || 0}</td>
-                          <td className="px-3 py-2 font-black text-emerald-600">{Number(p.revenue || 0).toLocaleString()} {currLabel}</td>
+                          <td className="px-3 py-2 font-black text-emerald-600">{Number(p.revenue || 0).toLocaleString('en-US')} {currLabel}</td>
                           <td className="px-3 py-2 text-center font-black text-indigo-700">{p.roas}x</td>
                           <td className="px-3 py-2 text-center">
                             <span className="bg-rose-100 text-rose-800 px-2 py-0.5 rounded text-[10px] font-black">{p.overall_score}</span>
@@ -780,7 +780,7 @@ function Marketing({ campaigns = [], setCampaigns, products = [], accounts = [],
 
                 <div>
                   <label className={labelCls}>تاريخ البدء</label>
-                  <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className={inputCls} />
+                  <input type="date" lang="en-GB" dir="ltr" value={startDate} onChange={e => setStartDate(e.target.value)} className={inputCls} />
                 </div>
 
                 <div>
@@ -828,7 +828,7 @@ function Marketing({ campaigns = [], setCampaigns, products = [], accounts = [],
                         <td className="px-4 py-3 font-bold text-slate-900 whitespace-nowrap">{c.campaign_name}</td>
                         <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{c.platform}</td>
                         <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{c.product_name || 'عام / متجر'}</td>
-                        <td className="px-4 py-3 font-black text-rose-700 whitespace-nowrap">{Number(c.budget || 0).toLocaleString()}</td>
+                        <td className="px-4 py-3 font-black text-rose-700 whitespace-nowrap">{Number(c.budget || 0).toLocaleString('en-US')}</td>
                         <td className="px-4 py-3 text-slate-500 whitespace-nowrap text-[11px]">{c.payment_account}</td>
                         <td className="px-4 py-3 text-slate-500 whitespace-nowrap">{c.start_date || '—'}</td>
                         <td className="px-4 py-3 whitespace-nowrap">
@@ -981,15 +981,15 @@ function Marketing({ campaigns = [], setCampaigns, products = [], accounts = [],
                         <td className="px-4 py-3 text-center">
                           {cnt.metrics_history && cnt.metrics_history.length > 0 ? (
                             <div className="text-[11px]">
-                              <span className="font-black text-indigo-600">👁️ {cnt.metrics_history.reduce((a, b) => a + (b.reach || 0), 0).toLocaleString()}</span>
-                              <span className="mx-2 font-black text-emerald-600">👍 {cnt.metrics_history.reduce((a, b) => a + (b.likes || 0), 0).toLocaleString()}</span>
+                              <span className="font-black text-indigo-600">👁️ {cnt.metrics_history.reduce((a, b) => a + (b.reach || 0), 0).toLocaleString('en-US')}</span>
+                              <span className="mx-2 font-black text-emerald-600">👍 {cnt.metrics_history.reduce((a, b) => a + (b.likes || 0), 0).toLocaleString('en-US')}</span>
                             </div>
                           ) : (
                             <span className="text-slate-400 text-[10px]">لا توجد قراءات بعد</span>
                           )}
                         </td>
                         <td className="px-4 py-3 text-center font-black text-emerald-600">
-                          {cnt.metrics_history ? cnt.metrics_history.reduce((a, b) => a + (b.revenue || 0), 0).toLocaleString() : 0} {currLabel}
+                          {cnt.metrics_history ? cnt.metrics_history.reduce((a, b) => a + (b.revenue || 0), 0).toLocaleString('en-US') : 0} {currLabel}
                         </td>
                       </tr>
                     ))
@@ -1193,13 +1193,13 @@ function Marketing({ campaigns = [], setCampaigns, products = [], accounts = [],
                     (productsAIData || []).map((p, idx) => (
                       <tr key={p.id || idx} className="hover:bg-slate-50 transition">
                         <td className="px-4 py-3 font-black text-slate-900">{p.model_name}</td>
-                        <td className="px-3 py-3 text-center text-slate-600">{Number(p.reach || 0).toLocaleString()}</td>
+                        <td className="px-3 py-3 text-center text-slate-600">{Number(p.reach || 0).toLocaleString('en-US')}</td>
                         <td className="px-3 py-3 text-center text-slate-600">🔖 {p.saves || 0} / 🔁 {p.shares || 0}</td>
                         <td className="px-3 py-3 text-center font-bold text-indigo-600">{p.orders || 0} طلبات</td>
-                        <td className="px-3 py-3 font-black text-emerald-600">{Number(p.revenue || 0).toLocaleString()} {currLabel}</td>
-                        <td className="px-3 py-3 text-slate-500">{Number(p.cogs || 0).toLocaleString()} {currLabel}</td>
-                        <td className="px-3 py-3 text-rose-600">{Number(p.ad_spend || 0).toLocaleString()} {currLabel}</td>
-                        <td className="px-3 py-3 font-black text-emerald-700">{Number(p.profit || 0).toLocaleString()} {currLabel}</td>
+                        <td className="px-3 py-3 font-black text-emerald-600">{Number(p.revenue || 0).toLocaleString('en-US')} {currLabel}</td>
+                        <td className="px-3 py-3 text-slate-500">{Number(p.cogs || 0).toLocaleString('en-US')} {currLabel}</td>
+                        <td className="px-3 py-3 text-rose-600">{Number(p.ad_spend || 0).toLocaleString('en-US')} {currLabel}</td>
+                        <td className="px-3 py-3 font-black text-emerald-700">{Number(p.profit || 0).toLocaleString('en-US')} {currLabel}</td>
                         <td className="px-3 py-3 text-center font-black text-indigo-700 bg-indigo-50/50">{p.roas}x</td>
                         <td className="px-3 py-3 text-center text-slate-600">{p.cac} {currLabel}</td>
                         <td className="px-3 py-3 text-center">

@@ -25,27 +25,35 @@ function HR({ employees = [], setEmployees, payroll = [], setPayroll, accounts =
     if (!empSalary) return showToast("يرجى إدخال الراتب الأساسي أو سعر القطعة ⚠️", "error");
     
     const newEmp = {
-      id: Date.now(),
+      id: 'EMP-' + Date.now(),
       name: empName,
       role: empRole,
       type: empType,
       baseSalary: parseFloat(empSalary) || 0,
+      base_salary: parseFloat(empSalary) || 0,
       phone: empPhone,
       hireDate: empDate,
+      hire_date: empDate,
       status: 'نشط'
     };
     
     try {
-      await window.callGAS('addEmployee', newEmp);
-      setEmployees([newEmp, ...employees]);
-      showToast("تم تسجيل الموظف بنجاح 👤");
+      if (window.hrAPI && window.hrAPI.addEmployee) {
+        const res = await window.hrAPI.addEmployee(newEmp);
+        setEmployees([newEmp, ...employees]);
+        showToast(res.message || "تم تسجيل الموظف بنجاح 👤");
+      } else {
+        await window.callGAS('addEmployee', newEmp);
+        setEmployees([newEmp, ...employees]);
+        showToast("تم تسجيل الموظف بنجاح 👤");
+      }
       setEmpName('');
       setEmpRole('خياط');
       setEmpSalary('');
       setEmpPhone('');
     } catch (err) {
       setEmployees([newEmp, ...employees]);
-      showToast("تم الحفظ محلياً ⚡");
+      showToast(err.message || "تم الحفظ محلياً ⚡");
     }
   };
 
@@ -184,39 +192,50 @@ function HR({ employees = [], setEmployees, payroll = [], setPayroll, accounts =
     const amount = parseFloat(amountStr);
     if (isNaN(amount) || amount <= 0) return showToast("مبلغ غير صحيح ⚠️", "error");
     
-    const currCode = window.CurrencyService ? window.CurrencyService.normalizeCode(currencyDisplay) : 'SAR';
-    const rate = window.CurrencyService ? window.CurrencyService.getRate(currCode) : 1.0;
-    const baseObj = window.CurrencyService ? window.CurrencyService.toBase(amount, currCode, rate) : { base_amount: amount, exchange_rate: rate };
-
-    const newEntry = {
-      id: Date.now(),
-      transaction_id: `TX-ADV-${Date.now()}`,
-      entry_no: `ADV-${Date.now().toString().slice(-4)}`,
-      debit: '1141',
-      credit: '1111',
-      amount: amount,
-      currency: currCode,
-      exchange_rate: rate,
-      base_amount: baseObj.base_amount,
-      ref_type: "سلفة نقدية",
-      date: new Date().toISOString().split('T')[0],
-      notes: `سلفة للموظف ${record.name} لشهر ${currentPayroll.month}`
-    };
-    
     try {
-       await window.callGAS("addJournalEntry", newEntry);
-       if (setJournal) setJournal([newEntry, ...journal]);
-       
-       const newDeduction = record.deduction + amount;
-       const newNet = record.netSalary - amount;
-       
-       await window.callGAS("updatePayrollRecord", { id: record.id, deductions: newDeduction, netSalary: newNet });
-       
-       setPayroll(payroll.map(p => p.id === record.id ? { ...p, deductions: newDeduction, netSalary: newNet } : p));
-       
-       showToast("تم تسجيل السلفة وتقييدها باليومية ✅", "success");
+      if (window.hrAPI && window.hrAPI.addAdvance) {
+        const res = await window.hrAPI.addAdvance({
+          emp_id: record.empId,
+          emp_name: record.name,
+          amount: amount,
+          notes: `سلفة نقدية للموظف ${record.name} لشهر ${currentPayroll.month}`
+        });
+        
+        const newDeduction = (record.deduction || 0) + amount;
+        const newNet = (record.netSalary || 0) - amount;
+        
+        setPayroll(payroll.map(p => p.id === record.id ? { ...p, deductions: newDeduction, netSalary: newNet } : p));
+        showToast(res.message || "تم تسجيل السلفة وتقييدها باليومية ✅", "success");
+      } else {
+        const currCode = window.CurrencyService ? window.CurrencyService.normalizeCode(currencyDisplay) : 'YER';
+        const rate = window.CurrencyService ? window.CurrencyService.getRate(currCode) : 1.0;
+        const baseObj = window.CurrencyService ? window.CurrencyService.toBase(amount, currCode, rate) : { base_amount: amount, exchange_rate: rate };
+
+        const newEntry = {
+          id: Date.now(),
+          transaction_id: `TX-ADV-${Date.now()}`,
+          entry_no: `ADV-${Date.now().toString().slice(-4)}`,
+          debit: '1141',
+          credit: '1111',
+          amount: amount,
+          currency: currCode,
+          exchange_rate: rate,
+          base_amount: baseObj.base_amount,
+          ref_type: "سلفة نقدية",
+          date: new Date().toISOString().split('T')[0],
+          notes: `سلفة للموظف ${record.name} لشهر ${currentPayroll.month}`
+        };
+        await window.callGAS("addJournalEntry", newEntry);
+        if (setJournal) setJournal([newEntry, ...journal]);
+        
+        const newDeduction = record.deduction + amount;
+        const newNet = record.netSalary - amount;
+        
+        setPayroll(payroll.map(p => p.id === record.id ? { ...p, deductions: newDeduction, netSalary: newNet } : p));
+        showToast("تم تسجيل السلفة وتقييدها باليومية ✅", "success");
+      }
     } catch(e) {
-       showToast("فشل تسجيل السلفة", "error");
+       showToast(e.message || "فشل تسجيل السلفة", "error");
     }
   };
 
@@ -227,40 +246,54 @@ function HR({ employees = [], setEmployees, payroll = [], setPayroll, accounts =
     const finalBonus = record.bonus + b;
     const finalNet = record.netSalary + b;
     
-    const currCode = window.CurrencyService ? window.CurrencyService.normalizeCode(currencyDisplay) : 'SAR';
-    const rate = window.CurrencyService ? window.CurrencyService.getRate(currCode) : 1.0;
-    const baseObj = window.CurrencyService ? window.CurrencyService.toBase(finalNet, currCode, rate) : { base_amount: finalNet, exchange_rate: rate };
-
-    const newEntry = {
-      id: Date.now(),
-      transaction_id: `TX-PAY-${Date.now()}`,
-      entry_no: `PAY-${Date.now().toString().slice(-4)}`,
-      debit: "5121",
-      credit: "1111",
-      amount: finalNet,
-      currency: currCode,
-      exchange_rate: rate,
-      base_amount: baseObj.base_amount,
-      ref_type: "صرف راتب",
-      date: new Date().toISOString().split('T')[0],
-      notes: `راتب ${record.name} لشهر ${currentPayroll.month}`
-    };
-    
     try {
-      await window.callGAS("addJournalEntry", newEntry);
-      if (setJournal) setJournal([newEntry, ...journal]);
-      
-      await window.callGAS("updatePayrollRecord", { id: record.id, status: 'تم الصرف ✅', bonus: finalBonus, netSalary: finalNet });
-      
-      setPayroll(payroll.map(p => p.id === record.id ? { ...p, status: 'تم الصرف ✅', bonus: finalBonus, netSalary: finalNet } : p));
-      
-      const newBonusState = { ...bonus };
-      delete newBonusState[record.empId];
-      setBonus(newBonusState);
-      
-      showToast("تم تسليم الراتب وإنشاء القيد المحاسبي 💸", "success");
+      if (window.hrAPI && window.hrAPI.postPayroll) {
+        const updatedRecord = { ...record, bonus: finalBonus, netSalary: finalNet, status: 'تم الصرف ✅' };
+        const res = await window.hrAPI.postPayroll({
+          month: currentPayroll.month,
+          records: [updatedRecord]
+        });
+        
+        setPayroll(payroll.map(p => p.id === record.id ? { ...p, status: 'تم الصرف ✅', bonus: finalBonus, netSalary: finalNet } : p));
+        
+        const newBonusState = { ...bonus };
+        delete newBonusState[record.empId];
+        setBonus(newBonusState);
+        
+        showToast(res.message || "تم تسليم الراتب وإنشاء القيد المحاسبي المركب 💸", "success");
+      } else {
+        const currCode = window.CurrencyService ? window.CurrencyService.normalizeCode(currencyDisplay) : 'YER';
+        const rate = window.CurrencyService ? window.CurrencyService.getRate(currCode) : 1.0;
+        const baseObj = window.CurrencyService ? window.CurrencyService.toBase(finalNet, currCode, rate) : { base_amount: finalNet, exchange_rate: rate };
+
+        const newEntry = {
+          id: Date.now(),
+          transaction_id: `TX-PAY-${Date.now()}`,
+          entry_no: `PAY-${Date.now().toString().slice(-4)}`,
+          debit: "5121",
+          credit: "1111",
+          amount: finalNet,
+          currency: currCode,
+          exchange_rate: rate,
+          base_amount: baseObj.base_amount,
+          ref_type: "صرف راتب",
+          date: new Date().toISOString().split('T')[0],
+          notes: `راتب ${record.name} لشهر ${currentPayroll.month}`
+        };
+        await window.callGAS("addJournalEntry", newEntry);
+        if (setJournal) setJournal([newEntry, ...journal]);
+        
+        await window.callGAS("updatePayrollRecord", { id: record.id, status: 'تم الصرف ✅', bonus: finalBonus, netSalary: finalNet });
+        setPayroll(payroll.map(p => p.id === record.id ? { ...p, status: 'تم الصرف ✅', bonus: finalBonus, netSalary: finalNet } : p));
+        
+        const newBonusState = { ...bonus };
+        delete newBonusState[record.empId];
+        setBonus(newBonusState);
+        
+        showToast("تم تسليم الراتب وإنشاء القيد المحاسبي 💸", "success");
+      }
     } catch (e) {
-      showToast("حدث خطأ أثناء صرف الراتب", "error");
+      showToast(e.message || "حدث خطأ أثناء صرف الراتب", "error");
     }
   };
 
@@ -347,7 +380,7 @@ function HR({ employees = [], setEmployees, payroll = [], setPayroll, accounts =
               </div>
               <div>
                 <label className={labelCls}>تاريخ التعيين</label>
-                <input type="date" value={empDate} onChange={e => setEmpDate(e.target.value)} className={inputCls} />
+                <input type="date" lang="en-GB" dir="ltr" value={empDate} onChange={e => setEmpDate(e.target.value)} className={inputCls} />
               </div>
               <button type="submit" className="w-full py-3 bg-[#8F2A87] hover:bg-[#73216C] text-white font-bold text-xs rounded-xl shadow-xs transition cursor-pointer">
                 حفظ بيانات الموظف 💾
@@ -437,7 +470,7 @@ function HR({ employees = [], setEmployees, payroll = [], setPayroll, accounts =
           <div className="flex flex-col md:flex-row gap-4 justify-between items-center bg-[#FAFAFB] p-4 rounded-xl border border-[#E8E5EA]">
             <div className="flex items-center gap-3 w-full md:w-auto">
               <label className="font-bold text-xs text-[#25232A]">شهر مسير الرواتب:</label>
-              <input type="month" value={payrollMonth} onChange={e => setPayrollMonth(e.target.value)}
+              <input type="month" lang="en-GB" dir="ltr" value={payrollMonth} onChange={e => setPayrollMonth(e.target.value)}
                 className="h-10 px-3 border border-[#E8E5EA] rounded-xl font-bold bg-white text-[#8F2A87] text-xs outline-none" />
             </div>
             

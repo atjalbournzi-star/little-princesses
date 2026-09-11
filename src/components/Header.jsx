@@ -12,14 +12,71 @@ window.Header = function Header({
   isSidebarCollapsed
 }) {
   const [userDropdown, setUserDropdown] = useState(false);
-  const [syncInfo, setSyncInfo] = useState({ connected: true, status: 'متصل 🟢', last_sync: 'الآن' });
+  const [tenantDropdown, setTenantDropdown] = useState(false);
+  const [tenants, setTenants] = useState([]);
+  const [activeTenant, setActiveTenantState] = useState(() => {
+    return window.getActiveTenantInfo ? window.getActiveTenantInfo() : { id: 'lp_main', name: 'Little Princesses Haute Couture 👑', plan: 'Enterprise' };
+  });
+  const [showAddTenantModal, setShowAddTenantModal] = useState(false);
+  const [newTenantName, setNewTenantName] = useState('');
+  const [newTenantId, setNewTenantId] = useState('');
+  const [syncInfo, setSyncInfo] = useState({ connected: true, status: 'متصل 🟢', last_sync: 'الآن', pending_count: 0 });
   const [searchQuery, setSearchQuery] = useState('');
+  const [theme, setTheme] = useState(() => {
+    return localStorage.getItem('lp_theme') || (document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+  });
+
+  const toggleTheme = () => {
+    const next = theme === 'dark' ? 'light' : 'dark';
+    setTheme(next);
+    try {
+      localStorage.setItem('lp_theme', next);
+      if (next === 'dark') {
+        document.documentElement.classList.add('dark');
+        document.body && document.body.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+        document.body && document.body.classList.remove('dark');
+      }
+      window.dispatchEvent(new CustomEvent('lp:themeChanged', { detail: { theme: next } }));
+      if (window.settingsAPI && window.settingsAPI.saveSettings) {
+        window.settingsAPI.saveSettings({ theme_mode: next }).catch(() => {});
+      }
+    } catch(e) {}
+  };
 
   const user = currentUser || { id: 1, username: 'admin', full_name: 'المدير العام 👑', role: 'admin', role_label: 'المدير العام' };
   const userRole = user.role || 'admin';
 
   useEffect(() => {
     let isMounted = true;
+    const handleThemeChanged = (e) => {
+      if (e.detail && e.detail.theme && isMounted) {
+        setTheme(e.detail.theme);
+      }
+    };
+    window.addEventListener('lp:themeChanged', handleThemeChanged);
+
+    const loadTenants = async () => {
+      if (window.tenantAPI && window.tenantAPI.getTenants) {
+        try {
+          const list = await window.tenantAPI.getTenants();
+          if (isMounted && Array.isArray(list)) setTenants(list);
+          const curr = await window.tenantAPI.getCurrentTenant();
+          if (isMounted && curr) setActiveTenantState(curr);
+        } catch(e) {}
+      }
+    };
+    loadTenants();
+
+    const handleTenantChanged = (e) => {
+      if (e.detail && e.detail.tenant) {
+        setActiveTenantState(e.detail.tenant);
+      }
+      loadTenants();
+    };
+    window.addEventListener('lp_tenant_changed', handleTenantChanged);
+
     const checkSync = async () => {
       if (typeof window.fetchSyncStatus === 'function') {
         try {
@@ -29,7 +86,8 @@ window.Header = function Header({
             setSyncInfo({
               connected: res.connected !== false,
               status: res.status || 'متصل 🟢',
-              last_sync: timeStr
+              last_sync: timeStr,
+              pending_count: res.pending_count || 0
             });
           }
         } catch(e){}
@@ -37,7 +95,12 @@ window.Header = function Header({
     };
     checkSync();
     const interval = setInterval(checkSync, 12000);
-    return () => { isMounted = false; clearInterval(interval); };
+    return () => { 
+      isMounted = false; 
+      clearInterval(interval); 
+      window.removeEventListener('lp_tenant_changed', handleTenantChanged);
+      window.removeEventListener('lp:themeChanged', handleThemeChanged);
+    };
   }, []);
 
   // Map active tab to breadcrumb title & category
@@ -50,7 +113,7 @@ window.Header = function Header({
       factory: { title: "إدارة الورشة والمعمل والإنتاج", category: "الإنتاج" },
       inventory: { title: "مخزون الأقمشة والمستلزمات", category: "المستودعات" },
       purchases: { title: "المشتريات وفواتير الموردين", category: "المشتريات" },
-      accounts: { title: "شجرة الحسابات المالية (24 عمود)", category: "المحاسبة والمالية" },
+      accounts: { title: "شجرة الحسابات والدليل المالي", category: "المحاسبة والمالية" },
       vouchers: { title: "السندات المالية والقبض والصرف", category: "المحاسبة والمالية" },
       expenses: { title: "المصاريف التشغيلية والإدارية", category: "المحاسبة والمالية" },
       journal: { title: "دفتر القيود اليومية المحاسبية", category: "المحاسبة والمالية" },
@@ -85,15 +148,12 @@ window.Header = function Header({
           <Icons.Menu className="w-5 h-5" />
         </button>
 
-        <div className="flex flex-col">
-          <div className="flex items-center gap-1.5 text-xs text-[#6F6B75]">
+        <div className="flex flex-col justify-center">
+          <div className="flex items-center gap-1.5 text-xs text-[#6F6B75] dark:text-[#94a3b8]">
             <span className="font-medium">{tabMetadata.category}</span>
-            <Icons.ChevronLeft className="w-3.5 h-3.5 text-[#E8E5EA]" />
-            <span className="font-semibold text-[#B0005A]">{tabMetadata.title}</span>
+            <Icons.ChevronLeft className="w-3.5 h-3.5 text-[#6F6B75]/40 dark:text-[#94a3b8]/40" />
+            <span className="font-bold text-sm text-[#B0005A] dark:text-[#F2A4CB] truncate max-w-[200px] sm:max-w-xs">{tabMetadata.title}</span>
           </div>
-          <span className="text-sm font-bold text-[#25232A] hidden sm:block">
-            {tabMetadata.title}
-          </span>
         </div>
       </div>
 
@@ -114,24 +174,193 @@ window.Header = function Header({
         </span>
       </div>
 
-      {/* Left Side: Branch, Cloud Sync, Quick Action & User Profile */}
+      {/* Left Side: Tenant Switcher, Cloud Sync, Quick Action & User Profile */}
       <div className="flex items-center gap-2.5">
-        {/* Branch Context Badge */}
-        <div className="hidden xl:flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-[#F2E7F3] border border-[#E5CEE7] text-[#8F2A87] text-[11.5px] font-semibold">
-          <span>🏛️</span>
-          <span>الفرع الرئيسي - صنعاء</span>
+        {/* Multi-Tenant SaaS Switcher Badge */}
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setTenantDropdown(!tenantDropdown)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-[#F2E7F3] to-[#FCE8F2] border border-[#E5CEE7] text-[#8F2A87] hover:border-[#B0005A] text-xs font-bold transition-all shadow-2xs cursor-pointer"
+            title="تبديل المشغل أو الشركة (Multi-Tenant Switcher)"
+          >
+            <span>👑</span>
+            <span className="max-w-[140px] truncate">{activeTenant.name || 'Little Princesses'}</span>
+            <Icons.ChevronDown className="w-3.5 h-3.5 text-[#8F2A87]" />
+          </button>
+
+          {/* Tenant Switcher Dropdown */}
+          {tenantDropdown && (
+            <div className="absolute right-0 mt-2 w-72 bg-white border border-[#E8E5EA] rounded-2xl shadow-xl p-2 z-50 animate-fadeIn space-y-1">
+              <div className="px-3 py-2 border-b border-[#E8E5EA] flex items-center justify-between">
+                <span className="text-xs font-bold text-[#25232A]">المشاغل والمستأجرين (SaaS)</span>
+                <span className="text-[10px] font-mono bg-[#E2F5F7] text-[#007F8C] px-1.5 py-0.5 rounded font-bold">{tenants.length} مشغل</span>
+              </div>
+
+              <div className="max-h-48 overflow-y-auto py-1 space-y-1">
+                {tenants.map(t => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={async () => {
+                      setTenantDropdown(false);
+                      if (window.tenantAPI && window.tenantAPI.switchTenant) {
+                        await window.tenantAPI.switchTenant(t.id);
+                        window.location.reload();
+                      }
+                    }}
+                    className={`w-full text-right px-3 py-2 rounded-xl text-xs flex items-center justify-between transition cursor-pointer ${
+                      (activeTenant.id === t.id)
+                        ? 'bg-[#FCE8F2] text-[#B0005A] font-bold border border-[#F2A4CB]'
+                        : 'text-[#25232A] hover:bg-[#FAFAFB]'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span>{t.id === 'lp_main' ? '👑' : '🏛️'}</span>
+                      <div className="flex flex-col">
+                        <span className="leading-tight">{t.name}</span>
+                        <span className="text-[10px] opacity-70 font-mono">ID: {t.id}</span>
+                      </div>
+                    </div>
+                    {activeTenant.id === t.id && (
+                      <span className="text-[10px] font-bold bg-[#B0005A] text-white px-1.5 py-0.2 rounded-full">النشط</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+
+              {userRole === 'admin' && (
+                <div className="border-t border-[#E8E5EA] pt-1">
+                  <button
+                    type="button"
+                    onClick={() => { setTenantDropdown(false); setShowAddTenantModal(true); }}
+                    className="w-full text-right px-3 py-2 rounded-xl text-xs font-bold text-[#007F8C] hover:bg-[#E2F5F7] flex items-center gap-2 transition cursor-pointer"
+                  >
+                    <Icons.Plus className="w-4 h-4" />
+                    <span>تسجيل مشغل / شركة جديدة (+ Tenant)</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
+        {/* Modal تسجيل مشغل جديد */}
+        {showAddTenantModal && (
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fadeIn" dir="rtl">
+            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 border border-[#E8E5EA]">
+              <div className="flex items-center justify-between border-b border-[#E8E5EA] pb-3">
+                <h3 className="text-base font-bold text-[#25232A] flex items-center gap-2">
+                  <span>👑</span>
+                  <span>تسجيل مشغل أو عميل جديد (New Tenant)</span>
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setShowAddTenantModal(false)}
+                  className="text-[#6F6B75] hover:text-[#25232A] p-1 rounded-lg hover:bg-[#FAFAFB]"
+                >
+                  <Icons.X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="space-y-3 text-xs">
+                <div>
+                  <label className="block text-xs font-bold text-[#25232A] mb-1">اسم المشغل / العلامة التجارية *</label>
+                  <input
+                    type="text"
+                    value={newTenantName}
+                    onChange={(e) => setNewTenantName(e.target.value)}
+                    placeholder="مثال: مشغل الأناقة للأزياء"
+                    className="w-full h-10 px-3 border border-[#E8E5EA] rounded-xl text-xs outline-none focus:border-[#B0005A]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-[#25232A] mb-1">معرف المستأجر الفريد (Tenant Code / Subdomain) *</label>
+                  <input
+                    type="text"
+                    value={newTenantId}
+                    onChange={(e) => setNewTenantId(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                    placeholder="مثال: atelier_elegance"
+                    className="w-full h-10 px-3 border border-[#E8E5EA] rounded-xl text-xs font-mono outline-none focus:border-[#B0005A]"
+                  />
+                </div>
+                <div className="p-3 bg-[#E2F5F7] rounded-xl border border-[#C5ECF0] text-[#007F8C] text-[11px] leading-relaxed">
+                  🛡️ سيتم تلقائياً إنشاء قاعدة بيانات وشجرة حسابات قياسية معزولة بالكامل لهذا المشغل لضمان عدم تداخل البيانات.
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#E8E5EA]">
+                <button
+                  type="button"
+                  onClick={() => setShowAddTenantModal(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-[#6F6B75] hover:bg-[#FAFAFB] border border-[#E8E5EA]"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!newTenantName || !newTenantId) {
+                      alert('يرجى كتابة اسم المشغل ومعرفه الفريد');
+                      return;
+                    }
+                    try {
+                      const res = await window.tenantAPI.createTenant({
+                        id: newTenantId,
+                        name: newTenantName,
+                        plan: 'Enterprise'
+                      });
+                      if (res && res.success) {
+                        alert(res.message || 'تم إنشاء المشغل بنجاح!');
+                        setShowAddTenantModal(false);
+                        setNewTenantName('');
+                        setNewTenantId('');
+                        await window.tenantAPI.switchTenant(newTenantId);
+                        window.location.reload();
+                      } else {
+                        alert(res.error || 'حدث خطأ أثناء الإنشاء');
+                      }
+                    } catch(e) {
+                      alert('خطأ: ' + e.message);
+                    }
+                  }}
+                  className="px-5 py-2 rounded-xl bg-[#B0005A] hover:bg-[#8E0049] text-white text-xs font-bold shadow-xs"
+                >
+                  تأكيد وإنشاء المشغل 👑
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Realtime Cloud Sync Status */}
-        <div className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold border transition-all ${
-          syncInfo.connected
-            ? 'bg-[#E2F5F7] border-[#C5ECF0] text-[#007F8C]'
-            : 'bg-[#FFF1DC] border-[#FFE4B9] text-[#F28A00]'
-        }`}>
-          <span className={`w-2 h-2 rounded-full ${syncInfo.connected ? 'bg-[#009FAE] animate-pulse' : 'bg-[#F28A00]'}`} />
-          <span>{syncInfo.status}</span>
+        <button
+          type="button"
+          onClick={async () => {
+            if (window.syncGoogleSheets) {
+              try {
+                await window.syncGoogleSheets();
+                checkSync();
+              } catch(e) {}
+            }
+          }}
+          title={syncInfo.pending_count > 0 ? `يوجد ${syncInfo.pending_count} عملية قيد المزامنة في الخلفية. انقر للمزامنة الفورية.` : "حالة المزامنة السحابية مع Google Sheets. انقر للمزامنة الفورية."}
+          className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+            !syncInfo.connected
+              ? 'bg-[#FEE2E2] border-[#FCA5A5] text-[#DC2626]'
+              : (syncInfo.pending_count > 0
+                ? 'bg-[#FFF1DC] border-[#FFE4B9] text-[#F28A00]'
+                : 'bg-[#E2F5F7] border-[#C5ECF0] text-[#007F8C]')
+          }`}
+        >
+          <span className={`w-2 h-2 rounded-full ${
+            !syncInfo.connected 
+              ? 'bg-[#DC2626]' 
+              : (syncInfo.pending_count > 0 ? 'bg-[#F28A00] animate-ping' : 'bg-[#009FAE] animate-pulse')
+          }`} />
+          <span>{syncInfo.pending_count > 0 ? `جاري المزامنة (${syncInfo.pending_count}) ⏳` : syncInfo.status}</span>
           <span className="text-[10px] opacity-70 font-mono">({syncInfo.last_sync})</span>
-        </div>
+        </button>
 
         {/* Quick Action Button */}
         <button
@@ -140,6 +369,16 @@ window.Header = function Header({
         >
           <Icons.Plus className="w-4 h-4" />
           <span>طلب جديد</span>
+        </button>
+
+        {/* Theme Toggle Button (Light/Dark Switcher) */}
+        <button
+          type="button"
+          onClick={toggleTheme}
+          className="p-2 rounded-xl border border-[#E8E5EA] bg-[#FAFAFB] hover:bg-white text-[#25232A] hover:text-[#B0005A] transition shadow-2xs cursor-pointer flex items-center justify-center text-sm"
+          title={theme === 'dark' ? "التبديل إلى الوضع الفاتح (Light Mode) ☀️" : "التبديل إلى الوضع المظلم (Dark Mode) 🌙"}
+        >
+          {theme === 'dark' ? '☀️' : '🌙'}
         </button>
 
         {/* User Profile Dropdown */}

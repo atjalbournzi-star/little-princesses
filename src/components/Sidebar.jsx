@@ -11,14 +11,14 @@ window.Sidebar = function Sidebar({
 }) {
   const role = currentUser?.role || 'admin';
 
-  // Navigation Groups with clear information hierarchy
+  // Navigation Groups with clear information hierarchy & Role-Based Access Control
   const navSections = useMemo(() => [
     {
       title: "العمليات الأساسية",
       items: [
         { id: "dashboard", label: "الرئيسية", icon: Icons.Dashboard, roles: ['admin', 'accountant', 'workshop_manager', 'data_entry'] },
-        { id: "customers", label: "العملاء و CRM", icon: Icons.Users, roles: ['admin', 'accountant', 'data_entry'] },
-        { id: "orders", label: "المبيعات والطلبات", icon: Icons.ShoppingBag, roles: ['admin', 'accountant', 'data_entry'] },
+        { id: "customers", label: "العملاء و CRM", icon: Icons.Users, roles: ['admin', 'data_entry'] },
+        { id: "orders", label: "المبيعات ونقاط البيع (POS)", icon: Icons.ShoppingBag, roles: ['admin', 'data_entry'] },
       ]
     },
     {
@@ -42,10 +42,10 @@ window.Sidebar = function Sidebar({
     {
       title: "النمو والإدارة",
       items: [
-        { id: "marketing", label: "التسويق والعروض", icon: Icons.Marketing, roles: ['admin', 'accountant'] },
-        { id: "hr", label: "الموظفون والرواتب", icon: Icons.HR, roles: ['admin', 'accountant'] },
-        { id: "feedback", label: "الجودة والتقييمات", icon: Icons.Star, roles: ['admin', 'workshop_manager', 'data_entry'] },
-        { id: "settings", label: "الإعدادات", icon: Icons.Settings, roles: ['admin', 'accountant', 'workshop_manager', 'data_entry'] },
+        { id: "marketing", label: "التسويق والعروض", icon: Icons.Marketing, roles: ['admin', 'data_entry'] },
+        { id: "hr", label: "الموظفون والرواتب", icon: Icons.HR, roles: ['admin'] },
+        { id: "feedback", label: "الجودة والتقييمات", icon: Icons.Star, roles: ['admin', 'workshop_manager'] },
+        { id: "settings", label: "الإعدادات", icon: Icons.Settings, roles: ['admin', 'accountant'] },
       ]
     }
   ], [role]);

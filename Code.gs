@@ -670,7 +670,8 @@ var SchemaMapper = {
     var schema = MASTER_SCHEMA_MAP[entityKey];
     if (!schema) throw new Error("Entity schema not found for: " + entityKey);
 
-    var sheet = ss.getSheetByName(schema.arabicSheet);
+    var sheetNameWithSpace = schema.arabicSheet ? schema.arabicSheet.replace(/_/g, ' ') : '';
+    var sheet = ss.getSheetByName(schema.arabicSheet) || (sheetNameWithSpace ? ss.getSheetByName(sheetNameWithSpace) : null) || ss.getSheetByName(entityKey);
     if (!sheet) {
       sheet = ss.insertSheet(schema.arabicSheet);
       var headers = schema.fields.map(function(f) { return f.header; });
@@ -692,17 +693,20 @@ var SchemaMapper = {
     var headerRow = values[0];
     var fieldMap = {};
 
-    schema.fields.forEach(function(f) {
+    schema.fields.forEach(function(f, fIdx) {
       var colIdx = -1;
       for (var c = 0; c < headerRow.length; c++) {
         var h = String(headerRow[c]).trim();
-        if (h === f.header || h === f.key || h === f.header.replace(/\s+/g, '_') || h.indexOf(f.header) !== -1) {
+        if (h === f.header || h === f.key || h === f.header.replace(/\s+/g, '_') || h.indexOf(f.header) !== -1 || (f.header && h && f.header.indexOf(h) !== -1)) {
           colIdx = c;
           break;
         }
       }
       if (colIdx !== -1) {
         fieldMap[f.key] = colIdx;
+      } else if (fIdx < headerRow.length) {
+        // Fallback: Positional mapping if column count matches schema
+        fieldMap[f.key] = fIdx;
       }
     });
 
@@ -790,48 +794,58 @@ var SchemaMapper = {
  */
 var SequenceService = {
   getNextId: function(entityKey, prefixOverride) {
-    var schema = MASTER_SCHEMA_MAP[entityKey];
-    var prefix = prefixOverride || (schema ? schema.prefix : "REC");
-    var sheet = SchemaMapper.getOrCreateSheet("number_sequences");
-    var records = SchemaMapper.readRows("number_sequences");
+    var lock = LockService.getScriptLock();
+    try {
+      lock.waitLock(30000); // 30 seconds wait lock for ACID serialization in Google Sheets
+    } catch (e) {
+      console.warn("Lock timeout, proceeding with best effort:", e);
+    }
+    try {
+      var schema = MASTER_SCHEMA_MAP[entityKey];
+      var prefix = prefixOverride || (schema ? schema.prefix : "REC");
+      var sheet = SchemaMapper.getOrCreateSheet("number_sequences");
+      var records = SchemaMapper.readRows("number_sequences");
 
-    var seqRecord = null;
-    var rowIndex = -1;
-    for (var i = 0; i < records.length; i++) {
-      if (records[i].entity === entityKey || records[i].prefix === prefix) {
-        seqRecord = records[i];
-        rowIndex = SchemaMapper.findRowIndexById(sheet, seqRecord.id);
-        break;
+      var seqRecord = null;
+      var rowIndex = -1;
+      for (var i = 0; i < records.length; i++) {
+        if (records[i].entity === entityKey || records[i].prefix === prefix) {
+          seqRecord = records[i];
+          rowIndex = SchemaMapper.findRowIndexById(sheet, seqRecord.id);
+          break;
+        }
       }
-    }
 
-    var nextNum = 1;
-    var padding = 6;
-    if (seqRecord) {
-      nextNum = Number(seqRecord.current_number || 0) + 1;
-      padding = Number(seqRecord.padding || 6);
-      seqRecord.current_number = nextNum;
-      seqRecord.updated_at = todayISO();
-      var rowArray = SchemaMapper.buildRowArray("number_sequences", seqRecord);
-      sheet.getRange(rowIndex, 1, 1, rowArray.length).setValues([rowArray]);
-    } else {
-      var newSeqId = "SEQ-" + prefix;
-      var newSeq = {
-        id: newSeqId,
-        entity: entityKey,
-        prefix: prefix,
-        current_number: 1,
-        padding: 6,
-        updated_at: todayISO()
-      };
-      sheet.appendRow(SchemaMapper.buildRowArray("number_sequences", newSeq));
-    }
+      var nextNum = 1;
+      var padding = 6;
+      if (seqRecord) {
+        nextNum = Number(seqRecord.current_number || 0) + 1;
+        padding = Number(seqRecord.padding || 6);
+        seqRecord.current_number = nextNum;
+        seqRecord.updated_at = todayISO();
+        var rowArray = SchemaMapper.buildRowArray("number_sequences", seqRecord);
+        sheet.getRange(rowIndex, 1, 1, rowArray.length).setValues([rowArray]);
+      } else {
+        var newSeqId = "SEQ-" + prefix;
+        var newSeq = {
+          id: newSeqId,
+          entity: entityKey,
+          prefix: prefix,
+          current_number: 1,
+          padding: 6,
+          updated_at: todayISO()
+        };
+        sheet.appendRow(SchemaMapper.buildRowArray("number_sequences", newSeq));
+      }
 
-    var numStr = String(nextNum);
-    while (numStr.length < padding) {
-      numStr = "0" + numStr;
+      var numStr = String(nextNum);
+      while (numStr.length < padding) {
+        numStr = "0" + numStr;
+      }
+      return prefix + "-" + numStr;
+    } finally {
+      try { lock.releaseLock(); } catch(e) {}
     }
-    return prefix + "-" + numStr;
   }
 };
 
@@ -1114,7 +1128,24 @@ var InventoryController = {
 
   deleteItem: function(payload) {
     var data = payload.data || payload;
-    return SchemaMapper.softDelete("inventory", data.id);
+    var sheet = SchemaMapper.getOrCreateSheet("inventory");
+    var targetId = String(data.id || data.item_id || data.sku || data.code || "").trim();
+    var targetName = String(data.item_name || data.name || "").trim();
+    var lastR = sheet.getLastRow();
+    if (lastR < 2) return { success: true, deleted: 0 };
+
+    var vals = sheet.getRange(2, 1, lastR - 1, Math.min(sheet.getLastColumn(), 5)).getValues();
+    var deleted = 0;
+    for (var r = vals.length - 1; r >= 0; r--) {
+      var rowId = String(vals[r][0] || "").trim();
+      var rowName = String(vals[r][1] || "").trim();
+      var rowSku = String(vals[r][2] || "").trim();
+      if ((targetId && (rowId === targetId || rowSku === targetId)) || (targetName && rowName === targetName)) {
+        sheet.deleteRow(r + 2);
+        deleted++;
+      }
+    }
+    return { success: true, deleted: deleted, message: "تم حذف البند من المخزون بنجاح" };
   }
 };
 
@@ -1591,7 +1622,11 @@ var VoucherController = {
     var accId = String(data.account_id || data.acc_code || data.payment_source || "101 - الصندوق الرئيسي").trim();
     var dt = String(data.date || data.date_created || todayISO()).slice(0, 10);
     var stat = String(data.status || "posted").trim();
+    var targetAccStr = String(data.target_acc || "").trim();
     var nts = String(data.notes || data.statement || "").trim();
+    if (targetAccStr && nts.indexOf("الحساب المقابل:") === -1) {
+      nts = nts ? (nts + " | الحساب المقابل: " + targetAccStr) : ("الحساب المقابل: " + targetAccStr);
+    }
     var crAt = todayISO();
     var crBy = String(data.created_by || "system").trim();
 
@@ -1608,7 +1643,44 @@ var VoucherController = {
       sheet.getRange(appendedRow, 10, 1, 2).setNumberFormat("#,##0.00");
     } catch(e) {}
 
-    return { id: newId, message: "تم حفظ السند المالي بنجاح", data: data };
+    // ── تحديث أرصدة شجرة الحسابات تلقائياً عند حفظ السند ──
+    try {
+      var accSheet = SchemaMapper.getOrCreateSheet("chart_of_accounts");
+      var accLastR = accSheet.getLastRow();
+      if (accLastR >= 2) {
+        var accData = accSheet.getRange(2, 1, accLastR - 1, Math.min(accSheet.getLastColumn(), 16)).getValues();
+        var aCode = (accId.indexOf(" - ") !== -1 ? accId.split(" - ")[0] : accId.split(" ")[0]).trim();
+        var tCode = (targetAccStr.indexOf(" - ") !== -1 ? targetAccStr.split(" - ")[0] : targetAccStr.split(" ")[0]).trim();
+
+        for (var r = 0; r < accData.length; r++) {
+          var rowCode = String(accData[r][1] || accData[r][0] || "").trim().replace(/^ACC-/, '');
+          var rowName = String(accData[r][2] || "").trim();
+          var curBal = Number(accData[r][15] || 0);
+          var nature = String(accData[r][13] || "debit").trim().toLowerCase();
+
+          // حساب الصندوق أو البنك
+          if (rowCode === aCode || rowName === accId || rowCode === accId) {
+            var newBal = isReceipt ? (curBal + baseAmt) : (curBal - baseAmt);
+            accSheet.getRange(r + 2, 16).setValue(newBal);
+          }
+
+          // الحساب المقابل من الدليل (رأس مال / عميل / مورد / مصروف)
+          if (tCode && (rowCode === tCode || rowName === targetAccStr || rowCode === targetAccStr)) {
+            var newBal = 0;
+            if (isReceipt) {
+              newBal = nature === "credit" ? (curBal + baseAmt) : (curBal - baseAmt);
+            } else {
+              newBal = nature === "credit" ? (curBal - baseAmt) : (curBal + baseAmt);
+            }
+            accSheet.getRange(r + 2, 16).setValue(newBal);
+          }
+        }
+      }
+    } catch (accErr) {
+      Logger.log("Voucher account update warning: " + accErr);
+    }
+
+    return { id: newId, message: "تم حفظ السند المالي وتحديث شجرة الحسابات بنجاح", data: data };
   },
   updateVoucher: function(payload) {
     var data = payload.data || payload;
@@ -1678,26 +1750,49 @@ var VoucherController = {
     var data = payload.data || payload;
     var sheet = SchemaMapper.getOrCreateSheet("payments");
     var lastR = sheet.getLastRow();
-    if (lastR < 2) return { success: false, message: "لا توجد سندات لحذفها" };
-    var values = sheet.getRange(2, 1, lastR - 1, Math.min(sheet.getLastColumn(), 4)).getValues();
+    if (lastR < 2) return { success: true, message: "لا توجد سندات لحذفها", deleted: 0 };
+    var values = sheet.getRange(2, 1, lastR - 1, Math.min(sheet.getLastColumn(), 6)).getValues();
     var targetId = String(data.id || "").trim();
     var targetNo = String(data.voucher_no || data.payment_no || data.v_no || targetId).trim();
+    var cleanTarget = targetNo.replace(/^(PAY|PV|RV|EXP)[-_]/i, '').trim();
+    var deletedCount = 0;
 
-    for (var i = 0; i < values.length; i++) {
-      var rowId = String(values[i][0]).trim();
-      var rowNo = String(values[i][1]).trim();
-      if ((targetId && rowId === targetId) || (targetNo && rowNo === targetNo)) {
+    for (var i = values.length - 1; i >= 0; i--) {
+      var rowId = String(values[i][0] || "").trim();
+      var rowNo = String(values[i][1] || "").trim();
+      var invoiceId = String(values[i][3] || "").trim();
+      var cleanRowNo = rowNo.replace(/^(PAY|PV|RV|EXP)[-_]/i, '').trim();
+      var cleanRowId = rowId.replace(/^(PAY|PV|RV|EXP)[-_]/i, '').trim();
+
+      var match = false;
+      if (targetId && (rowId === targetId || rowNo === targetId)) match = true;
+      if (targetNo && (rowNo === targetNo || rowId === targetNo || invoiceId === targetNo)) match = true;
+      if (cleanTarget && cleanTarget.length > 2 && (cleanRowNo === cleanTarget || cleanRowId === cleanTarget)) match = true;
+
+      if (match) {
         sheet.deleteRow(i + 2);
-        // Also delete linked journal entry
-        try {
-          if (typeof JournalController !== "undefined" && JournalController.deleteJournalEntry) {
-            JournalController.deleteJournalEntry({ entry_no: "AUTO-VCH-" + targetNo, ref_id: targetNo });
-          }
-        } catch(jErr) {}
-        return { success: true, message: "تم حذف السند المالي وعكس قيده بنجاح" };
+        deletedCount++;
       }
     }
-    return { success: false, message: "لم يتم العثور على السند لحذفه" };
+
+    // Also delete linked journal entry
+    try {
+      if (typeof JournalController !== "undefined" && JournalController.deleteJournalEntry) {
+        if (targetNo) {
+          JournalController.deleteJournalEntry({ entry_no: "AUTO-VCH-" + targetNo, ref_id: targetNo });
+          JournalController.deleteJournalEntry({ entry_no: "JV-" + targetNo, ref_id: targetNo });
+        }
+        if (cleanTarget && cleanTarget !== targetNo) {
+          JournalController.deleteJournalEntry({ entry_no: "AUTO-VCH-" + cleanTarget, ref_id: cleanTarget });
+        }
+      }
+    } catch(jErr) {}
+
+    return { 
+      success: true, 
+      deleted: deletedCount, 
+      message: deletedCount > 0 ? ("تم حذف " + deletedCount + " سند مالي بنجاح وعكس قيوده") : "تم فحص السندات ولم يُعثر على مطابقات إضافية" 
+    };
   }
 };
 
@@ -1733,8 +1828,7 @@ var JournalController = {
   addJournalEntry: function(payload) {
     var data = payload.data || payload;
     var sheet = SchemaMapper.getOrCreateSheet("journal_entries");
-    var lastR = sheet.getLastRow();
-    var newId = data.id || ("JV-" + Utilities.formatString("%06d", Math.max(1, lastR)));
+    var newId = data.id || (typeof SequenceService !== "undefined" ? SequenceService.getNextId("journal_entries", "JV") : ("JV-" + Utilities.formatString("%06d", Math.max(1, sheet.getLastRow()))));
     var entryNo = String(data.entry_no || newId).trim();
     var entryDate = String(data.entry_date || data.date || todayISO()).slice(0, 10);
     var debitAcc = String(data.debit_account_id || data.debit || "102 - مخزون الأقمشة والمستلزمات").trim();
@@ -1907,6 +2001,27 @@ var ProductController = {
     sheet.appendRow(SchemaMapper.buildRowArray("products", data));
     AuditService.log("product", newId, "CREATE", null, data, data.created_by);
     return { id: newId, sku: data.sku, message: "تم إضافة المنتج بنجاح", data: data };
+  },
+  deleteProduct: function(payload) {
+    var data = payload.data || payload;
+    var sheet = SchemaMapper.getOrCreateSheet("products");
+    var targetId = String(data.id || data.product_id || data.sku || "").trim();
+    var targetName = String(data.product_name || data.name || "").trim();
+    var lastR = sheet.getLastRow();
+    if (lastR < 2) return { success: true, deleted: 0 };
+
+    var vals = sheet.getRange(2, 1, lastR - 1, Math.min(sheet.getLastColumn(), 4)).getValues();
+    var deleted = 0;
+    for (var r = vals.length - 1; r >= 0; r--) {
+      var rowId = String(vals[r][0] || "").trim();
+      var rowSku = String(vals[r][1] || "").trim();
+      var rowName = String(vals[r][2] || "").trim();
+      if ((targetId && (rowId === targetId || rowSku === targetId)) || (targetName && rowName === targetName)) {
+        sheet.deleteRow(r + 2);
+        deleted++;
+      }
+    }
+    return { success: true, deleted: deleted, message: "تم حذف المنتج بنجاح" };
   }
 };
 
@@ -2120,32 +2235,9 @@ var CurrencyController = {
 var ChartOfAccountsController = {
   ensureAllMasterAccounts: function() {
     var sheet = SchemaMapper.getOrCreateSheet("chart_of_accounts");
-    var raw = SchemaMapper.readRows("chart_of_accounts");
-
-    // ── Auto-purge legacy 3-digit accounts from the sheet automatically ──
-    var legacyCodes = {
-      "101": 1, "101.01": 1, "101.02": 1, "101.03": 1, "101.04": 1,
-      "102": 1, "103": 1, "104": 1, "105": 1,
-      "201": 1, "202": 1,
-      "301": 1, "302": 1,
-      "401": 1, "402": 1,
-      "501": 1, "502": 1, "503": 1,
-      "6": 1, "601": 1, "602": 1, "603": 1, "604": 1, "605": 1, "606": 1, "607": 1,
-      "7": 1
-    };
-    for (var ri = raw.length - 1; ri >= 0; ri--) {
-      var cCode = String(raw[ri].account_code || raw[ri].code || raw[ri].id || "").trim();
-      if (legacyCodes[cCode]) {
-        try { sheet.deleteRow(ri + 2); } catch(delErr) {}
-      }
-    }
-
-    // Re-read after purge
-    raw = SchemaMapper.readRows("chart_of_accounts");
-    var existingCodes = {};
-    for (var i = 0; i < raw.length; i++) {
-      var c = String(raw[i].account_code || raw[i].code || raw[i].id || "").trim();
-      if (c) existingCodes[c] = true;
+    // 🛡️ STRICT PROTECTION: Never append anything if the sheet already has accounts!
+    if (sheet.getLastRow() >= 2) {
+      return;
     }
 
     var defaultMaster = [
@@ -2238,49 +2330,7 @@ var ChartOfAccountsController = {
     var jRows = SchemaMapper.readRows("journal_entries");
     var sheet = SchemaMapper.getOrCreateSheet("chart_of_accounts");
 
-    // ─── إزالة التكرار من بيانات GAS قبل الإرسال ──────────────────────────
-    // إذا كان هناك سجلان بنفس كود الحساب، نحتفظ بالأفضل (الأعلى رصيداً أو الأحدث)
-    var seenCodes = {};
-    var dedupedRaw = [];
-    for (var di = 0; di < raw.length; di++) {
-      var dr = raw[di];
-      var dCode = String(dr.account_code || dr.code || dr.id || "").trim();
-      if (!dCode) { dedupedRaw.push(dr); continue; }
-      if (!seenCodes.hasOwnProperty(dCode)) {
-        seenCodes[dCode] = dedupedRaw.length;
-        dedupedRaw.push(dr);
-      } else {
-        var existIdx = seenCodes[dCode];
-        var exist = dedupedRaw[existIdx];
-        var existBal = Number(exist.opening_balance || exist.current_balance || 0);
-        var newBal = Number(dr.opening_balance || dr.current_balance || 0);
-        var existId = String(exist.id || "");
-        var newId_ = String(dr.id || "");
-        var newIsBetter = (newBal > existBal) ||
-                          (!exist.account_name_en && dr.account_name_en) ||
-                          (newId_ > existId);
-        if (newIsBetter) {
-          dedupedRaw[existIdx] = dr;
-          // تحديث الصف المكرر في الشيت: حذف الصف القديم الزائد
-          try {
-            // نعلم أن الصف di+2 هو التكرار - نحذف محتواه لتنظيف الشيت
-            sheet.getRange(di + 2, 1, 1, sheet.getLastColumn()).clearContent();
-          } catch(e) {}
-        } else {
-          // الصف الجديد (di+2) هو التكرار الأدنى - نمسحه
-          try {
-            sheet.getRange(di + 2, 1, 1, sheet.getLastColumn()).clearContent();
-          } catch(e) {}
-        }
-      }
-    }
-    // فلترة الصفوف الفارغة بعد المسح
-    dedupedRaw = dedupedRaw.filter(function(r) {
-      return String(r.account_code || r.code || r.id || "").trim() !== "";
-    });
-    // ─────────────────────────────────────────────────────────────────────────
-
-    return dedupedRaw.map(function(r, idx) {
+    return raw.map(function(r, idx) {
       var code = String(r.account_code || r.code || r.id || "").trim();
       var name = String(r.account_name || r.name || code).trim();
       var pId = (r.parent_account_id !== undefined && r.parent_account_id !== null && r.parent_account_id !== "" && r.parent_account_id !== "0") ? r.parent_account_id : (r.parent_id || null);
@@ -2290,34 +2340,19 @@ var ChartOfAccountsController = {
       var openBal = Number(r.opening_balance || 0);
       var nature = r.normal_balance || r.nature || (['خصوم', 'حقوق ملكية', 'إيرادات'].indexOf(r.account_type) !== -1 ? 'credit' : 'debit');
 
-      // extractCode: استخراج الكود بدقة من نص القيد (بدون مطابقة أرقام داخل الأسماء)
-      var extractCode = function(str) {
-        if (!str) return '';
-        var s = String(str).trim();
-        if (/^\d+(\.\d+)?$/.test(s)) return s;
-        var m = s.match(/^ACC[-_]?(\d+(\.\d+)?)/i);
-        if (m) return m[1];
-        var m2 = s.match(/^(\d+(\.\d+)?)\b/);
-        if (m2) return m2[1];
-        return '';
-      };
-
-      // Compute dynamic movements from journal_entries sheet (بدون name-matching)
+      // Compute dynamic movements from journal_entries sheet
       var totalDebit = 0;
       var totalCredit = 0;
       var hasMovements = false;
 
       for (var j = 0; j < jRows.length; j++) {
         var je = jRows[j];
-        var dStr = String(je.debit_code || je.debit_account_id || je.debit || "").trim();
-        var cStr = String(je.credit_code || je.credit_account_id || je.credit || "").trim();
-        var dCode_ = extractCode(dStr);
-        var cCode_ = extractCode(cStr);
+        var dStr = String(je.debit_account_id || je.debit || "").trim();
+        var cStr = String(je.credit_account_id || je.credit || "").trim();
         var baseAmt = Number(je.base_amount !== undefined && je.base_amount !== "" ? je.base_amount : (Number(je.amount || 0) * Number(je.exchange_rate || 1)));
 
-        // المطابقة بالكود الصريح فقط (حُذفت name-matching لمنع التضاعف)
-        var matchD = dCode_ === code || dStr === code || dStr === String(r.id) || dStr.indexOf(code + " ") === 0 || dStr.indexOf(code + "-") === 0;
-        var matchC = cCode_ === code || cStr === code || cStr === String(r.id) || cStr.indexOf(code + " ") === 0 || cStr.indexOf(code + "-") === 0;
+        var matchD = dStr === code || dStr === String(r.id) || dStr.indexOf(code + " ") === 0 || dStr.indexOf(code + "-") === 0 || (name && dStr.indexOf(name) !== -1);
+        var matchC = cStr === code || cStr === String(r.id) || cStr.indexOf(code + " ") === 0 || cStr.indexOf(code + "-") === 0 || (name && cStr.indexOf(name) !== -1);
 
         if (matchD) { totalDebit += baseAmt; hasMovements = true; }
         if (matchC) { totalCredit += baseAmt; hasMovements = true; }
@@ -2366,7 +2401,6 @@ var ChartOfAccountsController = {
       };
     });
   },
-
 
   getChartOfAccountsTree: function() {
     var accs = this.getAccounts();
@@ -2419,24 +2453,24 @@ var ChartOfAccountsController = {
   addAccount: function(payload) {
     var data = payload.data || payload;
     var sheet = SchemaMapper.getOrCreateSheet("chart_of_accounts");
-    var code = String(data.account_code || data.code || data.acc_code || "").trim();
-    var name = String(data.account_name || data.name || data.acc_name || "").trim();
-    var parentId = data.parent_id || data.parent_account_id || null;
-    if (parentId === "" || parentId === 0 || parentId === "0") parentId = null;
+    var rawCode = String(data.account_code || data.code || data.acc_code || "").trim();
+    var cleanCode = rawCode.replace(/^ACC-/, '').trim();
+    if (!cleanCode) {
+      return { success: false, error: "كود الحساب إلزامي" };
+    }
 
     var lastR = sheet.getLastRow();
     var existingRowIdx = -1;
-    var newId = data.id || data.account_id || "";
+    var newId = "ACC-" + cleanCode;
+    var isNewExplicit = (data.is_new === true || data.is_new === "true");
 
-    // Check if account already exists - البحث بالكود أولاً ثم بالـ id
+    // 🔍 Search if account already exists by Column A (ID) or Column B (Code)
     if (lastR >= 2) {
-      var colCount = Math.min(sheet.getLastColumn(), 3);
-      var allCodes = sheet.getRange(2, 1, lastR - 1, colCount).getValues();
+      var allCodes = sheet.getRange(2, 1, lastR - 1, 2).getValues();
       for (var k = 0; k < allCodes.length; k++) {
-        var rId   = String(allCodes[k][0] || "").trim(); // العمود A = id
-        var rCode = String(allCodes[k][1] || "").trim(); // العمود B = account_code
-        // البحث بالكود أولاً (الأولوية) ثم بالـ id
-        if ((code && rCode === code) || (newId && rId === newId)) {
+        var rId = String(allCodes[k][0] || "").trim();
+        var rCode = String(allCodes[k][1] || "").trim().replace(/^ACC-/, '');
+        if (rId === newId || (cleanCode && rCode === cleanCode)) {
           existingRowIdx = k + 2;
           newId = rId || newId;
           break;
@@ -2444,54 +2478,44 @@ var ChartOfAccountsController = {
       }
     }
 
-    if (!newId) {
-      newId = "ACC-" + Utilities.formatString("%06d", Math.max(1, lastR));
+    var rawName = String(data.account_name || data.name || data.accountName || data.name_ar || "").trim();
+    if (!rawName && existingRowIdx !== -1) {
+      rawName = String(sheet.getRange(existingRowIdx, 3).getValue() || "").trim();
     }
-    
-    // Auto switch parent to is_group=1 and is_postable=0 if parentId exists & resolve clean parent code
-    var parentAccCode = String(data.parent_account_code || "").trim();
-    var parentAccId = String(data.parent_account_id || parentId || "").trim();
-    var lvl = Number(data.level || (parentId ? 2 : 1));
-    var accPath = String(data.account_path || code).trim();
-
-    if (parentId && lastR >= 2) {
-      var vals = sheet.getRange(2, 1, lastR - 1, Math.min(sheet.getLastColumn(), 12)).getValues();
-      for (var r = 0; r < vals.length; r++) {
-        var rowId = String(vals[r][0] || "").trim();
-        var rowCode = String(vals[r][1] || "").trim();
-        var rowLvl = Number(vals[r][8] || 1);
-        var rowPath = String(vals[r][9] || rowCode).trim();
-
-        if (rowId === String(parentId) || rowCode === String(parentId) || rowId === String(parentAccId) || rowCode === String(parentAccCode)) {
-          var pRowIdx = r + 2;
-          sheet.getRange(pRowIdx, 11).setValue(1); // Col K: is_group = 1
-          sheet.getRange(pRowIdx, 12).setValue(0); // Col L: is_postable = 0
-          
-          parentAccCode = rowCode;
-          parentAccId = rowCode; // إجبارياً كود الحساب الأب الصريح (مثل 301 أو 101)
-          lvl = rowLvl + 1;
-          accPath = rowPath + " > " + code;
-          break;
-        }
-      }
+    if (!rawName) {
+      return { success: false, error: "اسم الحساب إلزامي ولا يمكن حفظه فارغاً" };
     }
 
-    var isGrp = Number(data.is_group || 0);
+    // 🏷️ Clean Account Name Mapping: Pure text only (e.g. "محمد"), no code prefix
+    var displayName = rawName;
+    if (cleanCode && displayName.indexOf(cleanCode) === 0) {
+      displayName = displayName.substring(cleanCode.length).replace(/^[\s\-_:]+/, '').trim();
+    }
+    if (!displayName) displayName = rawName;
+
+    var parentId = data.parent_id || data.parent_account_id || data.parentId || null;
+    if (parentId === "" || parentId === 0 || parentId === "0") parentId = null;
+    var cleanParentCode = parentId ? String(parentId).replace(/^ACC-/, '').trim() : "";
+
+    var isGrp = Number(data.is_group !== undefined ? data.is_group : (data.isLeaf === true ? 0 : 0));
     var isPost = isGrp === 1 ? 0 : Number(data.is_postable !== undefined ? data.is_postable : 1);
-    var nature = String(data.normal_balance || data.nature || "debit").trim();
+    var lvl = Number(data.level || (cleanParentCode ? 2 : 1));
+    var nature = String(data.normal_balance || data.nature || "debit").trim().toLowerCase();
+    var accType = String(data.account_type || data.type || "أصول").trim();
+    var accCat = String(data.account_category || data.category || accType).trim();
     var bal = Number(data.current_balance !== undefined ? data.current_balance : (data.balance || 0));
 
     var accountRecord = {
       id: newId,
-      account_code: code,
-      account_name: name,
-      account_name_en: data.account_name_en || data.name_en || "",
-      account_type: data.account_type || data.acc_type || "أصول",
-      account_category: data.account_category || data.account_type || "أصول",
-      parent_account_id: parentAccId || "",
-      parent_account_code: parentAccCode || "",
+      account_code: cleanCode,
+      account_name: displayName,
+      account_name_en: data.account_name_en || data.name_en || data.nameEn || "",
+      account_type: accType,
+      account_category: accCat,
+      parent_account_id: cleanParentCode ? ("ACC-" + cleanParentCode) : "",
+      parent_account_code: cleanParentCode,
       level: lvl,
-      account_path: accPath,
+      account_path: data.account_path || cleanCode,
       is_group: isGrp,
       is_postable: isPost,
       is_active: Number(data.is_active !== undefined ? data.is_active : 1),
@@ -2503,23 +2527,148 @@ var ChartOfAccountsController = {
       establishment_date: data.establishment_date || todayISO(),
       notes: data.notes || "",
       created_at: todayISO(),
-      created_by: data.created_by || "system"
+      created_by: data.created_by || data.user_name || "system"
     };
 
     var rowArray = SchemaMapper.buildRowArray("chart_of_accounts", accountRecord);
-    if (existingRowIdx !== -1) {
+
+    // 🛡️ INSERT VS UPDATE LOGIC:
+    if (existingRowIdx !== -1 && !isNewExplicit) {
+      // Update existing row in-place
+      sheet.getRange(existingRowIdx, 2, 1, 1).setNumberFormat("@");
       sheet.getRange(existingRowIdx, 1, 1, rowArray.length).setValues([rowArray]);
+      sheet.getRange(existingRowIdx, 2, 1, 1).setNumberFormat("@");
     } else {
-      sheet.appendRow(rowArray);
+      // Append new row at the very bottom
+      var targetRow = sheet.getLastRow() + 1;
+      sheet.getRange(targetRow, 2, 1, 1).setNumberFormat("@");
+      sheet.getRange(targetRow, 1, 1, rowArray.length).setValues([rowArray]);
+      sheet.getRange(targetRow, 2, 1, 1).setNumberFormat("@");
     }
 
-    try {
-      if (sheet.getLastRow() >= 3) {
-        sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).sort(2);
+    // 🛡️ STRICT PARENT PROTECTION: Only update parent's group status without touching parent's name, code, or type!
+    if (cleanParentCode && sheet.getLastRow() >= 2) {
+      var checkVals = sheet.getRange(2, 1, sheet.getLastRow() - 1, 2).getValues();
+      for (var r = 0; r < checkVals.length; r++) {
+        var pRowId = String(checkVals[r][0] || "").trim();
+        var pRowCode = String(checkVals[r][1] || "").trim().replace(/^ACC-/, '');
+        if (pRowCode === cleanParentCode || pRowId === ("ACC-" + cleanParentCode) || pRowId === cleanParentCode) {
+          var pRowIdx = r + 2;
+          sheet.getRange(pRowIdx, 11).setValue(1); // Col K (Column 11): is_group = 1
+          sheet.getRange(pRowIdx, 12).setValue(0); // Col L (Column 12): is_postable = 0
+          break;
+        }
       }
-    } catch(sortErr) {}
+    }
 
-    return { success: true, id: newId, account_code: code, message: "تم حفظ وتحديث الحساب بنجاح في دليل الحسابات" };
+    return { success: true, id: newId, account_code: cleanCode, message: "تم حفظ وتحديث الحساب بنجاح في دليل الحسابات 👑" };
+  },
+
+  deleteAccount: function(payload) {
+    var data = payload.data || payload;
+    var sheet = SchemaMapper.getOrCreateSheet("chart_of_accounts");
+    var rawCode = String(data.account_code || data.code || "").trim();
+    var cleanC = rawCode.replace(/^ACC[-_]/i, '').trim();
+    var idVal = String(data.id || data.account_id || "").trim();
+    var cleanId = idVal.replace(/^ACC[-_]/i, '').trim();
+    var nameVal = String(data.account_name || data.name || "").trim();
+    var lastR = sheet.getLastRow();
+    if (lastR < 2) return { success: true, deleted: 0 };
+
+    // Format code column as plain text to prevent future date conversion issues
+    try {
+      sheet.getRange(2, 2, lastR - 1, 1).setNumberFormat("@");
+    } catch(fmtErr) {}
+
+    var vals = sheet.getRange(2, 1, lastR - 1, Math.min(sheet.getLastColumn(), 4)).getValues();
+    var deleted = 0;
+    var normTarget = cleanC.replace(/[-_.]/g, '').trim();
+
+    for (var r = vals.length - 1; r >= 0; r--) {
+      var rowId = String(vals[r][0] || "").trim();
+      var rawRowCode = vals[r][1];
+      var rowCode = "";
+      if (rawRowCode instanceof Date) {
+        var yr = rawRowCode.getFullYear();
+        var mo = ("0" + (rawRowCode.getMonth() + 1)).slice(-2);
+        rowCode = yr + "." + mo;
+      } else {
+        rowCode = String(rawRowCode || "").trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(rowCode)) {
+          var dp = rowCode.split("-");
+          rowCode = dp[0] + "." + dp[1];
+        }
+      }
+      var rowName = String(vals[r][2] || "").trim();
+      var cleanRowCode = rowCode.replace(/^ACC[-_]/i, '').trim();
+      var cleanRowId = rowId.replace(/^ACC[-_]/i, '').trim();
+      var normRow = cleanRowCode.replace(/[-_.]/g, '').trim();
+
+      var match = false;
+      if (cleanC && (cleanRowCode === cleanC || cleanRowId === cleanC || rowName.indexOf(cleanC) === 0 || cleanRowCode.indexOf(cleanC) === 0)) match = true;
+      if (normTarget && normTarget.length >= 3 && normRow && (normRow === normTarget || normRow.indexOf(normTarget) === 0)) match = true;
+      if (cleanId && (cleanRowId === cleanId || cleanRowCode === cleanId)) match = true;
+      if (idVal && (rowId === idVal || rowCode === idVal)) match = true;
+      if (rawCode && (rowCode === rawCode || rowId === ("ACC-" + rawCode))) match = true;
+      if (nameVal && (rowName === nameVal || (nameVal.length > 2 && rowName.indexOf(nameVal) !== -1))) match = true;
+
+      if (match) {
+        sheet.deleteRow(r + 2);
+        deleted++;
+      }
+    }
+    return { success: true, deleted: deleted, message: "تم حذف الحساب بنجاح من شيت قوقل" };
+  },
+
+  deduplicateSheet: function() {
+    var sheet = SchemaMapper.getOrCreateSheet("chart_of_accounts");
+    var lastR = sheet.getLastRow();
+    var lastC = sheet.getLastColumn();
+    if (lastR < 2) return { success: true, message: "Sheet empty", count: 0 };
+
+    var data = sheet.getRange(2, 1, lastR - 1, Math.max(lastC, 22)).getValues();
+    var seen = {};
+    var uniqueRows = [];
+
+    for (var i = 0; i < data.length; i++) {
+      var row = data[i];
+      var idVal = String(row[0] || "").trim();
+      var codeVal = String(row[1] || "").trim();
+      var nameVal = String(row[2] || "").trim();
+
+      // Derive canonical code if column B was empty
+      var cleanCode = codeVal;
+      if (!cleanCode) {
+        var idMatch = idVal.match(/^ACC[-_]?(\d+(\.\d+)?)/i);
+        if (idMatch) cleanCode = idMatch[1];
+        else {
+          var nameMatch = nameVal.match(/^(\d+(\.\d+)?)\s+/);
+          if (nameMatch) cleanCode = nameMatch[1];
+        }
+      }
+
+      var key = cleanCode || idVal;
+      if (!key) continue;
+
+      if (!seen[key]) {
+        seen[key] = true;
+        // Fix column B (code) if missing
+        if (!row[1] && cleanCode) row[1] = cleanCode;
+        // Clean name if it starts with the code number (e.g. '3111.01 محمد' -> 'محمد')
+        if (cleanCode && row[2] && String(row[2]).indexOf(cleanCode) === 0) {
+          row[2] = String(row[2]).substring(cleanCode.length).replace(/^[\s\-_:]+/, '').trim();
+        }
+        uniqueRows.push(row);
+      }
+    }
+
+    // Clear all rows and re-insert only unique rows
+    sheet.deleteRows(2, lastR - 1);
+    if (uniqueRows.length > 0) {
+      sheet.getRange(2, 1, uniqueRows.length, uniqueRows[0].length).setValues(uniqueRows);
+      sheet.getRange(2, 2, uniqueRows.length, 1).setNumberFormat("@");
+    }
+    return { success: true, message: "تمت إزالة كافة التكرارات وضبط الأعمدة بنجاح 👑", before: lastR - 1, after: uniqueRows.length };
   }
 };
 
@@ -2532,6 +2681,9 @@ function appendExchangeDiffAccounts() {
   if (!sheet) return { success: false, message: "Accounts sheet not found" };
 
   var lastRow = sheet.getLastRow();
+  // Don't auto-append if the sheet already has accounts (respect user deletions)
+  if (lastRow > 2) return { success: true, message: "Chart of accounts already established" };
+
   var existingData = lastRow > 1 ? sheet.getRange(2, 1, lastRow - 1, 3).getValues() : [];
   var hasGain = false;
   var hasLoss = false;
@@ -2833,10 +2985,10 @@ function resetAndSeedCleanChartOfAccounts(optionalSheet) {
     // 3. حقوق الملكية
     ["ACC-3", "3", "حقوق الملكية", "Equity", "حقوق ملكية", "حقوق ملكية", "", "", 1, "3", 1, 0, 1, "credit", 0, 0, "credit", "YER", "2026-01-01", "الحساب الجذري لحقوق الملكية", "2026-01-01", "system"],
     ["ACC-31", "31", "رأس المال والاحتياطيات", "Capital & Reserves", "حقوق ملكية", "رأس مال", "ACC-3", "3", 2, "3 > 31", 1, 0, 1, "credit", 0, 0, "credit", "YER", "2026-01-01", "حساب تجميعي لرأس المال والأرباح", "2026-01-01", "system"],
-    ["ACC-311", "311", "رأس المال المباشر", "Direct Capital", "حقوق ملكية", "رأس مال", "ACC-31", "31", 3, "3 > 31 > 311", 1, 0, 1, "credit", 0, 0, "credit", "YER", "2026-01-01", "حساب تجميعي لحصص رأس المال", "2026-01-01", "system"],
-    ["ACC-3111", "3111", "رأس المال المباشر Little Princesses", "Paid-in Capital Little Princesses", "حقوق ملكية", "رأس مال", "ACC-311", "311", 4, "3 > 31 > 311 > 3111", 0, 1, 1, "credit", 0, 0, "credit", "YER", "2026-01-01", "رأس مال المؤسسين والشركاء المدفوع", "2026-01-01", "system"],
+    ["ACC-3111", "3111", "رأس مال الشركاء / المالكين", "Partners & Owners Capital", "حقوق ملكية", "رأس مال", "ACC-311", "311", 4, "3 > 31 > 311 > 3111", 1, 0, 1, "credit", 0, 0, "credit", "YER", "2026-01-01", "حساب تجميعي لرأس مال الشركاء والمالكين", "2026-01-01", "system"],
     ["ACC-312", "312", "الأرباح والاحتياطيات", "Retained Earnings & Reserves", "حقوق ملكية", "أرباح", "ACC-31", "31", 3, "3 > 31 > 312", 1, 0, 1, "credit", 0, 0, "credit", "YER", "2026-01-01", "حساب تجميعي للأرباح المتراكمة", "2026-01-01", "system"],
     ["ACC-3121", "3121", "الأرباح المبقاة / المحتجزة", "Retained Earnings", "حقوق ملكية", "أرباح", "ACC-312", "312", 4, "3 > 31 > 312 > 3121", 0, 1, 1, "credit", 0, 0, "credit", "YER", "2026-01-01", "صافي أرباح الفترات السابقة المدورة", "2026-01-01", "system"],
+    ["ACC-32", "32", "جاري الشركاء والمسحوبات", "Partners Current Accounts", "حقوق ملكية", "جاري شركاء", "ACC-3", "3", 2, "3 > 32", 1, 0, 1, "credit", 0, 0, "credit", "YER", "2026-01-01", "حساب تجميعي لجاري ومسحوبات الشركاء", "2026-01-01", "system"],
 
     // 4. الإيرادات
     ["ACC-4", "4", "الإيرادات", "Revenue", "إيرادات", "إيرادات", "", "", 1, "4", 1, 0, 1, "credit", 0, 0, "credit", "YER", "2026-01-01", "الحساب الجذري لكافة الإيرادات", "2026-01-01", "system"],
@@ -2872,6 +3024,13 @@ function resetAndSeedCleanChartOfAccounts(optionalSheet) {
 }
 
 /**
+ * دالة إزالة التكرارات وضبط الأعمدة مباشرة من قائمة دوال Apps Script
+ */
+function deduplicateChartOfAccounts() {
+  return ChartOfAccountsController.deduplicateSheet();
+}
+
+/**
  * HTTP HANDLERS
  */
 function doGet(e) {
@@ -2881,8 +3040,16 @@ function doGet(e) {
 
 function doPost(e) {
   var requestData = {};
-  if (e && e.postData && e.postData.contents) {
-    try { requestData = JSON.parse(e.postData.contents); } catch (err) { requestData = {}; }
+  if (e && e.postData) {
+    var raw = "";
+    if (e.postData.getDataAsString) {
+      try { raw = e.postData.getDataAsString(); } catch(err) { raw = e.postData.contents || ""; }
+    } else {
+      raw = e.postData.contents || "";
+    }
+    if (raw) {
+      try { requestData = JSON.parse(raw); } catch (err) { requestData = {}; }
+    }
   }
   var action = requestData.action || (e && e.parameter && e.parameter.action) || "getDashboardStats";
   return handleAction(action, requestData);
@@ -3001,6 +3168,58 @@ function handleAction(action, payload) {
       case "addAccount":
       case "saveAccount":
         return responseJSON({ status: "success", data: ChartOfAccountsController.addAccount(payload) });
+      case "deleteAccount":
+        return responseJSON({ status: "success", data: ChartOfAccountsController.deleteAccount(payload) });
+      case "deduplicateAccounts":
+      case "deduplicateSheet":
+        return responseJSON({ status: "success", data: ChartOfAccountsController.deduplicateSheet() });
+      case "fixAccountCodes":
+      case "formatAccountCodeColumn": {
+        // 🛠️ Fix date-converted codes: format entire column B as text and repair known bad codes
+        var accSheet = SchemaMapper.getOrCreateSheet("chart_of_accounts");
+        var lastR = accSheet.getLastRow();
+        if (lastR >= 2) {
+          // Format entire code column as plain text to prevent future date conversion
+          accSheet.getRange(2, 2, lastR - 1, 1).setNumberFormat("@");
+          // Known corrupted codes mapping: date-format -> correct code
+          var codeMap = {
+            "1110-12-25": null,
+            "1111-01-25": null,
+            "1111-04-24": null,
+            "1111.01": null,
+            "1111.02": null,
+            "1111.03": null,
+            "1111.05": null,
+            "1111.99": null,
+            "311.01": null,
+            "3111-01-01": null,
+            "3111.01": null,
+            "3112": null,
+            "5211-01-01": null,
+            "5211.01": null
+          };
+          var codeCol = accSheet.getRange(2, 2, lastR - 1, 1).getValues();
+          var fixed = 0;
+          var deleted = 0;
+          for (var ri = 0; ri < codeCol.length; ri++) {
+            var cellVal = String(codeCol[ri][0] || "").trim();
+            if (codeMap.hasOwnProperty(cellVal)) {
+              var correctCode = codeMap[cellVal];
+              if (correctCode === null) {
+                // Delete entire row (mark for deletion)
+                accSheet.deleteRow(ri + 2 - deleted);
+                deleted++;
+                ri--; // adjust index after deletion
+                lastR--;
+              } else {
+                accSheet.getRange(ri + 2, 2).setNumberFormat("@").setValue(correctCode);
+                fixed++;
+              }
+            }
+          }
+        }
+        return responseJSON({ status: "success", data: { message: "Fixed account codes in sheet", fixed: fixed, deleted: deleted } });
+      }
       case "resetChartOfAccounts":
       case "resetCleanChartOfAccounts":
         return responseJSON({ status: "success", data: resetAndSeedCleanChartOfAccounts() });

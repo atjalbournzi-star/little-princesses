@@ -1,14 +1,21 @@
 const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
 function Inventory({ inventory = [], setInventory, purchases = [], orders = [], showToast, currency }) {
-  const currencyDisplay = currency?.display || "SAR";
+  const currencyDisplay = currency?.display || "YER ﷼";
 
   const [activeSubTab, setActiveSubTab] = useState('stock'); // 'stock' | 'purchases' | 'movements'
   const [formData, setFormData] = useState({
-    item_name: '', category: typeof FABRIC_CATEGORIES !== 'undefined' ? FABRIC_CATEGORIES[0] : 'أقمشة', qty: '', cost: '', total_value: '', currency: typeof CURRENCIES !== 'undefined' ? (typeof CURRENCIES[0] === 'object' ? CURRENCIES[0].value : CURRENCIES[0]) : 'SAR', supply_date: TODAY_STR_ISO, location: 'المستودع الرئيسي'
+    item_name: '', category: typeof FABRIC_CATEGORIES !== 'undefined' ? FABRIC_CATEGORIES[0] : 'أقمشة', qty: '', cost: '', total_value: '', currency: currency?.code || (typeof CURRENCIES !== 'undefined' ? (typeof CURRENCIES[0] === 'object' ? CURRENCIES[0].value : CURRENCIES[0]) : 'YER'), supply_date: TODAY_STR_ISO, location: 'المستودع الرئيسي'
   });
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('الكل');
+
+  // ── حالات تسوية فوارق الجرد وتالف الأقمشة ──
+  const [adjustingItem, setAdjustingItem] = useState(null);
+  const [adjustType, setAdjustType] = useState('wastage'); // 'wastage' | 'gain'
+  const [adjustQty, setAdjustQty] = useState('');
+  const [adjustReason, setAdjustReason] = useState('');
+  const [isSubmittingAdjust, setIsSubmittingAdjust] = useState(false);
 
   const handleQtyChange = (e) => {
     const q = e.target.value;
@@ -44,24 +51,81 @@ function Inventory({ inventory = [], setInventory, purchases = [], orders = [], 
       item_code: `MAT-${Math.floor(100 + Math.random() * 900)}`,
       cost_per_unit: parseFloat(formData.cost) || 0,
       unit_cost: parseFloat(formData.cost) || 0,
+      cost_per_meter: parseFloat(formData.cost) || 0,
       total_value: parseFloat(formData.total_value) || 0,
       location: formData.location || 'المستودع الرئيسي',
-      available_qty: parseFloat(formData.qty) || 0
+      available_qty: parseFloat(formData.qty) || 0,
+      quantity_meters: parseFloat(formData.qty) || 0,
+      quantity: parseFloat(formData.qty) || 0,
+      qty: parseFloat(formData.qty) || 0
     };
     
     try {
+      if (window.inventoryAPI && window.inventoryAPI.createItem) {
+        const res = await window.inventoryAPI.createItem(newItem);
+        if (res && res.success) {
+          const savedItem = { ...newItem, id: res.id || newItem.id };
+          if (setInventory) setInventory(prev => [savedItem, ...(prev || []).filter(i => i.id !== savedItem.id)]);
+          showToast(res.message || 'تمت إضافة الصنف للمخزون بنجاح 📦');
+          return;
+        }
+      }
       const res = await callGAS('addInventory', newItem);
       if (res.status === 'success' || res.id) {
-        if (setInventory) setInventory([newItem, ...(inventory || [])]);
+        if (setInventory) setInventory(prev => [newItem, ...(prev || [])]);
         showToast('تمت إضافة الصنف للمخزون بنجاح 📦');
       } else showToast('حدث خطأ أثناء الحفظ', 'error');
     } catch (err) {
-      if (setInventory) setInventory([newItem, ...(inventory || [])]);
-      showToast('تم الحفظ محلياً ⚡');
+      if (setInventory) setInventory(prev => [newItem, ...(prev || [])]);
+      showToast(err.message || 'تم الحفظ محلياً ⚡');
     } finally {
       setFormData({
-        item_name: '', category: typeof FABRIC_CATEGORIES !== 'undefined' ? FABRIC_CATEGORIES[0] : 'أقمشة', qty: '', cost: '', total_value: '', currency: typeof CURRENCIES !== 'undefined' ? (typeof CURRENCIES[0] === 'object' ? CURRENCIES[0].value : CURRENCIES[0]) : 'SAR', supply_date: TODAY_STR_ISO, location: 'المستودع الرئيسي'
+        item_name: '', category: typeof FABRIC_CATEGORIES !== 'undefined' ? FABRIC_CATEGORIES[0] : 'أقمشة', qty: '', cost: '', total_value: '', currency: typeof CURRENCIES !== 'undefined' ? (typeof CURRENCIES[0] === 'object' ? CURRENCIES[0].value : CURRENCIES[0]) : (currency?.display || 'YER ﷼'), supply_date: TODAY_STR_ISO, location: 'المستودع الرئيسي'
       });
+    }
+  };
+
+  // ── تنفيذ تسوية فوارق الجرد أو إهلاك التالف ──
+  const handleExecuteAdjust = async (e) => {
+    e.preventDefault();
+    if (!adjustingItem) return;
+    const vQty = parseFloat(adjustQty);
+    if (!vQty || vQty <= 0) {
+      return showToast('الكمية المراد تسويتها يجب أن تكون أكبر من الصفر ⚠️', 'error');
+    }
+
+    setIsSubmittingAdjust(true);
+    try {
+      if (window.inventoryAPI && window.inventoryAPI.adjustInventory) {
+        const payload = {
+          item_id: adjustingItem.id,
+          item_name: getItemName(adjustingItem),
+          adj_type: adjustType,
+          variance_qty: vQty,
+          reason: adjustReason || (adjustType === 'wastage' ? 'إهلاك تالف وهالك أقمشة خياطة' : 'تسوية فائض جردي')
+        };
+        const res = await window.inventoryAPI.adjustInventory(payload);
+        if (res && res.success) {
+          showToast(res.message || 'تم ترحيل قيد التسوية الجردية بنجاح ⚖️');
+          if (setInventory) {
+            setInventory(prev => (prev || []).map(item => {
+              if (item.id === adjustingItem.id) {
+                return { ...item, qty: res.new_qty, quantity_meters: res.new_qty, quantity: res.new_qty };
+              }
+              return item;
+            }));
+          }
+          setAdjustingItem(null);
+          setAdjustQty('');
+          setAdjustReason('');
+        } else {
+          showToast(res?.message || 'فشلت عملية التسوية', 'error');
+        }
+      }
+    } catch(err) {
+      showToast(err.message || 'خطأ أثناء تنفيذ التسوية', 'error');
+    } finally {
+      setIsSubmittingAdjust(false);
     }
   };
 
@@ -286,14 +350,15 @@ function Inventory({ inventory = [], setInventory, purchases = [], orders = [], 
                   <thead>
                     <tr className="bg-[#FAFAFB] text-[#6F6B75] font-bold border-b border-[#E8E5EA]">
                       <th className="px-2 py-3 text-right w-[6%]">رمز الصنف</th>
-                      <th className="px-2.5 py-3 text-right w-[18%]">اسم الخامة / الصنف</th>
-                      <th className="px-2 py-3 text-right w-[10%]">التصنيف</th>
-                      <th className="px-2 py-3 text-left w-[10%]">الكمية الحالية</th>
-                      <th className="px-2 py-3 text-left w-[13%]">التكلفة (متوسط مرجح)</th>
-                      <th className="px-2 py-3 text-left w-[14%]">إجمالي القيمة</th>
-                      <th className="px-2 py-3 text-right w-[11%]">المورد</th>
-                      <th className="px-2 py-3 text-right w-[10%]">موقع التخزين</th>
-                      <th className="px-2 py-3 text-center w-[8%]">تاريخ التوريد</th>
+                      <th className="px-2.5 py-3 text-right w-[17%]">اسم الخامة / الصنف</th>
+                      <th className="px-2 py-3 text-right w-[9%]">التصنيف</th>
+                      <th className="px-2 py-3 text-left w-[9%]">الكمية الحالية</th>
+                      <th className="px-2 py-3 text-left w-[12%]">التكلفة (متوسط)</th>
+                      <th className="px-2 py-3 text-left w-[13%]">إجمالي القيمة</th>
+                      <th className="px-2 py-3 text-right w-[10%]">المورد</th>
+                      <th className="px-2 py-3 text-right w-[9%]">الموقع</th>
+                      <th className="px-2 py-3 text-center w-[7%]">التوريد</th>
+                      <th className="px-2 py-3 text-center w-[8%]">تسوية الجرد</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#E8E5EA] bg-white">
@@ -313,12 +378,12 @@ function Inventory({ inventory = [], setInventory, purchases = [], orders = [], 
                       const loc = i.location || 'المستودع الرئيسي';
                       return (
                         <tr key={i.id || name || idx} className="hover:bg-[#FAFAFB] transition-colors border-b border-[#E8E5EA]/60">
-                          {/* الخلية 1: رمز الصنف (6% - يمين) */}
+                          {/* الخلية 1: رمز الصنف */}
                           <td className="px-2 py-2.5 font-mono text-[#8F2A87] font-bold text-xs text-right align-middle truncate" title={String(code)}>
                             {code}
                           </td>
 
-                          {/* الخلية 2: اسم الخامة / الصنف (18% - يمين) */}
+                          {/* الخلية 2: اسم الخامة / الصنف */}
                           <td className="px-2.5 py-2.5 font-bold text-[#25232A] text-right align-middle truncate" title={name}>
                             <div className="flex items-center gap-1.5 truncate">
                               <span className="truncate">{name}</span>
@@ -326,14 +391,14 @@ function Inventory({ inventory = [], setInventory, purchases = [], orders = [], 
                             </div>
                           </td>
 
-                          {/* الخلية 3: التصنيف (10% - يمين) */}
+                          {/* الخلية 3: التصنيف */}
                           <td className="px-2 py-2.5 text-right align-middle truncate">
                             <span className="bg-[#FAFAFB] text-[#25232A] border border-[#E8E5EA] px-1.5 py-0.5 rounded text-[10px] font-semibold inline-block truncate max-w-full">
                               {i.category || 'أقمشة وخامات'}
                             </span>
                           </td>
 
-                          {/* الخلية 4: الكمية الحالية (10% - يسار) */}
+                          {/* الخلية 4: الكمية الحالية */}
                           <td className="px-2 py-2.5 text-left align-middle truncate">
                             <span className="font-bold font-mono text-[#25232A] tabular-nums dir-ltr">
                               {qty.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
@@ -343,7 +408,7 @@ function Inventory({ inventory = [], setInventory, purchases = [], orders = [], 
                             </span>
                           </td>
 
-                          {/* الخلية 5: التكلفة متوسط مرجح (13% - يسار) */}
+                          {/* الخلية 5: التكلفة متوسط مرجح */}
                           <td className="px-2 py-2.5 text-left align-middle truncate">
                             <span className="font-mono text-[#6F6B75] font-semibold tabular-nums dir-ltr">
                               {cost > 0 ? cost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
@@ -353,7 +418,7 @@ function Inventory({ inventory = [], setInventory, purchases = [], orders = [], 
                             </span>
                           </td>
 
-                          {/* الخلية 6: إجمالي القيمة (14% - يسار) */}
+                          {/* الخلية 6: إجمالي القيمة */}
                           <td className="px-2 py-2.5 text-left align-middle truncate">
                             <span className="font-bold font-mono text-[#007F8C] tabular-nums dir-ltr">
                               {totalValue > 0 ? totalValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
@@ -363,19 +428,37 @@ function Inventory({ inventory = [], setInventory, purchases = [], orders = [], 
                             </span>
                           </td>
 
-                          {/* الخلية 7: المورد (11% - يمين) */}
+                          {/* الخلية 7: المورد */}
                           <td className="px-2 py-2.5 text-[#25232A] font-medium text-right align-middle truncate text-[11px]" title={supplier}>
                             {supplier}
                           </td>
 
-                          {/* الخلية 8: موقع التخزين (10% - يمين) */}
+                          {/* الخلية 8: موقع التخزين */}
                           <td className="px-2 py-2.5 text-[#6F6B75] text-[11px] text-right align-middle truncate" title={loc}>
                             {loc}
                           </td>
 
-                          {/* الخلية 9: تاريخ التوريد (8% - وسط) */}
+                          {/* الخلية 9: تاريخ التوريد */}
                           <td className="px-2 py-2.5 text-[#6F6B75] font-mono text-[11px] text-center tabular-nums align-middle truncate">
                             {dateStr}
+                          </td>
+
+                          {/* الخلية 10: إجراء التسوية الجردية */}
+                          <td className="px-2 py-2.5 text-center align-middle">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setAdjustingItem(i);
+                                setAdjustType('wastage');
+                                setAdjustQty('');
+                                setAdjustReason('');
+                              }}
+                              className="px-2 py-1 bg-[#FAFAFB] hover:bg-[#FCE8F2] text-[#B0005A] border border-[#E8E5EA] hover:border-[#F2A4CB] rounded-lg text-[10.5px] font-bold transition shadow-2xs flex items-center justify-center gap-1 mx-auto cursor-pointer"
+                              title="تسوية فروقات جردية أو إهلاك تالف بقيد محاسبي آلي"
+                            >
+                              <span>⚖️</span>
+                              <span>تسوية</span>
+                            </button>
                           </td>
                         </tr>
                       );
@@ -384,6 +467,144 @@ function Inventory({ inventory = [], setInventory, purchases = [], orders = [], 
                 </table>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── نافذة تسوية فوارق الجرد وتالف الأقمشة (Modal) ── */}
+      {adjustingItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md animate-fadeIn" dir="rtl">
+          <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden">
+            
+            {/* Modal Header */}
+            <div className="bg-[#0F172A] border-b-2 border-[#B0005A] p-5 flex items-center justify-between text-white">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[#FCE8F2] text-[#B0005A] flex items-center justify-center text-lg font-bold">
+                  ⚖️
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold">تسوية فروقات الجرد وتالف الأقمشة</h3>
+                  <p className="text-[11px] text-slate-300">توليد قيد محاسبي مزدوج تلقائي في حسابات المخزون والتوالف</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAdjustingItem(null)}
+                className="w-8 h-8 rounded-full bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center transition cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Form */}
+            <form onSubmit={handleExecuteAdjust} className="p-6 space-y-4 text-xs">
+              <div className="p-3 bg-[#FAFAFB] border border-[#E8E5EA] rounded-xl flex items-center justify-between">
+                <div>
+                  <span className="text-[11px] text-[#6F6B75] block">الصنف المستهدف:</span>
+                  <span className="font-bold text-[#25232A] text-sm">{getItemName(adjustingItem)}</span>
+                </div>
+                <div className="text-left">
+                  <span className="text-[11px] text-[#6F6B75] block">الرصيد المخزني الحالي:</span>
+                  <span className="font-mono font-extrabold text-[#007F8C] text-sm">
+                    {getItemQty(adjustingItem)} {adjustingItem.unit || 'متر'}
+                  </span>
+                </div>
+              </div>
+
+              {/* نوع التسوية */}
+              <div>
+                <label className="block font-bold text-[#25232A] mb-1.5">نوع التسوية الجردية:</label>
+                <div className="grid grid-cols-2 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setAdjustType('wastage')}
+                    className={`p-3 rounded-xl border text-right font-bold transition flex items-center gap-2 cursor-pointer ${
+                      adjustType === 'wastage'
+                        ? 'bg-[#FCE8F2] text-[#B0005A] border-[#F2A4CB] ring-2 ring-[#B0005A]/30'
+                        : 'bg-white text-[#6F6B75] border-[#E8E5EA] hover:bg-[#FAFAFB]'
+                    }`}
+                  >
+                    <span>🗑️</span>
+                    <div>
+                      <div className="text-xs">إهلاك تالف / عجز جردي (Wastage)</div>
+                      <div className="text-[10px] font-normal opacity-80">مدين: 5113 تالف / دائن: 1151 مخزون</div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setAdjustType('gain')}
+                    className={`p-3 rounded-xl border text-right font-bold transition flex items-center gap-2 cursor-pointer ${
+                      adjustType === 'gain'
+                        ? 'bg-[#E2F5F7] text-[#007F8C] border-[#C5ECF0] ring-2 ring-[#007F8C]/30'
+                        : 'bg-white text-[#6F6B75] border-[#E8E5EA] hover:bg-[#FAFAFB]'
+                    }`}
+                  >
+                    <span>📈</span>
+                    <div>
+                      <div className="text-xs">تسوية فائض جردي (Gain)</div>
+                      <div className="text-[10px] font-normal opacity-80">مدين: 1151 مخزون / دائن: 4119 تسويات</div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* كمية التسوية */}
+              <div>
+                <label className="block font-bold text-[#25232A] mb-1">الكمية المراد تسويتها (متر / وحدة) *:</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  required
+                  placeholder="مثال: 2.5"
+                  value={adjustQty}
+                  onChange={e => setAdjustQty(e.target.value)}
+                  className="w-full h-11 px-3.5 rounded-xl border border-[#E8E5EA] bg-[#FAFAFB] text-xs font-mono font-bold focus:bg-white focus:border-[#B0005A] outline-none"
+                />
+              </div>
+
+              {/* القيمة الإجمالية المقدرة للتسوية */}
+              {parseFloat(adjustQty) > 0 && (
+                <div className="p-3 bg-[#F2E7F3] border border-[#E5CEE7] rounded-xl flex items-center justify-between">
+                  <span className="font-bold text-[#8F2A87]">القيمة المحاسبية للقيد:</span>
+                  <span className="font-mono font-extrabold text-[#8F2A87] text-sm">
+                    {(parseFloat(adjustQty) * getItemCost(adjustingItem)).toLocaleString('en-US', { minimumFractionDigits: 2 })} {adjustingItem.currency || currencyDisplay}
+                  </span>
+                </div>
+              )}
+
+              {/* سبب التسوية */}
+              <div>
+                <label className="block font-bold text-[#25232A] mb-1">سبب ومبرر التسوية الجردية:</label>
+                <input
+                  type="text"
+                  placeholder="مثال: فاقد قص وتطريز، تلف في القماش، جرد فعلي دوري..."
+                  value={adjustReason}
+                  onChange={e => setAdjustReason(e.target.value)}
+                  className="w-full h-11 px-3.5 rounded-xl border border-[#E8E5EA] bg-[#FAFAFB] text-xs font-medium focus:bg-white focus:border-[#B0005A] outline-none"
+                />
+              </div>
+
+              {/* Submit Buttons */}
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-[#E8E5EA]">
+                <button
+                  type="button"
+                  onClick={() => setAdjustingItem(null)}
+                  className="px-5 py-2.5 rounded-xl border border-[#E8E5EA] text-[#6F6B75] hover:bg-[#FAFAFB] font-bold text-xs cursor-pointer"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingAdjust}
+                  className="px-6 py-2.5 rounded-xl bg-[#B0005A] hover:bg-[#8E0049] text-white font-extrabold text-xs shadow-xs transition flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  <span>⚖️</span>
+                  <span>{isSubmittingAdjust ? 'جارٍ ترحيل القيد...' : 'اعتماد وترحيل القيد المحاسبي المزدوج ⚡'}</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

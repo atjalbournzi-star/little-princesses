@@ -1,0 +1,18 @@
+# ==========================================================================
+# 👑 LITTLE PRINCESSES ERP — PYTHON BACKEND DEPENDENCIES
+# ==========================================================================
+
+# PostgreSQL Driver & Environment Variables
+psycopg2-binary>=2.9.9
+python-dotenv>=1.0.0
+
+# Web Framework & API (Unified Server)
+requests>=2.31.0
+urllib3>=2.0.0
+
+# Utility & Helpers
+arabic-reshaper>=3.0.0
+python-bidi>=0.4.2
+qrcode>=7.4.2
+reportlab>=4.0.0
+pillow>=10.0.0

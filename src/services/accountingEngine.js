@@ -474,6 +474,39 @@
       var entries = Array.isArray(journalEntries) ? journalEntries : [];
       var accList = Array.isArray(accounts) ? accounts : [];
 
+      // Helper to parse clean account code
+      var parseAccCode = function(rawStr) {
+        if (!rawStr) return '';
+        var s = String(rawStr).trim();
+        if (s.indexOf(' - ') !== -1) {
+          s = s.split(' - ')[0].trim();
+        }
+        var m = s.match(/^(\d+([.-]\d+)?)/);
+        if (m) return m[1];
+        var mAcc = s.match(/^ACC[-_]?(\d+([.-]\d+)?)/i);
+        if (mAcc) return mAcc[1];
+        return s;
+      };
+
+      var findAcc = function(rawVal, rawCode) {
+        var strVal = String(rawVal || '').trim();
+        var strCode = String(rawCode || '').trim();
+        var c1 = parseAccCode(strCode);
+        var c2 = parseAccCode(strVal);
+        return accList.find(function(a) {
+          var aId = String(a.id || '').trim();
+          var aCode = String(a.code || a.account_code || '').trim();
+          return aId === strVal ||
+                 aCode === strVal ||
+                 (c1 && aCode === c1) ||
+                 (c2 && aCode === c2) ||
+                 (c1 && aId === ('ACC-' + c1)) ||
+                 (c2 && aId === ('ACC-' + c2)) ||
+                 aId.replace(/[-_.]/g, '') === strVal.replace(/[-_.]/g, '') ||
+                 aCode.replace(/[-_.]/g, '') === strVal.replace(/[-_.]/g, '');
+        });
+      };
+
       // Sort chronologically
       var sorted = entries.slice().sort(function(a, b) {
         var dateA = a.date || a.entry_date || '';
@@ -482,137 +515,216 @@
         return (a.id || 0) - (b.id || 0);
       });
 
+      // Target filter account
+      var targetAcc = filterAccountId ? findAcc(filterAccountId, filterAccountId) : null;
+      var targetNature = targetAcc ? (targetAcc.nature || (['خصوم', 'حقوق ملكية', 'إيرادات', 'liabilities', 'equity', 'revenue'].includes(String(targetAcc.account_type || '').toLowerCase()) ? 'credit' : 'debit')) : 'debit';
+      var targetAccCode = targetAcc ? String(targetAcc.code || targetAcc.account_code || targetAcc.id) : String(filterAccountId || '');
+      var targetAccName = targetAcc ? (targetAcc.name || targetAcc.account_name || targetAcc.name_ar || targetAccCode) : targetAccCode;
+
+      // Calculate opening balance prior to dateRange.start
+      var openingBalanceBase = targetAcc ? (parseFloat(targetAcc.opening_balance) || 0) : 0;
+      var openingBalanceOrig = openingBalanceBase;
+
       var ledgerRows = [];
-
-      // Helper to parse clean account code
-      var parseAccCode = function(rawStr) {
-        if (!rawStr) return '';
-        var s = String(rawStr).trim();
-        if (s.indexOf(' - ') !== -1) {
-          s = s.split(' - ')[0].trim();
-        }
-        var m = s.match(/^(\d+(\.\d+)?)/);
-        if (m) return m[1];
-        var mAcc = s.match(/^ACC[-_]?(\d+(\.\d+)?)/i);
-        if (mAcc) return mAcc[1];
-        return s;
-      };
-
-      var findAcc = function(rawVal, rawCode) {
-        var c1 = parseAccCode(rawCode);
-        var c2 = parseAccCode(rawVal);
-        return accList.find(function(a) {
-          var aCode = String(a.code || a.acc_code || a.id).trim();
-          return (c1 && aCode === c1) || (c2 && aCode === c2) || aCode === String(rawVal).trim() || String(a.id) === String(rawVal).trim();
-        });
-      };
 
       sorted.forEach(function(j) {
         var entryDate = (j.date || j.entry_date || '').split('T')[0];
-        if (dateRange) {
-          if (dateRange.start && entryDate < dateRange.start) return;
-          if (dateRange.end && entryDate > dateRange.end) return;
-        }
+        var isPrior = Boolean(dateRange && dateRange.start && entryDate < dateRange.start);
+        var isInPeriod = (!dateRange || !dateRange.start || entryDate >= dateRange.start) &&
+                         (!dateRange || !dateRange.end || entryDate <= dateRange.end);
 
-        var amount = parseFloat(j.amount) || 0;
+        if (!isPrior && !isInPeriod) return; // After dateRange.end
+
         var curr = j.currency || 'YER';
         var normCurr = window.CurrencyService ? window.CurrencyService.normalizeCode(curr) : curr;
         var rawRate = parseFloat(j.exchange_rate);
         var rate = (rawRate && rawRate > 0 && !(rawRate === 1.0 && normCurr !== 'YER')) ? rawRate : (window.CurrencyService ? window.CurrencyService.getRate(normCurr) : (normCurr === 'SAR' ? 142.0 : (normCurr === 'USD' ? 535.0 : 1.0)));
-        var rawBase = parseFloat(j.base_amount);
-        var baseAmount = (rawBase && rawBase > 0 && !(normCurr !== 'YER' && Math.abs(rawBase - amount) < 0.01)) ? rawBase : (amount * rate);
 
-        var dRaw = String(j.debit || j.debit_account_id || '');
-        var cRaw = String(j.credit || j.credit_account_id || '');
-        var dCode = String(j.debit_code || parseAccCode(dRaw));
-        var cCode = String(j.credit_code || parseAccCode(cRaw));
+        // If entry has multi-leg lines, process each line
+        if (Array.isArray(j.lines) && j.lines.length > 0) {
+          j.lines.forEach(function(l, lineIdx) {
+            var accRaw = String(l.account_id || '');
+            var accObj = findAcc(accRaw, accRaw);
+            var aCode = accObj ? String(accObj.code || accObj.account_code || accObj.id) : parseAccCode(accRaw);
+            var aName = accObj ? (accObj.name || accObj.account_name || accObj.name_ar || aCode) : accRaw;
+            var aNature = accObj ? (accObj.nature || (['خصوم', 'حقوق ملكية', 'إيرادات', 'liabilities', 'equity', 'revenue'].includes(String(accObj.account_type || '').toLowerCase()) ? 'credit' : 'debit')) : 'debit';
 
-        var debitAccObj = findAcc(dRaw, dCode);
-        var creditAccObj = findAcc(cRaw, cCode);
+            var dOrig = parseFloat(l.debit) || 0;
+            var cOrig = parseFloat(l.credit) || 0;
+            var dBase = l.debit_base !== undefined ? (parseFloat(l.debit_base) || 0) : (dOrig * rate);
+            var cBase = l.credit_base !== undefined ? (parseFloat(l.credit_base) || 0) : (cOrig * rate);
 
-        var dFinalCode = debitAccObj ? String(debitAccObj.code || debitAccObj.acc_code || dCode) : dCode;
-        var cFinalCode = creditAccObj ? String(creditAccObj.code || creditAccObj.acc_code || cCode) : cCode;
-        var dFinalName = debitAccObj ? (debitAccObj.name || debitAccObj.account_name || debitAccObj.acc_name || dFinalCode) : dRaw.replace(dCode + ' - ', '').trim();
-        var cFinalName = creditAccObj ? (creditAccObj.name || creditAccObj.account_name || creditAccObj.acc_name || cFinalCode) : cRaw.replace(cCode + ' - ', '').trim();
-        var dNature = debitAccObj ? (debitAccObj.nature || 'debit') : 'debit';
-        var cNature = creditAccObj ? (creditAccObj.nature || 'credit') : 'credit';
+            var isMatch = !filterAccountId ||
+                          aCode === targetAccCode ||
+                          accRaw === String(filterAccountId) ||
+                          (targetAcc && (accObj && accObj.id === targetAcc.id));
 
-        // Debit side movement
-        if (!filterAccountId || dFinalCode === String(filterAccountId) || dRaw === String(filterAccountId)) {
-          ledgerRows.push({
-            id: (j.id || '') + '-DR',
-            journal_id: j.id,
-            entry_no: j.entry_no || ('JV-' + j.id),
-            date: entryDate,
-            account_code: dFinalCode,
-            account_name: dFinalName,
-            account_nature: dNature,
-            side: 'debit',
-            debit_orig: amount,
-            credit_orig: 0,
-            debit_base: baseAmount,
-            credit_base: 0,
-            currency: curr,
-            exchange_rate: rate,
-            ref_type: j.ref_type || 'قيد يومية',
-            ref_id: j.ref_id || '',
-            notes: j.notes || j.statement || ('قيد مدين إلى ' + cFinalName)
+            if (!isMatch) return;
+
+            if (isPrior) {
+              if (targetNature === 'credit') {
+                openingBalanceBase += (cBase - dBase);
+                openingBalanceOrig += (cOrig - dOrig);
+              } else {
+                openingBalanceBase += (dBase - cBase);
+                openingBalanceOrig += (dOrig - cOrig);
+              }
+            } else if (isInPeriod) {
+              ledgerRows.push({
+                id: (j.id || '') + '-L' + (l.id || lineIdx),
+                journal_id: j.id,
+                entry_no: j.entry_no || ('JV-' + j.id),
+                date: entryDate,
+                account_code: aCode,
+                account_name: aName,
+                account_nature: aNature,
+                side: dBase > 0 ? 'debit' : 'credit',
+                debit_orig: dOrig,
+                credit_orig: cOrig,
+                debit_base: dBase,
+                credit_base: cBase,
+                currency: curr,
+                exchange_rate: rate,
+                ref_type: j.ref_type || 'قيد يومية',
+                ref_id: j.ref_id || '',
+                notes: l.line_description || j.notes || j.statement || ('حركة حساب ' + aName)
+              });
+            }
           });
-        }
+        } else {
+          // Standard 2-leg header fallback
+          var amount = parseFloat(j.amount) || 0;
+          var rawBase = parseFloat(j.base_amount);
+          var baseAmount = (rawBase && rawBase > 0 && !(normCurr !== 'YER' && Math.abs(rawBase - amount) < 0.01)) ? rawBase : (amount * rate);
 
-        // Credit side movement
-        if (!filterAccountId || cFinalCode === String(filterAccountId) || cRaw === String(filterAccountId)) {
-          ledgerRows.push({
-            id: (j.id || '') + '-CR',
-            journal_id: j.id,
-            entry_no: j.entry_no || ('JV-' + j.id),
-            date: entryDate,
-            account_code: cFinalCode,
-            account_name: cFinalName,
-            account_nature: cNature,
-            side: 'credit',
-            debit_orig: 0,
-            credit_orig: amount,
-            debit_base: 0,
-            credit_base: baseAmount,
-            currency: curr,
-            exchange_rate: rate,
-            ref_type: j.ref_type || 'قيد يومية',
-            ref_id: j.ref_id || '',
-            notes: j.notes || j.statement || ('قيد دائن من ' + dFinalName)
-          });
+          var dRaw = String(j.debit || j.debit_account_id || '');
+          var cRaw = String(j.credit || j.credit_account_id || '');
+          var dCode = String(j.debit_code || parseAccCode(dRaw));
+          var cCode = String(j.credit_code || parseAccCode(cRaw));
+
+          var debitAccObj = findAcc(dRaw, dCode);
+          var creditAccObj = findAcc(cRaw, cCode);
+
+          var dFinalCode = debitAccObj ? String(debitAccObj.code || debitAccObj.acc_code || dCode) : dCode;
+          var cFinalCode = creditAccObj ? String(creditAccObj.code || creditAccObj.acc_code || cCode) : cCode;
+          var dFinalName = debitAccObj ? (debitAccObj.name || debitAccObj.account_name || debitAccObj.acc_name || dFinalCode) : dRaw.replace(dCode + ' - ', '').trim();
+          var cFinalName = creditAccObj ? (creditAccObj.name || creditAccObj.account_name || creditAccObj.acc_name || cFinalCode) : cRaw.replace(cCode + ' - ', '').trim();
+          var dNature = debitAccObj ? (debitAccObj.nature || 'debit') : 'debit';
+          var cNature = creditAccObj ? (creditAccObj.nature || 'credit') : 'credit';
+
+          var isDebitMatch = !filterAccountId || dFinalCode === targetAccCode || dRaw === String(filterAccountId) || (targetAcc && debitAccObj && debitAccObj.id === targetAcc.id);
+          var isCreditMatch = !filterAccountId || cFinalCode === targetAccCode || cRaw === String(filterAccountId) || (targetAcc && creditAccObj && creditAccObj.id === targetAcc.id);
+
+          if (isPrior) {
+            if (isDebitMatch) {
+              if (targetNature === 'credit') { openingBalanceBase -= baseAmount; openingBalanceOrig -= amount; }
+              else { openingBalanceBase += baseAmount; openingBalanceOrig += amount; }
+            }
+            if (isCreditMatch) {
+              if (targetNature === 'credit') { openingBalanceBase += baseAmount; openingBalanceOrig += amount; }
+              else { openingBalanceBase -= baseAmount; openingBalanceOrig -= amount; }
+            }
+          } else if (isInPeriod) {
+            if (isDebitMatch) {
+              ledgerRows.push({
+                id: (j.id || '') + '-DR',
+                journal_id: j.id,
+                entry_no: j.entry_no || ('JV-' + j.id),
+                date: entryDate,
+                account_code: dFinalCode,
+                account_name: dFinalName,
+                account_nature: dNature,
+                side: 'debit',
+                debit_orig: amount,
+                credit_orig: 0,
+                debit_base: baseAmount,
+                credit_base: 0,
+                currency: curr,
+                exchange_rate: rate,
+                ref_type: j.ref_type || 'قيد يومية',
+                ref_id: j.ref_id || '',
+                notes: j.notes || j.statement || ('قيد مدين إلى ' + cFinalName)
+              });
+            }
+            if (isCreditMatch) {
+              ledgerRows.push({
+                id: (j.id || '') + '-CR',
+                journal_id: j.id,
+                entry_no: j.entry_no || ('JV-' + j.id),
+                date: entryDate,
+                account_code: cFinalCode,
+                account_name: cFinalName,
+                account_nature: cNature,
+                side: 'credit',
+                debit_orig: 0,
+                credit_orig: amount,
+                debit_base: 0,
+                credit_base: baseAmount,
+                currency: curr,
+                exchange_rate: rate,
+                ref_type: j.ref_type || 'قيد يومية',
+                ref_id: j.ref_id || '',
+                notes: j.notes || j.statement || ('قيد دائن من ' + dFinalName)
+              });
+            }
+          }
         }
       });
 
-      // Calculate running balances by account in both Base (YER) and Original currency
-      var runningTotalsBase = {};
-      var runningTotalsOrig = {};
+      // If filterAccountId is selected and dateRange.start is given, prepend opening balance row
+      if (filterAccountId && dateRange && dateRange.start) {
+        ledgerRows.unshift({
+          id: 'OPENING-' + targetAccCode,
+          journal_id: 'OPENING',
+          entry_no: 'رصيد سابق',
+          date: dateRange.start,
+          account_code: targetAccCode,
+          account_name: targetAccName,
+          account_nature: targetNature,
+          side: targetNature === 'credit' ? 'credit' : 'debit',
+          debit_orig: 0,
+          credit_orig: 0,
+          debit_base: 0,
+          credit_base: 0,
+          currency: 'YER',
+          exchange_rate: 1.0,
+          ref_type: 'رصيد افتتاحي / سابق',
+          ref_id: '',
+          notes: 'الرصيد السابق / الافتتاحي حتى تاريخ ' + dateRange.start,
+          running_balance_base: openingBalanceBase,
+          running_balance_orig: openingBalanceOrig,
+          is_opening: true
+        });
+      }
+
+      // Calculate running balances
+      var runningBase = (filterAccountId && dateRange && dateRange.start) ? openingBalanceBase : 0;
+      var runningOrig = (filterAccountId && dateRange && dateRange.start) ? openingBalanceOrig : 0;
+
       ledgerRows.forEach(function(row) {
-        var acc = row.account_code;
-        if (!runningTotalsBase[acc]) runningTotalsBase[acc] = 0;
-        if (!runningTotalsOrig[acc]) runningTotalsOrig[acc] = {};
-        var rowCurr = row.currency || 'YER';
-        if (!runningTotalsOrig[acc][rowCurr]) runningTotalsOrig[acc][rowCurr] = 0;
-        
-        // If account nature is debit: balance = debit - credit. If credit: balance = credit - debit.
-        if (row.account_nature === 'credit') {
-          runningTotalsBase[acc] += (row.credit_base - row.debit_base);
-          runningTotalsOrig[acc][rowCurr] += (row.credit_orig - row.debit_orig);
-        } else {
-          runningTotalsBase[acc] += (row.debit_base - row.credit_base);
-          runningTotalsOrig[acc][rowCurr] += (row.debit_orig - row.credit_orig);
+        if (row.is_opening) {
+          row.running_balance_base = runningBase;
+          row.running_balance_orig = runningOrig;
+          return;
         }
-        row.running_balance_base = runningTotalsBase[acc];
-        row.running_balance_orig = runningTotalsOrig[acc][rowCurr];
+
+        if (row.account_nature === 'credit') {
+          runningBase += (row.credit_base - row.debit_base);
+          runningOrig += (row.credit_orig - row.debit_orig);
+        } else {
+          runningBase += (row.debit_base - row.credit_base);
+          runningOrig += (row.debit_orig - row.credit_orig);
+        }
+        row.running_balance_base = runningBase;
+        row.running_balance_orig = runningOrig;
       });
 
       return ledgerRows;
     },
 
     // Generates Trial Balance (ميزان المراجعة بالمجاميع والأرصدة) in Base Currency (YER)
-    generateTrialBalance: function(journalEntries, accounts) {
+    generateTrialBalance: function(journalEntries, accounts, dateRange) {
       var accList = Array.isArray(accounts) ? accounts.filter(function(a) { return Number(a.is_group) !== 1; }) : [];
-      var ledgerRows = this.generateGeneralLedger(journalEntries, accounts, null, null);
 
       var parseAccCode = function(rawStr) {
         if (!rawStr) return '';
@@ -620,64 +732,158 @@
         if (s.indexOf(' - ') !== -1) {
           s = s.split(' - ')[0].trim();
         }
-        var m = s.match(/^(\d+(\.\d+)?)/);
+        var m = s.match(/^(\d+([.-]\d+)?)/);
         if (m) return m[1];
-        var mAcc = s.match(/^ACC[-_]?(\d+(\.\d+)?)/i);
+        var mAcc = s.match(/^ACC[-_]?(\d+([.-]\d+)?)/i);
         if (mAcc) return mAcc[1];
         return s;
       };
 
       var findAcc = function(rawVal) {
-        var c1 = parseAccCode(rawVal);
+        var strVal = String(rawVal || '').trim();
+        var c1 = parseAccCode(strVal);
         return accList.find(function(a) {
-          var aCode = String(a.code || a.acc_code || a.id).trim();
-          return (c1 && aCode === c1) || aCode === String(rawVal).trim() || String(a.id) === String(rawVal).trim();
+          var aId = String(a.id || '').trim();
+          var aCode = String(a.code || a.account_code || '').trim();
+          return aId === strVal ||
+                 aCode === strVal ||
+                 (c1 && aCode === c1) ||
+                 (c1 && aId === ('ACC-' + c1)) ||
+                 aId.replace(/[-_.]/g, '') === strVal.replace(/[-_.]/g, '') ||
+                 aCode.replace(/[-_.]/g, '') === strVal.replace(/[-_.]/g, '');
         });
       };
 
       var totalsMap = {};
       accList.forEach(function(a) {
-        var code = String(a.code || a.acc_code || a.id).trim();
-        var nature = a.nature || (['خصوم', 'حقوق ملكية', 'إيرادات'].includes(a.account_type || a.acc_type) ? 'credit' : 'debit');
+        var aId = String(a.id || '').trim();
+        var code = String(a.code || a.account_code || parseAccCode(aId) || aId).trim();
+        var nature = a.nature || (['خصوم', 'حقوق ملكية', 'إيرادات', 'liabilities', 'equity', 'revenue'].includes(String(a.account_type || a.acc_type || '').toLowerCase()) ? 'credit' : 'debit');
 
-        totalsMap[code] = {
+        totalsMap[aId] = {
+          id: aId,
           code: code,
-          name: a.name || a.account_name || a.acc_name || code,
+          name: a.account_name || a.name_ar || a.name || code,
           type: a.account_type || a.acc_type || 'أصول',
           nature: nature,
-          opening_balance: 0,
+          opening_balance_base: parseFloat(a.opening_balance) || 0,
           total_debit_base: 0,
           total_credit_base: 0,
+          debit_balance_base: 0,
+          credit_balance_base: 0,
           net_balance_base: 0
         };
       });
 
-      ledgerRows.forEach(function(r) {
-        var code = parseAccCode(r.account_code) || r.account_code;
-        if (!totalsMap[code]) {
-          var foundAcc = findAcc(code);
-          totalsMap[code] = {
-            code: code,
-            name: foundAcc ? (foundAcc.name || foundAcc.account_name || foundAcc.acc_name) : (r.account_name || code),
-            type: foundAcc ? (foundAcc.account_type || foundAcc.acc_type || 'أصول') : 'أصول',
-            nature: foundAcc ? (foundAcc.nature || r.account_nature || 'debit') : (r.account_nature || 'debit'),
-            opening_balance: 0,
-            total_debit_base: 0,
-            total_credit_base: 0,
-            net_balance_base: 0
-          };
+      var entries = Array.isArray(journalEntries) ? journalEntries : [];
+
+      entries.forEach(function(j) {
+        var entryDate = (j.date || j.entry_date || '').split('T')[0];
+        var isPrior = Boolean(dateRange && dateRange.start && entryDate < dateRange.start);
+        var isInPeriod = (!dateRange || !dateRange.start || entryDate >= dateRange.start) &&
+                         (!dateRange || !dateRange.end || entryDate <= dateRange.end);
+
+        if (!isPrior && !isInPeriod) return;
+
+        var curr = j.currency || 'YER';
+        var normCurr = window.CurrencyService ? window.CurrencyService.normalizeCode(curr) : curr;
+        var rawRate = parseFloat(j.exchange_rate);
+        var rate = (rawRate && rawRate > 0 && !(rawRate === 1.0 && normCurr !== 'YER')) ? rawRate : (window.CurrencyService ? window.CurrencyService.getRate(normCurr) : (normCurr === 'SAR' ? 142.0 : (normCurr === 'USD' ? 535.0 : 1.0)));
+
+        if (Array.isArray(j.lines) && j.lines.length > 0) {
+          j.lines.forEach(function(l) {
+            var accRaw = String(l.account_id || '');
+            var accObj = findAcc(accRaw);
+            var mapKey = accObj ? accObj.id : accRaw;
+
+            if (!totalsMap[mapKey]) {
+              var fCode = accObj ? String(accObj.code || accObj.account_code || accObj.id) : parseAccCode(accRaw);
+              totalsMap[mapKey] = {
+                id: mapKey,
+                code: fCode,
+                name: accObj ? (accObj.account_name || accObj.name_ar || accObj.name || fCode) : accRaw,
+                type: accObj ? (accObj.account_type || 'أصول') : 'أصول',
+                nature: accObj ? (accObj.nature || 'debit') : 'debit',
+                opening_balance_base: 0,
+                total_debit_base: 0,
+                total_credit_base: 0,
+                debit_balance_base: 0,
+                credit_balance_base: 0,
+                net_balance_base: 0
+              };
+            }
+
+            var dOrig = parseFloat(l.debit) || 0;
+            var cOrig = parseFloat(l.credit) || 0;
+            var dBase = l.debit_base !== undefined ? (parseFloat(l.debit_base) || 0) : (dOrig * rate);
+            var cBase = l.credit_base !== undefined ? (parseFloat(l.credit_base) || 0) : (cOrig * rate);
+
+            if (isPrior) {
+              if (totalsMap[mapKey].nature === 'credit') {
+                totalsMap[mapKey].opening_balance_base += (cBase - dBase);
+              } else {
+                totalsMap[mapKey].opening_balance_base += (dBase - cBase);
+              }
+            } else if (isInPeriod) {
+              totalsMap[mapKey].total_debit_base += dBase;
+              totalsMap[mapKey].total_credit_base += cBase;
+            }
+          });
+        } else {
+          // Standard 2-leg header fallback
+          var amount = parseFloat(j.amount) || 0;
+          var rawBase = parseFloat(j.base_amount);
+          var baseAmount = (rawBase && rawBase > 0 && !(normCurr !== 'YER' && Math.abs(rawBase - amount) < 0.01)) ? rawBase : (amount * rate);
+
+          var dRaw = String(j.debit || j.debit_account_id || '');
+          var cRaw = String(j.credit || j.credit_account_id || '');
+          var debitAccObj = findAcc(dRaw);
+          var creditAccObj = findAcc(cRaw);
+
+          var dKey = debitAccObj ? debitAccObj.id : dRaw;
+          var cKey = creditAccObj ? creditAccObj.id : cRaw;
+
+          [dKey, cKey].forEach(function(k, idx) {
+            if (!totalsMap[k]) {
+              var obj = idx === 0 ? debitAccObj : creditAccObj;
+              var raw = idx === 0 ? dRaw : cRaw;
+              var fCode = obj ? String(obj.code || obj.account_code || obj.id) : parseAccCode(raw);
+              totalsMap[k] = {
+                id: k,
+                code: fCode,
+                name: obj ? (obj.account_name || obj.name_ar || obj.name || fCode) : raw,
+                type: obj ? (obj.account_type || 'أصول') : 'أصول',
+                nature: obj ? (obj.nature || (idx === 0 ? 'debit' : 'credit')) : (idx === 0 ? 'debit' : 'credit'),
+                opening_balance_base: 0,
+                total_debit_base: 0,
+                total_credit_base: 0,
+                debit_balance_base: 0,
+                credit_balance_base: 0,
+                net_balance_base: 0
+              };
+            }
+          });
+
+          if (isPrior) {
+            if (totalsMap[dKey].nature === 'credit') totalsMap[dKey].opening_balance_base -= baseAmount;
+            else totalsMap[dKey].opening_balance_base += baseAmount;
+
+            if (totalsMap[cKey].nature === 'credit') totalsMap[cKey].opening_balance_base += baseAmount;
+            else totalsMap[cKey].opening_balance_base -= baseAmount;
+          } else if (isInPeriod) {
+            totalsMap[dKey].total_debit_base += baseAmount;
+            totalsMap[cKey].total_credit_base += baseAmount;
+          }
         }
-        totalsMap[code].total_debit_base += r.debit_base;
-        totalsMap[code].total_credit_base += r.credit_base;
       });
 
       var allRows = Object.values(totalsMap);
-      // Filter to accounts with activity or posting accounts
+
+      // Filter to accounts with opening balance or period activity
       var rows = allRows.filter(function(r) {
-        return r.total_debit_base > 0 || r.total_credit_base > 0;
+        return Math.abs(r.opening_balance_base) > 0.001 || r.total_debit_base > 0 || r.total_credit_base > 0;
       });
 
-      // If no movements yet, show all posting accounts
       if (rows.length === 0) {
         rows = allRows;
       }
@@ -691,37 +897,51 @@
       var grandCredit = 0;
       var grandDebitBal = 0;
       var grandCreditBal = 0;
+      var grandOpening = 0;
 
       rows.forEach(function(r) {
-        var net = r.total_debit_base - r.total_credit_base;
-        if (net > 0) {
-          r.debit_balance_base = net;
-          r.credit_balance_base = 0;
-          r.net_balance_base = net;
-        } else if (net < 0) {
-          r.debit_balance_base = 0;
-          r.credit_balance_base = Math.abs(net);
-          r.net_balance_base = Math.abs(net);
+        // Calculate closing balance combining opening balance + net movements
+        var net = (r.total_debit_base - r.total_credit_base);
+        var finalNet = (r.nature === 'credit') ? (r.opening_balance_base - net) : (r.opening_balance_base + net);
+
+        if (r.nature === 'debit') {
+          if (finalNet >= 0) {
+            r.debit_balance_base = finalNet;
+            r.credit_balance_base = 0;
+          } else {
+            r.debit_balance_base = 0;
+            r.credit_balance_base = Math.abs(finalNet);
+          }
         } else {
-          r.debit_balance_base = 0;
-          r.credit_balance_base = 0;
-          r.net_balance_base = 0;
+          if (finalNet >= 0) {
+            r.credit_balance_base = finalNet;
+            r.debit_balance_base = 0;
+          } else {
+            r.credit_balance_base = 0;
+            r.debit_balance_base = Math.abs(finalNet);
+          }
         }
+        r.net_balance_base = finalNet;
 
         grandDebit += r.total_debit_base;
         grandCredit += r.total_credit_base;
         grandDebitBal += r.debit_balance_base;
         grandCreditBal += r.credit_balance_base;
+        grandOpening += r.opening_balance_base;
       });
+
+      var diffMovements = Math.abs(grandDebit - grandCredit);
+      var diffBalances = Math.abs(grandDebitBal - grandCreditBal);
 
       return {
         rows: rows,
+        grand_total_opening: Math.round(grandOpening * 100) / 100,
         grand_total_debit: Math.round(grandDebit * 100) / 100,
         grand_total_credit: Math.round(grandCredit * 100) / 100,
         grand_total_debit_balance: Math.round(grandDebitBal * 100) / 100,
         grand_total_credit_balance: Math.round(grandCreditBal * 100) / 100,
-        is_balanced: Math.abs(grandDebit - grandCredit) < 0.01 && Math.abs(grandDebitBal - grandCreditBal) < 0.01,
-        diff: Math.round(Math.abs(grandDebit - grandCredit) * 100) / 100
+        is_balanced: diffMovements < 0.05 && diffBalances < 0.05,
+        diff: Math.round(Math.max(diffMovements, diffBalances) * 100) / 100
       };
     }
   };

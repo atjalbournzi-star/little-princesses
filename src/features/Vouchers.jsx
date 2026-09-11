@@ -3,6 +3,49 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, journal = [], setJournal, showToast, customers = [], setCustomers, orders = [], setOrders, currency, expenses = [], setExpenses, purchases = [], employees = [] }) {
   const currencyDisplay = currency?.display || "SAR";
 
+  // استخراج الاسم النظيف للشريك بدون بادئات القيود
+  const getCleanPartnerName = useCallback((acc) => {
+    if (!acc) return '';
+    const raw = String(acc.name || acc.account_name || acc.name_ar || acc.code || '').trim();
+    const clean = raw.replace(/^(راس\s*مال|رأس\s*مال|حصة|شريك|المساهم)\s*/i, '').trim();
+    return clean || raw;
+  }, []);
+
+  // استخراج قائمة شركاء وحسابات رأس المال المباشر ديناميكياً من شجرة الحسابات
+  const partnerAccounts = useMemo(() => {
+    const list = (accounts || []).filter(a => {
+      const code = String(a.code || a.acc_code || a.id || '').trim();
+      const name = String(a.name || a.account_name || a.name_ar || '').trim();
+      const isLeaf = (!a.is_group || a.is_group === 0 || a.is_leaf === 1 || a.is_postable === 1) && a.account_type !== 'تجميعي';
+      if (!isLeaf) return false;
+      if (code === '3' || code === '301' || code === '3111') return false;
+
+      // مطابقة حسابات رأس مال الشركاء والبنود الفرعية المباشرة
+      if (code.startsWith('301.') || code.startsWith('3111.')) return true;
+      if (a.parent_id === '301' || a.parent_id === '3111') return true;
+      if (code.startsWith('3') && (name.includes('مال') || name.includes('شريك') || name.includes('مؤسس') || name.includes('حصة'))) {
+        if (code !== '302' && !name.includes('أرباح') && !name.includes('خسائر') && !name.includes('مرحلة')) {
+          return true;
+        }
+      }
+      return false;
+    }).sort((x, y) => String(x.code || x.acc_code || '').localeCompare(String(y.code || y.acc_code || ''), undefined, { numeric: true, sensitivity: 'base' }));
+
+    return list;
+  }, [accounts]);
+
+  // دالة البحث والربط التلقائي لحساب الشريك المقابل
+  const findPartnerAccount = useCallback((val) => {
+    if (!val) return null;
+    const str = String(val).trim().toLowerCase();
+    return partnerAccounts.find(p => {
+      const code = String(p.code || p.acc_code || '').toLowerCase();
+      const rawName = String(p.name || p.account_name || p.name_ar || '').toLowerCase();
+      const clean = getCleanPartnerName(p).toLowerCase();
+      return str === clean || str === rawName || str === code || str.includes(code) || (clean && str.includes(clean)) || (rawName && str.includes(rawName));
+    }) || null;
+  }, [partnerAccounts, getCleanPartnerName]);
+
   const [formData, setFormData] = useState({
     v_no: '',
     v_type: 'سند صرف',
@@ -20,7 +63,6 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
   const [selectedOrder, setSelectedOrder] = useState('');
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('الكل'); // 'الكل' | 'سند قبض' | 'سند صرف'
-  const [viewVoucher, setViewVoucher] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // ── بوابة العمليات المالية المركزية (Financial Hub) ──
@@ -37,12 +79,14 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
   const [modalTargetAcc, setModalTargetAcc] = useState('');
   const [modalNotes, setModalNotes] = useState('');
   const [splitPayments, setSplitPayments] = useState([
-    { id: 1, method: 'نقداً (الصندوق الرئيسي)', acc_code: '1111', amount: '' }
+    { id: 1, method: 'نقداً (الصندوق الرئيسي)', acc_code: '101', amount: '' }
   ]);
   const [isSubmittingAdv, setIsSubmittingAdv] = useState(false);
 
-  // حالة تعديل وحذف السند المالي
+  // حالة تعديل وحذف وعرض وطباعة السند المالي
   const [editingVoucher, setEditingVoucher] = useState(null);
+  const [viewVoucher, setViewVoucher] = useState(null);
+  const [printVoucher, setPrintVoucher] = useState(null);
   const [editVoucherData, setEditVoucherData] = useState({
     id: null,
     v_no: '',
@@ -173,8 +217,8 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
       const credits = compoundLines.filter(l => (parseFloat(l.credit) || 0) > 0);
 
       const generatedEntries = [];
-      const primaryDebitLabel = debits.map(d => `${d.account_code}: ${(parseFloat(d.debit) || 0).toLocaleString()} ${compoundCurrCode}`).join(' + ');
-      const primaryCreditLabel = credits.map(c => `${c.account_code}: ${(parseFloat(c.credit) || 0).toLocaleString()} ${compoundCurrCode}`).join(' + ');
+      const primaryDebitLabel = debits.map(d => `${d.account_code}: ${(parseFloat(d.debit) || 0).toLocaleString('en-US')} ${compoundCurrCode}`).join(' + ');
+      const primaryCreditLabel = credits.map(c => `${c.account_code}: ${(parseFloat(c.credit) || 0).toLocaleString('en-US')} ${compoundCurrCode}`).join(' + ');
 
       compoundLines.forEach(l => {
         const dAmt = parseFloat(l.debit) || 0;
@@ -300,7 +344,21 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
     return splitPayments.reduce((sum, r) => sum + (parseFloat(r.amount) || 0), 0);
   }, [splitPayments]);
 
+  // ── مزامنة شجرة الحسابات الحية مباشرة من الخادم المحلي ──
+  const loadLiveAccounts = useCallback(async () => {
+    try {
+      const res = await fetch('/api/accounts/list').then(r => r.json());
+      const list = (res && Array.isArray(res.data)) ? res.data : (Array.isArray(res) ? res : []);
+      if (list.length > 0 && typeof setAccounts === 'function') {
+        setAccounts(list);
+      }
+    } catch (e) {
+      console.warn("Vouchers accounts sync warning:", e);
+    }
+  }, [setAccounts]);
+
   const handleOpenAdvancedModal = (mode = 'receipt', defaultParty = '', defaultNotes = '', defaultAcc = '') => {
+    loadLiveAccounts();
     setModalMode(mode);
     setModalDocType('subparty');
     setModalParty(defaultParty || '');
@@ -311,10 +369,26 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
     }
     setModalCurrency('YER ﷼');
     setModalExchangeRate('1.0');
-    setModalTargetAcc(defaultAcc || (mode === 'receipt' ? '104' : '201'));
+
+    // حل الحساب الفرعي تلقائياً للشركاء وحسابات رأس المال وحسابات الدليل
+    let resolvedAcc = defaultAcc;
+    const matchedPartner = findPartnerAccount(defaultParty) || (defaultAcc && partnerAccounts.find(p => String(p.code || p.acc_code) === String(defaultAcc)));
+    if (matchedPartner) {
+      resolvedAcc = String(matchedPartner.code || matchedPartner.acc_code);
+    } else if ((defaultAcc === '3111' || defaultAcc === '301') && partnerAccounts.length > 0) {
+      resolvedAcc = String(partnerAccounts[0].code || partnerAccounts[0].acc_code);
+    } else if (defaultAcc) {
+      const parentAcc = (accounts || []).find(a => String(a.code || a.acc_code) === String(defaultAcc));
+      if (parentAcc && (parentAcc.is_group === 1 || parentAcc.account_type === 'تجميعي')) {
+        const firstBranch = (accounts || []).find(a => String(a.code || a.acc_code).startsWith(defaultAcc + '.') && !a.is_group);
+        if (firstBranch) resolvedAcc = firstBranch.code || firstBranch.acc_code;
+      }
+    }
+
+    setModalTargetAcc(resolvedAcc || (mode === 'receipt' ? '104' : '201'));
     setModalNotes(defaultNotes || '');
     setSplitPayments([
-      { id: 1, method: mode === 'receipt' ? 'نقداً (صندوق الورشة)' : 'نقداً (صندوق الورشة)', acc_code: '101.01', amount: '' }
+      { id: 1, method: 'نقداً (الصندوق الرئيسي)', acc_code: '101', amount: '' }
     ]);
     setShowAdvancedModal(true);
   };
@@ -370,7 +444,7 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
       const vBaseAmt = splitTotalAmount * vRate;
 
       // Primary pay method summary
-      const payMethodsSummary = splitPayments.map(p => `${p.method}: ${(parseFloat(p.amount) || 0).toLocaleString()} ${vCurr}`).join(' + ');
+      const payMethodsSummary = splitPayments.map(p => `${p.method}: ${(parseFloat(p.amount) || 0).toLocaleString('en-US')} ${vCurr}`).join(' + ');
 
       const newV = {
         id: Date.now(),
@@ -389,11 +463,18 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
         base_amount: vBaseAmt,
         date: TODAY_STR_ISO,
         date_created: TODAY_STR_ISO,
-        notes: modalNotes || `${isReceipt ? 'سند قبض' : 'سند صرف'} - ${modalParty} (${payMethodsSummary})`,
+        notes: (modalNotes ? `${modalNotes} | الحساب المقابل: ${modalTargetAcc || (isReceipt ? '104' : '201')}` : `${isReceipt ? 'سند قبض' : 'سند صرف'} - ${modalParty} (${payMethodsSummary}) | الحساب المقابل: ${modalTargetAcc || (isReceipt ? '104' : '201')}`),
         pay_method: payMethodsSummary,
         payment_method: payMethodsSummary,
-        acc_code: splitPayments[0]?.acc_code || '101.01',
-        target_acc: modalTargetAcc || (isReceipt ? '104' : '201')
+        acc_code: splitPayments[0]?.acc_code || '101',
+        target_acc: (() => {
+          let t = modalTargetAcc;
+          const matchedP = findPartnerAccount(modalParty);
+          if (matchedP && (!t || t === '104' || t.startsWith('101') || t === '301' || t === '3111')) {
+            return String(matchedP.code || matchedP.acc_code);
+          }
+          return t || (isReceipt ? '104' : '201');
+        })()
       };
 
       if (setVouchers) setVouchers(prev => [newV, ...(prev || [])]);
@@ -402,8 +483,13 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
       const generatedEntries = splitPayments.filter(p => (parseFloat(p.amount) || 0) > 0).map(p => {
         const lineAmt = parseFloat(p.amount) || 0;
         const lineBaseAmt = lineAmt * vRate;
-        const cashAccCode = p.acc_code || '101.01';
-        const targetAccCode = modalTargetAcc || (isReceipt ? '104' : '201');
+        const cashAccCode = p.acc_code || '101';
+        let targetAccCode = modalTargetAcc;
+        const matchedP = findPartnerAccount(modalParty);
+        if (matchedP && (!targetAccCode || targetAccCode === '104' || targetAccCode.startsWith('101') || targetAccCode === '301' || targetAccCode === '3111')) {
+          targetAccCode = String(matchedP.code || matchedP.acc_code);
+        }
+        if (!targetAccCode) targetAccCode = (isReceipt ? '104' : '201');
 
         const debitAcc = isReceipt ? cashAccCode : targetAccCode;
         const creditAcc = isReceipt ? targetAccCode : cashAccCode;
@@ -464,16 +550,14 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
         }));
       }
 
-      // Save locally & to GAS
-      fetch('/api/vouchers/create', {
+      // Save locally & authoritative PostgreSQL entry
+      const res = await fetch('/api/vouchers/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newV)
-      }).catch(err => console.warn('Local voucher save error:', err));
-
-      if (typeof window.callGAS === 'function') {
+      });
+      if (!res.ok && typeof window.callGAS === 'function') {
         window.callGAS('addVoucher', newV).catch(e => console.error(e));
-        generatedEntries.forEach(j => window.callGAS('addJournalEntry', j).catch(e => console.error(e)));
       }
 
       showToast(`تم إصدار وتمرير ${isReceipt ? 'سند القبض' : 'سند الصرف'} (${voucherNo}) بنجاح 🧾✨`);
@@ -589,16 +673,27 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
         const mergedList = Array.from(uniq.values());
         if (setVouchers) setVouchers(mergedList);
       }
+      // 3. مزامنة شجرة الحسابات الحية مباشرة من قاعدة البيانات
+      try {
+        const accRes = await fetch('/api/accounts/list').then(r => r.json());
+        const accList = (accRes && Array.isArray(accRes.data)) ? accRes.data : (Array.isArray(accRes) ? accRes : []);
+        if (accList.length > 0 && typeof setAccounts === 'function') {
+          setAccounts(accList);
+        }
+      } catch (ae) {
+        console.warn("Accounts sync in refreshVouchers warning:", ae);
+      }
     } catch (err) {
       console.error("refreshVouchers error:", err);
     } finally {
       setIsRefreshing(false);
     }
-  }, [setVouchers]);
+  }, [setVouchers, setAccounts]);
 
   useEffect(() => {
     refreshVouchers();
-  }, []);
+    loadLiveAccounts();
+  }, [refreshVouchers, loadLiveAccounts]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -639,12 +734,12 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
       base_amount: vBaseObj.base_amount,
       date: formData.date || TODAY_STR_ISO,
       date_created: formData.date || TODAY_STR_ISO,
-      notes: formData.notes,
+      notes: formData.notes ? (formData.notes.includes('الحساب المقابل') ? formData.notes : `${formData.notes} | الحساب المقابل: ${selectedTargetAcc}`) : `سند ${formData.v_type}: ${formData.party} | الحساب المقابل: ${selectedTargetAcc}`,
       pay_method: formData.pay_method,
       payment_method: formData.pay_method,
-      acc_code: formData.acc_code || '101 - الصندوق الرئيسي',
-      account_id: formData.acc_code || '101 - الصندوق الرئيسي',
-      payment_source: formData.acc_code || '101 - الصندوق الرئيسي',
+      acc_code: formData.acc_code || '1111 - الصندوق الرئيسي',
+      account_id: formData.acc_code || '1111 - الصندوق الرئيسي',
+      payment_source: formData.acc_code || '1111 - الصندوق الرئيسي',
       target_acc: formData.target_acc || (isReceipt ? '104 - ذمم العملاء' : '201 - ذمم الموردين'),
       debit_account: debitAccLabel,
       credit_account: creditAccLabel,
@@ -718,18 +813,20 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
     }
 
     try {
-      // 1. Post to local backend
-      fetch('/api/vouchers/create', {
+      // 1. Post to local backend (authoritative creation in PostgreSQL with balanced journal entry)
+      const res = await fetch('/api/vouchers/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newV)
-      }).catch(err => console.warn('Local voucher save error:', err));
-
-      // 2. Post to GAS
-      const res = await callGAS('addVoucher', newV);
-      callGAS('addJournalEntry', newJEntry).catch(e => console.error(e));
-      if (newExp) {
-        callGAS('addExpense', newExp).catch(e => console.error(e));
+      });
+      if (!res.ok) {
+        // Fallback to GAS if backend endpoint fails
+        if (typeof window.callGAS === 'function') {
+          await window.callGAS('addVoucher', newV);
+        }
+      }
+      if (newExp && typeof window.callGAS === 'function') {
+        window.callGAS('addExpense', newExp).catch(e => console.error(e));
       }
 
       if (newV.v_type === 'سند قبض' && selectedCustomer) {
@@ -952,7 +1049,7 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
         await fetch('/api/vouchers/delete', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: norm.id, voucher_no: norm.v_no })
+          body: JSON.stringify({ id: norm.id, voucher_no: norm.v_no, payment_no: norm.v_no, v_no: norm.v_no })
         });
       } catch(beErr) {
         console.warn("Backend voucher delete warning:", beErr);
@@ -961,7 +1058,7 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
       // 4. Delete from Google Apps Script
       try {
         if (typeof window.callGAS === 'function') {
-          await window.callGAS('deleteVoucher', { id: norm.id, voucher_no: norm.v_no });
+          await window.callGAS('deleteVoucher', { id: norm.id, voucher_no: norm.v_no, payment_no: norm.v_no, v_no: norm.v_no });
           await window.callGAS('deleteJournalEntry', { ref_id: norm.v_no, entry_no: 'AUTO-VCH-' + norm.v_no });
         }
       } catch(gasErr) {
@@ -1029,13 +1126,18 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
 
             <div className="flex gap-2">
               <button 
-                onClick={() => window.print()} 
+                type="button"
+                onClick={() => {
+                  setPrintVoucher(viewVoucher);
+                  setViewVoucher(null);
+                }} 
                 className="flex-1 py-2.5 bg-[#009FAE] hover:bg-[#007F8C] text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
               >
-                <span>🖨️</span>
-                <span>طباعة السند</span>
+                <span>🧾</span>
+                <span>طباعة سند رسمي وإيصال حراري 🖨️</span>
               </button>
               <button 
+                type="button"
                 onClick={() => setViewVoucher(null)} 
                 className="px-5 py-2.5 bg-[#FAFAFB] hover:bg-[#E8E5EA] text-[#25232A] font-bold text-xs rounded-xl border border-[#E8E5EA] cursor-pointer"
               >
@@ -1149,7 +1251,12 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
-                onClick={() => handleOpenAdvancedModal('receipt', 'محمد فلاح', 'إيداع حصة في رأس المال المباشر', '3111')}
+                onClick={() => {
+                  const firstP = partnerAccounts[0];
+                  const pName = firstP ? getCleanPartnerName(firstP) : '';
+                  const pCode = firstP ? String(firstP.code || firstP.acc_code) : '301';
+                  handleOpenAdvancedModal('receipt', pName, pName ? `إيداع حصة في رأس المال المباشر - ${pName}` : 'إيداع حصة في رأس المال المباشر', pCode);
+                }}
                 className="py-2 px-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 text-[11px] font-bold transition flex items-center justify-center gap-1 cursor-pointer border border-amber-500/20"
                 title="إصدار سند قبض إيداع رأس مال الشركاء والمؤسسين"
               >
@@ -1642,6 +1749,8 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
                   <label className={labelCls}>تاريخ السند</label>
                   <input
                     type="date"
+                    lang="en-GB"
+                    dir="ltr"
                     className={inputCls}
                     value={editVoucherData.date}
                     onChange={e => setEditVoucherData({ ...editVoucherData, date: e.target.value })}
@@ -1787,10 +1896,35 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
                             setModalParty(val);
                             const found = (customers || []).find(c => c.name === val) || (employees || []).find(emp => emp.name === val);
                             if (found && found.phone) setModalPhone(found.phone);
+
+                            // مطابقة الشريك آلياً وتحديث حسابه والبيان فورياً
+                            const partnerAcc = findPartnerAccount(val);
+                            if (partnerAcc) {
+                              const code = String(partnerAcc.code || partnerAcc.acc_code);
+                              setModalTargetAcc(code);
+                              const cleanName = getCleanPartnerName(partnerAcc);
+                              if (!modalNotes || modalNotes.includes('رأس المال') || modalNotes.includes('ايداع') || modalNotes.includes('إيداع')) {
+                                setModalNotes(`إيداع حصة في رأس المال المباشر - ${cleanName}`);
+                              }
+                            }
                           }}
                           className="w-full h-10 px-3 rounded-xl border border-[#374151] bg-[#111827] text-white text-xs font-semibold focus:border-[#00E5FF] outline-none"
                         >
                           <option value="">-- اختر من السجلات المسجلة أو اكتب أدناه --</option>
+                          <optgroup label="👑 الشركاء والمؤسسون (رأس المال)">
+                            {(partnerAccounts.length > 0 ? partnerAccounts : [
+                              { code: '301.01', name: 'محمد فلاح' },
+                              { code: '301.02', name: 'هنادي' }
+                            ]).map(p => {
+                              const code = String(p.code || p.acc_code || '');
+                              const cleanName = getCleanPartnerName(p);
+                              return (
+                                <option key={code} value={cleanName}>
+                                  👑 {cleanName} ({code} - رأس المال المباشر)
+                                </option>
+                              );
+                            })}
+                          </optgroup>
                           <optgroup label="👗 العميلات المسجلات">
                             {(customers || []).map(c => <option key={c.id || c.name} value={c.name}>{c.name} {c.phone ? `(${c.phone})` : ''}</option>)}
                           </optgroup>
@@ -1805,7 +1939,19 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
                           type="text"
                           placeholder="أو اكتب اسماً جديداً يدوياً..."
                           value={modalParty}
-                          onChange={e => setModalParty(e.target.value)}
+                          onChange={e => {
+                            const val = e.target.value;
+                            setModalParty(val);
+                            const partnerAcc = findPartnerAccount(val);
+                            if (partnerAcc) {
+                              const code = String(partnerAcc.code || partnerAcc.acc_code);
+                              setModalTargetAcc(code);
+                              const cleanName = getCleanPartnerName(partnerAcc);
+                              if (!modalNotes || modalNotes.includes('رأس المال') || modalNotes.includes('ايداع') || modalNotes.includes('إيداع')) {
+                                setModalNotes(`إيداع حصة في رأس المال المباشر - ${cleanName}`);
+                              }
+                            }
+                          }}
                           className="w-full h-9 px-3 rounded-xl border border-[#374151] bg-[#111827] text-white text-xs placeholder:text-gray-500 focus:border-[#00E5FF] outline-none"
                         />
                       </div>
@@ -1868,82 +2014,90 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
                     <label className="block text-[11px] font-bold text-gray-300 mb-1.5">الحساب المالي المقابل (دليل الحسابات)</label>
                     <select
                       value={modalTargetAcc}
-                      onChange={e => setModalTargetAcc(e.target.value)}
+                      onChange={e => {
+                        const selectedCode = e.target.value;
+                        setModalTargetAcc(selectedCode);
+                        const matchedPartner = partnerAccounts.find(p => String(p.code || p.acc_code) === String(selectedCode));
+                        if (matchedPartner) {
+                          const cleanName = getCleanPartnerName(matchedPartner);
+                          if (!modalParty || partnerAccounts.some(p => getCleanPartnerName(p) === modalParty || modalParty.includes(String(p.code || p.acc_code)))) {
+                            setModalParty(cleanName);
+                          }
+                          if (!modalNotes || modalNotes.includes('رأس المال') || modalNotes.includes('ايداع') || modalNotes.includes('إيداع')) {
+                            setModalNotes(`إيداع حصة في رأس المال المباشر - ${cleanName}`);
+                          }
+                        }
+                      }}
                       className="w-full h-10 px-3 rounded-xl border border-[#374151] bg-[#111827] text-white text-xs font-semibold focus:border-[#00E5FF] outline-none"
                     >
                       <option value="">-- اختر الحساب المقابل من الدليل --</option>
                       
-                      <optgroup label="👑 حقوق الملكية ورأس المال">
-                        {(accounts || []).filter(a => String(a.code || a.acc_code).startsWith('3') && !a.is_group).map(a => {
-                          const code = a.code || a.acc_code || a.id;
-                          const rawName = a.name || a.account_name || a.acc_name || '';
-                          const name = (rawName && !rawName.includes('???')) ? rawName : (a.name_en || code);
-                          return <option key={code} value={code}>{code} - {name}</option>;
-                        })}
-                      </optgroup>
+                      {(() => {
+                        const isSelectableAcc = (a) => (!a.is_group || a.is_group === 0 || a.is_leaf === 1 || a.is_postable === 1);
+                        const sortByCode = (list) => [...list].sort((x, y) => String(x.code || x.acc_code || '').localeCompare(String(y.code || y.acc_code || ''), undefined, { numeric: true, sensitivity: 'base' }));
 
-                      <optgroup label="👗 العملاء والمدينون">
-                        {(accounts || []).filter(a => (String(a.code || a.acc_code) === '1131' || String(a.code || a.acc_code) === '1141' || String(a.code || a.acc_code).startsWith('113') || String(a.code || a.acc_code).startsWith('104')) && !a.is_group).map(a => {
-                          const code = a.code || a.acc_code || a.id;
-                          const rawName = a.name || a.account_name || a.acc_name || '';
+                        const renderAccOption = (a) => {
+                          const code = String(a.code || a.acc_code || a.id || '');
+                          const rawName = a.name || a.account_name || a.acc_name || a.name_ar || '';
                           const name = (rawName && !rawName.includes('???')) ? rawName : (a.name_en || code);
-                          return <option key={code} value={code}>{code} - {name}</option>;
-                        })}
-                      </optgroup>
+                          let parentHint = '';
+                          if (code.includes('.')) {
+                            const parentCode = code.split('.')[0];
+                            const parentObj = (accounts || []).find(p => String(p.code || p.acc_code) === parentCode);
+                            if (parentObj) {
+                              const pName = parentObj.name || parentObj.account_name || parentObj.name_ar || '';
+                              if (pName && !pName.includes('???')) parentHint = ` (${pName})`;
+                            }
+                          }
+                          return <option key={code} value={code}>{code} - {name}{parentHint}</option>;
+                        };
 
-                      <optgroup label="🧵 الموردون والالتزامات">
-                        {(accounts || []).filter(a => String(a.code || a.acc_code).startsWith('2') && !a.is_group).map(a => {
-                          const code = a.code || a.acc_code || a.id;
-                          const rawName = a.name || a.account_name || a.acc_name || '';
-                          const name = (rawName && !rawName.includes('???')) ? rawName : (a.name_en || code);
-                          return <option key={code} value={code}>{code} - {name}</option>;
-                        })}
-                      </optgroup>
+                        const equity = sortByCode((accounts || []).filter(a => String(a.code || a.acc_code).startsWith('3') && isSelectableAcc(a)));
+                        const customersGroup = sortByCode((accounts || []).filter(a => (String(a.code || a.acc_code).startsWith('113') || String(a.code || a.acc_code).startsWith('114') || String(a.code || a.acc_code).startsWith('104')) && isSelectableAcc(a)));
+                        const suppliersGroup = sortByCode((accounts || []).filter(a => String(a.code || a.acc_code).startsWith('2') && isSelectableAcc(a)));
+                        const revenues = sortByCode((accounts || []).filter(a => String(a.code || a.acc_code).startsWith('4') && isSelectableAcc(a)));
+                        const cogs = sortByCode((accounts || []).filter(a => String(a.code || a.acc_code).startsWith('51') && isSelectableAcc(a)));
+                        const expensesGroup = sortByCode((accounts || []).filter(a => (String(a.code || a.acc_code).startsWith('52') || String(a.code || a.acc_code).startsWith('53') || String(a.code || a.acc_code).startsWith('54') || String(a.code || a.acc_code).startsWith('6')) && isSelectableAcc(a)));
+                        const assetsGroup = sortByCode((accounts || []).filter(a => (String(a.code || a.acc_code).startsWith('12') || String(a.code || a.acc_code).startsWith('105') || String(a.code || a.acc_code).startsWith('106') || String(a.code || a.acc_code).startsWith('102') || String(a.code || a.acc_code).startsWith('115')) && isSelectableAcc(a)));
+                        const cashGroup = sortByCode((accounts || []).filter(a => (String(a.code || a.acc_code).startsWith('111') || String(a.code || a.acc_code).startsWith('112') || String(a.code || a.acc_code).startsWith('101') || String(a.code || a.acc_code).startsWith('103')) && isSelectableAcc(a)));
 
-                      <optgroup label="💎 الإيرادات والمبيعات">
-                        {(accounts || []).filter(a => String(a.code || a.acc_code).startsWith('4') && !a.is_group).map(a => {
-                          const code = a.code || a.acc_code || a.id;
-                          const rawName = a.name || a.account_name || a.acc_name || '';
-                          const name = (rawName && !rawName.includes('???')) ? rawName : (a.name_en || code);
-                          return <option key={code} value={code}>{code} - {name}</option>;
-                        })}
-                      </optgroup>
+                        const handledCodes = new Set([...equity, ...customersGroup, ...suppliersGroup, ...revenues, ...cogs, ...expensesGroup, ...assetsGroup, ...cashGroup].map(a => String(a.code || a.acc_code)));
+                        const otherAccounts = sortByCode((accounts || []).filter(a => isSelectableAcc(a) && !handledCodes.has(String(a.code || a.acc_code))));
 
-                      <optgroup label="📦 تكاليف النشاط ومواد الخياطة">
-                        {(accounts || []).filter(a => String(a.code || a.acc_code).startsWith('51') && !a.is_group).map(a => {
-                          const code = a.code || a.acc_code || a.id;
-                          const rawName = a.name || a.account_name || a.acc_name || '';
-                          const name = (rawName && !rawName.includes('???')) ? rawName : (a.name_en || code);
-                          return <option key={code} value={code}>{code} - {name}</option>;
-                        })}
-                      </optgroup>
-
-                      <optgroup label="💼 المصروفات التشغيلية والرواتب">
-                        {(accounts || []).filter(a => (String(a.code || a.acc_code).startsWith('52') || String(a.code || a.acc_code).startsWith('6')) && !a.is_group).map(a => {
-                          const code = a.code || a.acc_code || a.id;
-                          const rawName = a.name || a.account_name || a.acc_name || '';
-                          const name = (rawName && !rawName.includes('???')) ? rawName : (a.name_en || code);
-                          return <option key={code} value={code}>{code} - {name}</option>;
-                        })}
-                      </optgroup>
-
-                      <optgroup label="🏢 الأصول الثابتة والمكائن">
-                        {(accounts || []).filter(a => (String(a.code || a.acc_code).startsWith('12') || String(a.code || a.acc_code).startsWith('105') || String(a.code || a.acc_code).startsWith('106') || String(a.code || a.acc_code).startsWith('102')) && !a.is_group).map(a => {
-                          const code = a.code || a.acc_code || a.id;
-                          const rawName = a.name || a.account_name || a.acc_name || '';
-                          const name = (rawName && !rawName.includes('???')) ? rawName : (a.name_en || code);
-                          return <option key={code} value={code}>{code} - {name}</option>;
-                        })}
-                      </optgroup>
-
-                      <optgroup label="💵 الصناديق والبنوك (التحويلات)">
-                        {(accounts || []).filter(a => (String(a.code || a.acc_code) === '1111' || String(a.code || a.acc_code) === '1121' || String(a.code || a.acc_code).startsWith('111') || String(a.code || a.acc_code).startsWith('101') || String(a.code || a.acc_code).startsWith('103')) && !a.is_group).map(a => {
-                          const code = a.code || a.acc_code || a.id;
-                          const rawName = a.name || a.account_name || a.acc_name || '';
-                          const name = (rawName && !rawName.includes('???')) ? rawName : (a.name_en || code);
-                          return <option key={code} value={code}>{code} - {name}</option>;
-                        })}
-                      </optgroup>
+                        return (
+                          <>
+                            <optgroup label="👑 حقوق الملكية ورأس المال والشركاء">
+                              {equity.map(renderAccOption)}
+                            </optgroup>
+                            <optgroup label="👗 العملاء والمدينون">
+                              {customersGroup.map(renderAccOption)}
+                            </optgroup>
+                            <optgroup label="🧵 الموردون والالتزامات">
+                              {suppliersGroup.map(renderAccOption)}
+                            </optgroup>
+                            <optgroup label="💎 الإيرادات والمبيعات">
+                              {revenues.map(renderAccOption)}
+                            </optgroup>
+                            <optgroup label="📦 تكاليف النشاط ومواد الخياطة">
+                              {cogs.map(renderAccOption)}
+                            </optgroup>
+                            <optgroup label="💼 المصروفات التشغيلية والرواتب">
+                              {expensesGroup.map(renderAccOption)}
+                            </optgroup>
+                            <optgroup label="🏢 الأصول الثابتة والمخزون">
+                              {assetsGroup.map(renderAccOption)}
+                            </optgroup>
+                            <optgroup label="💵 الصناديق والبنوك والعهد (التحويلات)">
+                              {cashGroup.map(renderAccOption)}
+                            </optgroup>
+                            {otherAccounts.length > 0 && (
+                              <optgroup label="📑 حسابات وفروع أخرى في الدليل">
+                                {otherAccounts.map(renderAccOption)}
+                              </optgroup>
+                            )}
+                          </>
+                        );
+                      })()}
                     </select>
                   </div>
                 </div>
@@ -1976,14 +2130,53 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
                             const [m, c] = e.target.value.split('__');
                             handlePaymentRowChange(idx, 'method', m);
                             handlePaymentRowChange(idx, 'acc_code', c);
+                            // مزامنة ذكية لعملة السند وسعر الصرف فوراً عند اختيار صندوق بعملة أجنبية لمنع تضارب العملات
+                            if (c === '101.2' && modalCurrency !== 'SAR ﷼') {
+                              setModalCurrency('SAR ﷼');
+                              if (window.CurrencyService) {
+                                setModalExchangeRate(window.CurrencyService.getRate('SAR'));
+                              }
+                            } else if (c === '101.3' && modalCurrency !== 'USD $') {
+                              setModalCurrency('USD $');
+                              if (window.CurrencyService) {
+                                setModalExchangeRate(window.CurrencyService.getRate('USD'));
+                              }
+                            }
                           }}
                           className="w-full h-9 px-2.5 rounded-lg border border-[#374151] bg-[#181d2a] text-white text-xs font-semibold focus:border-[#00E5FF] outline-none"
                         >
-                          <option value="نقداً (الصندوق الرئيسي)__1111">💵 نقداً - الصندوق الرئيسي (1111)</option>
-                          <option value="تحويل بنكي (الكريمي)__1112">🏦 تحويل بنكي - حساب بنك الكريمي (1112)</option>
-                          <option value="محفظة إلكترونية (جوالي/كاش)__1112">📱 محفظة إلكترونية - جوالي / كاش / فلوسك (1112)</option>
-                          <option value="شبكة نقاط بيع POS__1112">💳 شبكة ومدى نقاط بيع POS (1112)</option>
-                          <option value="عهدة الورشة والمشغل__1121">💼 عهد الورشة والمشغل (1121)</option>
+                          <optgroup label="💵 الصناديق النقدية">
+                            <option value="نقداً (الصندوق الرئيسي)__101">💵 نقداً - الصندوق الرئيسي (101)</option>
+                            <option value="صندوق الريال السعودي (SAR)__101.2">💵 صندوق الريال السعودي SAR (101.2)</option>
+                            <option value="صندوق الدولار (USD)__101.3">💵 صندوق الدولار USD (101.3)</option>
+                          </optgroup>
+                          <optgroup label="🏦 البنوك والمحافظ الإلكترونية">
+                            <option value="تحويل بنكي (الكريمي)__102">🏦 تحويل بنكي - حساب بنك الكريمي (102)</option>
+                            <option value="محفظة إلكترونية (جوالي/كاش)__102">📱 محفظة إلكترونية - جوالي / كاش / فلوسك (102)</option>
+                            <option value="شبكة نقاط بيع POS__102">💳 شبكة ومدى نقاط بيع POS (102)</option>
+                            <option value="عهدة الورشة والمشغل__103">💼 عهد الورشة والمشغل (103)</option>
+                          </optgroup>
+                          {(() => {
+                            const standardCodes = new Set(['101', '101.2', '101.3', '102', '103', '1111', '1112', '1121']);
+                            const customCash = (accounts || []).filter(a => {
+                              const c = String(a.code || a.acc_code || '');
+                              return (c.startsWith('101.') || c.startsWith('102.') || c.startsWith('103.')) && !standardCodes.has(c) && !a.is_group;
+                            });
+                            if (customCash.length === 0) return null;
+                            return (
+                              <optgroup label="💰 صناديق وحسابات إضافية">
+                                {customCash.map(a => {
+                                  const c = String(a.code || a.acc_code);
+                                  const n = a.name || a.account_name || c;
+                                  return (
+                                    <option key={c} value={`${n}__${c}`}>
+                                      💵 {n} ({c})
+                                    </option>
+                                  );
+                                })}
+                              </optgroup>
+                            );
+                          })()}
                         </select>
                       </div>
 
@@ -2133,6 +2326,8 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
                   <label className="block text-[11px] font-bold text-gray-300 mb-1.5">تاريخ القيد</label>
                   <input
                     type="date"
+                    lang="en-GB"
+                    dir="ltr"
                     value={compoundForm.date}
                     onChange={e => setCompoundForm({ ...compoundForm, date: e.target.value })}
                     className="w-full h-10 px-3 rounded-xl border border-[#374151] bg-[#111827] text-white text-xs font-mono focus:border-[#00E5FF] outline-none"
@@ -2366,6 +2561,25 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
 
           </div>
         </div>
+      )}
+
+      {/* مودال الطباعة الحرارية والمستندية للسندات */}
+      {printVoucher && typeof PrintModal !== 'undefined' && (
+        <PrintModal
+          isOpen={!!printVoucher}
+          onClose={() => setPrintVoucher(null)}
+          order={{
+            order_no: printVoucher.v_no || `VOUCH-${printVoucher.id}`,
+            customer_name: printVoucher.party || 'عميل / مورد',
+            product_name: printVoucher.type || 'سند مالي',
+            total: parseFloat(printVoucher.amount || 0),
+            paid: parseFloat(printVoucher.amount || 0),
+            currency: printVoucher.currency || 'YER ﷼',
+            order_date: printVoucher.date || new Date().toISOString().split('T')[0],
+            notes: printVoucher.notes || printVoucher.statement || 'سند مالي معتمد'
+          }}
+          defaultTemplate="thermal"
+        />
       )}
 
     </div>

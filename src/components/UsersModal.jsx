@@ -19,10 +19,10 @@ function UsersModal({ isOpen, onClose, showToast, currentRole }) {
   });
 
   const rolesList = [
-    { value: 'admin', label: 'المدير العام (Admin) 👑', badge: 'bg-amber-100 text-amber-900 border-amber-300' },
-    { value: 'accountant', label: 'محاسب مالي (Accountant) 💼', badge: 'bg-emerald-100 text-emerald-900 border-emerald-300' },
-    { value: 'workshop_manager', label: 'مدير ورشة وإنتاج (Workshop) ✂️', badge: 'bg-cyan-100 text-cyan-900 border-cyan-300' },
-    { value: 'data_entry', label: 'مدخل بيانات وكاشير (Data Entry) 📝', badge: 'bg-pink-100 text-pink-900 border-pink-300' }
+    { value: 'admin', label: 'المدير العام (وصول كامل) 👑', badge: 'bg-[#FCE8F2] text-[#B0005A] border-[#F2A4CB]' },
+    { value: 'accountant', label: 'المحاسب المالي (المالية، القيود، والتقارير) 💼', badge: 'bg-[#E2F5F7] text-[#007F8C] border-[#C5ECF0]' },
+    { value: 'data_entry', label: 'مسؤولة المعرض والمبيعات (الطلبات والعملاء) 🛍️', badge: 'bg-[#FFF1DC] text-[#F28A00] border-[#FFE4B9]' },
+    { value: 'workshop_manager', label: 'مدير الورشة والمعمل (الإنتاج والتفصيل) 🧵', badge: 'bg-[#F2E7F3] text-[#8F2A87] border-[#E5CEE7]' }
   ];
 
   const fetchUsers = useCallback(async () => {

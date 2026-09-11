@@ -232,11 +232,6 @@ function Journal({ journal = [], setJournal, accounts = [], setAccounts, voucher
       setIsSubmittingCompound(false);
     }
   };
-    if (window.CurrencyService) {
-      const rate = window.CurrencyService.getRate(currencyCode);
-      setFormData(prev => ({ ...prev, exchange_rate: String(rate) }));
-    }
-  }, [formData.currency, currencyCode]);
 
   const postingAccounts = useMemo(() => {
     return (accounts || []).filter(a => Number(a.is_group) !== 1 && Number(a.is_active) !== 0);
@@ -734,7 +729,7 @@ function Journal({ journal = [], setJournal, accounts = [], setAccounts, voucher
 
                 <div>
                   <label className={labelCls}>تاريخ القيد</label>
-                  <input type="date" className={inputCls + " font-mono text-center dir-ltr tabular-nums"} value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} />
+                  <input type="date" lang="en-GB" dir="ltr" className={inputCls + " font-mono text-center dir-ltr tabular-nums"} value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} />
                 </div>
 
                 <div>
@@ -940,6 +935,8 @@ function Journal({ journal = [], setJournal, accounts = [], setAccounts, voucher
                 <label className={labelCls}>من تاريخ</label>
                 <input
                   type="date"
+                  lang="en-GB"
+                  dir="ltr"
                   value={ledgerDateRange.start}
                   onChange={e => setLedgerDateRange({...ledgerDateRange, start: e.target.value})}
                   className={inputCls + " font-mono text-center dir-ltr tabular-nums"}
@@ -950,6 +947,8 @@ function Journal({ journal = [], setJournal, accounts = [], setAccounts, voucher
                 <label className={labelCls}>إلى تاريخ</label>
                 <input
                   type="date"
+                  lang="en-GB"
+                  dir="ltr"
                   value={ledgerDateRange.end}
                   onChange={e => setLedgerDateRange({...ledgerDateRange, end: e.target.value})}
                   className={inputCls + " font-mono text-center dir-ltr tabular-nums"}
@@ -1271,6 +1270,8 @@ function Journal({ journal = [], setJournal, accounts = [], setAccounts, voucher
                   <label className={labelCls}>تاريخ القيد</label>
                   <input
                     type="date"
+                    lang="en-GB"
+                    dir="ltr"
                     className={inputCls}
                     value={editFormData.date}
                     onChange={e => setEditFormData({ ...editFormData, date: e.target.value })}
@@ -1464,6 +1465,8 @@ function Journal({ journal = [], setJournal, accounts = [], setAccounts, voucher
                   <label className="block text-[11px] font-bold text-gray-300 mb-1.5">تاريخ القيد</label>
                   <input
                     type="date"
+                    lang="en-GB"
+                    dir="ltr"
                     value={compoundForm.date}
                     onChange={e => setCompoundForm({ ...compoundForm, date: e.target.value })}
                     className="w-full h-10 px-3 rounded-xl border border-[#374151] bg-[#111827] text-white text-xs font-mono focus:border-[#00E5FF] outline-none"

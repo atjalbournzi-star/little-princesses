@@ -9,10 +9,10 @@ function LoginModal({ isOpen, onClose, onLoginSuccess, showToast }) {
   const [error, setError] = useState('');
 
   const quickUsers = [
-    { username: 'admin', label: 'المدير العام 👑', role: 'admin', badge: 'bg-amber-100 text-amber-900 border-amber-300' },
-    { username: 'accountant', label: 'المحاسب المالي 💼', role: 'accountant', badge: 'bg-emerald-100 text-emerald-900 border-emerald-300' },
-    { username: 'workshop', label: 'مديرة الورشة ✂️', role: 'workshop_manager', badge: 'bg-cyan-100 text-cyan-900 border-cyan-300' },
-    { username: 'cashier', label: 'مدخلة البيانات 📝', role: 'data_entry', badge: 'bg-pink-100 text-pink-900 border-pink-300' }
+    { username: 'admin', label: 'المدير العام (وصول كامل) 👑', role: 'admin', badge: 'bg-amber-100 text-amber-900 border-amber-300' },
+    { username: 'accountant', label: 'المحاسب المالي (المالية والتقارير) 💼', role: 'accountant', badge: 'bg-emerald-100 text-emerald-900 border-emerald-300' },
+    { username: 'cashier', label: 'مسؤولة المعرض والمبيعات (الطلبات والعملاء) 🛍️', role: 'data_entry', badge: 'bg-pink-100 text-pink-900 border-pink-300' },
+    { username: 'workshop', label: 'مدير الورشة والمعمل (الإنتاج والتفصيل) 🧵', role: 'workshop_manager', badge: 'bg-cyan-100 text-cyan-900 border-cyan-300' }
   ];
 
   const handleQuickSelect = (u) => {

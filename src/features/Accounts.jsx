@@ -1,15 +1,123 @@
 const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
+// Helper to extract clean alphanumeric code (e.g. ACC-101 -> 101, ACC-1 -> 1, ACC-101-2 -> 101.2)
+const cleanCode = (val) => {
+  if (val === null || val === undefined) return '';
+  let s = String(val).trim();
+  if (s.toUpperCase().startsWith('ACC-')) s = s.slice(4).trim();
+  if (s.toUpperCase().startsWith('ACC_')) s = s.slice(4).trim();
+  // Auto-heal date corrupted codes from Google Sheets (e.g. 3111-01-01 -> 3111.01, 1111-01-02 -> 1111.02)
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    const parts = s.split('-');
+    s = `${parts[0]}.${parts[1]}`;
+  }
+  // Normalize hyphenated sub-codes like 101-2, 101-3 to 101.2, 101.3
+  if (/^\d+-\d+$/.test(s)) {
+    s = s.replace('-', '.');
+  }
+  return s;
+};
+
+// Helper to auto-suggest the next sequential account code across any section of the Chart of Accounts
+const getSmartSuggestedAccountCode = (parentVal, accountsList = []) => {
+  const existingCodes = new Set(
+    (accountsList || []).map(a => cleanCode(a.code || a.account_code || a.id || '')).filter(Boolean)
+  );
+
+  // 1. إذا لم يُحدد حساب أب (إضافة حساب رئيسي عام Level 1)
+  if (!parentVal || String(parentVal) === '0' || String(parentVal).trim() === '') {
+    const rootNums = [];
+    (accountsList || []).forEach(a => {
+      const c = cleanCode(a.code || a.id || '');
+      if (c.length === 1 && /^\d+$/.test(c)) {
+        rootNums.push(parseInt(c, 10));
+      }
+    });
+    let nextRoot = rootNums.length > 0 ? Math.max(...rootNums) + 1 : 6;
+    while (existingCodes.has(String(nextRoot))) {
+      nextRoot++;
+    }
+    return String(nextRoot);
+  }
+
+  const pCode = cleanCode(parentVal);
+  if (!pCode) return '101.01';
+
+  // 2. إذا كان الأب حساباً رئيسياً من خانة واحدة (Level 1: 1 أصول، 2 خصوم، 3 حقوق ملكية، 4 إيرادات، 5 مصروفات)
+  // النمط المعتمد هو الترقيم المئوي: 101, 102, 103.. أو 201, 202.. أو 501, 502..
+  if (pCode.length === 1 && /^\d+$/.test(pCode)) {
+    let maxNum = 0;
+    (accountsList || []).forEach(a => {
+      const c = cleanCode(a.code || a.account_code || a.id || '');
+      const aParent = cleanCode(a.parent_id || a.parent_account_code || '');
+      if (c.length === 3 && c.startsWith(pCode) && /^\d+$/.test(c)) {
+        const n = parseInt(c, 10);
+        if (!isNaN(n) && n > maxNum) maxNum = n;
+      } else if (aParent === pCode && /^\d+$/.test(c)) {
+        const n = parseInt(c, 10);
+        if (!isNaN(n) && n > maxNum) maxNum = n;
+      }
+    });
+
+    let candidate = maxNum > 0 ? maxNum + 1 : parseInt(`${pCode}01`, 10);
+    while (existingCodes.has(String(candidate))) {
+      candidate++;
+    }
+    return String(candidate);
+  }
+
+  // 3. إذا كان الأب حساباً فرعياً أو مساعداً (Level 2+: مثل 101، 102، 201، 102.01)
+  // النمط المعتمد هو إضافة نقطة وتسلسل ثنائي: 102.01, 102.02, 102.03...
+  let maxSeq = 0;
+  const prefix = `${pCode}.`;
+
+  (accountsList || []).forEach(a => {
+    const c = cleanCode(a.code || a.account_code || a.id || '');
+    const aParent = cleanCode(a.parent_id || a.parent_account_code || '');
+    if (c.startsWith(prefix)) {
+      const rest = c.slice(prefix.length).split('.')[0].split('-')[0].split('_')[0];
+      const n = parseInt(rest, 10);
+      if (!isNaN(n) && n > maxSeq) {
+        maxSeq = n;
+      }
+    } else if (aParent === pCode) {
+      if (c.startsWith(pCode) && c.length > pCode.length) {
+        const rest = c.slice(pCode.length).replace(/^[.\-_]/, '').split('.')[0];
+        const n = parseInt(rest, 10);
+        if (!isNaN(n) && n > maxSeq) {
+          maxSeq = n;
+        }
+      }
+    }
+  });
+
+  let nextSeq = maxSeq + 1;
+  let pad = nextSeq < 10 ? `0${nextSeq}` : `${nextSeq}`;
+  let candidateCode = `${pCode}.${pad}`;
+
+  // منع أي تكرار مع أي حساب قائم مسبقاً
+  while (existingCodes.has(candidateCode)) {
+    nextSeq++;
+    pad = nextSeq < 10 ? `0${nextSeq}` : `${nextSeq}`;
+    candidateCode = `${pCode}.${pad}`;
+  }
+
+  return candidateCode;
+};
+
 function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouchers = [], setVouchers, showToast, currency = { display: 'YER ﷼', symbol: '﷼', code: 'YER' } }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedNodes, setExpandedNodes] = useState({
     '1': true, '2': true, '3': true, '4': true, '5': true,
+    '101': true, '102': true, '103': true, '104': true, '105': true, '106': true,
+    '201': true, '301': true, '302': true, '401': true, '402': true, '501': true, '502': true,
     '1111': true, '1112': true, '1121': true, '1131': true, '1141': true, '1151': true, '1152': true, '1153': true,
     '2111': true, '2121': true, '2131': true,
     '3111': true, '3112': true,
     '4111': true, '4121': true, '4211': true,
     '5111': true, '5121': true, '5211': true, '5221': true,
-    'ACC-1': true, 'ACC-2': true, 'ACC-3': true, 'ACC-4': true, 'ACC-5': true
+    'ACC-1': true, 'ACC-2': true, 'ACC-3': true, 'ACC-4': true, 'ACC-5': true,
+    'ACC-101': true, 'ACC-102': true, 'ACC-201': true
   });
   const [filterType, setFilterType] = useState('ALL');
   const [maxDepthFilter, setMaxDepthFilter] = useState('ALL');
@@ -40,24 +148,12 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
   const [isResetting, setIsResetting] = useState(false);
 
   const handleCleanResetAccounts = async () => {
-    if (!window.confirm('⚠️ تحذير: هل أنت متأكد من رغبتك في تصفير شجرة الحسابات ومسح كافة الحسابات والمبالغ التجريبية في النظام وقوقل شيتس؟\n\n(سيتم تصفير الأرصدة إلى 0.00 وإعادة الهيكلية القياسية النظيفة دون التأثير على العملاء أو الأقسام الأخرى)')) {
+    if (!window.confirm('⚠️ تحذير: هل أنت متأكد من رغبتك في تصفير شجرة الحسابات وتصفير كافة الأرصدة والمبالغ التجريبية إلى 0.00 في قاعدة البيانات؟\n\n(سيتم تصفير الأرصدة إلى 0.00 ومسح كافة القيود والسندات التجريبية دون التأثير على العملاء أو الأقسام الأخرى)')) {
       return;
     }
 
     setIsResetting(true);
     try {
-      // 1. Trigger Google Apps Script Cloud Reset directly from browser
-      const gasUrl = window.GAS_URL || 'https://script.google.com/macros/s/AKfycbziv1-w2mgI8_Q33eNsYLX4TDQB8ykebh5sm2Ig6kqNdbzb8IMIYLly31K5Sw3IMMGacw/exec';
-      try {
-        if (typeof window.callGAS === 'function') {
-          await window.callGAS({ action: 'resetCleanChartOfAccounts' });
-        }
-        await fetch(`${gasUrl}?action=resetCleanChartOfAccounts`, { mode: 'no-cors' });
-      } catch(gasErr) {
-        console.warn("GAS reset direct call:", gasErr);
-      }
-
-      // 2. Trigger Local Backend Reset
       const res = await fetch('/api/accounts/clean-reset', { method: 'POST' });
       const data = await res.json();
       if (data.success) {
@@ -66,7 +162,7 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
         }
         if (setJournal) setJournal([]);
         if (setVouchers) setVouchers([]);
-        showToast('✅ تم تصفير شجرة الحسابات ومسح كافة المبالغ والسندات في قوقل شيتس والنظام بنجاح 👑');
+        showToast('✅ تم تصفير شجرة الحسابات وتصفير كافة الأرصدة إلى 0.00 ومسح القيود التجريبية بنجاح 👑');
       } else {
         showToast(data.error || 'فشل التصفير', 'error');
       }
@@ -81,44 +177,19 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
   const fetchFreshAccounts = useCallback(async () => {
     setIsSyncing(true);
     try {
-      let list = [];
-      // 1. Try local backend
-      try {
-        const res = await fetch('/api/accounts/list').then(r => r.json());
-        if (res && Array.isArray(res.data) && res.data.length > 0) {
-          list = res.data;
-        } else if (Array.isArray(res) && res.length > 0) {
-          list = res;
-        }
-      } catch (beErr) {
-        console.warn("Local accounts fetch warning:", beErr);
-      }
-
-      // 2. Try Google Apps Script if local empty or names corrupted
-      if (list.length === 0 || !list.some(a => a.name && a.name.length > 1 && !a.name.includes('?'))) {
-        try {
-          if (typeof window.callGAS === 'function') {
-            const gasRes = await window.callGAS('getAccounts');
-            const gasList = (gasRes && Array.isArray(gasRes.data)) ? gasRes.data : (Array.isArray(gasRes) ? gasRes : []);
-            if (gasList.length > 0) list = gasList;
-          }
-        } catch (gasErr) {
-          console.warn("GAS getAccounts warning:", gasErr);
-        }
-      }
-
+      // 1. Fetch live accounts list from PostgreSQL backend
+      const res = await fetch('/api/accounts/list').then(r => r.json());
+      const list = (res && Array.isArray(res.data)) ? res.data : (Array.isArray(res) ? res : []);
       if (list.length > 0 && setAccounts) {
         setAccounts(list);
       }
 
-      // Also fetch fresh journal entries so ledger movements are 100% accurate
+      // 2. Fetch live journal entries from PostgreSQL backend
       try {
-        if (typeof window.callGAS === 'function' && setJournal) {
-          const jRes = await window.callGAS('getJournalEntries');
-          const jList = (jRes && Array.isArray(jRes.data)) ? jRes.data : (Array.isArray(jRes) ? jRes : []);
-          if (jList.length > 0) setJournal(jList);
-        }
-      } catch(jErr) {
+        const jRes = await fetch('/api/journal').then(r => r.json());
+        const jList = (jRes && Array.isArray(jRes.data)) ? jRes.data : (Array.isArray(jRes) ? jRes : []);
+        if (setJournal) setJournal(jList);
+      } catch (jErr) {
         console.warn("Journal fetch warning:", jErr);
       }
     } catch (e) {
@@ -135,29 +206,21 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
   const handleSyncCloudAccounts = async () => {
     setIsSyncing(true);
     try {
-      let list = [];
+      // 1. Fetch live accounts list from PostgreSQL
+      const beRes = await fetch('/api/accounts/list').then(r => r.json());
+      const list = (beRes && Array.isArray(beRes.data)) ? beRes.data : (Array.isArray(beRes) ? beRes : []);
+
+      // 2. Fetch live journal entries from PostgreSQL
+      let jList = [];
       try {
-        if (typeof window.callGAS === 'function') {
-          const gasRes = await window.callGAS('getAccounts');
-          const gasList = (gasRes && Array.isArray(gasRes.data)) ? gasRes.data : (Array.isArray(gasRes) ? gasRes : []);
-          if (gasList.length > 0) list = gasList;
-
-          if (setJournal) {
-            const jRes = await window.callGAS('getJournalEntries');
-            const jList = (jRes && Array.isArray(jRes.data)) ? jRes.data : (Array.isArray(jRes) ? jRes : []);
-            if (jList.length > 0) setJournal(jList);
-          }
-        }
-      } catch (ge) {}
-
-      if (list.length === 0) {
-        const beRes = await fetch('/api/accounts/list').then(r => r.json());
-        list = (beRes && Array.isArray(beRes.data)) ? beRes.data : (Array.isArray(beRes) ? beRes : []);
-      }
+        const jRes = await fetch('/api/journal').then(r => r.json());
+        jList = (jRes && Array.isArray(jRes.data)) ? jRes.data : (Array.isArray(jRes) ? jRes : []);
+      } catch (jErr) {}
 
       if (list.length > 0) {
         if (setAccounts) setAccounts(list);
-        if (showToast) showToast(`تمت مزامنة كافة الحسابات والقيود وتحديث الأرصدة بنجاح 👑`, 'success');
+        if (setJournal) setJournal(jList);
+        if (showToast) showToast('تمت مزامنة شجرة الحسابات والقيود مع قاعدة البيانات السحابية (PostgreSQL) بنجاح 👑', 'success');
       } else {
         if (showToast) showToast('لم يتم العثور على حسابات لمزامنتها', 'info');
       }
@@ -189,36 +252,25 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
         seenCodes.set(codeKey, dedupedAccounts.length);
         dedupedAccounts.push({ ...a });
       } else {
-        // تكرار: احتفظ بالسجل الأحسن (الأعلى رصيداً أو الأحدث)
+        // تكرار: احتفظ بالسجل الأحدث والأكثر دقة من قاعدة بيانات Supabase
         const existingIdx = seenCodes.get(codeKey);
         const existing = dedupedAccounts[existingIdx];
-        const existingBal = parseFloat(existing.opening_balance || existing.balance || existing.current_balance || 0);
-        const newBal = parseFloat(a.opening_balance || a.balance || a.current_balance || 0);
-        // احتفظ بالسجل الأكثر اكتمالاً: له رصيد، أو له account_name_en، أو id أكبر
-        const newIsBetter = (
-          (newBal > existingBal) ||
-          (!existing.account_name_en && a.account_name_en) ||
-          (Number(a.id || 0) > Number(existing.id || 0))
-        );
-        if (newIsBetter) {
-          // دمج: الاحتفاظ بأفضل البيانات من السجلَين
-          dedupedAccounts[existingIdx] = {
-            ...existing,
-            ...a,
-            // حافظ على أعلى رصيد افتتاحي بدون مضاعفة
-            opening_balance: Math.max(existingBal, newBal),
-            balance: Math.max(existingBal, newBal),
-            current_balance: Math.max(existingBal, newBal),
-            // حافظ على parent_id الأكثر دقة (الرقمي يُفضّل على النصي)
-            parent_id: (a.parent_id !== undefined && a.parent_id !== null && a.parent_id !== '' && a.parent_id !== '0')
-              ? a.parent_id : existing.parent_id,
-            // حافظ على الاسم الأطول أو الأكثر اكتمالاً
-            name: (a.name && a.name.length > (existing.name || '').length && !a.name.includes('?')) ? a.name : existing.name,
-            name_en: a.name_en || existing.name_en || '',
-            account_name_en: a.account_name_en || existing.account_name_en || ''
-          };
-        }
-        // إذا السجل القديم أفضل: تجاهل الجديد (لا نضيف التكرار)
+        const authoritativeBal = (a.current_balance !== undefined && a.current_balance !== null && a.current_balance !== '')
+          ? parseFloat(a.current_balance)
+          : ((a.balance !== undefined && a.balance !== null && a.balance !== '') ? parseFloat(a.balance) : (parseFloat(existing.current_balance || existing.balance || 0) || 0));
+
+        dedupedAccounts[existingIdx] = {
+          ...existing,
+          ...a,
+          opening_balance: parseFloat(a.opening_balance ?? existing.opening_balance) || 0.0,
+          balance: authoritativeBal,
+          current_balance: authoritativeBal,
+          parent_id: (a.parent_id !== undefined && a.parent_id !== null && a.parent_id !== '' && a.parent_id !== '0')
+            ? a.parent_id : existing.parent_id,
+          name: (a.name && a.name.length > (existing.name || '').length && !a.name.includes('?')) ? a.name : existing.name,
+          name_en: a.name_en || existing.name_en || '',
+          account_name_en: a.account_name_en || existing.account_name_en || ''
+        };
       }
     }
     // ─────────────────────────────────────────────────────────────────────────
@@ -242,8 +294,12 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
         '2121': 'دفعات مقدمة وعرابين حجز',
         '2131': 'مستحقات وأجور الخياطين',
         '3': 'حقوق الملكية',
-        '3111': 'رأس المال المباشر Little Princesses',
-        '3112': 'الأرباح المبقاة / المحتجزة',
+        '31': 'رأس المال والاحتياطيات',
+        '311': 'رأس المال المباشر',
+        '3111': 'رأس مال الشركاء / المالكين',
+        '312': 'الأرباح والاحتياطيات',
+        '3121': 'الأرباح المبقاة / المحتجزة',
+        '32': 'جاري الشركاء والمسحوبات',
         '4': 'الإيرادات',
         '4111': 'إيرادات تفصيل وتصميم الفساتين',
         '4121': 'إيرادات مبيعات فساتين المعرض',
@@ -256,71 +312,177 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
       };
 
       const rawName = String(a.name_ar || a.name || a.account_name || a.acc_name || code).trim();
-      const name = (rawName && !rawName.includes('?') && rawName !== code && !rawName.startsWith('ACC-') && !/^[A-Za-z\s&/()\-–—]+$/.test(rawName))
+      let cleanName = (rawName && !rawName.includes('?') && rawName !== code && !rawName.startsWith('ACC-') && !/^[A-Za-z\s&/()\-–—]+$/.test(rawName))
         ? rawName
         : (ARABIC_STANDARD_NAMES[code] || a.name_ar || a.name || code);
 
-      const type = a.account_type || a.acc_type || 'أصول';
-      const parent_id = (a.parent_id !== undefined && a.parent_id !== null && a.parent_id !== '' && a.parent_id !== '0') ? a.parent_id : null;
-      const level = a.level || (code.includes('.') ? code.split('.').length : (code.length > 2 ? 3 : (code.length === 1 ? 1 : 2)));
-      const is_group = a.is_group !== undefined ? Number(a.is_group) : (code.length <= 1 ? 1 : 0);
+      // 🏷️ Clean Account Name Mapping: Pure text only, strip any prepended code
+      if (code && cleanName.startsWith(code)) {
+        cleanName = cleanName.substring(code.length).replace(/^[\s\-_:/|]+/, '').trim();
+      }
+      const name = cleanName || rawName;
+
+      const cleanC = cleanCode(code);
+      let type = a.account_type || a.acc_type || '';
+      if (!type) {
+        if (cleanC.startsWith('1') || a.type === 'ASSET') type = 'أصول';
+        else if (cleanC.startsWith('2') || a.type === 'LIABILITY') type = 'خصوم';
+        else if (cleanC.startsWith('3') || a.type === 'EQUITY') type = 'حقوق ملكية';
+        else if (cleanC.startsWith('4') || a.type === 'REVENUE') type = 'إيرادات';
+        else if (cleanC.startsWith('51') || a.type === 'COGS') type = 'تكلفة المبيعات';
+        else if (cleanC.startsWith('5') || cleanC.startsWith('6') || a.type === 'EXPENSE') type = 'مصروفات';
+        else type = 'أصول';
+      } else if (type === 'مصروفات' && cleanC.startsWith('51')) {
+        type = 'تكلفة المبيعات';
+      }
+
+      const parent_id = (a.parent_id !== undefined && a.parent_id !== null && a.parent_id !== '' && a.parent_id !== '0')
+        ? a.parent_id
+        : (a.parent_account_code || a.parent_account_id || null);
       
-      const rawNat = String(a.nature || '').toLowerCase();
-      const nature = (rawNat === 'credit' || rawNat === 'دائن' || (rawNat === '' && ['خصوم', 'حقوق ملكية', 'إيرادات', 'LIABILITY', 'EQUITY', 'REVENUE'].includes(String(a.account_type || a.type || '')))) ? 'credit' : 'debit';
+      // حساب المستوى المحاسبي المعياري بدقة (1=رئيسي، 2=عام، 3=مساعد، 4=فرعي، 5=تحليلي)
+      let calculatedLevel = 1;
+      if (cleanC.includes('.') || cleanC.includes('-') || cleanC.includes('/')) {
+        calculatedLevel = 5;
+      } else if (cleanC.length >= 4) {
+        calculatedLevel = 4;
+      } else if (cleanC.length === 3) {
+        calculatedLevel = 3;
+      } else if (cleanC.length === 2) {
+        calculatedLevel = 2;
+      } else {
+        calculatedLevel = 1;
+      }
+      const level = a.level ? Number(a.level) : calculatedLevel;
+      const is_group = a.is_group !== undefined ? Number(a.is_group) : (calculatedLevel < 4 ? 1 : 0);
+      
+      const rawNat = String(a.nature || a.normal_balance || '').toLowerCase();
+      const normType = String(a.account_type || a.type || '').toLowerCase();
+      const isCreditType = (
+        rawNat === 'credit' || rawNat === 'دائن' ||
+        normType.includes('credit') || normType.includes('دائن') ||
+        normType.includes('خصوم') || normType.includes('liability') || normType.includes('liabilities') ||
+        normType.includes('حقوق') || normType.includes('equity') ||
+        normType.includes('إيراد') || normType.includes('ايراد') || normType.includes('revenue') || normType.includes('sales') ||
+        cleanC.startsWith('2') || cleanC.startsWith('3') || cleanC.startsWith('4')
+      );
+      const nature = isCreditType ? 'credit' : 'debit';
       
       const is_active = a.is_active !== undefined ? Number(a.is_active) : 1;
       const openingBal = parseFloat(a.opening_balance || a.open_bal || 0.0);
 
-      // Compute ledger movements from journal entries in base currency (YER)
+      // Compute ledger movements from journal entries in base currency (YER) and native currency
       let totalDebit = 0.0;
       let totalCredit = 0.0;
+      let foreignDebit = 0.0;
+      let foreignCredit = 0.0;
       let hasMovements = false;
+      let hasForeignMovements = false;
 
-      // extractCode: يستخرج كود الحساب من النص بدقة - يستهدف فقط النص الذي يبدأ برقم أو ACC-
+      // extractCode: يستخرج كود الحساب من النص أو المعرف بدقة لمنع تداخل الحسابات (مثل 101 مع 101.2 أو 2 مع ACC-101-2)
       const extractCode = (str) => {
         if (!str) return '';
         const s = String(str).trim();
-        // إذا كان النص كوداً صافياً (مثل "101.02" أو "301.01" أو رقماً بحتاً)
-        if (/^\d+(\.\d+)?$/.test(s)) return s;
-        // إذا كان يبدأ بـ ACC- أو ACC_
-        const accMatch = s.match(/^ACC[-_]?(\d+(\.\d+)?)/i);
-        if (accMatch) return accMatch[1];
-        // استخراج أول كود رقمي من البداية (قبل أي مسافة أو نص)
-        const startMatch = s.match(/^(\d+(\.\d+)?)\b/);
-        if (startMatch) return startMatch[1];
-        return '';
+        const stripped = (s.toUpperCase().startsWith('ACC-') || s.toUpperCase().startsWith('ACC_'))
+          ? s.slice(4).trim()
+          : s;
+        // استخراج الكود الرقمي بالكامل شاملاً الأرقام الفرعية المفصولة بنقطة أو شرطة
+        const match = stripped.match(/^(\d+(?:[.\-_]\d+)*)/);
+        if (match) {
+          return cleanCode(match[1]);
+        }
+        return cleanCode(stripped);
       };
+
+      // doesMatchAccount: مطابقة طرف القيد (المدين أو الدائن) مع الحساب الحالي بدقة قطعية تمنع أي تداخل
+      const doesMatchAccount = (str) => {
+        if (!str || !code) return false;
+        const s = String(str).trim();
+        if (!s) return false;
+
+        // 1. المطابقة المباشرة مع المعرف الرقمي أو رمز الحساب
+        if (id && s === String(id)) return true;
+        if (a.account_id && s === String(a.account_id)) return true;
+
+        // 2. المطابقة مع الكود المنظف بدقة متطابقة
+        const ext = extractCode(s);
+        if (ext && (ext === cleanC || ext === cleanCode(code))) return true;
+
+        // 3. مطابقة صريحة مع ACC-code
+        if (s === `ACC-${code}` || s === `ACC_${code}` || s === `ACC-${cleanC}` || s === `ACC-${cleanC.replace(/\./g, '-')}`) return true;
+
+        // 4. مطابقة الاسم المركب في بداية السند (مثل "301.02 - راس مال هنادي")
+        if (s.startsWith(`${code} - `) || s.startsWith(`${cleanC} - `) || s.startsWith(`${code} `) || s.startsWith(`${cleanC} `)) return true;
+
+        return false;
+      };
+
+      const accCurr = (window.CurrencyService ? window.CurrencyService.normalizeCode(a.currency) : a.currency) || 'YER';
 
       jList.forEach(j => {
         const dStr = String(j.debit_code || j.debit || j.debit_account_id || '').trim();
         const cStr = String(j.credit_code || j.credit || j.credit_account_id || '').trim();
-        const dCode = extractCode(dStr);
-        const cCode = extractCode(cStr);
         const baseAmt = parseFloat(j.base_amount) || ((parseFloat(j.amount) || 0) * (parseFloat(j.exchange_rate) || 1.0));
+        const jAmt = parseFloat(j.amount) || 0.0;
+        const jCurr = (window.CurrencyService ? window.CurrencyService.normalizeCode(j.currency) : (j.currency || 'YER'));
 
-        // المطابقة بالكود الصريح فقط (بدون مطابقة الاسم لمنع التضاعف غير المقصود)
-        const matchesDebit = (code && (dCode === code || dStr === code || dStr.startsWith(code + ' ') || dStr.startsWith(code + '-') || dStr.includes(` ${code} `) || dStr.endsWith(` ${code}`) || dStr.includes(`-${code}`) || dStr.includes(`- ${code}`))) || dStr === String(id);
-        const matchesCredit = (code && (cCode === code || cStr === code || cStr.startsWith(code + ' ') || cStr.startsWith(code + '-') || cStr.includes(` ${code} `) || cStr.endsWith(` ${code}`) || cStr.includes(`-${code}`) || cStr.includes(`- ${code}`))) || cStr === String(id);
+        // المطابقة الدقيقة لمنع تداخل الحسابات المشابهة (مثل كود 2 مع ACC-101-2)
+        const matchesDebit = doesMatchAccount(dStr);
+        const matchesCredit = doesMatchAccount(cStr);
 
         if (matchesDebit) {
           totalDebit += baseAmt;
           hasMovements = true;
+          if (accCurr !== 'YER') {
+            if (jCurr === accCurr) {
+              foreignDebit += jAmt;
+              hasForeignMovements = true;
+            } else {
+              const accRate = (window.CurrencyService ? window.CurrencyService.getRate(accCurr) : 142.0) || 142.0;
+              foreignDebit += (accRate > 0 ? (baseAmt / accRate) : baseAmt);
+              hasForeignMovements = true;
+            }
+          }
         }
         if (matchesCredit) {
           totalCredit += baseAmt;
           hasMovements = true;
+          if (accCurr !== 'YER') {
+            if (jCurr === accCurr) {
+              foreignCredit += jAmt;
+              hasForeignMovements = true;
+            } else {
+              const accRate = (window.CurrencyService ? window.CurrencyService.getRate(accCurr) : 142.0) || 142.0;
+              foreignCredit += (accRate > 0 ? (baseAmt / accRate) : baseAmt);
+              hasForeignMovements = true;
+            }
+          }
         }
       });
 
+      // 👑 الرصيد الفعلي المعتمد مباشرة من قاعدة بيانات Supabase (chart_of_accounts.current_balance)
       let calculatedBal = 0.0;
-      if (hasMovements) {
-        if (nature === 'credit') {
-          calculatedBal = openingBal + (totalCredit - totalDebit);
-        } else {
-          calculatedBal = openingBal + (totalDebit - totalCredit);
-        }
+      if (a.current_balance !== undefined && a.current_balance !== null && a.current_balance !== '') {
+        calculatedBal = parseFloat(a.current_balance) || 0.0;
+      } else if (a.balance !== undefined && a.balance !== null && a.balance !== '') {
+        calculatedBal = parseFloat(a.balance) || 0.0;
+      } else if (hasMovements) {
+        calculatedBal = nature === 'credit' ? (openingBal + (totalCredit - totalDebit)) : (openingBal + (totalDebit - totalCredit));
       } else {
-        calculatedBal = parseFloat(a.balance ?? a.current_balance ?? openingBal) || 0.0;
+        calculatedBal = openingBal;
+      }
+
+      // حساب الرصيد الحقيقي بالعملة الأصلية للحساب (مثل SAR أو USD)
+      let foreignBal = 0.0;
+      if (accCurr !== 'YER') {
+        if (hasForeignMovements) {
+          foreignBal = nature === 'credit' ? (foreignCredit - foreignDebit) : (foreignDebit - foreignCredit);
+        } else if (a.foreign_balance !== undefined && a.foreign_balance !== null && a.foreign_balance !== '') {
+          foreignBal = parseFloat(a.foreign_balance) || 0.0;
+        } else if (calculatedBal !== 0) {
+          const defRate = parseFloat(a.exchange_rate) || (window.CurrencyService ? window.CurrencyService.getRate(accCurr) : 142.0);
+          foreignBal = defRate > 0 ? (calculatedBal / defRate) : 0.0;
+        }
       }
 
       return {
@@ -336,6 +498,7 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
         nature,
         is_active,
         balance: calculatedBal,
+        foreign_balance: foreignBal,
         opening_balance: openingBal,
         total_debit: totalDebit,
         total_credit: totalCredit
@@ -343,32 +506,24 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
     });
   }, [accounts, journal]);
 
-  // Helper to extract clean alphanumeric code (e.g. ACC-101 -> 101, ACC-1 -> 1)
-  const cleanCode = (val) => {
-    if (val === null || val === undefined) return '';
-    let s = String(val).trim();
-    if (s.startsWith('ACC-')) s = s.slice(4).trim();
-    if (s.startsWith('ACC_')) s = s.slice(4).trim();
-    return s;
-  };
-
   const isChildOf = useCallback((child, parentAcc) => {
     if (!child || !parentAcc) return false;
     const pCode = cleanCode(parentAcc.code || parentAcc.acc_code || parentAcc.id);
     const pId = String(parentAcc.id || '').trim();
     const pAccId = String(parentAcc.account_id || '').trim();
     const cParent = cleanCode(child.parent_id || child.parent_account_id || child.parent_account_code || '');
-    const cParentRaw = String(child.parent_id || child.parent_account_id || '').trim();
+    const cParentRaw = String(child.parent_id || child.parent_account_id || child.parent_account_code || '').trim();
     const cCode = cleanCode(child.code || child.acc_code || child.id);
     const cType = child.account_type || child.acc_type || '';
 
     if (!cCode || !pCode || cCode === pCode || String(child.id) === pId) return false;
 
     // 1. Explicit Parent ID / Code Match (Primary rule)
-    if (cParentRaw) {
+    if (cParentRaw || cParent) {
       if (
         cParentRaw === pId ||
         cParentRaw === pAccId ||
+        cParentRaw === pCode ||
         cParent === pCode ||
         cParent === pId ||
         cParentRaw === `ACC-${pCode}` ||
@@ -392,10 +547,10 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
     }
 
     // 3. Level 2 under Root Level 1 (only when no explicit parent):
-    // 4-digit hierarchy: (11 under 1, 111 under 11, 1111 under 111)
+    // الحسابات القياسية ذات 3 خانات تتبع المستوى 1 مباشرة (مثل 101 تحت 1، 201 تحت 2، 301 تحت 3)
     if (cCode.startsWith(pCode) && !cCode.includes('.') && !cCode.includes('-') && !cCode.includes('/')) {
-      if (pCode.length === 1 && cCode.length === 2) return true;
-      if (pCode.length === 2 && cCode.length === 3) return true;
+      if (pCode.length === 1 && (cCode.length === 2 || cCode.length === 3 || cCode.length === 4)) return true;
+      if (pCode.length === 2 && (cCode.length === 3 || cCode.length === 4)) return true;
       if (pCode.length === 3 && cCode.length === 4) return true;
       if (pCode.length === 4 && cCode.length === 6) return true;
     }
@@ -450,30 +605,69 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
     });
   }, [normalizedAccounts, isChildOf]);
 
+  // تفعيل التوسيع التلقائي لأي مجلد أو حساب أب يحتوي على حسابات فرعية لضمان ظهورها في الشجرة فوراً
+  useEffect(() => {
+    if (accountsWithRollupBalances && accountsWithRollupBalances.length > 0) {
+      setExpandedNodes(prev => {
+        let changed = false;
+        const next = { ...prev };
+        accountsWithRollupBalances.forEach(a => {
+          if (a.hasChildren || a.is_group === 1 || Number(a.level) <= 2) {
+            const c = cleanCode(a.code || a.id);
+            if (!next[c] || !next[a.id] || !next[`ACC-${c}`]) {
+              next[c] = true;
+              next[a.id] = true;
+              next[`ACC-${c}`] = true;
+              changed = true;
+            }
+          }
+        });
+        return changed ? next : prev;
+      });
+    }
+  }, [accountsWithRollupBalances]);
+
   // Handle Dynamic Code Auto-Suggestion
   const handleParentChange = async (parentIdVal) => {
     const parentId = (parentIdVal === '' || parentIdVal === '0') ? null : parentIdVal;
     let newType = formData.account_type;
     let newNature = formData.nature;
+    let parentCode = '';
 
     if (parentId) {
-      const parentAcc = accountsWithRollupBalances.find(a => String(a.id) === String(parentId) || String(a.code) === String(parentId));
+      const parentAcc = accountsWithRollupBalances.find(a => 
+        String(a.id) === String(parentId) || 
+        String(a.code) === String(parentId) ||
+        cleanCode(a.code) === cleanCode(parentId)
+      );
       if (parentAcc) {
         newType = parentAcc.account_type;
         newNature = parentAcc.nature;
+        parentCode = cleanCode(parentAcc.code || parentAcc.id);
+      } else {
+        parentCode = cleanCode(parentId);
       }
     }
 
-    let suggestedCode = '';
-    if (window.suggestAccountCode) {
-      suggestedCode = await window.suggestAccountCode(parentId);
-    } else {
-      suggestedCode = parentId ? `${parentId}.01` : '1';
+    if (parentCode.startsWith('3')) { newType = 'حقوق ملكية'; newNature = 'credit'; }
+    else if (parentCode.startsWith('1')) { newType = 'أصول'; newNature = 'debit'; }
+    else if (parentCode.startsWith('2')) { newType = 'خصوم'; newNature = 'credit'; }
+    else if (parentCode.startsWith('4')) { newType = 'إيرادات'; newNature = 'credit'; }
+    else if (parentCode.startsWith('5') || parentCode.startsWith('6')) { newType = 'مصروفات'; newNature = 'debit'; }
+
+    let suggestedCode = getSmartSuggestedAccountCode(parentCode, accountsWithRollupBalances);
+    if (window.suggestAccountCode && parentCode) {
+      try {
+        const beCode = await window.suggestAccountCode(parentCode);
+        if (beCode && beCode !== '101' && !accountsWithRollupBalances.some(a => cleanCode(a.code || a.account_code) === cleanCode(beCode))) {
+          suggestedCode = beCode;
+        }
+      } catch (e) {}
     }
 
     setFormData(prev => ({
       ...prev,
-      parent_id: parentIdVal,
+      parent_id: parentCode || parentIdVal,
       code: suggestedCode,
       account_type: newType,
       nature: newNature,
@@ -493,24 +687,45 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
       const pAcc = accountsWithRollupBalances.find(a => 
         String(a.id) === String(presetParentId) || 
         String(a.code) === String(presetParentId) ||
-        String(a.account_id) === String(presetParentId)
+        String(a.account_id) === String(presetParentId) ||
+        cleanCode(a.code) === cleanCode(presetParentId)
       );
       if (pAcc) {
-        parentId = String(pAcc.code || pAcc.id);
-        parentCode = String(pAcc.code || pAcc.id);
+        parentId = cleanCode(pAcc.code || pAcc.id);
+        parentCode = cleanCode(pAcc.code || pAcc.id);
         initialType = pAcc.account_type || 'أصول';
         initialNature = pAcc.nature || 'debit';
       } else {
-        parentId = String(presetParentId);
-        parentCode = String(presetParentId);
+        parentId = cleanCode(presetParentId);
+        parentCode = cleanCode(presetParentId);
       }
     }
 
-    let initialCode = '';
-    if (window.suggestAccountCode) {
-      initialCode = await window.suggestAccountCode(parentCode || parentId);
-    } else {
-      initialCode = parentCode ? `${parentCode}.01` : '1111.01';
+    if (parentCode.startsWith('3') || parentId.startsWith('3')) {
+      initialType = 'حقوق ملكية';
+      initialNature = 'credit';
+    } else if (parentCode.startsWith('1') || parentId.startsWith('1')) {
+      initialType = 'أصول';
+      initialNature = 'debit';
+    } else if (parentCode.startsWith('2') || parentId.startsWith('2')) {
+      initialType = 'خصوم';
+      initialNature = 'credit';
+    } else if (parentCode.startsWith('4') || parentId.startsWith('4')) {
+      initialType = 'إيرادات';
+      initialNature = 'credit';
+    } else if (parentCode.startsWith('5') || parentId.startsWith('5') || parentCode.startsWith('6') || parentId.startsWith('6')) {
+      initialType = 'مصروفات';
+      initialNature = 'debit';
+    }
+
+    let initialCode = getSmartSuggestedAccountCode(parentCode || parentId, accountsWithRollupBalances);
+    if (window.suggestAccountCode && (parentCode || parentId)) {
+      try {
+        const beCode = await window.suggestAccountCode(parentCode || parentId);
+        if (beCode && beCode !== '101' && !accountsWithRollupBalances.some(a => cleanCode(a.code || a.account_code) === cleanCode(beCode))) {
+          initialCode = beCode;
+        }
+      } catch (e) {}
     }
 
     setFormData({
@@ -559,6 +774,38 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
       is_active: 1,
       balance: '0',
       notes: 'بند مصروف تشغيلي معتمد'
+    });
+    setShowModal(true);
+  };
+
+  // Dedicated Helper: Open Modal Specifically for Adding a New Partner (رأس مال شريك تحت 301)
+  const handleOpenAddPartnerModal = async () => {
+    setEditingAccount(null);
+    const partnerRoot = accountsWithRollupBalances.find(a => cleanCode(a.code || a.id) === '301' || a.name.includes('رأس المال المباشر'));
+    const parentId = partnerRoot ? cleanCode(partnerRoot.code || partnerRoot.id || '301') : '301';
+
+    let initialCode = getSmartSuggestedAccountCode(parentId, accountsWithRollupBalances);
+    if (window.suggestAccountCode) {
+      try {
+        const beCode = await window.suggestAccountCode(parentId);
+        if (beCode && beCode.startsWith('301.') && !accountsWithRollupBalances.some(a => cleanCode(a.code || a.account_code) === cleanCode(beCode))) {
+          initialCode = beCode;
+        }
+      } catch (e) {}
+    }
+
+    setFormData({
+      id: null,
+      code: initialCode || '301.04',
+      name: '',
+      name_en: '',
+      account_type: 'حقوق ملكية',
+      parent_id: parentId,
+      nature: 'credit',
+      is_group: 0,
+      is_active: 1,
+      balance: '0',
+      notes: 'حساب رأس مال شريك في المؤسسة'
     });
     setShowModal(true);
   };
@@ -618,8 +865,19 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
       }
     }
 
+    const cleanC = cleanCode(formData.code);
+    let finalType = formData.account_type;
+    let finalNature = formData.nature;
+    if (cleanC.startsWith('3')) { finalType = 'حقوق ملكية'; finalNature = 'credit'; }
+    else if (cleanC.startsWith('1')) { finalType = 'أصول'; finalNature = 'debit'; }
+    else if (cleanC.startsWith('2')) { finalType = 'خصوم'; finalNature = 'credit'; }
+    else if (cleanC.startsWith('4')) { finalType = 'إيرادات'; finalNature = 'credit'; }
+    else if (cleanC.startsWith('5') || cleanC.startsWith('6')) { finalType = 'مصروفات'; finalNature = 'debit'; }
+
     const payload = {
       ...formData,
+      account_type: finalType,
+      nature: finalNature,
       balance: editingAccount ? (parseFloat(editingAccount.balance) || 0.0) : 0.0,
       opening_balance: 0.0,
       current_balance: editingAccount ? (parseFloat(editingAccount.balance) || 0.0) : 0.0,
@@ -628,32 +886,29 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
     };
 
     try {
-      if (window.saveAccount) {
-        const res = await window.saveAccount(payload);
-        if (res.success !== false) {
-          showToast(res.message || 'تم حفظ وتحديث الحساب بنجاح 👑', 'success');
-          
-          // Auto-switch parent account to is_group=1 in local state
-          const updatedList = accountsWithRollupBalances.map(a => {
-            if (payload.parent_id && (String(a.id) === String(payload.parent_id) || String(a.code) === String(payload.parent_id))) {
-              return { ...a, is_group: 1, is_postable: 0 };
-            }
-            if (String(a.code || a.account_code) === String(payload.code) || String(a.id) === String(payload.id)) {
-              return { ...a, ...payload };
-            }
-            return a;
-          });
+      const res = await fetch('/api/accounts/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }).then(r => r.json());
 
-          const existsInList = updatedList.some(a => String(a.code || a.account_code) === String(payload.code));
-          setAccounts(existsInList ? updatedList : [payload, ...updatedList]);
-          setShowModal(false);
-          setEditingAccount(null);
-        } else {
-          showToast(res.error || 'فشل حفظ الحساب', 'error');
+      if (res && res.success !== false) {
+        showToast(res.message || 'تم حفظ الحساب بنجاح 👑', 'success');
+        
+        // Auto-expand parent account immediately so the child account is visible right away
+        if (payload.parent_id) {
+          const pClean = cleanCode(payload.parent_id);
+          setExpandedNodes(prev => ({
+            ...prev,
+            [payload.parent_id]: true,
+            [pClean]: true,
+            [`ACC-${pClean}`]: true
+          }));
         }
-      } else {
+
+        // Auto-switch parent account to is_group=1 in local state
         const updatedList = accountsWithRollupBalances.map(a => {
-          if (payload.parent_id && (String(a.id) === String(payload.parent_id) || String(a.code) === String(payload.parent_id))) {
+          if (payload.parent_id && (String(a.id) === String(payload.parent_id) || String(a.code) === String(payload.parent_id) || cleanCode(a.code) === cleanCode(payload.parent_id))) {
             return { ...a, is_group: 1, is_postable: 0 };
           }
           if (String(a.code || a.account_code) === String(payload.code) || String(a.id) === String(payload.id)) {
@@ -661,11 +916,16 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
           }
           return a;
         });
+
         const existsInList = updatedList.some(a => String(a.code || a.account_code) === String(payload.code));
         setAccounts(existsInList ? updatedList : [payload, ...updatedList]);
         setShowModal(false);
         setEditingAccount(null);
-        showToast('تم حفظ وتحديث الحساب محلياً ⚡', 'success');
+
+        // Fetch fresh authoritative list from backend
+        fetchFreshAccounts();
+      } else {
+        showToast((res && (res.error || res.message)) || 'فشل حفظ الحساب', 'error');
       }
     } catch (err) {
       showToast(err.message || 'حدث خطأ أثناء حفظ الحساب', 'error');
@@ -690,20 +950,40 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
   };
 
   const handleDeleteAccount = async (acc) => {
+    // التحقق مسبقاً إذا كان الحساب يمتلك فروعاً تحته لتنبيه المستخدم مباشرة
+    const hasChildren = (accountsWithRollupBalances || []).some(a => isChildOf(a, acc));
+    if (hasChildren) {
+      return showToast(`لا يمكن حذف الحساب (${acc.code} - ${acc.name}) لأنه حساب رئيسي يحتوي على حسابات فرعية تحته. يرجى حذف أو نقل الفروع أولاً.`, 'error');
+    }
+
     if (!confirm(`هل أنت متأكد من حذف الحساب (${acc.code} - ${acc.name}) نهائياً؟`)) return;
 
     try {
+      const payload = {
+        id: acc.id,
+        code: acc.code,
+        account_code: acc.code,
+        name: acc.name,
+        account_name: acc.name
+      };
+
+      let res;
       if (window.deleteAccount) {
-        const res = await window.deleteAccount({ id: acc.id, code: acc.code });
-        if (res.success !== false) {
-          showToast('تم حذف الحساب بنجاح', 'success');
-          setAccounts(accountsWithRollupBalances.filter(a => String(a.id) !== String(acc.id)));
-        } else {
-          showToast(res.error || 'لا يمكن حذف الحساب', 'error');
-        }
+        res = await window.deleteAccount(payload);
       } else {
-        setAccounts(accountsWithRollupBalances.filter(a => String(a.id) !== String(acc.id)));
-        showToast('تم حذف الحساب محلياً', 'success');
+        res = await fetch('/api/accounts/delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        }).then(r => r.json());
+      }
+
+      if (res && res.success !== false) {
+        showToast(`تم حذف الحساب (${acc.code} - ${acc.name}) بنجاح من النظام وقاعدة البيانات 👑`, 'success');
+        setAccounts(prev => (prev || []).filter(a => cleanCode(a.code) !== cleanCode(acc.code) && String(a.id) !== String(acc.id)));
+        await fetchFreshAccounts();
+      } else {
+        showToast((res && (res.error || res.message)) || 'لا يمكن حذف الحساب', 'error');
       }
     } catch (err) {
       showToast(err.message || 'فشل حذف الحساب', 'error');
@@ -744,8 +1024,49 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
     setExpandedNodes({});
   };
 
+  const handleMaxDepthChange = (depthVal) => {
+    setMaxDepthFilter(depthVal);
+    if (depthVal === '1') {
+      collapseAll();
+    } else if (depthVal === 'ALL' || depthVal === '4') {
+      expandAll();
+    } else {
+      const maxLvl = Number(depthVal);
+      const toExpand = {};
+      accountsWithRollupBalances.forEach(a => {
+        if (a.level < maxLvl) {
+          const c = cleanCode(a.code || a.id);
+          toExpand[a.id] = true;
+          toExpand[a.code] = true;
+          toExpand[c] = true;
+          toExpand[`ACC-${c}`] = true;
+        }
+      });
+      setExpandedNodes(toExpand);
+    }
+  };
+
+  const handleFilterTypeChange = (typeVal) => {
+    setFilterType(typeVal);
+    if (typeVal !== 'ALL') {
+      expandAll();
+    }
+  };
+
   const filterMatches = useCallback((acc) => {
-    if (filterType !== 'ALL' && acc.account_type !== filterType) return false;
+    if (filterType !== 'ALL') {
+      const c = cleanCode(acc.code);
+      const isMatch = (
+        acc.account_type === filterType ||
+        (filterType === 'تكلفة المبيعات' && (c.startsWith('51') || acc.account_type === 'COGS' || acc.name.includes('تكلفة'))) ||
+        (filterType === 'مصروفات' && (c.startsWith('52') || c.startsWith('6') || (c.startsWith('5') && !c.startsWith('51')) || acc.account_type === 'مصروفات')) ||
+        (filterType === 'أصول' && (c.startsWith('1') || acc.account_type === 'أصول')) ||
+        (filterType === 'خصوم' && (c.startsWith('2') || acc.account_type === 'خصوم')) ||
+        (filterType === 'حقوق ملكية' && (c.startsWith('3') || acc.account_type === 'حقوق ملكية')) ||
+        (filterType === 'إيرادات' && (c.startsWith('4') || acc.account_type === 'إيرادات'))
+      );
+      if (!isMatch) return false;
+    }
     if (maxDepthFilter !== 'ALL' && acc.level > Number(maxDepthFilter)) return false;
     if (!searchTerm.trim()) return true;
     const term = searchTerm.toLowerCase().trim();
@@ -768,11 +1089,23 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
     const isMatching = filterMatches(acc);
     const hasMatchingChild = children.some(c => filterMatches(c));
 
-    if (!isMatching && !hasMatchingChild && searchTerm.trim()) return null;
+    // إذا تم تحديد مستوى محدد وتجاوزه هذا الحساب -> لا يتم عرضه
+    if (maxDepthFilter !== 'ALL' && acc.level > Number(maxDepthFilter)) return null;
+
+    // تصفية حسب نوع الحساب والبحث النصي
+    if (filterType !== 'ALL' && !isMatching && !hasMatchingChild) return null;
+    if (searchTerm.trim() && !isMatching && !hasMatchingChild) return null;
 
     const isGroup = acc.is_group === 1 || children.length > 0;
     const isDebit = acc.nature === 'debit';
     const displayBalance = isGroup ? acc.rollupBalance : acc.balance;
+
+    // تحديد ما إذا كان يجب عرض الأبناء بناءً على فلتر المستوى
+    const shouldRenderChildren = children.length > 0 && (
+      (maxDepthFilter === 'ALL' && isExpanded) ||
+      (maxDepthFilter !== 'ALL' && Number(maxDepthFilter) > acc.level && isExpanded) ||
+      searchTerm.trim()
+    );
 
     return (
       <div key={`${acc.id || acc.code}-${cCode}`} className="mr-2 md:mr-3.5 my-1.5">
@@ -782,16 +1115,32 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
           
           <div className="flex items-center gap-2.5 overflow-hidden">
             {children.length > 0 ? (
-              <button onClick={() => toggleExpand(acc.id || acc.code)} className="w-6 h-6 flex items-center justify-center rounded-lg bg-white border border-[#E8E5EA] text-[#25232A] hover:bg-[#FAFAFB] text-xs font-mono cursor-pointer">
+              <button 
+                onClick={() => toggleExpand(acc.id || acc.code)} 
+                title={isExpanded ? "طي الحسابات الفرعية" : "فتح الحسابات الفرعية"}
+                className="w-6 h-6 flex items-center justify-center rounded-lg bg-white border border-[#E8E5EA] text-[#25232A] hover:bg-[#FAFAFB] text-xs font-mono cursor-pointer transition shadow-2xs"
+              >
                 {isExpanded ? '▼' : '◀'}
               </button>
             ) : (
               <span className="w-6 h-6 inline-block text-center text-[#6F6B75] text-xs">•</span>
             )}
 
-            <span className="text-base">{isGroup ? '📁' : '📄'}</span>
-            <span className="font-mono bg-[#F2E7F3] text-[#8F2A87] px-2 py-0.5 rounded-md text-xs font-bold">{acc.code}</span>
-            <span className={`text-xs md:text-sm ${isGroup ? 'font-bold text-[#25232A]' : 'font-medium text-[#25232A]'}`}>{acc.name}</span>
+            <div 
+              onClick={() => children.length > 0 && toggleExpand(acc.id || acc.code)}
+              className={`flex items-center gap-2 ${children.length > 0 ? 'cursor-pointer hover:opacity-85 select-none transition' : ''}`}
+              title={children.length > 0 ? (isExpanded ? "انقر للطي" : "انقر لعرض الفروع") : ""}
+            >
+              <span className="text-base">{isGroup ? '📁' : '📄'}</span>
+              <span className="font-mono bg-[#F2E7F3] text-[#8F2A87] px-2 py-0.5 rounded-md text-xs font-bold">{acc.code}</span>
+              <span className={`text-xs md:text-sm ${isGroup ? 'font-bold text-[#25232A]' : 'font-medium text-[#25232A]'}`}>{acc.name}</span>
+
+              {children.length > 0 && (
+                <span className="text-[10px] bg-[#F2E7F3] text-[#8F2A87] border border-[#E5CEE7] px-1.5 py-0.5 rounded-md font-mono font-bold">
+                  {children.length} {children.length === 1 ? 'فرع' : 'فروع'}
+                </span>
+              )}
+            </div>
 
             <span className={`text-[10px] px-2 py-0.5 rounded-md font-bold ${
               isGroup ? 'bg-[#FFF1DC] text-[#C97300] border border-[#FFE4B9]' : 'bg-[#E2F5F7] text-[#007F8C] border border-[#C5ECF0]'
@@ -813,8 +1162,16 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
           <div className="flex items-center gap-3">
             <div className="text-left font-mono tabular-nums">
               <span className={`text-xs md:text-sm font-extrabold ${displayBalance > 0 ? 'text-[#007F8C]' : (displayBalance < 0 ? 'text-[#D64545]' : 'text-[#6F6B75]')}`}>
-                {displayBalance.toLocaleString('en-US')} <span className="text-[10px] font-medium text-[#6F6B75]">{(currency && currency.display) ? currency.display : 'YER ﷼'}</span>
+                {displayBalance.toLocaleString('en-US')} <span className="text-[10px] font-medium text-[#6F6B75]">YER ﷼</span>
               </span>
+              {acc.currency && acc.currency !== 'YER' && !isGroup && displayBalance !== 0 && (
+                <span 
+                  className="block text-[10px] font-bold text-amber-600 font-mono"
+                  title={`الرصيد الفعلي بالعملة: ${Number(acc.foreign_balance !== undefined && acc.foreign_balance !== null ? acc.foreign_balance : (window.CurrencyService ? window.CurrencyService.fromBase(displayBalance, acc.currency) : (displayBalance / 142))).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${acc.currency}`}
+                >
+                  ({acc.currency} {Number(acc.foreign_balance !== undefined && acc.foreign_balance !== null ? acc.foreign_balance : (window.CurrencyService ? window.CurrencyService.fromBase(displayBalance, acc.currency) : (displayBalance / 142))).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
+                </span>
+              )}
               {isGroup && <span className="block text-[9px] text-[#6F6B75] text-center font-sans">إجمالي الفرع</span>}
             </div>
 
@@ -827,6 +1184,23 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
                 >
                   <span>💸</span> + بند مصروف
                 </button>
+              ) : cleanCode(acc.code) === '301' || acc.name.includes('رأس المال المباشر') ? (
+                <>
+                  <button
+                    onClick={() => handleOpenAddPartnerModal()}
+                    title="إضافة شريك جديد تحت رأس المال المباشر (301.xx)"
+                    className="px-2.5 py-1 bg-[#007F8C] hover:bg-[#006670] text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-xs cursor-pointer transition"
+                  >
+                    <span>🤝</span> + شريك
+                  </button>
+                  <button
+                    onClick={() => handleOpenAddModal(acc.id || acc.code)}
+                    title="إضافة حساب فرعي تحته (+ فرع)"
+                    className="px-2.5 py-1 bg-[#8F2A87] hover:bg-[#73216C] text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-xs cursor-pointer"
+                  >
+                    + فرع
+                  </button>
+                </>
               ) : (
                 <button
                   onClick={() => handleOpenAddModal(acc.id || acc.code)}
@@ -872,9 +1246,11 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
           </div>
         </div>
 
-        {children.length > 0 && (isExpanded || searchTerm.trim()) && (
+        {shouldRenderChildren && (
           <div className="border-r-2 border-[#E5CEE7] pr-2 md:pr-4 mt-1 space-y-1">
-            {children.map(child => renderTreeNode(child))}
+            {children
+              .filter(child => maxDepthFilter === 'ALL' || child.level <= Number(maxDepthFilter))
+              .map(child => renderTreeNode(child))}
           </div>
         )}
       </div>
@@ -930,6 +1306,14 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
             </button>
 
             <button
+              onClick={() => handleOpenAddPartnerModal()}
+              className="bg-[#E2F5F7] hover:bg-[#C5ECF0] text-[#007F8C] border border-[#C5ECF0] font-bold px-3.5 py-2.5 rounded-xl shadow-xs flex items-center gap-1.5 text-xs cursor-pointer transition"
+              title="إضافة حساب شريك جديد تحت رأس المال المباشر (301.xx) بتسلسل تلقائي"
+            >
+              <span>🤝</span> + إضافة شريك (رأس مال)
+            </button>
+
+            <button
               onClick={() => handleOpenAddExpenseModal()}
               className="bg-[#FFF1DC] hover:bg-[#FFE4B9] text-[#C97300] border border-[#FFE4B9] font-bold px-4 py-2.5 rounded-xl shadow-xs flex items-center gap-2 text-xs cursor-pointer transition"
               title="إضافة بند مصروف تشغيلي جديد تحت قسم المصروفات في شجرة الحسابات"
@@ -975,7 +1359,7 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
           <div>
             <select
               value={filterType}
-              onChange={e => setFilterType(e.target.value)}
+              onChange={e => handleFilterTypeChange(e.target.value)}
               className="w-full bg-[#FAFAFB] border border-[#E8E5EA] rounded-xl px-3 py-2.5 text-xs font-medium focus:bg-white focus:border-[#8F2A87] outline-none h-11"
             >
               <option value="ALL">جميع أنواع الحسابات</option>
@@ -986,7 +1370,7 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
           <div>
             <select
               value={maxDepthFilter}
-              onChange={e => setMaxDepthFilter(e.target.value)}
+              onChange={e => handleMaxDepthChange(e.target.value)}
               className="w-full bg-[#FAFAFB] border border-[#E8E5EA] rounded-xl px-3 py-2.5 text-xs font-medium focus:bg-white focus:border-[#8F2A87] outline-none h-11"
             >
               <option value="ALL">عرض جميع المستويات</option>
@@ -1049,7 +1433,7 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
                 >
                   <option value="">-- حساب رئيسي بدون أب (Level 1) --</option>
                   {accountsWithRollupBalances.filter(a => String(a.id) !== String(formData.id)).map(a => (
-                    <option key={a.id} value={a.id}>
+                    <option key={a.id || a.code} value={cleanCode(a.code || a.id)}>
                       { '—'.repeat(Math.max(0, (parseInt(a.level) || 1) - 1)) } {a.code} - {a.name} ({a.account_type})
                     </option>
                   ))}
@@ -1059,7 +1443,20 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-[#25232A] mb-1.5">كود الحساب (رمز الترقيم) *</label>
+                  <div className="flex justify-between items-center mb-1.5">
+                    <label className="text-xs font-bold text-[#25232A]">كود الحساب (رمز الترقيم) *</label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const nextCode = getSmartSuggestedAccountCode(formData.parent_id, accountsWithRollupBalances);
+                        setFormData(prev => ({ ...prev, code: nextCode }));
+                      }}
+                      className="text-[11px] text-[#8F2A87] hover:text-[#73216C] flex items-center gap-1 font-bold cursor-pointer transition"
+                      title="اقتراح الكود التالي تلقائياً"
+                    >
+                      <span>🔄</span> توليد كود تلقائي
+                    </button>
+                  </div>
                   <input
                     type="text"
                     required
@@ -1076,7 +1473,26 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
                     type="text"
                     required
                     value={formData.name}
-                    onChange={e => setFormData({ ...formData, name: e.target.value })}
+                    onChange={e => {
+                      const val = e.target.value;
+                      const isNew = !editingAccount;
+                      if (isNew && (val.includes('شريك') || val.includes('راس مال') || val.includes('رأس مال'))) {
+                        const isAlreadyUnder301 = formData.parent_id === '301' || String(formData.code).startsWith('301.');
+                        if (!isAlreadyUnder301) {
+                          const nextCode = getSmartSuggestedAccountCode('301', accountsWithRollupBalances);
+                          setFormData(prev => ({
+                            ...prev,
+                            name: val,
+                            parent_id: '301',
+                            code: nextCode || '301.04',
+                            account_type: 'حقوق ملكية',
+                            nature: 'credit'
+                          }));
+                          return;
+                        }
+                      }
+                      setFormData(prev => ({ ...prev, name: val }));
+                    }}
                     placeholder=""
                     className="w-full border border-[#E8E5EA] rounded-xl p-2.5 text-xs font-medium bg-white focus:border-[#8F2A87] outline-none h-11"
                   />
@@ -1206,9 +1622,29 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
                 <span>{selectedDetailAcc.nature === 'debit' ? 'مدين (Debit)' : 'دائن (Credit)'}</span>
               </div>
               <div className="flex justify-between border-b border-[#E8E5EA] pb-2">
-                <span className="text-[#6F6B75] font-bold">الرصيد:</span>
-                <span className="font-bold font-mono text-[#007F8C]">{selectedDetailAcc.rollupBalance || selectedDetailAcc.balance} {(currency && currency.display) ? currency.display : 'YER ﷼'}</span>
+                <span className="text-[#6F6B75] font-bold">الرصيد المحاسبي (العملة الأساسية YER):</span>
+                <span className="font-bold font-mono text-[#007F8C]">
+                  {Number(selectedDetailAcc.rollupBalance || selectedDetailAcc.balance || 0).toLocaleString('en-US')} YER ﷼
+                </span>
               </div>
+              {selectedDetailAcc.currency && selectedDetailAcc.currency !== 'YER' && (
+                <>
+                  <div className="flex justify-between border-b border-[#E8E5EA] pb-2 bg-amber-50/70 px-2.5 py-1.5 rounded-xl border border-amber-200">
+                    <span className="text-amber-800 font-bold">الرصيد الفعلي بعملة الحساب ({selectedDetailAcc.currency}):</span>
+                    <span className="font-bold font-mono text-amber-700">
+                      {Number(selectedDetailAcc.foreign_balance !== undefined && selectedDetailAcc.foreign_balance !== null ? selectedDetailAcc.foreign_balance : (window.CurrencyService ? window.CurrencyService.fromBase(selectedDetailAcc.rollupBalance || selectedDetailAcc.balance, selectedDetailAcc.currency) : ((selectedDetailAcc.rollupBalance || selectedDetailAcc.balance) / 142))).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {selectedDetailAcc.currency}
+                    </span>
+                  </div>
+                  {Number(selectedDetailAcc.foreign_balance || 0) > 0 && (
+                    <div className="flex justify-between border-b border-[#E8E5EA] pb-2">
+                      <span className="text-[#6F6B75] font-bold">متوسط سعر الصرف الدفتري:</span>
+                      <span className="font-bold font-mono text-[#8F2A87]">
+                        {(Math.abs(Number(selectedDetailAcc.rollupBalance || selectedDetailAcc.balance || 0) / Number(selectedDetailAcc.foreign_balance || 1))).toFixed(2)} YER / {selectedDetailAcc.currency}
+                      </span>
+                    </div>
+                  )}
+                </>
+              )}
               <div className="flex justify-between border-b border-[#E8E5EA] pb-2">
                 <span className="text-[#6F6B75] font-bold">الحالة:</span>
                 <span>{selectedDetailAcc.is_active === 1 ? 'نشط' : 'معطل'}</span>

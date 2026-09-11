@@ -384,6 +384,19 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
         });
       }
 
+      // تحديث فوري لسجل المشتريات من السيرفر وقاعدة البيانات الحية
+      try {
+        fetch('/api/purchases')
+          .then(r => r.json())
+          .then(d => {
+            const list = (d && Array.isArray(d.data)) ? d.data : (Array.isArray(d) ? d : []);
+            if (list.length > 0 && typeof setPurchases === 'function') {
+              setPurchases(list);
+            }
+          })
+          .catch(() => {});
+      } catch (e) {}
+
       showToast(`✅ تم حفظ الفاتورة ${billNo} وتوريد الأصناف للمخزون وترحيل القيود وسندات الصرف بنجاح 👑`);
       
       setHeaderData(emptyHeader());
@@ -549,8 +562,8 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
     const discount = parseFloat(p.discount !== undefined && p.discount !== '' ? p.discount : (p.discount_amount || 0)) || 0;
     const supplier_phone = String(p.supplier_phone || p.supplier_number || p.phone || '').trim();
     const notes = String(p.notes || p.statement || p.description || '').trim();
-    const receipt_url = String(p.receipt_url || p.image_path || '').trim();
-    const invoice_image_url = String(p.invoice_image_url || p.invoice_url || '').trim();
+    const receipt_url = String(p.receipt_attachment || p.receipt_url || p.image_path || p.receipt || '').trim();
+    const invoice_image_url = String(p.invoice_attachment || p.invoice_image_url || p.invoice_url || p.bill_attachment || '').trim();
 
     return {
       item_name: itemName,
@@ -665,7 +678,7 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
               </div>
               <div>
                 <label className={labelCls}>التاريخ</label>
-                <input type="date" className={inputCls} value={editRecord.date||''} onChange={e=>handleEditRecordChange('date',e.target.value)} />
+                <input type="date" lang="en-GB" dir="ltr" className={inputCls} value={editRecord.date||''} onChange={e=>handleEditRecordChange('date',e.target.value)} />
               </div>
               <div>
                 <label className={labelCls}>إرفاق صورة الفاتورة 🧾</label>
@@ -737,7 +750,17 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
           <div><label className={labelCls}>اسم المورد *</label><input type="text" className={inputCls} placeholder="" value={headerData.supplier} onChange={e=>setHeaderData(p=>({...p,supplier:e.target.value}))} /></div>
           <div><label className={labelCls}>رقم هاتف المورد 📱</label><input type="text" className={inputCls + " font-mono"} placeholder="" value={headerData.supplier_phone} onChange={e=>setHeaderData(p=>({...p,supplier_phone:e.target.value}))} /></div>
           <div><label className={labelCls}>العملة</label>
-            <select className={inputCls} value={headerData.currency} onChange={e=>setHeaderData(p=>({...p,currency:e.target.value, exchange_rate: window.CurrencyService ? window.CurrencyService.getRate(e.target.value) : ''}))}>
+            <select className={inputCls} value={headerData.currency} onChange={e=>{
+              const newC = e.target.value;
+              const norm = window.CurrencyService ? window.CurrencyService.normalizeCode(newC) : 'YER';
+              let autoBox = headerData.payment_source;
+              if (!autoBox || autoBox.includes('الصندوق الرئيسي') || autoBox.includes('صندوق الريال السعودي') || autoBox.includes('صندوق الدولار')) {
+                if (norm === 'SAR') autoBox = '101.2 - صندوق الريال السعودي (SAR)';
+                else if (norm === 'USD') autoBox = '101.3 - صندوق الدولار (USD)';
+                else autoBox = '101 - الصندوق الرئيسي (خزينة الورشة)';
+              }
+              setHeaderData(p=>({...p, currency: newC, payment_source: autoBox, exchange_rate: window.CurrencyService ? window.CurrencyService.getRate(newC) : ''}));
+            }}>
               {(typeof CURRENCIES !== 'undefined' ? CURRENCIES : ['YER ﷼','SAR ﷼','USD $']).map(c=>{const v=typeof c==='object'?c.value:c,l=typeof c==='object'?c.label:c;return <option key={v} value={v}>{l}</option>;})}
             </select>
           </div>
@@ -749,7 +772,19 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
           )}
           <div><label className={labelCls}>الخصم والتخفيض 💸</label><input type="number" step="0.01" min="0" className={inputCls + " font-mono font-bold text-[#D64545]"} placeholder="0.00" value={headerData.discount} onChange={e=>setHeaderData(p=>({...p,discount:e.target.value}))} /></div>
           <div><label className={labelCls}>طريقة الدفع</label>
-            <select className={inputCls} value={headerData.pay_type} onChange={e=>setHeaderData(p=>({...p,pay_type:e.target.value}))}>
+            <select className={inputCls} value={headerData.pay_type} onChange={e=>{
+              const pt = e.target.value;
+              let autoBox = headerData.payment_source;
+              if (pt === 'آجل') {
+                autoBox = '201 - ذمم الموردين ومحلات الأقمشة';
+              } else if (!autoBox || autoBox.includes('ذمم الموردين')) {
+                const norm = window.CurrencyService ? window.CurrencyService.normalizeCode(headerData.currency) : 'YER';
+                if (norm === 'SAR') autoBox = '101.2 - صندوق الريال السعودي (SAR)';
+                else if (norm === 'USD') autoBox = '101.3 - صندوق الدولار (USD)';
+                else autoBox = '101 - الصندوق الرئيسي (خزينة الورشة)';
+              }
+              setHeaderData(p=>({...p, pay_type: pt, payment_source: autoBox}));
+            }}>
               {(typeof PAY_METHODS!=='undefined'?PAY_METHODS:['نقدي','حوالة بنكية','آجل']).map(pt=><option key={pt} value={pt}>{pt}</option>)}
             </select>
           </div>
@@ -777,7 +812,7 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
               {headerData.receipt_url && <button type="button" onClick={()=>{setPreviewImage(headerData.receipt_url);setPreviewTitle('💳 صورة السند المرفق');}} className="p-2 bg-[#E2F5F7] text-[#007F8C] rounded-xl font-bold border border-[#C5ECF0] h-11 px-3">🖼️</button>}
             </div>
           </div>
-          <div><label className={labelCls}>تاريخ الفاتورة</label><input type="date" className={inputCls} value={headerData.date} onChange={e=>setHeaderData(p=>({...p,date:e.target.value}))} /></div>
+          <div><label className={labelCls}>تاريخ الفاتورة</label><input type="date" lang="en-GB" dir="ltr" className={inputCls} value={headerData.date} onChange={e=>setHeaderData(p=>({...p,date:e.target.value}))} /></div>
           <div><label className={labelCls}>تكلفة النقل والتوصيل</label><input type="number" step="0.01" min="0" className={inputCls + " font-mono font-bold text-[#8F2A87]"} placeholder="0.00" value={headerData.freight_cost} onChange={e=>setHeaderData(p=>({...p,freight_cost:e.target.value}))} /></div>
           <div><label className={labelCls}>رسوم التحويل</label><input type="number" step="0.01" min="0" className={inputCls + " font-mono font-bold text-[#D64545]"} placeholder="0.00" value={headerData.transfer_fees} onChange={e=>setHeaderData(p=>({...p,transfer_fees:e.target.value}))} /></div>
           <div className="sm:col-span-2 lg:col-span-2"><label className={labelCls}>ملاحظات الفاتورة والبيان 📝</label><input type="text" className={inputCls} placeholder="ملاحظات وتفاصيل الفاتورة" value={headerData.notes} onChange={e=>setHeaderData(p=>({...p,notes:e.target.value}))} /></div>
@@ -802,7 +837,7 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
         {/* مسودة الفاتورة */}
         {billItems.length > 0 && (
           <div className="space-y-3">
-            <div className="flex items-center justify-between"><span className="font-bold text-[#25232A]">📋 أصناف الفاتورة الحالية ({billItems.length} صنف)</span><span className="font-bold text-[#8F2A87] font-mono">إجمالي الفاتورة: {grandTotal.toLocaleString()} {headerData.currency}</span></div>
+            <div className="flex items-center justify-between"><span className="font-bold text-[#25232A]">📋 أصناف الفاتورة الحالية ({billItems.length} صنف)</span><span className="font-bold text-[#8F2A87] font-mono">إجمالي الفاتورة: {grandTotal.toLocaleString('en-US')} {headerData.currency}</span></div>
             <div className="overflow-x-auto rounded-xl border border-[#E8E5EA]">
               <table className="w-full text-right text-xs">
                 <thead><tr className="bg-[#FAFAFB] text-[#6F6B75] font-semibold border-b border-[#E8E5EA]"><th className="p-3">#</th><th className="p-3">الصنف</th><th className="p-3 text-center">الوحدة</th><th className="p-3 text-center">الكمية</th><th className="p-3 text-center">السعر</th><th className="p-3 text-center">الإجمالي</th><th className="p-3 text-center">إجراءات</th></tr></thead>
@@ -814,7 +849,7 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
                       <td className="p-3 text-center"><span className="bg-[#F2E7F3] text-[#8F2A87] px-2 py-0.5 rounded-md text-[10.5px] font-semibold">{bi.unit}</span></td>
                       <td className="p-3 text-center font-bold font-mono">{bi.qty}</td>
                       <td className="p-3 text-center text-[#8F2A87] font-bold font-mono">{bi.price} {headerData.currency}</td>
-                      <td className="p-3 text-center font-bold font-mono text-[#007F8C]">{parseFloat(bi.total).toLocaleString()} {headerData.currency}</td>
+                      <td className="p-3 text-center font-bold font-mono text-[#007F8C]">{parseFloat(bi.total).toLocaleString('en-US')} {headerData.currency}</td>
                       <td className="p-3 text-center space-x-1 space-x-reverse">
                         <button type="button" onClick={()=>{setItemData({item:bi.item,unit:bi.unit||'متر',qty:String(bi.qty),price:String(bi.price),total:String(bi.total)});setEditingIndex(idx);}} className="w-7 h-7 bg-[#FAFAFB] hover:bg-[#E8E5EA] text-[#25232A] rounded-lg font-bold border border-[#E8E5EA]">✏️</button>
                         <button type="button" onClick={()=>{setBillItems(prev=>prev.filter((_,i)=>i!==idx));if(editingIndex===idx){setEditingIndex(null);setItemData(emptyItem());}}} className="w-7 h-7 bg-rose-50 hover:bg-rose-100 text-[#D64545] rounded-lg font-bold border border-rose-200">🗑️</button>
@@ -830,7 +865,7 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
               disabled={isSaving}
               className={`w-full py-3.5 ${isSaving ? 'bg-gray-400 cursor-not-allowed' : 'bg-[#009FAE] hover:bg-[#007F8C] cursor-pointer'} text-white font-bold text-xs rounded-xl shadow-xs transition`}
             >
-              {isSaving ? '⏳ جاري حفظ الفاتورة وتوريد الأصناف للمخزون...' : `☁️ حفظ الفاتورة وتوريد الأصناف للمخزون (${billItems.length} أصناف) — الإجمالي: ${grandTotal.toLocaleString()} ${headerData.currency}`}
+              {isSaving ? '⏳ جاري حفظ الفاتورة وتوريد الأصناف للمخزون...' : `☁️ حفظ الفاتورة وتوريد الأصناف للمخزون (${billItems.length} أصناف) — الإجمالي: ${grandTotal.toLocaleString('en-US')} ${headerData.currency}`}
             </button>
           </div>
         )}

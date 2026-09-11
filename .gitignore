@@ -1,10 +1,25 @@
+# Environment & Secrets
+.env
+.env*.local
+*.env
+
+# Python & Build
 __pycache__/
 *.pyc
 *.pyo
 build/
 dist/
 *.exe_extracted/
+
+# Logs & Dumps
+*.log
 error.log
 error_unified.log
-little_princesses.db-shm
-little_princesses.db-wal
+chrome_dump.txt
+
+# Databases & Backups
+*.db
+*.db-shm
+*.db-wal
+backups/
+

@@ -1,10 +1,133 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="ar-u-nu-latn" dir="rtl">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>👑 Little Princesses ERP - Fashion ERP & Haute Couture SaaS</title>
   
+  <!-- Global Standard Numerals (123) & Calendar Runtime Engine -->
+  <script>
+    (function() {
+      var arabicDigits = '٠١٢٣٤٥٦٧٨٩';
+      function toLatinDigits(str) {
+        if (str === null || str === undefined) return '';
+        return String(str).replace(/[٠-٩]/g, function(c) {
+          var idx = arabicDigits.indexOf(c);
+          return idx !== -1 ? idx : c;
+        });
+      }
+      window.toStandardDigits = toLatinDigits;
+
+      // 1. Number toLocaleString
+      var _origNumToLocaleString = Number.prototype.toLocaleString;
+      Number.prototype.toLocaleString = function(locales, options) {
+        var targetLocales = (!locales || (typeof locales === 'string' && locales.startsWith('ar'))) ? 'en-US' : locales;
+        var res = _origNumToLocaleString.call(this, targetLocales, options);
+        return toLatinDigits(res);
+      };
+
+      // 2. Date formatting methods
+      var _origDateToLocaleString = Date.prototype.toLocaleDateString;
+      Date.prototype.toLocaleDateString = function(locales, options) {
+        var targetLocales = locales;
+        if (typeof targetLocales === 'string' && targetLocales.startsWith('ar') && targetLocales.indexOf('-u-nu-') === -1) {
+          targetLocales = targetLocales + '-u-nu-latn';
+        }
+        var res = _origDateToLocaleString.call(this, targetLocales || 'ar-YE-u-nu-latn', options);
+        return toLatinDigits(res);
+      };
+
+      var _origDateToLocaleTimeString = Date.prototype.toLocaleTimeString;
+      Date.prototype.toLocaleTimeString = function(locales, options) {
+        var targetLocales = locales;
+        if (typeof targetLocales === 'string' && targetLocales.startsWith('ar') && targetLocales.indexOf('-u-nu-') === -1) {
+          targetLocales = targetLocales + '-u-nu-latn';
+        }
+        var res = _origDateToLocaleTimeString.call(this, targetLocales || 'ar-YE-u-nu-latn', options);
+        return toLatinDigits(res);
+      };
+
+      var _origDateToString = Date.prototype.toLocaleString;
+      Date.prototype.toLocaleString = function(locales, options) {
+        var targetLocales = locales;
+        if (typeof targetLocales === 'string' && targetLocales.startsWith('ar') && targetLocales.indexOf('-u-nu-') === -1) {
+          targetLocales = targetLocales + '-u-nu-latn';
+        }
+        var res = _origDateToString.call(this, targetLocales || 'ar-YE-u-nu-latn', options);
+        return toLatinDigits(res);
+      };
+
+      // 3. Intl.DateTimeFormat
+      if (window.Intl && window.Intl.DateTimeFormat) {
+        var _OrigDateTimeFormat = window.Intl.DateTimeFormat;
+        window.Intl.DateTimeFormat = function(locales, options) {
+          var targetLocales = locales;
+          if (typeof targetLocales === 'string' && targetLocales.startsWith('ar') && targetLocales.indexOf('-u-nu-') === -1) {
+            targetLocales = targetLocales + '-u-nu-latn';
+          }
+          var formatter = new _OrigDateTimeFormat(targetLocales || 'ar-YE-u-nu-latn', options);
+          var origFormat = formatter.format.bind(formatter);
+          formatter.format = function(date) {
+            return toLatinDigits(origFormat(date));
+          };
+          if (formatter.formatToParts) {
+            var origFormatToParts = formatter.formatToParts.bind(formatter);
+            formatter.formatToParts = function(date) {
+              var parts = origFormatToParts(date);
+              return parts.map(function(p) {
+                return { type: p.type, value: toLatinDigits(p.value) };
+              });
+            };
+          }
+          return formatter;
+        };
+        window.Intl.DateTimeFormat.prototype = _OrigDateTimeFormat.prototype;
+        window.Intl.DateTimeFormat.supportedLocalesOf = _OrigDateTimeFormat.supportedLocalesOf;
+      }
+
+      // 4. HTML5 Date Inputs & Calendar Auto-Enforcer (التقويم القياسي 123)
+      function enforceStandardCalendar(el) {
+        if (!el || !el.tagName) return;
+        var type = el.getAttribute('type');
+        if (el.tagName.toLowerCase() === 'input' && (type === 'date' || type === 'datetime-local' || type === 'time' || type === 'month')) {
+          if (el.getAttribute('lang') !== 'en-GB') {
+            el.setAttribute('lang', 'en-GB');
+          }
+          if (el.getAttribute('dir') !== 'ltr') {
+            el.setAttribute('dir', 'ltr');
+          }
+        }
+      }
+
+      document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('input[type="date"], input[type="datetime-local"], input[type="time"], input[type="month"]').forEach(enforceStandardCalendar);
+      });
+
+      var observer = new MutationObserver(function(mutations) {
+        for (var i = 0; i < mutations.length; i++) {
+          var m = mutations[i];
+          if (m.type === 'childList') {
+            for (var j = 0; j < m.addedNodes.length; j++) {
+              var node = m.addedNodes[j];
+              if (node.nodeType === 1) {
+                if (node.tagName.toLowerCase() === 'input') {
+                  enforceStandardCalendar(node);
+                }
+                if (node.querySelectorAll) {
+                  var list = node.querySelectorAll('input[type="date"], input[type="datetime-local"], input[type="time"], input[type="month"]');
+                  for (var k = 0; k < list.length; k++) {
+                    enforceStandardCalendar(list[k]);
+                  }
+                }
+              }
+            }
+          }
+        }
+      });
+      observer.observe(document.documentElement, { childList: true, subtree: true });
+    })();
+  </script>
+
   <!-- Google Fonts: Cairo (Primary Arabic), Tajawal & Inter (Western Numerals & UI) -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -114,6 +237,37 @@
       display: inline-block;
     }
 
+    /* ── Standard Western Numerals (123) for Date Pickers & Calendar Dropdown ── */
+    input[type="date"], input[type="datetime-local"], input[type="time"], input[type="month"] {
+      font-family: 'Inter', 'Cairo', sans-serif !important;
+      font-feature-settings: "locl" 0, "lnum" 1, "tnum" 1 !important;
+      font-variant-numeric: tabular-nums lining-nums !important;
+      direction: ltr !important;
+      text-align: right;
+    }
+    input[type="date"]::-webkit-datetime-edit,
+    input[type="datetime-local"]::-webkit-datetime-edit,
+    input[type="time"]::-webkit-datetime-edit {
+      font-family: 'Inter', 'Cairo', sans-serif !important;
+      font-feature-settings: "locl" 0, "lnum" 1, "tnum" 1 !important;
+      font-variant-numeric: tabular-nums lining-nums !important;
+      direction: ltr !important;
+    }
+    input[type="date"]::-webkit-datetime-edit-fields-wrapper,
+    input[type="datetime-local"]::-webkit-datetime-edit-fields-wrapper {
+      direction: ltr !important;
+    }
+    input[type="date"]::-webkit-calendar-picker-indicator,
+    input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+      cursor: pointer;
+      opacity: 0.8;
+      filter: invert(0.2);
+    }
+    html.dark input[type="date"]::-webkit-calendar-picker-indicator,
+    html.dark input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+      filter: invert(0.8);
+    }
+
     /* ── Hierarchy & Metric Classes ── */
     .currency-symbol {
       font-size: 0.75rem;
@@ -172,38 +326,41 @@
   <div id="root"></div>
 
   <!-- 1. Config & Services -->
-  <script type="text/babel" src="./config/constants.js?v=32"></script>
-  <script type="text/babel" src="./config/useCurrency.js?v=32"></script>
-  <script type="text/babel" src="./services/api.js?v=32"></script>
+  <script src="./services/currencyService.js?v=142"></script>
+  <script src="./services/accountingEngine.js?v=142"></script>
+  <script type="text/babel" src="./config/constants.js?v=142"></script>
+  <script type="text/babel" src="./config/useCurrency.js?v=142"></script>
+  <script type="text/babel" src="./services/api.js?v=142"></script>
 
   <!-- 2. UI Components -->
-  <script type="text/babel" src="./components/Icons.jsx?v=32"></script>
-  <script type="text/babel" src="./components/Toast.jsx?v=32"></script>
-  <script type="text/babel" src="./components/LoginModal.jsx?v=32"></script>
-  <script type="text/babel" src="./components/UsersModal.jsx?v=32"></script>
-  <script type="text/babel" src="./components/Sidebar.jsx?v=32"></script>
-  <script type="text/babel" src="./components/Header.jsx?v=32"></script>
-  <script type="text/babel" src="./components/MobileNav.jsx?v=32"></script>
+  <script type="text/babel" src="./components/Icons.jsx?v=142"></script>
+  <script type="text/babel" src="./components/Toast.jsx?v=142"></script>
+  <script type="text/babel" src="./components/LoginModal.jsx?v=142"></script>
+  <script type="text/babel" src="./components/UsersModal.jsx?v=142"></script>
+  <script type="text/babel" src="./components/Sidebar.jsx?v=142"></script>
+  <script type="text/babel" src="./components/Header.jsx?v=142"></script>
+  <script type="text/babel" src="./components/MobileNav.jsx?v=142"></script>
+  <script type="text/babel" src="./components/PrintModal.jsx?v=142"></script>
 
   <!-- 3. Feature Modules -->
-  <script type="text/babel" src="./features/Dashboard.jsx?v=32"></script>
-  <script type="text/babel" src="./features/Customers.jsx?v=32"></script>
-  <script type="text/babel" src="./features/Products.jsx?v=32"></script>
-  <script type="text/babel" src="./features/Orders.jsx?v=32"></script>
-  <script type="text/babel" src="./features/Purchases.jsx?v=32"></script>
-  <script type="text/babel" src="./features/Inventory.jsx?v=32"></script>
-  <script type="text/babel" src="./features/Accounts.jsx?v=32"></script>
-  <script type="text/babel" src="./features/Factory.jsx?v=32"></script>
-  <script type="text/babel" src="./features/Vouchers.jsx?v=32"></script>
-  <script type="text/babel" src="./features/Expenses.jsx?v=32"></script>
-  <script type="text/babel" src="./features/Journal.jsx?v=32"></script>
-  <script type="text/babel" src="./features/Reports.jsx?v=32"></script>
-  <script type="text/babel" src="./features/Marketing.jsx?v=32"></script>
-  <script type="text/babel" src="./features/HR.jsx?v=32"></script>
-  <script type="text/babel" src="./features/Feedback.jsx?v=32"></script>
-  <script type="text/babel" src="./features/Settings.jsx?v=32"></script>
+  <script type="text/babel" src="./features/Dashboard.jsx?v=142"></script>
+  <script type="text/babel" src="./features/Customers.jsx?v=142"></script>
+  <script type="text/babel" src="./features/Products.jsx?v=142"></script>
+  <script type="text/babel" src="./features/Orders.jsx?v=142"></script>
+  <script type="text/babel" src="./features/Purchases.jsx?v=142"></script>
+  <script type="text/babel" src="./features/Inventory.jsx?v=142"></script>
+  <script type="text/babel" src="./features/Accounts.jsx?v=142"></script>
+  <script type="text/babel" src="./features/Factory.jsx?v=142"></script>
+  <script type="text/babel" src="./features/Vouchers.jsx?v=142"></script>
+  <script type="text/babel" src="./features/Expenses.jsx?v=142"></script>
+  <script type="text/babel" src="./features/Journal.jsx?v=142"></script>
+  <script type="text/babel" src="./features/Reports.jsx?v=142"></script>
+  <script type="text/babel" src="./features/Marketing.jsx?v=142"></script>
+  <script type="text/babel" src="./features/HR.jsx?v=142"></script>
+  <script type="text/babel" src="./features/Feedback.jsx?v=142"></script>
+  <script type="text/babel" src="./features/Settings.jsx?v=142"></script>
 
   <!-- 4. Main App Entry Point -->
-  <script type="text/babel" src="./App.jsx?v=32"></script>
+  <script type="text/babel" src="./App.jsx?v=142"></script>
 </body>
 </html>

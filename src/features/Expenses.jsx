@@ -81,41 +81,15 @@ function Expenses({ expenses = [], setExpenses, accounts = [], setAccounts, vouc
   const fetchFreshExpenses = useCallback(async () => {
     setIsSyncing(true);
     try {
-      // 1. Try local server first for instant response
-      try {
-        const [eRes, jRes, vRes] = await Promise.allSettled([
-          fetch('/api/expenses').then(r => r.json()),
-          fetch('/api/journal').then(r => r.json()),
-          fetch('/api/vouchers').then(r => r.json())
-        ]);
-        if (eRes.status === 'fulfilled' && eRes.value?.data && setExpenses) {
-          setExpenses(eRes.value.data);
+      if (window.expenseAPI && window.expenseAPI.getExpenses) {
+        const data = await window.expenseAPI.getExpenses();
+        if (Array.isArray(data) && setExpenses) {
+          setExpenses(data);
         }
-        if (jRes.status === 'fulfilled' && jRes.value?.data && setJournal) {
-          setJournal(jRes.value.data);
-        }
-        if (vRes.status === 'fulfilled' && vRes.value?.data && setVouchers) {
-          setVouchers(vRes.value.data);
-        }
-      } catch (localErr) {
-        console.warn("Local API fetch note:", localErr);
-      }
-
-      // 2. Sync with GAS Cloud
-      if (typeof window.callGAS === 'function') {
-        const [eRes, jRes, vRes] = await Promise.allSettled([
-          window.callGAS('getExpenses'),
-          window.callGAS('getJournalEntries'),
-          window.callGAS('getVouchers')
-        ]);
-        if (eRes.status === 'fulfilled' && eRes.value?.data && setExpenses) {
-          setExpenses(eRes.value.data);
-        }
-        if (jRes.status === 'fulfilled' && jRes.value?.data && setJournal) {
-          setJournal(jRes.value.data);
-        }
-        if (vRes.status === 'fulfilled' && vRes.value?.data && setVouchers) {
-          setVouchers(vRes.value.data);
+      } else {
+        const res = await fetch('/api/finance/expenses').then(r => r.json());
+        if (res && res.data && setExpenses) {
+          setExpenses(res.data);
         }
       }
     } catch (e) {
@@ -123,32 +97,34 @@ function Expenses({ expenses = [], setExpenses, accounts = [], setAccounts, vouc
     } finally {
       setIsSyncing(false);
     }
-  }, [setExpenses, setJournal, setVouchers]);
+  }, [setExpenses]);
 
   useEffect(() => {
     fetchFreshExpenses();
-  }, []);
+  }, [fetchFreshExpenses]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.amount) return showToast('المبلغ مطلوب ⚠️', 'error');
+    if (!formData.amount || parseFloat(formData.amount) <= 0) {
+      return showToast('يرجى إدخال مبلغ صحيح أكبر من الصفر ⚠️', 'error');
+    }
 
     const currCode = window.CurrencyService ? window.CurrencyService.normalizeCode(formData.currency) : 'YER';
     const rate = window.CurrencyService ? window.CurrencyService.getRate(currCode) : 1.0;
     const baseObj = window.CurrencyService ? window.CurrencyService.toBase(formData.amount, currCode, rate) : { base_amount: parseFloat(formData.amount) || 0, exchange_rate: rate };
 
-    // Extract exact expense account code & sub-account code without truncating decimals (e.g. 1111, 5211)
-    const rawExpStr = String(formData.exp_category || '5211').trim();
+    // Extract exact expense account code & sub-account code
+    const rawExpStr = String(formData.exp_category || '5211 - مصاريف تشغيل وصيانة الورشة').trim();
     const expCode = rawExpStr.includes(' - ') ? rawExpStr.split(' - ')[0].trim() : (rawExpStr.match(/\d+(\.\d+)?/)?.[0] || rawExpStr);
     
-    const rawSourceStr = String(formData.source_acc || '1111').trim();
+    const rawSourceStr = String(formData.source_acc || '1111 - الصندوق الرئيسي').trim();
     const sourceCode = rawSourceStr.includes(' - ') ? rawSourceStr.split(' - ')[0].trim() : (rawSourceStr.match(/\d+(\.\d+)?/)?.[0] || rawSourceStr);
 
     const expAccObj = (accounts || []).find(a => String(a.code || a.acc_code) === String(expCode) || (a.name && rawExpStr.includes(a.name)));
-    const debitAccLabel = expAccObj ? `${expAccObj.code || expAccObj.acc_code} - ${expAccObj.name || expAccObj.account_name}` : (formData.exp_category || expCode);
+    const debitAccLabel = expAccObj ? `${expAccObj.code || expAccObj.acc_code} - ${expAccObj.name || expAccObj.account_name}` : rawExpStr;
 
     const sourceAccObj = (accounts || []).find(a => String(a.code || a.acc_code) === String(sourceCode) || (a.name && rawSourceStr.includes(a.name)));
-    const creditAccLabel = sourceAccObj ? `${sourceAccObj.code || sourceAccObj.acc_code} - ${sourceAccObj.name || sourceAccObj.account_name}` : (formData.source_acc || sourceCode);
+    const creditAccLabel = sourceAccObj ? `${sourceAccObj.code || sourceAccObj.acc_code} - ${sourceAccObj.name || sourceAccObj.account_name}` : rawSourceStr;
 
     const expNo = `EXP-${Date.now().toString().slice(-6)}`;
     const newE = {
@@ -165,6 +141,7 @@ function Expenses({ expenses = [], setExpenses, accounts = [], setAccounts, vouc
       pay_method: formData.pay_method,
       account_id: creditAccLabel,
       payment_source: creditAccLabel,
+      source_acc: creditAccLabel,
       recipient: '',
       notes: formData.notes || '',
       status: 'posted'
@@ -190,7 +167,7 @@ function Expenses({ expenses = [], setExpenses, accounts = [], setAccounts, vouc
       target_acc: debitAccLabel,
       debit_account: debitAccLabel,
       notes: `سند صرف مصروف: ${debitAccLabel} - ${formData.notes || ''}`,
-      status: 'posted'
+      status: 'مرحل'
     };
 
     const newJEntry = {
@@ -205,7 +182,7 @@ function Expenses({ expenses = [], setExpenses, accounts = [], setAccounts, vouc
       currency: currCode,
       exchange_rate: rate,
       base_amount: baseObj.base_amount,
-      ref_type: 'EXPENSE',
+      ref_type: 'EXPENSE_VOUCHER',
       ref_id: expNo,
       date: formData.date || TODAY_STR_ISO,
       notes: `قيد مصروف تشغيلي: ${debitAccLabel} - ${formData.notes || ''}`,
@@ -233,31 +210,26 @@ function Expenses({ expenses = [], setExpenses, accounts = [], setAccounts, vouc
     }
 
     try {
-      // 1. Send to Local Backend
-      fetch('/api/expenses/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newE)
-      }).catch(err => console.warn('Local expense post error:', err));
-
-      // 2. Send to Google Apps Script
-      if (typeof window.callGAS === 'function') {
-        await window.callGAS('addExpense', newE);
+      if (window.expenseAPI && window.expenseAPI.createExpense) {
+        await window.expenseAPI.createExpense(newE);
+      } else {
+        await fetch('/api/finance/expenses', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newE)
+        });
       }
       showToast('تم حفظ المصروف وترحيل السند المالي والقيد اليومي بنجاح 💸');
     } catch (err) {
-      console.warn("Expense save fallback:", err);
-      showToast('تم الحفظ محلياً ⚡');
+      console.warn("Expense save error:", err);
+      showToast('تم حفظ المصروف محلياً وتحديث الأرصدة ⚡');
     } finally {
-      setFormData({
-        exp_category: typeof EXPENSE_CATEGORIES !== 'undefined' ? EXPENSE_CATEGORIES[0] : '601 - أجور ورواتب الخياطين والمطرزين والموظفين',
+      setFormData(prev => ({
+        ...prev,
         amount: '',
-        currency: 'YER ﷼',
-        date: TODAY_STR_ISO,
         notes: '',
-        pay_method: typeof PAY_METHODS !== 'undefined' ? PAY_METHODS[0] : 'نقد (كاش)',
-        source_acc: '101 - الصندوق الرئيسي'
-      });
+        date: TODAY_STR_ISO
+      }));
     }
   };
 
@@ -276,19 +248,19 @@ function Expenses({ expenses = [], setExpenses, accounts = [], setAccounts, vouc
     }
 
     try {
-      fetch('/api/expenses/delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: targetId, expense_no: eItem.expense_no || targetId })
-      }).catch(err => console.warn('Local expense delete note:', err));
-
-      if (typeof window.callGAS === 'function') {
-        await window.callGAS('deleteExpense', { id: targetId, expense_no: eItem.expense_no || targetId });
+      if (window.expenseAPI && window.expenseAPI.deleteExpense) {
+        await window.expenseAPI.deleteExpense({ id: targetId, expense_no: eItem.expense_no || targetId });
+      } else {
+        await fetch('/api/finance/expenses/delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: targetId, expense_no: eItem.expense_no || targetId })
+        });
       }
-      showToast('تم حذف المصروف بنجاح 🗑️');
+      showToast('تم حذف المصروف وإلغاء أثره المالي بنجاح 🗑️');
     } catch(err) {
       console.error(err);
-      showToast('تم الحذف بنجاح 🗑️');
+      showToast('تم حذف المصروف محلياً 🗑️');
     }
   };
 
@@ -398,31 +370,43 @@ function Expenses({ expenses = [], setExpenses, accounts = [], setAccounts, vouc
             <div>
               <label className={labelCls}>العملة</label>
               <select className={inputCls} value={formData.currency} onChange={e => setFormData({...formData, currency: e.target.value})}>
-                {(typeof CURRENCIES !== 'undefined' ? CURRENCIES : ['SAR','USD','YER']).map(c => <option key={typeof c === "object" ? c.value : c} value={typeof c === "object" ? c.value : c}>{typeof c === "object" ? c.label : c}</option>)}
+                <option value="YER ﷼">ريال يمني (YER ﷼)</option>
+                <option value="SAR ﷼">ريال سعودي (SAR ﷼)</option>
+                <option value="USD $">دولار أمريكي (USD $)</option>
               </select>
             </div>
             <div>
               <label className={labelCls}>طريقة الدفع</label>
               <select className={inputCls} value={formData.pay_method} onChange={e => setFormData({...formData, pay_method: e.target.value})}>
-                {(typeof PAY_METHODS !== 'undefined' ? PAY_METHODS : ['نقدي','تحويل إلكتروني','شيك']).map(p => <option key={p} value={p}>{p}</option>)}
+                <option value="نقد (كاش)">نقد (كاش)</option>
+                <option value="حوالة بنكية">حوالة بنكية</option>
+                <option value="شبكة POS">شبكة POS</option>
               </select>
             </div>
             <div>
               <label className={labelCls}>حساب الدفع / الخزينة</label>
               <select className={inputCls} value={formData.source_acc} onChange={e => setFormData({...formData, source_acc: e.target.value})}>
-                <option value="">-- اختر حساب الدفع --</option>
-                {accounts.map(a => {
-                  const code = a.code || a.acc_code || a.id;
-                  const rawName = a.name || a.account_name || a.acc_name || '';
-                  const name = (rawName && !rawName.includes('???')) ? rawName : (a.name_en || code);
-                  const label = `${code} - ${name}`;
-                  return <option key={code} value={label}>{label}</option>;
-                })}
+                <option value="">-- اختر حساب الدفع / الخزينة --</option>
+                {(() => {
+                  const cashBankAccs = (accounts || []).filter(a => {
+                    const code = String(a.code || a.acc_code || '');
+                    const type = String(a.account_type || a.type || a.nature || '');
+                    return code.startsWith('111') || code.startsWith('112') || code.startsWith('101') || type.includes('أصول') || type.includes('نقدية') || type.includes('بنك');
+                  });
+                  const listToUse = cashBankAccs.length > 0 ? cashBankAccs : (accounts || []);
+                  return listToUse.map(a => {
+                    const code = a.code || a.acc_code || a.id;
+                    const rawName = a.name || a.account_name || a.acc_name || '';
+                    const name = (rawName && !rawName.includes('???')) ? rawName : (a.name_en || code);
+                    const label = `${code} - ${name}`;
+                    return <option key={code} value={label}>{label}</option>;
+                  });
+                })()}
               </select>
             </div>
             <div>
               <label className={labelCls}>التاريخ</label>
-              <input type="date" className={inputCls} value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} />
+              <input type="date" lang="en-GB" dir="ltr" className={inputCls} value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} />
             </div>
             <div className="sm:col-span-2">
               <label className={labelCls}>البيان / تفاصيل المصروف</label>

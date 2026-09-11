@@ -60,17 +60,31 @@ function App() {
   useEffect(() => {
     const role = currentUser?.role || 'admin';
     let allowed = [];
-    if (role === 'data_entry') allowed = ['customers'];
-    else if (role === 'workshop_manager') allowed = ['inventory', 'factory', 'customers'];
-    else if (role === 'accountant') allowed = ['orders', 'purchases', 'vouchers', 'expenses', 'accounts', 'journal', 'reports'];
-    else allowed = ['dashboard', 'customers', 'products', 'orders', 'marketing', 'hr', 'inventory', 'factory', 'purchases', 'vouchers', 'expenses', 'accounts', 'journal', 'reports', 'feedback', 'settings'];
+    if (role === 'data_entry' || role === 'sales_rep') {
+      allowed = ['dashboard', 'orders', 'customers', 'marketing'];
+    } else if (role === 'workshop_manager') {
+      allowed = ['dashboard', 'factory', 'products', 'inventory', 'feedback'];
+    } else if (role === 'accountant') {
+      allowed = ['dashboard', 'accounts', 'vouchers', 'expenses', 'reports', 'purchases', 'settings'];
+    } else {
+      allowed = ['dashboard', 'customers', 'products', 'orders', 'factory', 'inventory', 'purchases', 'accounts', 'vouchers', 'expenses', 'journal', 'reports', 'marketing', 'hr', 'feedback', 'settings'];
+    }
 
     if (!allowed.includes(activeTab)) {
-      setActiveTab(allowed[0] || 'customers');
+      setActiveTab(allowed[0] || 'dashboard');
     }
   }, [currentUser, activeTab]);
 
   useEffect(() => {
+    // ── جلب فوري وسريع لشجرة الحسابات الحية من الخادم المحلي فور الإقلاع ──
+    fetch('/api/accounts/list')
+      .then(r => r.json())
+      .then(d => {
+        const list = (d && Array.isArray(d.data)) ? d.data : (Array.isArray(d) ? d : []);
+        if (list.length > 0) setAccounts(list);
+      })
+      .catch(() => {});
+
     const initData = async () => {
       try {
         if (window.authAPI && typeof window.authAPI.getCurrentUser === 'function') {
@@ -193,7 +207,7 @@ function App() {
         )}
         
         <main className="flex-1 px-4 md:px-6 lg:px-8 py-6 max-w-[1600px] w-full mx-auto pb-20">
-          {activeTab === "dashboard"  && typeof Dashboard !== 'undefined' && <Dashboard setActiveTab={setActiveTab} orders={orders} accounts={accounts} journal={journal} vouchers={vouchers} purchases={purchases} expenses={expenses} currency={systemCurrency} />}
+          {activeTab === "dashboard"  && typeof Dashboard !== 'undefined' && <Dashboard setActiveTab={setActiveTab} orders={orders} accounts={accounts} journal={journal} vouchers={vouchers} purchases={purchases} expenses={expenses} factory={factory} customers={customers} currency={systemCurrency} />}
           {activeTab === "customers"  && typeof Customers !== 'undefined' && <Customers customers={customers} setCustomers={setCustomers} products={products} showToast={showToast} currency={systemCurrency} />}
           {activeTab === "products"   && typeof Products !== 'undefined'  && <Products products={products} setProducts={setProducts} inventory={inventory} showToast={showToast} currency={systemCurrency} />}
           {activeTab === "orders"     && typeof Orders !== 'undefined'    && <Orders orders={orders} setOrders={setOrders} customers={customers} products={products} campaigns={campaigns} showToast={showToast} currency={systemCurrency} />}

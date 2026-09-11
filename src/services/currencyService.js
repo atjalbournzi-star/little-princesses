@@ -98,6 +98,26 @@
 
   var currentRates = loadStoredRates();
 
+  // Auto-sync rates with server / Supabase PostgreSQL on startup
+  if (typeof window !== 'undefined' && window.fetch) {
+    fetch('/api/exchange-rates')
+      .then(function(res) { return res.json(); })
+      .then(function(json) {
+        if (json && json.success && json.rates) {
+          if (json.rates.SAR && Number(json.rates.SAR) > 0) currentRates.SAR = Number(json.rates.SAR);
+          if (json.rates.USD && Number(json.rates.USD) > 0) currentRates.USD = Number(json.rates.USD);
+          currentRates.YER = 1.0;
+          try {
+            localStorage.setItem(STORAGE_KEY_RATES, JSON.stringify(currentRates));
+          } catch(e) {}
+          window.dispatchEvent(new CustomEvent(EVENT_RATES_CHANGED, { detail: { rates: currentRates } }));
+        }
+      })
+      .catch(function(err) {
+        console.warn('[CurrencyService] Server rates sync error:', err);
+      });
+  }
+
   var CurrencyService = {
     BASE_CURRENCY: BASE_CURRENCY_CODE,
     
