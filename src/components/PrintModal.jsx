@@ -6,6 +6,20 @@ function PrintModal({ order, customer, measurements, isOpen, onClose, defaultTem
   const [activeTemplate, setActiveTemplate] = useState(defaultTemplate); // 'thermal', 'job_ticket', 'hangtag'
   const printAreaRef = useRef(null);
 
+  const brandProfile = (typeof window !== 'undefined' && window.BrandService)
+    ? window.BrandService.getProfile()
+    : {
+        name: 'نظام الإدارة المتكامل الذكي',
+        shortName: 'ERP Master',
+        tagline: 'نظام تخطيط موارد المؤسسات المتكامل',
+        commercialRegister: '1010-009283',
+        phone: '776773458',
+        address: 'اليمن - الإدارة العامة',
+        email: 'info@erp-master.com',
+        logoUrl: '',
+        systemIcon: '🏢'
+      };
+
   const orderNo = order.order_no || `ORD-${order.id}`;
   const custName = order.customer_name || customer?.name || 'عميلة راقية';
   const childName = order.child_name || customer?.measurements?.[0]?.child_name || 'الأميرة';
@@ -154,8 +168,8 @@ function PrintModal({ order, customer, measurements, isOpen, onClose, defaultTem
               🖨️
             </div>
             <div>
-              <h2 className="font-extrabold text-sm text-[#25232A]">محرك طباعة الفواتير وأوامر العمل الملكية</h2>
-              <p className="text-[11px] text-[#6F6B75]">معاينة وتخصيص نماذج الطباعة الحرارية والمشاغل لدار الأميرات</p>
+              <h2 className="font-extrabold text-sm text-[#25232A]">محرك طباعة الفواتير وسندات الاستلام وأوامر العمل</h2>
+              <p className="text-[11px] text-[#6F6B75]">معاينة وتخصيص نماذج الطباعة الحرارية والمشاغل الرسمية</p>
             </div>
           </div>
 
@@ -217,10 +231,22 @@ function PrintModal({ order, customer, measurements, isOpen, onClose, defaultTem
               <div className="thermal-container text-center font-sans">
                 {/* Brand Header */}
                 <div className="mb-2">
-                  <div className="text-2xl mb-1">👑</div>
-                  <h1 className="text-sm font-black tracking-tight text-black">مؤسسة الأميرات الصغيرات</h1>
-                  <p className="text-[10px] font-bold text-gray-700">LITTLE PRINCESSES HAUTE COUTURE</p>
-                  <p className="text-[9.5px] text-gray-600">للأزياء وفساتين الأطفال الفاخرة</p>
+                  <div className="flex justify-center mb-1">
+                    {brandProfile.logoUrl ? (
+                      <img src={brandProfile.logoUrl} alt="Logo" className="h-10 max-w-[120px] object-contain" />
+                    ) : (
+                      <div className="text-2xl">{brandProfile.systemIcon || '🏢'}</div>
+                    )}
+                  </div>
+                  <h1 className="text-sm font-black tracking-tight text-black">{brandProfile.name}</h1>
+                  <p className="text-[10px] font-bold text-gray-700">{brandProfile.shortName}</p>
+                  <p className="text-[9.5px] text-gray-600">{brandProfile.tagline}</p>
+                  {brandProfile.phone && (
+                    <p className="text-[9px] text-gray-500 font-mono mt-0.5">هاتف: {brandProfile.phone}</p>
+                  )}
+                  {brandProfile.commercialRegister && (
+                    <p className="text-[8.5px] text-gray-500 font-mono">س.ت: {brandProfile.commercialRegister}</p>
+                  )}
                 </div>
 
                 <div className="dashed-line"></div>
@@ -328,7 +354,7 @@ function PrintModal({ order, customer, measurements, isOpen, onClose, defaultTem
                 <div className="text-[8.5px] text-gray-600 space-y-0.5 border-t border-dashed border-gray-400 pt-2 text-center">
                   <p>• العربون لا يُسترجع بعد بدء مرحلة القص والتفصيل.</p>
                   <p>• نرجو إحضار أصل الإيصال عند موعد البروفة والاستلام.</p>
-                  <p className="font-bold text-black mt-1">نسعد بزيارتكم وثقتكم بدار الأميرات الصغيرات 🌸</p>
+                  <p className="font-bold text-black mt-1">نسعد بخدمتكم وثقتكم بنا دائماً 🌸</p>
                 </div>
               </div>
             )}
@@ -343,10 +369,10 @@ function PrintModal({ order, customer, measurements, isOpen, onClose, defaultTem
                 <div className="flex justify-between items-start border-b-2 border-black pb-3">
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xl">👑</span>
+                      <span className="text-xl">{brandProfile.systemIcon || '🏢'}</span>
                       <h1 className="text-lg font-black text-black">بطاقة أمر تشغيل ومعمل (Workshop Job Ticket)</h1>
                     </div>
-                    <p className="text-xs text-gray-600 font-bold">دار الأميرات الصغيرات للأزياء الراقية • قسم التفصيل والإنتاج</p>
+                    <p className="text-xs text-gray-600 font-bold">{brandProfile.name} • قسم التفصيل والإنتاج</p>
                   </div>
                   <div className="text-left font-mono">
                     <span className="bg-black text-white px-3 py-1 rounded-lg text-sm font-black block">{orderNo}</span>
@@ -486,14 +512,20 @@ function PrintModal({ order, customer, measurements, isOpen, onClose, defaultTem
                 <div className="w-3.5 h-3.5 rounded-full border-2 border-dashed border-gray-400 mx-auto mb-2"></div>
 
                 <div>
-                  <div className="text-2xl">👑</div>
-                  <h1 className="text-xs font-black text-[#B0005A] tracking-wider mt-1">LITTLE PRINCESSES</h1>
-                  <p className="text-[8px] font-bold text-gray-500">HAUTE COUTURE</p>
+                  <div className="flex justify-center mb-1">
+                    {brandProfile.logoUrl ? (
+                      <img src={brandProfile.logoUrl} alt="Logo" className="h-8 max-w-[80px] object-contain" />
+                    ) : (
+                      <div className="text-2xl">{brandProfile.systemIcon || '🏢'}</div>
+                    )}
+                  </div>
+                  <h1 className="text-xs font-black text-[#B0005A] tracking-wider mt-1">{brandProfile.shortName || brandProfile.name}</h1>
+                  <p className="text-[8px] font-bold text-gray-500">{brandProfile.tagline}</p>
                 </div>
 
                 <div className="my-2 border-t border-b border-gray-200 py-2 space-y-1 text-center">
                   <span className="text-[11px] font-black text-black block truncate">{prodName}</span>
-                  <span className="text-[10px] font-bold text-[#8F2A87] block">للأميرة: {childName}</span>
+                  <span className="text-[10px] font-bold text-[#8F2A87] block">للعميل / الطفلة: {childName}</span>
                   <span className="text-[9px] font-mono text-gray-600 block">{orderNo}</span>
                 </div>
 
@@ -510,7 +542,7 @@ function PrintModal({ order, customer, measurements, isOpen, onClose, defaultTem
                     ))}
                   </div>
                   <span className="text-[8px] font-mono text-gray-600 block">{orderNo}-2026</span>
-                  <span className="text-[7.5px] text-gray-400 block mt-1">صنع بكل حب في دار الأميرات 🌸</span>
+                  <span className="text-[7.5px] text-gray-400 block mt-1">صنع بكل إتقان وعناية فائقة 🌸</span>
                 </div>
               </div>
             )}

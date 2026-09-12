@@ -409,7 +409,11 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
     const foundCust = (customers || []).find(c => c.name === vParty);
     if (foundCust && foundCust.phone) targetPhone = foundCust.phone.replace(/[^0-9]/g, '');
 
-    const message = `👑 *مؤسسة Little Princesses للأزياء الراقية والفساتين الفاخرة*\n\n` +
+    const brandName = (typeof window !== 'undefined' && window.BrandService)
+      ? window.BrandService.getProfile().name
+      : 'نظام الإدارة المالية الموحد';
+
+    const message = `🏢 *${brandName}*\n\n` +
       `📄 *إشعار ${vType} معتمد رسمياً:*\n` +
       `━━━━━━━━━━━━━━━━━━\n` +
       `🔹 *رقم السند:* ${vNo}\n` +
@@ -419,7 +423,7 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
       `🔹 *التاريخ:* ${vDate}\n` +
       `🔹 *البيان:* ${vNotes}\n` +
       `━━━━━━━━━━━━━━━━━━\n` +
-      `✨ نشكركم لتعاملكم الراقي مع دار Little Princesses للأزياء.`;
+      `✨ نشكركم لتعاملكم ونسعد بخدمتكم دائماً.`;
 
     const cleanPhone = targetPhone ? (targetPhone.startsWith('967') || targetPhone.startsWith('966') ? targetPhone : `967${targetPhone.replace(/^0+/, '')}`) : '';
     const waUrl = cleanPhone 
@@ -1205,8 +1209,8 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
               🏛️
             </div>
             <div>
-              <h2 className="text-sm font-bold text-white">إدارة الشؤون والعمليات المالية 👑</h2>
-              <p className="text-[11px] text-[#94a3b8]">بوابة التحصيل والصرف والقيود المحاسبية لمؤسسة Little Princesses</p>
+              <h2 className="text-sm font-bold text-white">إدارة الشؤون والعمليات المالية</h2>
+              <p className="text-[11px] text-[#94a3b8]">بوابة التحصيل والصرف والقيود المحاسبية المركزية المعتمدة</p>
             </div>
           </div>
 
@@ -1260,7 +1264,7 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
                 className="py-2 px-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 text-[11px] font-bold transition flex items-center justify-center gap-1 cursor-pointer border border-amber-500/20"
                 title="إصدار سند قبض إيداع رأس مال الشركاء والمؤسسين"
               >
-                <span>👑</span>
+                <span>💼</span>
                 <span>إيداع رأس مال</span>
               </button>
               <button
@@ -1419,7 +1423,7 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
           </div>
 
           <span className="text-xs text-gray-400">
-            👑 سندات موثقة ومربوطة آلياً بالأستاذ العام وقوقل شيتس
+            ✨ سندات موثقة ومربوطة آلياً بالأستاذ العام والسحابة
           </span>
         </div>
 
@@ -1911,16 +1915,16 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
                           className="w-full h-10 px-3 rounded-xl border border-[#374151] bg-[#111827] text-white text-xs font-semibold focus:border-[#00E5FF] outline-none"
                         >
                           <option value="">-- اختر من السجلات المسجلة أو اكتب أدناه --</option>
-                          <optgroup label="👑 الشركاء والمؤسسون (رأس المال)">
+                          <optgroup label="💼 الشركاء والمؤسسون (رأس المال)">
                             {(partnerAccounts.length > 0 ? partnerAccounts : [
-                              { code: '301.01', name: 'محمد فلاح' },
-                              { code: '301.02', name: 'هنادي' }
+                              { code: '301.01', name: 'الشريك (1)' },
+                              { code: '301.02', name: 'الشريك (2)' }
                             ]).map(p => {
                               const code = String(p.code || p.acc_code || '');
                               const cleanName = getCleanPartnerName(p);
                               return (
                                 <option key={code} value={cleanName}>
-                                  👑 {cleanName} ({code} - رأس المال المباشر)
+                                  💼 {cleanName} ({code} - رأس المال المباشر)
                                 </option>
                               );
                             })}
@@ -2066,7 +2070,7 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
 
                         return (
                           <>
-                            <optgroup label="👑 حقوق الملكية ورأس المال والشركاء">
+                            <optgroup label="💼 حقوق الملكية ورأس المال والشركاء">
                               {equity.map(renderAccOption)}
                             </optgroup>
                             <optgroup label="👗 العملاء والمدينون">

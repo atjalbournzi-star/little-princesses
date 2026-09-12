@@ -173,7 +173,7 @@ function Factory({ factory = [], setFactory, employees = [], orders = [], produc
       }
 
       if (res && res.accounting_completed) {
-        showToast('تم تحديث المشغل وترحيل قيد إقفال المخزون التام (Dr 1153 / Cr 1152) بنجاح 📦👑', 'success');
+        showToast('تم تحديث المشغل وترحيل قيد إقفال المخزون التام (Dr 1153 / Cr 1152) بنجاح 📦✨', 'success');
       } else {
         showToast(res && res.message ? res.message : 'تم تحديث حالة المشغل بنجاح 🚀', 'success');
       }
@@ -422,7 +422,7 @@ function Factory({ factory = [], setFactory, employees = [], orders = [], produc
                           setPrintModalData({
                             order: {
                               ...ord,
-                              child_name: ord.child_name || f.child_name || (childMeas ? childMeas.child_name : 'الأميرة'),
+                              child_name: ord.child_name || f.child_name || (childMeas ? childMeas.child_name : ''),
                               product_name: ord.product_name || f.product || f.product_name
                             },
                             customer: c,

@@ -14,7 +14,7 @@ function App() {
       const stored = localStorage.getItem('erp_active_user');
       if (stored) return JSON.parse(stored);
     } catch(e) {}
-    return { id: 1, username: 'admin', full_name: 'المدير العام 👑', role: 'admin', role_label: 'المدير العام', is_active: 1 };
+    return { id: 1, username: 'admin', full_name: 'المدير العام', role: 'admin', role_label: 'المدير العام', is_active: 1 };
   });
 
   const [loginModalOpen, setLoginModalOpen] = useState(false);
@@ -228,12 +228,12 @@ function App() {
 
         <footer className="bg-white border-t border-[#E8E5EA] py-3.5 px-6 text-xs text-[#6F6B75] flex flex-col sm:flex-row items-center justify-between gap-2 shrink-0">
           <div className="flex items-center gap-2">
-            <span className="font-bold text-[#B0005A]">Little Princesses ERP 👑</span>
+            <span className="font-bold text-[#B0005A]">{(typeof window !== 'undefined' && window.BrandService) ? window.BrandService.getProfile().name : 'نظام الإدارة المتكامل الذكي'}</span>
             <span>-</span>
-            <span>نظام إدارة ومقاسات فساتين الأطفال الفاخرة</span>
+            <span>{(typeof window !== 'undefined' && window.BrandService) ? window.BrandService.getProfile().tagline : 'نظام تخطيط وإدارة موارد المؤسسات الموحد'}</span>
           </div>
           <span className="text-[11px] font-semibold text-[#8F2A87] bg-[#F2E7F3] px-2.5 py-0.5 rounded-full border border-[#E5CEE7]">
-            Haute Couture SaaS Edition
+            Enterprise SaaS Edition
           </span>
         </footer>
       </div>
@@ -245,7 +245,7 @@ function App() {
           onClose={() => setLoginModalOpen(false)} 
           onLoginSuccess={(user) => {
             setCurrentUser(user);
-            showToast(`مرحباً بك ${user.full_name || user.username} 👑`);
+            showToast(`مرحباً بك ${user.full_name || user.username} 👤`);
           }} 
           showToast={showToast} 
         />
@@ -279,9 +279,9 @@ class ErrorBoundary extends React.Component {
       return (
         <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-center p-6 text-center" dir="rtl">
           <div className="w-16 h-16 rounded-2xl bg-pink-600/20 text-[#D81B60] flex items-center justify-center text-3xl mb-4 border border-pink-500/30">
-            👑
+            🏢
           </div>
-          <h2 className="text-lg font-bold mb-2">مؤسسة الأميرات الصغيرات — Little Princesses ERP</h2>
+          <h2 className="text-lg font-bold mb-2">نظام الإدارة المتكامل الذكي — ERP Master</h2>
           <p className="text-xs text-slate-400 max-w-md mb-3">
             حدث تنبيه مؤقت في تحميل الواجهة:
           </p>

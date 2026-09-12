@@ -15,8 +15,14 @@ window.Header = function Header({
   const [userDropdown, setUserDropdown] = useState(false);
   const [tenantDropdown, setTenantDropdown] = useState(false);
   const [tenants, setTenants] = useState([]);
+  const defaultBrand = (typeof window !== 'undefined' && window.BrandService)
+    ? window.BrandService.getProfile()
+    : { name: 'نظام الإدارة المتكامل الذكي', shortName: 'ERP Master' };
+
   const [activeTenant, setActiveTenantState] = useState(() => {
-    return window.getActiveTenantInfo ? window.getActiveTenantInfo() : { id: 'lp_main', name: 'Little Princesses Haute Couture 👑', plan: 'Enterprise' };
+    const t = window.getActiveTenantInfo ? window.getActiveTenantInfo() : null;
+    if (t && t.name && !t.name.includes('Little Princesses') && !t.name.includes('الأميرات')) return t;
+    return { id: t?.id || 'main_tenant', name: defaultBrand.shortName || defaultBrand.name, plan: 'Enterprise' };
   });
   const [showAddTenantModal, setShowAddTenantModal] = useState(false);
   const [newTenantName, setNewTenantName] = useState('');
@@ -80,7 +86,7 @@ window.Header = function Header({
     } catch(e) {}
   };
 
-  const user = currentUser || { id: 1, username: 'admin', full_name: 'المدير العام 👑', role: 'admin', role_label: 'المدير العام' };
+  const user = currentUser || { id: 1, username: 'admin', full_name: 'المدير العام', role: 'admin', role_label: 'المدير العام' };
   const userRole = user.role || 'admin';
 
   useEffect(() => {
@@ -173,7 +179,7 @@ window.Header = function Header({
       feedback: { title: "تقييمات الجودة وتجارب العملاء", category: "الجودة" },
       settings: { title: "إعدادات النظام والعملات", category: "الإدارة" }
     };
-    return map[activeTab] || { title: "لوحة التحكم", category: "Little Princesses ERP" };
+    return map[activeTab] || { title: "لوحة التحكم", category: "ERP Master" };
   }, [activeTab]);
 
   const getRoleBadgeColor = (role) => {
@@ -234,8 +240,8 @@ window.Header = function Header({
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-[#F2E7F3] to-[#FCE8F2] border border-[#E5CEE7] text-[#8F2A87] hover:border-[#B0005A] text-xs font-bold transition-all shadow-2xs cursor-pointer"
             title="تبديل المشغل أو الشركة (Multi-Tenant Switcher)"
           >
-            <span>👑</span>
-            <span className="max-w-[140px] truncate">{activeTenant.name || 'Little Princesses'}</span>
+            <span>🏢</span>
+            <span className="max-w-[140px] truncate">{activeTenant.name || 'ERP Master'}</span>
             <Icons.ChevronDown className="w-3.5 h-3.5 text-[#8F2A87]" />
           </button>
 
@@ -266,7 +272,7 @@ window.Header = function Header({
                     }`}
                   >
                     <div className="flex items-center gap-2">
-                      <span>{t.id === 'lp_main' ? '👑' : '🏛️'}</span>
+                      <span>🏢</span>
                       <div className="flex flex-col">
                         <span className="leading-tight">{t.name}</span>
                         <span className="text-[10px] opacity-70 font-mono">ID: {t.id}</span>
@@ -301,7 +307,7 @@ window.Header = function Header({
             <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 border border-[#E8E5EA]">
               <div className="flex items-center justify-between border-b border-[#E8E5EA] pb-3">
                 <h3 className="text-base font-bold text-[#25232A] flex items-center gap-2">
-                  <span>👑</span>
+                  <span>🏢</span>
                   <span>تسجيل مشغل أو عميل جديد (New Tenant)</span>
                 </h3>
                 <button
@@ -376,7 +382,7 @@ window.Header = function Header({
                   }}
                   className="px-5 py-2 rounded-xl bg-[#B0005A] hover:bg-[#8E0049] text-white text-xs font-bold shadow-xs"
                 >
-                  تأكيد وإنشاء المشغل 👑
+                  تأكيد وإنشاء المشغل 🏢
                 </button>
               </div>
             </div>
@@ -492,7 +498,7 @@ window.Header = function Header({
             className="flex items-center gap-2 py-1 px-2 rounded-xl bg-[#FAFAFB] hover:bg-white border border-[#E8E5EA] transition cursor-pointer"
           >
             <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-[#B0005A] via-[#8F2A87] to-[#009FAE] text-white flex items-center justify-center text-xs font-bold shadow-xs">
-              {user.username ? user.username.slice(0, 2).toUpperCase() : 'LP'}
+              {user.username ? user.username.slice(0, 2).toUpperCase() : 'ERP'}
             </div>
             <div className="flex flex-col text-right hidden sm:flex">
               <span className="text-xs font-bold text-[#25232A] leading-tight">

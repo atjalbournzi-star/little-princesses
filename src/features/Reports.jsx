@@ -2,6 +2,16 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
 function Reports({ orders = [], expenses = [], vouchers = [], journal = [], accounts = [], purchases = [], customers = [], inventory = [], showToast, currency }) {
   const currencyDisplay = currency?.display || 'YER ﷼';
+  const brandProfile = (typeof window !== 'undefined' && window.BrandService)
+    ? window.BrandService.getProfile()
+    : {
+        name: 'نظام الإدارة المتكامل الذكي',
+        shortName: 'ERP Master',
+        tagline: 'Enterprise Financial & Accounting System',
+        commercialRegister: '1010-009283',
+        phone: '776773458',
+        systemIcon: '🏢'
+      };
   const [activeTab, setActiveTab] = useState('pnl'); // 'pnl', 'balance_sheet', 'trial_balance', 'general_ledger', 'statements'
   const [periodPreset, setPeriodPreset] = useState('this_month');
   const [dateRange, setDateRange] = useState({ start: '', end: window.TODAY_STR_ISO || new Date().toISOString().split('T')[0] });
@@ -649,12 +659,12 @@ function Reports({ orders = [], expenses = [], vouchers = [], journal = [], acco
 
   const handleExportExcel = useCallback(() => {
     let tableHtml = '';
-    let filename = `Little_Princesses_${activeTab}_${dateRange.start || 'all'}_${dateRange.end || 'all'}.xls`;
+    let filename = `${brandProfile.shortName || 'ERP'}_${activeTab}_${dateRange.start || 'all'}_${dateRange.end || 'all'}.xls`;
 
     if (activeTab === 'pnl') {
       filename = `قائمة_الدخل_والأرباح_P&L_${reportCurrency.replace(/[^a-zA-Z]/g, '')}.xls`;
       tableHtml = `
-        <tr style="background-color:#007F8C;color:#ffffff;"><th colspan="3" style="font-size:16px;padding:10px;">مؤسسة Little Princesses للأزياء الراقية - قائمة الدخل والأرباح (P&L)</th></tr>
+        <tr style="background-color:#007F8C;color:#ffffff;"><th colspan="3" style="font-size:16px;padding:10px;">${brandProfile.name} - قائمة الدخل والأرباح (P&L)</th></tr>
         <tr style="background-color:#f9fafb;"><td colspan="3">الفترة: من ${dateRange.start || 'البداية'} إلى ${dateRange.end || 'اليوم'} | العملة: ${reportCurrency}</td></tr>
         <tr><th>كود الحساب</th><th>البند المحاسبي / البيان</th><th>المبلغ (${reportCurrency})</th></tr>
         <tr style="background-color:#f3f4f6;font-weight:bold;"><td colspan="3">1. الإيرادات التشغيلية (Revenues)</td></tr>
@@ -672,7 +682,7 @@ function Reports({ orders = [], expenses = [], vouchers = [], journal = [], acco
     } else if (activeTab === 'balance_sheet') {
       filename = `الميزانية_العمومية_والمركز_المالي_${reportCurrency.replace(/[^a-zA-Z]/g, '')}.xls`;
       tableHtml = `
-        <tr style="background-color:#007F8C;color:#ffffff;"><th colspan="3" style="font-size:16px;padding:10px;">مؤسسة Little Princesses للأزياء الراقية - الميزانية العمومية والمركز المالي</th></tr>
+        <tr style="background-color:#007F8C;color:#ffffff;"><th colspan="3" style="font-size:16px;padding:10px;">${brandProfile.name} - الميزانية العمومية والمركز المالي</th></tr>
         <tr style="background-color:#f9fafb;"><td colspan="3">حتى تاريخ: ${dateRange.end || 'اليوم'} | العملة: ${reportCurrency}</td></tr>
         <tr><th>كود الحساب</th><th>اسم الحساب / البند</th><th>المبلغ (${reportCurrency})</th></tr>
         <tr style="background-color:#f3f4f6;font-weight:bold;"><td colspan="3">1. جانب الأصول (Assets)</td></tr>
@@ -693,7 +703,7 @@ function Reports({ orders = [], expenses = [], vouchers = [], journal = [], acco
     } else if (activeTab === 'trial_balance') {
       filename = `ميزان_المراجعة_بالمجاميع_والأرصدة_${reportCurrency.replace(/[^a-zA-Z]/g, '')}.xls`;
       tableHtml = `
-        <tr style="background-color:#007F8C;color:#ffffff;"><th colspan="9" style="font-size:16px;padding:10px;">مؤسسة Little Princesses للأزياء الراقية - ميزان المراجعة بالمجاميع والأرصدة</th></tr>
+        <tr style="background-color:#007F8C;color:#ffffff;"><th colspan="9" style="font-size:16px;padding:10px;">${brandProfile.name} - ميزان المراجعة بالمجاميع والأرصدة</th></tr>
         <tr style="background-color:#f9fafb;"><td colspan="9">الفترة: من ${dateRange.start || 'البداية'} إلى ${dateRange.end || 'اليوم'} | العملة: ${reportCurrency}</td></tr>
         <tr><th>كود الحساب</th><th>اسم الحساب</th><th>النوع</th><th>الطبيعة</th><th>رصيد سابق / افتتاحي</th><th>مجموع المدين</th><th>مجموع الدائن</th><th>رصيد ختامي مدين</th><th>رصيد ختامي دائن</th></tr>
         ${trialBalanceData.rows.map(r => `
@@ -721,7 +731,7 @@ function Reports({ orders = [], expenses = [], vouchers = [], journal = [], acco
     } else if (activeTab === 'general_ledger') {
       filename = `دفتر_الأستاذ_العام_حساب_${selectedLedgerAcc}.xls`;
       tableHtml = `
-        <tr style="background-color:#007F8C;color:#ffffff;"><th colspan="6" style="font-size:16px;padding:10px;">مؤسسة Little Princesses للأزياء الراقية - كشف حركة دفتر الأستاذ العام</th></tr>
+        <tr style="background-color:#007F8C;color:#ffffff;"><th colspan="6" style="font-size:16px;padding:10px;">${brandProfile.name} - كشف حركة دفتر الأستاذ العام</th></tr>
         <tr style="background-color:#f9fafb;"><td colspan="6">الحساب: ${selectedLedgerAcc} | الفترة: من ${dateRange.start || 'البداية'} إلى ${dateRange.end || 'اليوم'} | العملة: ${reportCurrency}</td></tr>
         <tr><th>التاريخ</th><th>رقم القيد / المرجع</th><th>البيان والتفاصيل</th><th>مدين (${targetCode})</th><th>دائن (${targetCode})</th><th>الرصيد التراكمي</th></tr>
         ${generalLedgerRows.map(r => `
@@ -739,7 +749,7 @@ function Reports({ orders = [], expenses = [], vouchers = [], journal = [], acco
       if (statementType === 'treasury') {
         filename = `مطابقة_حركة_الصناديق_والبنوك_${reportCurrency.replace(/[^a-zA-Z]/g, '')}.xls`;
         tableHtml = `
-          <tr style="background-color:#007F8C;color:#ffffff;"><th colspan="9" style="font-size:16px;padding:10px;">مؤسسة Little Princesses للأزياء الراقية - مطابقة حركة وأرصدة الصناديق والبنوك والخزائن</th></tr>
+          <tr style="background-color:#007F8C;color:#ffffff;"><th colspan="9" style="font-size:16px;padding:10px;">${brandProfile.name} - مطابقة حركة وأرصدة الصناديق والبنوك والخزائن</th></tr>
           <tr style="background-color:#f9fafb;"><td colspan="9">الفترة: من ${dateRange.start || 'البداية'} إلى ${dateRange.end || 'اليوم'} | العملة: ${reportCurrency}</td></tr>
           <tr><th>كود الحساب</th><th>اسم الخزينة / البنك</th><th>العملة الأصلية</th><th>الرصيد الافتتاحي</th><th>المقبوضات (مدين)</th><th>المدفوعات (دائن)</th><th>الرصيد الدفتري الختامي</th><th>رصيد العملة الأصلية</th><th>حالة المطابقة</th></tr>
           ${cashBankReconciliation.map(c => `
@@ -759,7 +769,7 @@ function Reports({ orders = [], expenses = [], vouchers = [], journal = [], acco
       } else if (statementType === 'supplier') {
         filename = `كشف_حساب_الموردين_${reportCurrency.replace(/[^a-zA-Z]/g, '')}.xls`;
         tableHtml = `
-          <tr style="background-color:#007F8C;color:#ffffff;"><th colspan="8" style="font-size:16px;padding:10px;">مؤسسة Little Princesses للأزياء الراقية - كشف حساب ومطابقات موردي الأقمشة والذمم الدائنة</th></tr>
+          <tr style="background-color:#007F8C;color:#ffffff;"><th colspan="8" style="font-size:16px;padding:10px;">${brandProfile.name} - كشف حساب ومطابقات موردي الأقمشة والذمم الدائنة</th></tr>
           <tr style="background-color:#f9fafb;"><td colspan="8">الفترة: من ${dateRange.start || 'البداية'} إلى ${dateRange.end || 'اليوم'} | العملة: ${reportCurrency}</td></tr>
           <tr><th>اسم المورد</th><th>الهاتف</th><th>عدد الفواتير</th><th>إجمالي المشتريات</th><th>مسدد نقداً</th><th>مشتريات آجلة</th><th>سندات صرف مسددة</th><th>الرصيد المتبقي (Due)</th></tr>
           ${statementData.map(s => `
@@ -778,7 +788,7 @@ function Reports({ orders = [], expenses = [], vouchers = [], journal = [], acco
       } else {
         filename = `كشف_حساب_العميلات_${reportCurrency.replace(/[^a-zA-Z]/g, '')}.xls`;
         tableHtml = `
-          <tr style="background-color:#007F8C;color:#ffffff;"><th colspan="6" style="font-size:16px;padding:10px;">مؤسسة Little Princesses للأزياء الراقية - كشف حساب ومطابقات العميلات</th></tr>
+          <tr style="background-color:#007F8C;color:#ffffff;"><th colspan="6" style="font-size:16px;padding:10px;">${brandProfile.name} - كشف حساب ومطابقات العميلات</th></tr>
           <tr style="background-color:#f9fafb;"><td colspan="6">الفترة: من ${dateRange.start || 'البداية'} إلى ${dateRange.end || 'اليوم'} | العملة: ${reportCurrency}</td></tr>
           <tr><th>اسم العميلة</th><th>الهاتف</th><th>عدد الطلبات</th><th>إجمالي المبيعات</th><th>إجمالي المسدد</th><th>الرصيد المتبقي (Due)</th></tr>
           ${statementData.map(s => `
@@ -848,15 +858,25 @@ function Reports({ orders = [], expenses = [], vouchers = [], journal = [], acco
       {/* ── ترويسة الطباعة الرسمية المعتمدة (تظهر فقط عند الطباعة والـ PDF) ── */}
       <div className="print-only mb-6 border-b-2 border-[#25232A] pb-4">
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold text-[#000000]">مؤسسة Little Princesses للأزياء الراقية 👑</h1>
-            <p className="text-xs text-[#555555]">Haute Couture & Luxury Fashion ERP System</p>
-            <h2 className="text-base font-bold text-[#007F8C] mt-2">{getTabTitle()}</h2>
+          <div className="flex items-center gap-4">
+            {brandProfile.logoUrl ? (
+              <img src={brandProfile.logoUrl} alt="Logo" className="h-14 max-w-[150px] object-contain" />
+            ) : (
+              <div className="text-3xl">{brandProfile.systemIcon || '🏢'}</div>
+            )}
+            <div>
+              <h1 className="text-xl font-bold text-[#000000]">{brandProfile.name}</h1>
+              <p className="text-xs text-[#555555]">{brandProfile.tagline || brandProfile.shortName}</p>
+              <h2 className="text-base font-bold text-[#007F8C] mt-1.5">{getTabTitle()}</h2>
+            </div>
           </div>
           <div className="text-left text-xs text-[#444444] space-y-1">
             <p><strong>تاريخ الاستخراج:</strong> {window.TODAY_STR_ISO || new Date().toISOString().split('T')[0]}</p>
             <p><strong>نطاق الفترة:</strong> من {dateRange.start || 'البداية'} إلى {dateRange.end || 'اليوم'}</p>
             <p><strong>العملة المعتمدة:</strong> {reportCurrency}</p>
+            {brandProfile.commercialRegister && (
+              <p><strong>السجل التجاري:</strong> {brandProfile.commercialRegister}</p>
+            )}
           </div>
         </div>
       </div>
@@ -1142,7 +1162,7 @@ function Reports({ orders = [], expenses = [], vouchers = [], journal = [], acco
               {/* سطر صافي الربح النهائي */}
               <div className={`p-5 rounded-2xl border flex items-center justify-between font-extrabold text-base ${pnlData.netProfit >= 0 ? 'bg-[#E2F5F7] border-[#C5ECF0] text-[#007F8C]' : 'bg-rose-50 border-rose-200 text-[#D64545]'}`}>
                 <div className="flex items-center gap-3">
-                  <span>👑 صافي الربح الفعلي للفترة (Net Profit / Loss)</span>
+                  <span>💹 صافي الربح الفعلي للفترة (Net Profit / Loss)</span>
                   <span className="text-xs bg-white px-3 py-1 rounded-full font-mono shadow-2xs">هامش الصافي: {pnlData.netMarginPct.toFixed(1)}%</span>
                 </div>
                 <span className="font-mono text-xl">{fmtMoney(pnlData.netProfit)} {reportCurrency}</span>
@@ -1683,8 +1703,8 @@ function Reports({ orders = [], expenses = [], vouchers = [], journal = [], acco
       <div className="mt-8 pt-6 border-t-2 border-dashed border-[#E8E5EA]">
         <div className="bg-white rounded-2xl border border-[#E8E5EA] p-6 shadow-2xs">
           <div className="text-center mb-6">
-            <h4 className="text-xs font-bold text-[#25232A]">صندوق الاعتماد والتدقيق المالي الرسمي 👑</h4>
-            <p className="text-[11px] text-[#6F6B75]">مؤسسة Little Princesses للأزياء الراقية والفساتين الفاخرة</p>
+            <h4 className="text-xs font-bold text-[#25232A]">صندوق الاعتماد والتدقيق المالي الرسمي 🏛️</h4>
+            <p className="text-[11px] text-[#6F6B75]">{brandProfile.name} — {brandProfile.tagline || brandProfile.shortName}</p>
           </div>
           
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center text-xs">
@@ -1703,7 +1723,7 @@ function Reports({ orders = [], expenses = [], vouchers = [], journal = [], acco
             <div className="p-4 rounded-xl bg-[#FAFAFB] border border-[#E8E5EA] space-y-8">
               <span className="block font-bold text-[#007F8C]">اعتماد وختم المدير العام</span>
               <div className="border-b border-dashed border-[#CCC] w-3/4 mx-auto"></div>
-              <span className="block text-[10px] text-[#888]">الختم الرسمي للمؤسسة 👑</span>
+              <span className="block text-[10px] text-[#888]">الختم الرسمي المعتمد 🏢</span>
             </div>
           </div>
         </div>

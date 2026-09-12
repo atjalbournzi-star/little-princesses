@@ -8,8 +8,26 @@ window.Sidebar = function Sidebar({
   currentUser,
   onOpenUsersModal,
   onLogout
-}) {
   const role = currentUser?.role || 'admin';
+  const [brandProfile, setBrandProfile] = useState(() => {
+    return (typeof window !== 'undefined' && window.BrandService)
+      ? window.BrandService.getProfile()
+      : {
+          name: 'نظام الإدارة المتكامل الذكي',
+          shortName: 'ERP Master',
+          tagline: 'Enterprise Resource Planning',
+          logoUrl: '',
+          systemIcon: '🏢'
+        };
+  });
+
+  React.useEffect(() => {
+    const handleBrandChange = (e) => {
+      if (e.detail) setBrandProfile(e.detail);
+    };
+    window.addEventListener('erp:brandProfileChanged', handleBrandChange);
+    return () => window.removeEventListener('erp:brandProfileChanged', handleBrandChange);
+  }, []);
 
   // Navigation Groups with clear information hierarchy & Role-Based Access Control
   const navSections = useMemo(() => [
@@ -59,16 +77,20 @@ window.Sidebar = function Sidebar({
       {/* Brand Header */}
       <div className="h-16 px-4 flex items-center justify-between border-b border-[#E8E5EA]">
         <div className="flex items-center gap-3 overflow-hidden">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#B0005A] via-[#8F2A87] to-[#F28A00] flex items-center justify-center text-white shadow-sm shrink-0">
-            <span className="text-xl">👑</span>
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#B0005A] via-[#8F2A87] to-[#F28A00] flex items-center justify-center text-white shadow-sm shrink-0 overflow-hidden">
+            {brandProfile.logoUrl ? (
+              <img src={brandProfile.logoUrl} alt="Logo" className="w-full h-full object-cover p-1 rounded-xl" />
+            ) : (
+              <span className="text-xl">{brandProfile.systemIcon || '🏢'}</span>
+            )}
           </div>
           {!isCollapsed && (
             <div className="flex flex-col min-w-0">
-              <span className="text-[15px] font-bold text-[#25232A] truncate tracking-tight">
-                Little Princesses
+              <span className="text-[15px] font-bold text-[#25232A] truncate tracking-tight" title={brandProfile.name}>
+                {brandProfile.shortName || brandProfile.name}
               </span>
-              <span className="text-[11px] font-semibold text-[#8F2A87] -mt-0.5 tracking-wider uppercase">
-                Haute Couture ERP
+              <span className="text-[11px] font-semibold text-[#8F2A87] -mt-0.5 tracking-wider uppercase truncate" title={brandProfile.tagline}>
+                {brandProfile.tagline || 'Enterprise Resource Planning'}
               </span>
             </div>
           )}
@@ -146,7 +168,7 @@ window.Sidebar = function Sidebar({
       <div className="p-3 border-t border-[#E8E5EA] bg-[#FAFAFB]">
         <div className={`flex items-center gap-2.5 rounded-xl p-2 bg-white border border-[#E8E5EA] ${isCollapsed ? 'justify-center p-1.5' : ''}`}>
           <div className="w-9 h-9 rounded-lg bg-[#FCE8F2] text-[#B0005A] font-bold flex items-center justify-center text-sm border border-[#F2A4CB]/40 shrink-0">
-            {currentUser?.full_name ? currentUser.full_name[0] : '👑'}
+            {currentUser?.full_name ? currentUser.full_name[0] : '👤'}
           </div>
 
           {!isCollapsed && (

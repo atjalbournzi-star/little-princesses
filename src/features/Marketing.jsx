@@ -39,7 +39,7 @@ function Marketing({ campaigns = [], setCampaigns, products = [], accounts = [],
   // AI Chat State
   const [chatInput, setChatInput] = useState('');
   const [chatMessages, setChatMessages] = useState([
-    { sender: 'ai', text: 'أهلاً بك! أنا مدير التسويق الذكي AI لـ Little Princesses 👑 يسعدني إجابتك على أي سؤال بخصم الأرقام، المبيعات، المنتجات الأكثر تحويلاً، الإعلانات، وتوصيات المحتوى القادم.' }
+    { sender: 'ai', text: 'أهلاً بك! أنا مدير التسويق والذكاء الاصطناعي 🚀 يسعدني إجابتك على أي سؤال يخص الأرقام، المبيعات، المنتجات الأكثر تحويلاً، الإعلانات، وتوصيات المحتوى القادم.' }
   ]);
   const [chatLoading, setChatLoading] = useState(false);
 
@@ -217,7 +217,7 @@ function Marketing({ campaigns = [], setCampaigns, products = [], accounts = [],
       const res = await window.marketingAPI.updatePlatformStatus({
         platform_name: platName,
         status: nextStatus,
-        account_name: `@little_princesses_${platName.toLowerCase()}`
+        account_name: `@erp_brand_${platName.toLowerCase()}`
       });
       if (res.success) {
         showToast(res.message);
@@ -278,14 +278,14 @@ function Marketing({ campaigns = [], setCampaigns, products = [], accounts = [],
   return (
     <div className="space-y-5 animate-fadeIn">
 
-      {/* ── 👑 شريط حالة المنصات ومركز القيادة التسويقية SaaS Command Center Header ── */}
+      {/* ── 📢 شريط حالة المنصات ومركز القيادة التسويقية SaaS Command Center Header ── */}
       <div className="bg-gradient-to-l from-slate-900 via-indigo-950 to-purple-950 rounded-3xl p-5 text-white shadow-xl flex flex-wrap items-center justify-between gap-4 border border-white/10">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-2xl">👑</span>
+            <span className="text-2xl">📢</span>
             <h1 className="font-black text-lg text-amber-300">مركز القيادة التسويقية الذكي (Marketing Command Center)</h1>
           </div>
-          <p className="text-[11px] text-slate-300 font-semibold">نظام إدارة التسويق والتحليلات التنفيذية الموحد لـ Little Princesses ERP</p>
+          <p className="text-[11px] text-slate-300 font-semibold">نظام إدارة التسويق والتحليلات التنفيذية الموحد — ERP Marketing Suite</p>
         </div>
 
         {/* مؤشرات المنصات الـ 5 */}
@@ -338,14 +338,14 @@ function Marketing({ campaigns = [], setCampaigns, products = [], accounts = [],
         <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
           <span>آخر مزامنة: <strong className="text-emerald-600">الآن 🟢</strong></span>
           <span className="text-slate-300">•</span>
-          <span>الصلاحية: <strong className="text-indigo-600">{userPermissions.role || 'Admin'} 👑</strong></span>
+          <span>الصلاحية: <strong className="text-indigo-600">{userPermissions.role || 'Admin'} 🛡️</strong></span>
         </div>
       </div>
 
       {/* ── شريط التبويبات الرئيسي (Phase 1 & 2 & 3 Command Center) ── */}
       <div className="bg-white rounded-2xl border border-slate-200 p-1.5 flex gap-1 overflow-x-auto shadow-sm">
         {[
-          { id: 'command_center', label: '👑 مركز القيادة KPIs', icon: '👑' },
+          { id: 'command_center', label: '📊 مركز القيادة KPIs', icon: '📊' },
           { id: 'customer_intel', label: '👥 ذكاء العملاء Intelligence', icon: '👥' },
           { id: 'ads', label: '📢 إدارة الحملات الإعلانية', icon: '📢' },
           { id: 'daily_brief', label: '🧠 الموجز اليومي والتوجهات', icon: '🧠' },
@@ -378,7 +378,7 @@ function Marketing({ campaigns = [], setCampaigns, products = [], accounts = [],
       </div>
 
       {/* =========================================
-         0. 👑 مركز القيادة التسويقية SaaS Command Center View
+         0. 📊 مركز القيادة التسويقية SaaS Command Center View
          ========================================= */}
       {(activeTab === 'command_center' || !activeTab) && (
         <div className="space-y-6 animate-fadeIn">
@@ -515,7 +515,7 @@ function Marketing({ campaigns = [], setCampaigns, products = [], accounts = [],
             {/* أعلى المنتجات تحويلاً */}
             <div className="bg-white rounded-3xl border border-slate-200 p-5 shadow-sm space-y-3 md:col-span-2">
               <h3 className="font-black text-slate-800 text-xs flex items-center gap-2">
-                👑 أداء أعلى المنتجات والإعلانات مبيعاً (Top Products & Content)
+                ⭐ أداء أعلى المنتجات والإعلانات مبيعاً (Top Products & Content)
               </h3>
 
               <div className="overflow-x-auto">
@@ -532,7 +532,7 @@ function Marketing({ campaigns = [], setCampaigns, products = [], accounts = [],
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-semibold">
                     {(!productsAIData || productsAIData.length === 0) ? (
-                      <tr><td colSpan="6" className="px-3 py-6 text-center text-slate-400 font-bold">لا توجد مبيعات أو منتجات مسجلة بعد 👑</td></tr>
+                      <tr><td colSpan="6" className="px-3 py-6 text-center text-slate-400 font-bold">لا توجد مبيعات أو منتجات مسجلة بعد 📊</td></tr>
                     ) : (
                       productsAIData.slice(0, 3).map((p, i) => (
                         <tr key={i} className="hover:bg-slate-50 transition">
@@ -671,7 +671,7 @@ function Marketing({ campaigns = [], setCampaigns, products = [], accounts = [],
               <div className="bg-emerald-50 p-3 rounded-2xl border border-emerald-100 space-y-1">
                 <p className="font-black text-emerald-900">🤖 الرد الذكي المقترح مقدماً من AI:</p>
                 <p className="text-emerald-800 text-[11px] leading-relaxed">
-                  {selectedCustomerDetail.suggested_reply || `أهلاً بك يا ${selectedCustomerDetail.name}! يسعدنا خدمتك وتلبية استفساراتك حول تشكيلات وتفصيل فساتين دار الأميرات الصغيرات.`}
+                  {selectedCustomerDetail.suggested_reply || `أهلاً بك يا ${selectedCustomerDetail.name}! يسعدنا خدمتك وتلبية استفساراتك حول كافة منتجاتنا وخدماتنا المتميزة.`}
                 </p>
               </div>
             </div>
@@ -1083,7 +1083,7 @@ function Marketing({ campaigns = [], setCampaigns, products = [], accounts = [],
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs pt-2">
               <div className="bg-white/10 p-3.5 rounded-2xl backdrop-blur-sm">
-                <p className="text-[10px] text-amber-300 font-bold mb-1">👑 المنتج الأعلى أداءً</p>
+                <p className="text-[10px] text-amber-300 font-bold mb-1">⭐ المنتج الأعلى أداءً</p>
                 <p className="font-black text-white truncate">{dailyBriefData.brief.top_product || '—'}</p>
               </div>
               <div className="bg-white/10 p-3.5 rounded-2xl backdrop-blur-sm">

@@ -250,15 +250,19 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
     const rem = Math.max(0, tot - pd);
     const cur = order.currency || currencyDisplay;
 
-    const msg = `مرحباً بكِ في مؤسسة الأميرات الصغيرات 👑\n\n` +
+    const brandName = (typeof window !== 'undefined' && window.BrandService)
+      ? window.BrandService.getProfile().name
+      : 'نظام إدارة الطلبات والمبيعات';
+
+    const msg = `مرحباً بكِ في ${brandName} 🌸\n\n` +
       `تم تسجيل طلبك بنجاح ✅\n` +
       `رقم الطلب: ${order.order_no}\n` +
-      `الفستان: ${order.product_name || "غير محدد"} × ${order.qty || 1}\n` +
+      `الصنف / المنتج: ${order.product_name || "غير محدد"} × ${order.qty || 1}\n` +
       `المبلغ الإجمالي: ${tot.toLocaleString("en-US")} ${cur}\n` +
       `المدفوع (عربون): ${pd.toLocaleString("en-US")} ${cur}\n` +
       `المتبقي: ${rem.toLocaleString("en-US")} ${cur}\n\n` +
       `تاريخ التسليم المتوقع: ${order.delivery_date ? order.delivery_date.split('T')[0] : "يحدد لاحقاً"}\n\n` +
-      `نسعد بخدمتكم 🌸!`;
+      `نسعد بخدمتكم دائماً 🌸!`;
 
     const encodedMsg = encodeURIComponent(msg);
     window.open(`https://wa.me/${phone}?text=${encodedMsg}`, '_blank');

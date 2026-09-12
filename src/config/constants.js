@@ -83,8 +83,12 @@ function formatDateArabic(dateStr, withDayName = false) {
 
 const GAS_WEB_APP_URL = "http://127.0.0.1:5000/api/gas";
 
-const ORG_NAME = "Little Princesses Organization - Specializing in Children's Garments";
-const ORG_SHORT_TITLE = "Little Princesses Organisation | ERP 👑";
+const ORG_NAME = (typeof window !== 'undefined' && window.BrandService) 
+  ? window.BrandService.getProfile().name 
+  : "نظام الإدارة المتكامل الذكي | ERP Master";
+const ORG_SHORT_TITLE = (typeof window !== 'undefined' && window.BrandService) 
+  ? window.BrandService.getProfile().shortName 
+  : "ERP Master 🏢";
 
 const PLATFORMS = [
   "انستغرام (Instagram)", "فيسبوك (Facebook)", "واتساب (WhatsApp)",
@@ -95,11 +99,11 @@ const CURRENCIES = ["YER ﷼", "SAR ﷼", "USD $"];
 
 const FABRIC_CATEGORIES = ["أقمشة سهرة", "أقمشة فاخرة", "أقمشة خفيفة", "أقمشة مدرسية", "دانتيل وإكسسوارات", "مستلزمات خياطة"];
 
-const PRODUCT_CATEGORIES = ["(Princess) فستان أميرة", "فساتين سهرة", "فساتين زفاف", "فساتين خطوبة", "زي مدرسي للأطفال"];
+const PRODUCT_CATEGORIES = ["فساتين وبدلات خاصة", "فساتين سهرة", "فساتين زفاف", "فساتين خطوبة", "زي مدرسي للأطفال"];
 
 const FACTORY_STAGES = [
   "مرحلة القص والتحضير ✂️", "مرحلة الخياطة والتجميع 🪡",
-  "مرحلة التطريز والتركيب 👑", "مرحلة الكي والتغليف 🎁", "جاهز للتسليم للعميلة ✨"
+  "مرحلة التطريز والتركيب والشك 🧵", "مرحلة الكي والتغليف 🎁", "جاهز للتسليم للعميلة ✨"
 ];
 
 const EXPENSE_CATEGORIES = [
@@ -133,7 +137,7 @@ const INITIAL_ACCOUNTS = [
 
   // ── 3. حقوق الملكية (Equity) ──
   { id: "ACC-3", code: "3", name: "حقوق الملكية", name_en: "Equity", account_type: "حقوق ملكية", parent_id: null, level: 1, nature: "credit", is_group: 1, is_active: 1, balance: 0.0 },
-  { id: "ACC-3111", code: "3111", name: "رأس المال المباشر Little Princesses", name_en: "Paid Capital", account_type: "حقوق ملكية", parent_id: "3", level: 2, nature: "credit", is_group: 0, is_active: 1, balance: 0.0 },
+  { id: "ACC-3111", code: "3111", name: "رأس المال المباشر للشركة", name_en: "Paid Capital", account_type: "حقوق ملكية", parent_id: "3", level: 2, nature: "credit", is_group: 0, is_active: 1, balance: 0.0 },
   { id: "ACC-3112", code: "3112", name: "الأرباح المبقاة / المحتجزة", name_en: "Retained Earnings", account_type: "حقوق ملكية", parent_id: "3", level: 2, nature: "credit", is_group: 0, is_active: 1, balance: 0.0 },
 
   // ── 4. الإيرادات (Revenue) ──

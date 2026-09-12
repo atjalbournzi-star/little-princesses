@@ -223,7 +223,7 @@ function Journal({ journal = [], setJournal, accounts = [], setAccounts, voucher
         }
       }
 
-      showToast(`تم اعتماد وترحيل القيد المركب (${entryNo}) المتزن وتحديث كافة الحسابات بنجاح 👑✨`);
+      showToast(`تم اعتماد وترحيل القيد المركب (${entryNo}) المتزن وتحديث كافة الحسابات بنجاح 📑✨`);
       setShowCompoundModal(false);
     } catch (err) {
       console.error("Compound entry error:", err);

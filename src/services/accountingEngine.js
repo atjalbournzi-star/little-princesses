@@ -1,7 +1,7 @@
 /**
  * ============================================================================
  * accountingEngine.js — Central Accounting Engine & General Ledger Pipeline
- * Little Princesses ERP - Integrated Double-Entry Multi-Currency Core
+ * Integrated Double-Entry Multi-Currency White-Label SaaS ERP Core
  * ============================================================================
  */
 

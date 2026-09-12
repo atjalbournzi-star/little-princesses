@@ -9,7 +9,7 @@ function LoginModal({ isOpen, onClose, onLoginSuccess, showToast }) {
   const [error, setError] = useState('');
 
   const quickUsers = [
-    { username: 'admin', label: 'المدير العام (وصول كامل) 👑', role: 'admin', badge: 'bg-amber-100 text-amber-900 border-amber-300' },
+    { username: 'admin', label: 'المدير العام (وصول كامل) 🛡️', role: 'admin', badge: 'bg-amber-100 text-amber-900 border-amber-300' },
     { username: 'accountant', label: 'المحاسب المالي (المالية والتقارير) 💼', role: 'accountant', badge: 'bg-emerald-100 text-emerald-900 border-emerald-300' },
     { username: 'cashier', label: 'مسؤولة المعرض والمبيعات (الطلبات والعملاء) 🛍️', role: 'data_entry', badge: 'bg-pink-100 text-pink-900 border-pink-300' },
     { username: 'workshop', label: 'مدير الورشة والمعمل (الإنتاج والتفصيل) 🧵', role: 'workshop_manager', badge: 'bg-cyan-100 text-cyan-900 border-cyan-300' }
@@ -46,17 +46,25 @@ function LoginModal({ isOpen, onClose, onLoginSuccess, showToast }) {
     }
   };
 
+  const brandProfile = (typeof window !== 'undefined' && window.BrandService)
+    ? window.BrandService.getProfile()
+    : { name: 'نظام الإدارة المتكامل الذكي', shortName: 'ERP Master', systemIcon: '🏢' };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md animate-fadeIn" dir="rtl">
       <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden">
         
-        {/* Header with Butterfly Luxury Gradient */}
+        {/* Header with Luxury Enterprise Gradient */}
         <div className="bg-[#0F172A] border-b-2 border-[#D81B60] p-6 text-center relative">
-          <div className="w-14 h-14 mx-auto mb-3 rounded-2xl bg-gradient-to-tr from-[#D81B60] via-[#C2185B] to-[#00ACC1] flex items-center justify-center text-2xl shadow-lg border border-pink-400/40 text-white">
-            👑
+          <div className="w-14 h-14 mx-auto mb-3 rounded-2xl bg-gradient-to-tr from-[#D81B60] via-[#C2185B] to-[#00ACC1] flex items-center justify-center text-2xl shadow-lg border border-pink-400/40 text-white overflow-hidden">
+            {brandProfile.logoUrl ? (
+              <img src={brandProfile.logoUrl} alt="Logo" className="w-full h-full object-cover p-1.5" />
+            ) : (
+              <span>{brandProfile.systemIcon || '🏢'}</span>
+            )}
           </div>
           <h2 className="text-lg font-bold text-white tracking-wide">تسجيل الدخول للنظام الموحد</h2>
-          <p className="text-xs text-slate-300 mt-1 font-medium">مؤسسة الأميرات الصغيرات — Little Princesses ERP</p>
+          <p className="text-xs text-slate-300 mt-1 font-medium">{brandProfile.name} — {brandProfile.shortName}</p>
           
           <button 
             type="button"

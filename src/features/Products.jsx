@@ -21,7 +21,7 @@ function Products({ products = [], setProducts, inventory = [], showToast, curre
   }, [getCurrencyCode]);
 
   const [modelName, setModelName] = useState("");
-  const [category, setCategory] = useState("(Princess) فستان أميرة");
+  const [category, setCategory] = useState("فساتين وبدلات خاصة");
   const [editId, setEditId] = useState(null);
   const [activeTab, setActiveTab] = useState("calculator"); // 'calculator' | 'catalog'
   const [search, setSearch] = useState("");
@@ -207,7 +207,7 @@ function Products({ products = [], setProducts, inventory = [], showToast, curre
   const handleEditProduct = (p) => {
     setEditId(p.id);
     setModelName(p.name);
-    setCategory(p.category || "(Princess) فستان أميرة");
+    setCategory(p.category || "فساتين وبدلات خاصة");
     setLaborCost(p.labor_cost);
     setPackagingCost(p.packaging_cost);
     if (p.currency) {

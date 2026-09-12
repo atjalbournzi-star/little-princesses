@@ -8,9 +8,15 @@ window.getActiveTenantId = function() {
 window.getActiveTenantInfo = function() {
   try {
     const t = localStorage.getItem('lp_active_tenant_info');
-    if (t) return JSON.parse(t);
+    if (t) {
+      const parsed = JSON.parse(t);
+      if (parsed && parsed.name && !parsed.name.includes('Little Princesses') && !parsed.name.includes('الأميرات')) {
+        return parsed;
+      }
+    }
   } catch(e) {}
-  return { id: 'lp_main', name: 'Little Princesses Haute Couture 👑', plan: 'Enterprise', currency: 'YER' };
+  const b = (typeof window !== 'undefined' && window.BrandService) ? window.BrandService.getProfile() : null;
+  return { id: 'main_tenant', name: (b ? b.shortName || b.name : 'ERP Master'), plan: 'Enterprise', currency: 'YER' };
 };
 
 window.setActiveTenant = function(tenant) {
@@ -527,7 +533,7 @@ window.authAPI = {
       const cached = localStorage.getItem('erp_active_user');
       if (cached) return JSON.parse(cached);
     } catch (e) {}
-    return { id: 1, username: 'admin', role: 'admin', full_name: 'المدير العام 👑', role_label: 'المدير العام', is_active: 1 };
+    return { id: 1, username: 'admin', role: 'admin', full_name: 'المدير العام', role_label: 'المدير العام', is_active: 1 };
   },
   logout: () => {
     localStorage.removeItem('erp_active_user');
@@ -899,8 +905,9 @@ window.tenantAPI = {
       const res = await fetch('/api/tenants/list').then(r => r.json());
       if (res && res.success && Array.isArray(res.data)) return res.data;
     } catch (e) {}
+    const b = (typeof window !== 'undefined' && window.BrandService) ? window.BrandService.getProfile() : null;
     return [
-      { id: 'lp_main', name: 'Little Princesses Haute Couture 👑', plan: 'Enterprise', currency: 'YER' }
+      { id: 'main_tenant', name: (b ? b.shortName || b.name : 'ERP Master'), plan: 'Enterprise', currency: 'YER' }
     ];
   },
   getCurrentTenant: async () => {
@@ -979,7 +986,7 @@ window.settingsAPI = {
     return {
       success: true,
       company: {
-        company_name: localStorage.getItem('erp_company_name') || 'مؤسسة الأميرات الصغيرات',
+        company_name: localStorage.getItem('erp_company_name') || ((typeof window !== 'undefined' && window.BrandService) ? window.BrandService.getProfile().name : 'نظام الإدارة المتكامل الذكي'),
         phone: localStorage.getItem('erp_phone') || '776773458',
         address: localStorage.getItem('erp_address') || 'اليمن صنعاء',
         fiscal_date: localStorage.getItem('erp_fiscal_date') || '2026-01-01',

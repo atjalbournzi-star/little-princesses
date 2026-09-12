@@ -1,7 +1,7 @@
 /**
  * ============================================================================
  * CurrencyService.js — Central Multi-Currency Engine & Exchange Rate Manager
- * Single Source of Truth for Little Princesses ERP
+ * Single Source of Truth for White-Label SaaS ERP Core
  * ============================================================================
  */
 

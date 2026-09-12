@@ -162,7 +162,7 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
         }
         if (setJournal) setJournal([]);
         if (setVouchers) setVouchers([]);
-        showToast('✅ تم تصفير شجرة الحسابات وتصفير كافة الأرصدة إلى 0.00 ومسح القيود التجريبية بنجاح 👑');
+        showToast('✅ تم تصفير شجرة الحسابات وتصفير كافة الأرصدة إلى 0.00 ومسح القيود التجريبية بنجاح ⚡');
       } else {
         showToast(data.error || 'فشل التصفير', 'error');
       }
@@ -220,7 +220,7 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
       if (list.length > 0) {
         if (setAccounts) setAccounts(list);
         if (setJournal) setJournal(jList);
-        if (showToast) showToast('تمت مزامنة شجرة الحسابات والقيود مع قاعدة البيانات السحابية (PostgreSQL) بنجاح 👑', 'success');
+        if (showToast) showToast('تمت مزامنة شجرة الحسابات والقيود مع قاعدة البيانات السحابية (PostgreSQL) بنجاح ⚡', 'success');
       } else {
         if (showToast) showToast('لم يتم العثور على حسابات لمزامنتها', 'info');
       }
@@ -460,7 +460,7 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
         }
       });
 
-      // 👑 الرصيد الفعلي المعتمد مباشرة من قاعدة بيانات Supabase (chart_of_accounts.current_balance)
+      // 📊 الرصيد الفعلي المعتمد مباشرة من قاعدة بيانات PostgreSQL (chart_of_accounts.current_balance)
       let calculatedBal = 0.0;
       if (a.current_balance !== undefined && a.current_balance !== null && a.current_balance !== '') {
         calculatedBal = parseFloat(a.current_balance) || 0.0;
@@ -893,7 +893,7 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
       }).then(r => r.json());
 
       if (res && res.success !== false) {
-        showToast(res.message || 'تم حفظ الحساب بنجاح 👑', 'success');
+        showToast(res.message || 'تم حفظ الحساب بنجاح ⚡', 'success');
         
         // Auto-expand parent account immediately so the child account is visible right away
         if (payload.parent_id) {
@@ -979,7 +979,7 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
       }
 
       if (res && res.success !== false) {
-        showToast(`تم حذف الحساب (${acc.code} - ${acc.name}) بنجاح من النظام وقاعدة البيانات 👑`, 'success');
+        showToast(`تم حذف الحساب (${acc.code} - ${acc.name}) بنجاح من النظام وقاعدة البيانات 🗑️`, 'success');
         setAccounts(prev => (prev || []).filter(a => cleanCode(a.code) !== cleanCode(acc.code) && String(a.id) !== String(acc.id)));
         await fetchFreshAccounts();
       } else {

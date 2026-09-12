@@ -397,7 +397,7 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
           .catch(() => {});
       } catch (e) {}
 
-      showToast(`✅ تم حفظ الفاتورة ${billNo} وتوريد الأصناف للمخزون وترحيل القيود وسندات الصرف بنجاح 👑`);
+      showToast(`✅ تم حفظ الفاتورة ${billNo} وتوريد الأصناف للمخزون وترحيل القيود وسندات الصرف بنجاح 📦✨`);
       
       setHeaderData(emptyHeader());
       setBillItems([]); setItemData(emptyItem()); setEditingIndex(null);
@@ -515,7 +515,7 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
       } catch(e) {}
       await callGAS("purgePurchasesSheetData", {});
       if (setPurchases) setPurchases([]);
-      showToast("👑 تم تصفير كافة السجلات التالفة السابقة وإعادة بناء جدول المشتريات بنجاح 100%");
+      showToast("✨ تم تصفير كافة السجلات التالفة السابقة وإعادة بناء جدول المشتريات بنجاح 100%");
     } catch (err) {
       console.error(err);
       showToast("تعذر تصفير السجلات: " + (err.message || err), "error");

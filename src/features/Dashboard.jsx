@@ -414,15 +414,21 @@ function Dashboard({
       {/* ── 1. Executive Fashion Header Banner with Time Horizon Controls ── */}
       <div className="bg-white rounded-2xl border border-[#E8E5EA] p-6 md:p-7 shadow-[0_2px_12px_rgba(0,0,0,0.02)] flex flex-col lg:flex-row lg:items-center justify-between gap-5">
         <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-[#B0005A] via-[#8F2A87] to-[#F28A00] flex items-center justify-center text-white text-2xl shadow-sm shrink-0">
-            👑
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-[#B0005A] via-[#8F2A87] to-[#F28A00] flex items-center justify-center text-white text-2xl shadow-sm shrink-0 overflow-hidden">
+            {((typeof window !== 'undefined' && window.BrandService && window.BrandService.getProfile().logoUrl)) ? (
+              <img src={window.BrandService.getProfile().logoUrl} alt="Logo" className="w-full h-full object-cover p-1.5" />
+            ) : (
+              <span>🏢</span>
+            )}
           </div>
           <div>
             <div className="flex items-center gap-2">
               <span className="text-[11px] font-extrabold text-[#B0005A] bg-[#FCE8F2] border border-[#F2A4CB]/60 px-2.5 py-0.5 rounded-md">
                 لوحة القيادة والتحليلات التنفيذية
               </span>
-              <span className="text-xs text-[#6F6B75] font-medium">دار الأميرات الصغيرات للأزياء الراقية • الفرع الرئيسي</span>
+              <span className="text-xs text-[#6F6B75] font-medium">
+                {(typeof window !== 'undefined' && window.BrandService) ? window.BrandService.getProfile().name : 'نظام الإدارة المتكامل الذكي'} • الإدارة العامة
+              </span>
             </div>
             <h1 className="text-2xl font-bold text-[#25232A] mt-1 leading-snug">
               مركز المتابعة والمؤشرات التنفيذية الحية
@@ -802,7 +808,7 @@ function Dashboard({
                 { name: '2. الخياطة والتجميع الأساسي', count: atelierStages.tailoring, icon: '🪡', color: 'bg-[#B0005A]' },
                 { name: '3. الشك والتطريز والخرز اليدوي', count: atelierStages.embroidery, icon: '🧵', color: 'bg-[#8F2A87]' },
                 { name: '4. مراقبة الجودة والتشطيب والكي', count: atelierStages.qualityCheck, icon: '💎', color: 'bg-[#009FAE]' },
-                { name: '5. فساتين جاهزة للتسليم 👑', count: atelierStages.readyToDeliver, icon: '👗', color: 'bg-emerald-500' }
+                { name: '5. منتجات جاهزة للتسليم والتسليم النهائي', count: atelierStages.readyToDeliver, icon: '👗', color: 'bg-emerald-500' }
               ].map((stage, idx) => (
                 <div 
                   key={idx} 

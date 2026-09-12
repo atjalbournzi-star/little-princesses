@@ -1,12 +1,30 @@
 const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
 function Settings({ showToast }) {
+  const initialProfile = (typeof window !== 'undefined' && window.BrandService) 
+    ? window.BrandService.getProfile() 
+    : {
+        name: 'نظام الإدارة المتكامل الذكي',
+        shortName: 'ERP Master',
+        tagline: 'نظام تخطيط موارد المؤسسات المتكامل',
+        commercialRegister: '1010-009283',
+        phone: '776773458',
+        address: 'اليمن - الإدارة العامة',
+        email: 'info@erp-master.com',
+        logoUrl: '',
+        systemIcon: '🏢'
+      };
+
   const [formData, setFormData] = useState({
-    companyName: localStorage.getItem('erp_company_name') || 'مؤسسة الأميرات الصغيرات',
-    phone:       localStorage.getItem('erp_phone')        || '776773458',
-    address:     localStorage.getItem('erp_address')      || 'اليمن صنعاء',
-    fiscalDate:  localStorage.getItem('erp_fiscal_date')  || '2026-01-01',
-    email:       localStorage.getItem('erp_email')        || 'info@littleprincesses.com'
+    companyName:        initialProfile.name,
+    shortName:          initialProfile.shortName || 'ERP Master',
+    tagline:            initialProfile.tagline || 'نظام تخطيط موارد المؤسسات المتكامل',
+    commercialRegister: initialProfile.commercialRegister || '1010-009283',
+    phone:              initialProfile.phone || '776773458',
+    address:            initialProfile.address || 'اليمن - الإدارة العامة',
+    fiscalDate:         localStorage.getItem('erp_fiscal_date') || '2026-01-01',
+    email:              initialProfile.email || 'info@erp-master.com',
+    logoUrl:            initialProfile.logoUrl || ''
   });
 
   const [themeMode, setThemeMode] = useState(() => {
@@ -105,13 +123,19 @@ function Settings({ showToast }) {
           const res = await window.settingsAPI.getSettings();
           if (isMounted && res && res.success) {
             if (res.company) {
+              const cleanCompName = (window.BrandService && res.company.company_name) 
+                ? window.BrandService.cleanText(res.company.company_name, prev.companyName) 
+                : (res.company.company_name || prev.companyName);
+              const cleanEmail = (res.company.email && res.company.email.includes('littleprincesses'))
+                ? prev.email
+                : (res.company.email || prev.email);
               setFormData(prev => ({
                 ...prev,
-                companyName: res.company.company_name || prev.companyName,
+                companyName: cleanCompName,
                 phone: res.company.phone || prev.phone,
                 address: res.company.address || prev.address,
                 fiscalDate: res.company.fiscal_date || prev.fiscalDate,
-                email: res.company.email || prev.email
+                email: cleanEmail
               }));
               if (res.company.theme_mode) {
                 applyTheme(res.company.theme_mode);
@@ -247,7 +271,7 @@ function Settings({ showToast }) {
       if (window.backupAPI && window.backupAPI.restoreBackup) {
         const res = await window.backupAPI.restoreBackup(backupFileContent);
         if (res && res.success) {
-          showToast && showToast(res.message || 'تمت استعادة البيانات بنجاح 👑🔄', 'success');
+          showToast && showToast(res.message || 'تمت استعادة البيانات بنجاح 🔄', 'success');
           setBackupFileContent(null);
           setSelectedFileName('');
           if (fileInputRef.current) fileInputRef.current.value = '';
@@ -263,10 +287,34 @@ function Settings({ showToast }) {
     }
   };
 
+  const handleLogoUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setFormData(prev => ({ ...prev, logoUrl: event.target.result }));
+      showToast && showToast('تم اختيار شعار المنشأة بنجاح 🖼️');
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSaving(true);
     try {
+      if (window.BrandService) {
+        window.BrandService.saveProfile({
+          name: formData.companyName,
+          shortName: formData.shortName,
+          tagline: formData.tagline,
+          commercialRegister: formData.commercialRegister,
+          phone: formData.phone,
+          address: formData.address,
+          email: formData.email,
+          logoUrl: formData.logoUrl
+        });
+      }
+
       localStorage.setItem('erp_company_name', formData.companyName);
       localStorage.setItem('erp_phone',        formData.phone);
       localStorage.setItem('erp_address',      formData.address);
@@ -299,10 +347,10 @@ function Settings({ showToast }) {
         if (res && res.message) {
           if (showToast) showToast(res.message);
         } else {
-          if (showToast) showToast('✅ تم حفظ الإعدادات وأسعار الصرف والمظهر بنجاح 👑');
+          if (showToast) showToast('✅ تم حفظ الإعدادات وأسعار الصرف والمظهر بنجاح 🏢');
         }
       } else {
-        if (showToast) showToast('✅ تم حفظ الإعدادات بنجاح وتطبيقها على كامل النظام 👑');
+        if (showToast) showToast('✅ تم حفظ الإعدادات بنجاح وتطبيقها على كامل النظام 🏢');
       }
     } catch(err) {
       if (showToast) showToast('تم الحفظ محلياً ⚡', 'warning');
@@ -390,23 +438,94 @@ function Settings({ showToast }) {
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          {/* 1. Profile fields */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4.5">
-            <div>
-              <label className={labelCls}>اسم المؤسسة / المتجر *</label>
-              <input type="text" required className={inputCls} value={formData.companyName} onChange={e => setFormData({...formData, companyName: e.target.value})} placeholder="مؤسسة الأميرات الصغيرات" />
+          {/* 1. White-Label Brand & Profile fields */}
+          <div className="bg-[#FAFAFB] border border-[#E8E5EA] rounded-2xl p-5 space-y-4">
+            <div className="flex items-center justify-between border-b border-[#E8E5EA] pb-3">
+              <div className="flex items-center gap-2.5">
+                <span className="text-xl">🏢</span>
+                <div>
+                  <h3 className="font-bold text-[#25232A] text-sm">الهوية التجارية والبيانات الرسمية (Brand Profile & Identity)</h3>
+                  <p className="text-[11px] text-[#6F6B75] font-medium">
+                    تخصيص اسم المنشأة، الشعار، السجل التجاري، وأرقام التواصل التي تظهر في الواجهات وسندات الطباعة
+                  </p>
+                </div>
+              </div>
             </div>
-            <div>
-              <label className={labelCls}>رقم الهاتف الرسمي *</label>
-              <input type="text" required className={inputCls + " font-mono"} value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} placeholder="776773458" dir="ltr" style={{textAlign:'right'}} />
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div>
+                <label className={labelCls}>اسم المنشأة / الشركة الرسمي *</label>
+                <input type="text" required className={inputCls} value={formData.companyName} onChange={e => setFormData({...formData, companyName: e.target.value})} placeholder="نظام الإدارة المتكامل الذكي" />
+              </div>
+              <div>
+                <label className={labelCls}>الاسم المختصر للنظام (Short Name) *</label>
+                <input type="text" required className={inputCls} value={formData.shortName} onChange={e => setFormData({...formData, shortName: e.target.value})} placeholder="ERP Master" />
+              </div>
+              <div>
+                <label className={labelCls}>الشعار اللفظي / النشاط (Tagline)</label>
+                <input type="text" className={inputCls} value={formData.tagline} onChange={e => setFormData({...formData, tagline: e.target.value})} placeholder="نظام تخطيط موارد المؤسسات المتكامل" />
+              </div>
+              <div>
+                <label className={labelCls}>رقم السجل التجاري / الضريبي</label>
+                <input type="text" className={inputCls + " font-mono"} value={formData.commercialRegister} onChange={e => setFormData({...formData, commercialRegister: e.target.value})} placeholder="1010-009283" dir="ltr" style={{textAlign:'right'}} />
+              </div>
+
+              <div>
+                <label className={labelCls}>رقم الهاتف الرسمي *</label>
+                <input type="text" required className={inputCls + " font-mono"} value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} placeholder="776773458" dir="ltr" style={{textAlign:'right'}} />
+              </div>
+              <div>
+                <label className={labelCls}>العنوان / المقر الرئيسي *</label>
+                <input type="text" required className={inputCls} value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} placeholder="اليمن - الإدارة العامة" />
+              </div>
+              <div>
+                <label className={labelCls}>البريد الإلكتروني الرسمي</label>
+                <input type="email" className={inputCls + " font-mono"} value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} placeholder="info@company.com" dir="ltr" style={{textAlign:'right'}} />
+              </div>
+              <div>
+                <label className={labelCls}>بداية السنة المالية *</label>
+                <input type="date" lang="en-GB" dir="ltr" required className={inputCls} value={formData.fiscalDate} onChange={e => setFormData({...formData, fiscalDate: e.target.value})} />
+              </div>
             </div>
-            <div>
-              <label className={labelCls}>العنوان / المقر الرئيسي *</label>
-              <input type="text" required className={inputCls} value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} placeholder="اليمن صنعاء" />
-            </div>
-            <div>
-              <label className={labelCls}>بداية السنة المالية *</label>
-              <input type="date" lang="en-GB" dir="ltr" required className={inputCls} value={formData.fiscalDate} onChange={e => setFormData({...formData, fiscalDate: e.target.value})} />
+
+            {/* الشعار واللوجو */}
+            <div className="pt-3 border-t border-[#E8E5EA]">
+              <label className={labelCls}>شعار المنشأة (Company Logo)</label>
+              <div className="flex flex-col sm:flex-row items-center gap-4 bg-white p-3.5 rounded-xl border border-[#E8E5EA]">
+                <div className="w-14 h-14 rounded-xl border border-[#E8E5EA] bg-[#FAFAFB] flex items-center justify-center overflow-hidden shrink-0 shadow-2xs">
+                  {formData.logoUrl ? (
+                    <img src={formData.logoUrl} alt="Logo" className="w-full h-full object-contain p-1" />
+                  ) : (
+                    <span className="text-2xl">🏢</span>
+                  )}
+                </div>
+                <div className="flex-1 w-full space-y-2">
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <input 
+                      type="text" 
+                      value={formData.logoUrl} 
+                      onChange={e => setFormData({ ...formData, logoUrl: e.target.value })} 
+                      placeholder="رابط الشعار URL أو اختر صورة من جهازك..." 
+                      className={inputCls}
+                    />
+                    <label className="h-11 px-4 bg-[#FAFAFB] hover:bg-[#F2E7F3] border border-[#E8E5EA] text-[#25232A] rounded-xl font-bold text-xs flex items-center justify-center gap-2 cursor-pointer transition shrink-0 whitespace-nowrap">
+                      <span>📁 اختيار صورة</span>
+                      <input type="file" accept="image/*" onChange={handleLogoUpload} className="hidden" />
+                    </label>
+                    {formData.logoUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, logoUrl: '' })}
+                        className="h-11 px-3 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold transition shrink-0 cursor-pointer"
+                        title="إزالة الشعار واستخدام الرمز الافتراضي"
+                      >
+                        إزالة
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-[10.5px] text-[#6F6B75]">يظهر هذا الشعار تلقائياً في شريط القائمة الجانبي والترويسة وسندات الطباعة وفواتير المبيعات والتقارير المالية.</p>
+                </div>
+              </div>
             </div>
           </div>
 
