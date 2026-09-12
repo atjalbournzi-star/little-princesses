@@ -8,6 +8,7 @@ window.Sidebar = function Sidebar({
   currentUser,
   onOpenUsersModal,
   onLogout
+}) {
   const role = currentUser?.role || 'admin';
   const [brandProfile, setBrandProfile] = useState(() => {
     return (typeof window !== 'undefined' && window.BrandService)
