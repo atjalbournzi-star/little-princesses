@@ -411,8 +411,8 @@ function Dashboard({
   return (
     <div className="space-y-6 animate-fadeIn text-right font-sans" dir="rtl">
       
-      {/* ── 1. Executive Fashion Header Banner with Time Horizon Controls ── */}
-      <div className="bg-white rounded-2xl border border-[#E8E5EA] p-6 md:p-7 shadow-[0_2px_12px_rgba(0,0,0,0.02)] flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+      {/* ── 1. Executive Operations Header Banner with Time Horizon Controls ── */}
+      <div className="bg-white dark:bg-[#0b1329] rounded-2xl border border-[#E8E5EA] dark:border-slate-800/80 p-6 md:p-7 shadow-[0_2px_12px_rgba(0,0,0,0.02)] flex flex-col lg:flex-row lg:items-center justify-between gap-5 transition-colors">
         <div className="flex items-center gap-4">
           <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-[#B0005A] via-[#8F2A87] to-[#F28A00] flex items-center justify-center text-white text-2xl shadow-sm shrink-0 overflow-hidden">
             {((typeof window !== 'undefined' && window.BrandService && window.BrandService.getProfile().logoUrl)) ? (
@@ -423,25 +423,25 @@ function Dashboard({
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-[11px] font-extrabold text-[#B0005A] bg-[#FCE8F2] border border-[#F2A4CB]/60 px-2.5 py-0.5 rounded-md">
-                لوحة القيادة والتحليلات التنفيذية
+              <span className="text-[11px] font-extrabold text-[#B0005A] dark:text-purple-300 bg-[#FCE8F2] dark:bg-purple-950/50 border border-[#F2A4CB]/60 dark:border-purple-800/50 px-2.5 py-0.5 rounded-md">
+                لوحة القيادة والعمليات التنفيذية
               </span>
-              <span className="text-xs text-[#6F6B75] font-medium">
+              <span className="text-xs text-[#6F6B75] dark:text-slate-400 font-medium">
                 {(typeof window !== 'undefined' && window.BrandService) ? window.BrandService.getProfile().name : 'نظام الإدارة المتكامل الذكي'} • الإدارة العامة
               </span>
             </div>
-            <h1 className="text-2xl font-bold text-[#25232A] mt-1 leading-snug">
-              مركز المتابعة والمؤشرات التنفيذية الحية
+            <h1 className="text-2xl font-bold text-[#25232A] dark:text-slate-100 mt-1 leading-snug">
+              مركز القيادة والمؤشرات التنفيذية المباشرة
             </h1>
-            <p className="text-xs font-medium text-[#6F6B75] mt-1">
-              مراقبة متكاملة لمنحنى الإيرادات، خطوط الإنتاج بالمعمل، مؤشرات الجودة OQS، وتدفقات الخزينة
+            <p className="text-xs font-medium text-[#6F6B75] dark:text-slate-400 mt-1">
+              مراقبة مركزية شاملة لتدفق الإيرادات، خطوط التصنيع والتشغيل، معايير الجودة الشاملة، والسيولة النقدية
             </p>
           </div>
         </div>
 
         {/* Time Horizon Filter & Quick Action */}
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex bg-[#FAFAFB] p-1 rounded-xl border border-[#E8E5EA]">
+          <div className="flex bg-[#FAFAFB] dark:bg-slate-900/90 p-1 rounded-xl border border-[#E8E5EA] dark:border-slate-800">
             {[
               { id: 'today', label: 'اليوم' },
               { id: 'week', label: 'هذا الأسبوع' },
@@ -454,8 +454,8 @@ function Dashboard({
                 onClick={() => setTimeHorizon(t.id)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                   timeHorizon === t.id 
-                    ? 'bg-white shadow-xs text-[#B0005A] border border-[#E8E5EA]' 
-                    : 'text-[#6F6B75] hover:text-[#25232A]'
+                    ? 'bg-white dark:bg-slate-800 shadow-xs text-[#B0005A] dark:text-purple-300 border border-[#E8E5EA] dark:border-slate-700' 
+                    : 'text-[#6F6B75] dark:text-slate-400 hover:text-[#25232A] dark:hover:text-slate-200'
                 }`}
               >
                 {t.label}
@@ -468,7 +468,7 @@ function Dashboard({
             className="px-4 py-2.5 bg-[#B0005A] hover:bg-[#8E0049] text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center gap-2 cursor-pointer shrink-0"
           >
             <span>+</span>
-            <span>طلب تفصيل جديد</span>
+            <span>أمر تشغيل / طلب جديد</span>
           </button>
         </div>
       </div>
@@ -478,21 +478,21 @@ function Dashboard({
         {/* Card 1: Total Sales */}
         <div 
           onClick={() => setActiveTab && setActiveTab('orders')}
-          className="bg-white p-4.5 rounded-2xl border border-[#E8E5EA] shadow-[0_2px_8px_rgba(0,0,0,0.02)] hover:border-[#009FAE]/60 transition-all flex flex-col justify-between cursor-pointer group"
-          title="انقر للانتقال إلى قسم المبيعات والطلبيات"
+          className="bg-white dark:bg-[#0f172a] p-4.5 rounded-2xl border border-[#E8E5EA] dark:border-slate-800/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.2)] hover:border-[#009FAE]/60 dark:hover:border-cyan-500/50 transition-all flex flex-col justify-between cursor-pointer group"
+          title="انقر للانتقال إلى أوامر المبيعات والطلبيات"
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-[#6F6B75] group-hover:text-[#009FAE] transition">إجمالي المبيعات</span>
-            <div className="w-8 h-8 rounded-xl bg-[#E2F5F7] text-[#009FAE] flex items-center justify-center text-sm font-bold border border-[#C5ECF0] group-hover:scale-105 transition-transform">
-              🛍️
+            <span className="text-xs font-semibold text-[#6F6B75] dark:text-slate-400 group-hover:text-[#009FAE] dark:group-hover:text-cyan-400 transition">إجمالي حجم المبيعات</span>
+            <div className="w-8 h-8 rounded-xl bg-[#E2F5F7] dark:bg-cyan-950/50 text-[#009FAE] dark:text-cyan-300 flex items-center justify-center text-sm font-bold border border-[#C5ECF0] dark:border-cyan-800/60 group-hover:scale-105 transition-transform">
+              📊
             </div>
           </div>
           <div className="mt-3">
-            <div className="text-[1.65rem] font-extrabold font-mono tabular-nums text-[#25232A] leading-tight flex items-baseline">
+            <div className="text-[1.65rem] font-extrabold font-mono tabular-nums text-[#25232A] dark:text-slate-100 leading-tight flex items-baseline">
               <span>{fmt(totalSales)}</span>
-              <span className="text-xs font-medium text-[#6F6B75] mr-1.5">{currency.display}</span>
+              <span className="text-xs font-medium text-[#6F6B75] dark:text-slate-400 mr-1.5">{currency.display}</span>
             </div>
-            <div className="flex items-center gap-1 mt-1 text-[11px] font-semibold text-[#007F8C]">
+            <div className="flex items-center gap-1 mt-1 text-[11px] font-semibold text-[#007F8C] dark:text-cyan-400">
               <span>📈</span>
               <span className="font-mono tabular-nums">+14.2%</span>
               <span>معدل نمو الفترة</span>
@@ -503,23 +503,23 @@ function Dashboard({
         {/* Card 2: Net Profit */}
         <div 
           onClick={() => setActiveTab && setActiveTab('reports')}
-          className="bg-white p-4.5 rounded-2xl border border-[#E8E5EA] shadow-[0_2px_8px_rgba(0,0,0,0.02)] hover:border-[#007F8C]/60 transition-all flex flex-col justify-between cursor-pointer group"
+          className="bg-white dark:bg-[#0f172a] p-4.5 rounded-2xl border border-[#E8E5EA] dark:border-slate-800/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.2)] hover:border-[#007F8C]/60 dark:hover:border-teal-500/50 transition-all flex flex-col justify-between cursor-pointer group"
           title="انقر للانتقال إلى التقارير المالية وقائمة الدخل والأرباح"
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-[#6F6B75] group-hover:text-[#007F8C] transition">صافي الأرباح المحققة</span>
-            <div className="w-8 h-8 rounded-xl bg-[#E2F5F7] text-[#007F8C] flex items-center justify-center text-sm font-bold border border-[#C5ECF0] group-hover:scale-105 transition-transform">
+            <span className="text-xs font-semibold text-[#6F6B75] dark:text-slate-400 group-hover:text-[#007F8C] dark:group-hover:text-teal-400 transition">صافي الأرباح التشغيلية</span>
+            <div className="w-8 h-8 rounded-xl bg-[#E2F5F7] dark:bg-teal-950/50 text-[#007F8C] dark:text-teal-300 flex items-center justify-center text-sm font-bold border border-[#C5ECF0] dark:border-teal-800/60 group-hover:scale-105 transition-transform">
               ✨
             </div>
           </div>
           <div className="mt-3">
-            <div className="text-[1.65rem] font-extrabold font-mono tabular-nums text-[#007F8C] leading-tight flex items-baseline">
+            <div className="text-[1.65rem] font-extrabold font-mono tabular-nums text-[#007F8C] dark:text-teal-400 leading-tight flex items-baseline">
               <span>{fmt(totalProfit)}</span>
-              <span className="text-xs font-medium text-[#6F6B75] mr-1.5">{currency.display}</span>
+              <span className="text-xs font-medium text-[#6F6B75] dark:text-slate-400 mr-1.5">{currency.display}</span>
             </div>
-            <div className="text-[11px] text-[#6F6B75] mt-1 flex items-center gap-1">
+            <div className="text-[11px] text-[#6F6B75] dark:text-slate-400 mt-1 flex items-center gap-1">
               <span>هامش ربح تشغيلي:</span>
-              <span className="font-mono font-bold text-[#007F8C]">~{profitMarginPct}%</span>
+              <span className="font-mono font-bold text-[#007F8C] dark:text-teal-400">~{profitMarginPct}%</span>
             </div>
           </div>
         </div>
@@ -527,45 +527,45 @@ function Dashboard({
         {/* Card 3: Orders Count */}
         <div 
           onClick={() => setActiveTab && setActiveTab('orders')}
-          className="bg-white p-4.5 rounded-2xl border border-[#E8E5EA] shadow-[0_2px_8px_rgba(0,0,0,0.02)] hover:border-[#B0005A]/40 transition-all flex flex-col justify-between cursor-pointer group"
-          title="انقر للانتقال إلى إدارة الطلبيات"
+          className="bg-white dark:bg-[#0f172a] p-4.5 rounded-2xl border border-[#E8E5EA] dark:border-slate-800/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.2)] hover:border-[#B0005A]/40 dark:hover:border-pink-500/50 transition-all flex flex-col justify-between cursor-pointer group"
+          title="انقر للانتقال إلى إدارة أوامر المبيعات والتشغيل"
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-[#6F6B75] group-hover:text-[#B0005A] transition">إجمالي الطلبيات</span>
-            <div className="w-8 h-8 rounded-xl bg-[#FCE8F2] text-[#B0005A] flex items-center justify-center text-sm font-bold border border-[#F2A4CB]/60">
+            <span className="text-xs font-semibold text-[#6F6B75] dark:text-slate-400 group-hover:text-[#B0005A] dark:group-hover:text-pink-400 transition">أوامر المبيعات والتشغيل</span>
+            <div className="w-8 h-8 rounded-xl bg-[#FCE8F2] dark:bg-pink-950/50 text-[#B0005A] dark:text-pink-300 flex items-center justify-center text-sm font-bold border border-[#F2A4CB]/60 dark:border-pink-800/60">
               📋
             </div>
           </div>
           <div className="mt-3">
-            <div className="text-[1.65rem] font-extrabold font-mono tabular-nums text-[#B0005A] leading-tight flex items-baseline">
+            <div className="text-[1.65rem] font-extrabold font-mono tabular-nums text-[#B0005A] dark:text-pink-400 leading-tight flex items-baseline">
               <span>{filteredOrders.length}</span>
-              <span className="text-xs font-medium text-[#6F6B75] mr-1.5">طلب فستان</span>
+              <span className="text-xs font-medium text-[#6F6B75] dark:text-slate-400 mr-1.5">أمر تشغيل</span>
             </div>
-            <div className="text-[11px] text-[#6F6B75] mt-1">
-              متوسط الطلب: <span className="font-mono font-bold text-[#25232A]">{fmt(avgOrderValue)}</span>
+            <div className="text-[11px] text-[#6F6B75] dark:text-slate-400 mt-1">
+              متوسط قيمة الأمر: <span className="font-mono font-bold text-[#25232A] dark:text-slate-200">{fmt(avgOrderValue)}</span>
             </div>
           </div>
         </div>
 
-        {/* Card 4: Active Atelier Production */}
+        {/* Card 4: Active Shop Floor Units */}
         <div 
           onClick={() => setActiveTab && setActiveTab('factory')}
-          className="bg-white p-4.5 rounded-2xl border border-[#E8E5EA] shadow-[0_2px_8px_rgba(0,0,0,0.02)] hover:border-[#8F2A87]/40 transition-all flex flex-col justify-between cursor-pointer group"
-          title="انقر للانتقال إلى قسم المعمل والإنتاج"
+          className="bg-white dark:bg-[#0f172a] p-4.5 rounded-2xl border border-[#E8E5EA] dark:border-slate-800/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.2)] hover:border-[#8F2A87]/40 dark:hover:border-purple-500/50 transition-all flex flex-col justify-between cursor-pointer group"
+          title="انقر للانتقال إلى خطوط التصنيع والتشغيل"
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-[#6F6B75] group-hover:text-[#8F2A87] transition">أوامر المعمل النشطة</span>
-            <div className="w-8 h-8 rounded-xl bg-[#F2E7F3] text-[#8F2A87] flex items-center justify-center text-sm font-bold border border-[#E5CEE7]">
-              🪡
+            <span className="text-xs font-semibold text-[#6F6B75] dark:text-slate-400 group-hover:text-[#8F2A87] dark:group-hover:text-purple-400 transition">وحدات قيد التصنيع والتشغيل</span>
+            <div className="w-8 h-8 rounded-xl bg-[#F2E7F3] dark:bg-purple-950/50 text-[#8F2A87] dark:text-purple-300 flex items-center justify-center text-sm font-bold border border-[#E5CEE7] dark:border-purple-800/60">
+              ⚙️
             </div>
           </div>
           <div className="mt-3">
-            <div className="text-[1.65rem] font-extrabold font-mono tabular-nums text-[#8F2A87] leading-tight flex items-baseline">
+            <div className="text-[1.65rem] font-extrabold font-mono tabular-nums text-[#8F2A87] dark:text-purple-400 leading-tight flex items-baseline">
               <span>{atelierStages.totalActive}</span>
-              <span className="text-xs font-medium text-[#6F6B75] mr-1.5">فستان قيد التنفيذ</span>
+              <span className="text-xs font-medium text-[#6F6B75] dark:text-slate-400 mr-1.5">وحدة قيد التشغيل (WIP)</span>
             </div>
-            <div className="text-[11px] text-[#8F2A87] font-semibold mt-1">
-              جاهز للتسليم: <span className="font-mono font-bold text-[#007F8C]">{atelierStages.readyToDeliver} 👗</span>
+            <div className="text-[11px] text-[#8F2A87] dark:text-purple-300 font-semibold mt-1">
+              جاهز للتسليم والترحيل: <span className="font-mono font-bold text-[#007F8C] dark:text-teal-400">{atelierStages.readyToDeliver} وحدة 📦</span>
             </div>
           </div>
         </div>
@@ -573,22 +573,22 @@ function Dashboard({
         {/* Card 5: Outstanding Accounts Receivable */}
         <div 
           onClick={() => setActiveTab && setActiveTab('orders')}
-          className="bg-white p-4.5 rounded-2xl border border-[#E8E5EA] shadow-[0_2px_8px_rgba(0,0,0,0.02)] hover:border-[#F28A00]/40 transition-all flex flex-col justify-between cursor-pointer group"
-          title="انقر لاستعراض مستحقات الطلبيات والعميلات"
+          className="bg-white dark:bg-[#0f172a] p-4.5 rounded-2xl border border-[#E8E5EA] dark:border-slate-800/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.2)] hover:border-[#F28A00]/40 dark:hover:border-amber-500/50 transition-all flex flex-col justify-between cursor-pointer group"
+          title="انقر لاستعراض مستحقات الفواتير والعملاء"
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-[#6F6B75] group-hover:text-[#F28A00] transition">المستحقات المتبقية</span>
-            <div className="w-8 h-8 rounded-xl bg-[#FFF1DC] text-[#F28A00] flex items-center justify-center text-sm font-bold border border-[#FFE4B9]">
+            <span className="text-xs font-semibold text-[#6F6B75] dark:text-slate-400 group-hover:text-[#F28A00] dark:group-hover:text-amber-400 transition">المستحقات ومقبوضات التسليم</span>
+            <div className="w-8 h-8 rounded-xl bg-[#FFF1DC] dark:bg-amber-950/50 text-[#F28A00] dark:text-amber-300 flex items-center justify-center text-sm font-bold border border-[#FFE4B9] dark:border-amber-800/60">
               ⏳
             </div>
           </div>
           <div className="mt-3">
-            <div className="text-[1.65rem] font-extrabold font-mono tabular-nums text-[#F28A00] leading-tight flex items-baseline">
+            <div className="text-[1.65rem] font-extrabold font-mono tabular-nums text-[#F28A00] dark:text-amber-400 leading-tight flex items-baseline">
               <span>{fmt(totalRemaining)}</span>
-              <span className="text-xs font-medium text-[#6F6B75] mr-1.5">{currency.display}</span>
+              <span className="text-xs font-medium text-[#6F6B75] dark:text-slate-400 mr-1.5">{currency.display}</span>
             </div>
-            <div className="text-[11px] text-[#C97300] font-semibold mt-1">
-              تُحصّل عند البروفة والتسليم
+            <div className="text-[11px] text-[#C97300] dark:text-amber-400 font-semibold mt-1">
+              دفعات مرحلية مستحقة عند التسليم
             </div>
           </div>
         </div>
@@ -596,32 +596,32 @@ function Dashboard({
         {/* Card 6: Treasury & Bank Vaults */}
         <div 
           onClick={() => setActiveTab && setActiveTab('accounts')}
-          className="bg-white p-4.5 rounded-2xl border border-[#E8E5EA] shadow-[0_2px_8px_rgba(0,0,0,0.02)] hover:border-[#009FAE]/60 transition-all flex flex-col justify-between cursor-pointer group"
+          className="bg-white dark:bg-[#0f172a] p-4.5 rounded-2xl border border-[#E8E5EA] dark:border-slate-800/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.2)] hover:border-[#009FAE]/60 dark:hover:border-cyan-500/50 transition-all flex flex-col justify-between cursor-pointer group"
           title="انقر للانتقال إلى شجرة الحسابات المالية والدليل المحاسبي"
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-[#6F6B75] group-hover:text-[#009FAE] transition">رصيد الخزينة والبنوك</span>
-            <div className="w-8 h-8 rounded-xl bg-[#E2F5F7] text-[#009FAE] flex items-center justify-center text-sm font-bold border border-[#C5ECF0] group-hover:scale-105 transition-transform">
+            <span className="text-xs font-semibold text-[#6F6B75] dark:text-slate-400 group-hover:text-[#009FAE] dark:group-hover:text-cyan-400 transition">السيولة النقدية والخزائن</span>
+            <div className="w-8 h-8 rounded-xl bg-[#E2F5F7] dark:bg-cyan-950/50 text-[#009FAE] dark:text-cyan-300 flex items-center justify-center text-sm font-bold border border-[#C5ECF0] dark:border-cyan-800/60 group-hover:scale-105 transition-transform">
               🏦
             </div>
           </div>
           <div className="mt-3">
-            <div className={`text-[1.55rem] font-extrabold font-mono tabular-nums leading-tight flex items-baseline flex-wrap ${totalTreasuryBalance < 0 ? 'text-rose-600' : 'text-[#25232A]'}`}>
+            <div className={`text-[1.55rem] font-extrabold font-mono tabular-nums leading-tight flex items-baseline flex-wrap ${totalTreasuryBalance < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-[#25232A] dark:text-slate-100'}`}>
               <span>{targetCode === 'YER' ? fmt(baseTreasuryBalance) : fmt(totalTreasuryBalance)}</span>
-              <span className="text-xs font-medium text-[#6F6B75] mr-1.5">{currency.display}</span>
+              <span className="text-xs font-medium text-[#6F6B75] dark:text-slate-400 mr-1.5">{currency.display}</span>
             </div>
 
             {/* Detailed Sub-balances & Multi-Currency Context */}
             <div className="mt-1.5 space-y-1">
-              <div className="text-[11px] text-[#6F6B75] font-mono tabular-nums flex items-center gap-1.5">
+              <div className="text-[11px] text-[#6F6B75] dark:text-slate-400 font-mono tabular-nums flex items-center gap-1.5">
                 <span>كاش: {fmt(targetCode === 'YER' ? baseCashBalance : cashBalance)}</span>
                 <span>|</span>
                 <span>بنك: {fmt(targetCode === 'YER' ? baseBankBalance : bankBalance)}</span>
               </div>
 
-              {/* Foreign Currency Badge (e.g. SAR 18,746.48 for 101.2 صندوق الريال السعودي) */}
+              {/* Foreign Currency Badge */}
               {foreignTreasuryDetails.length > 0 && targetCode === 'YER' && (
-                <div className="text-[10.5px] font-semibold text-[#8F2A87] bg-[#F2E7F3] px-1.5 py-0.5 rounded-md inline-flex items-center gap-1 border border-[#E5CEE7]">
+                <div className="text-[10.5px] font-semibold text-[#8F2A87] dark:text-purple-300 bg-[#F2E7F3] dark:bg-purple-950/40 px-1.5 py-0.5 rounded-md inline-flex items-center gap-1 border border-[#E5CEE7] dark:border-purple-800/50">
                   <span>🇸🇦</span>
                   <span>SAR {fmt(foreignTreasuryDetails[0].foreign_balance)} (صندوق الريال السعودي)</span>
                 </div>
@@ -629,16 +629,16 @@ function Dashboard({
 
               {/* Base Currency Equivalent Badge if viewing in foreign currency */}
               {targetCode !== 'YER' && (
-                <div className="text-[10.5px] font-semibold text-[#007F8C] bg-[#E2F5F7] px-1.5 py-0.5 rounded-md inline-flex items-center gap-1 border border-[#C5ECF0]">
+                <div className="text-[10.5px] font-semibold text-[#007F8C] dark:text-cyan-300 bg-[#E2F5F7] dark:bg-cyan-950/40 px-1.5 py-0.5 rounded-md inline-flex items-center gap-1 border border-[#C5ECF0] dark:border-cyan-800/50">
                   <span>🇾🇪</span>
                   <span>ما يعادل بالشجرة: {fmt(baseTreasuryBalance)} YER ﷼</span>
                 </div>
               )}
 
               {/* Total Assets Overview Badge */}
-              <div className="text-[10px] text-[#6F6B75] pt-0.5 border-t border-[#F0EEF2] flex items-center justify-between">
+              <div className="text-[10px] text-[#6F6B75] dark:text-slate-400 pt-0.5 border-t border-[#F0EEF2] dark:border-slate-800 flex items-center justify-between">
                 <span>إجمالي أصول الشجرة:</span>
-                <span className="font-mono font-bold text-[#25232A]">
+                <span className="font-mono font-bold text-[#25232A] dark:text-slate-200">
                   {fmt(targetCode === 'YER' ? totalAssetsBalance : toCurr(totalAssetsBalance, 'YER', 1.0))} {currency.display}
                 </span>
               </div>
@@ -651,29 +651,29 @@ function Dashboard({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
         {/* Section A: Interactive Sales & Revenue Trend Chart (2 Cols) */}
-        <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-[#E8E5EA] shadow-[0_2px_12px_rgba(0,0,0,0.02)] flex flex-col justify-between">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-[#E8E5EA] mb-4">
+        <div className="lg:col-span-2 bg-white dark:bg-[#0f172a] p-6 rounded-2xl border border-[#E8E5EA] dark:border-slate-800/80 shadow-[0_2px_12px_rgba(0,0,0,0.02)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.2)] flex flex-col justify-between transition-colors">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-[#E8E5EA] dark:border-slate-800 mb-4">
             <div>
               <div className="flex items-center gap-2">
                 <span className="w-3 h-3 rounded-full bg-[#B0005A]"></span>
-                <h3 className="font-bold text-sm text-[#25232A]">منحنى الإيرادات والمبيعات التفاعلي (Sales Revenue Curve)</h3>
+                <h3 className="font-bold text-sm text-[#25232A] dark:text-slate-100">منحنى الإيرادات والمبيعات التفاعلي (Sales Revenue Curve)</h3>
               </div>
-              <p className="text-[11px] text-[#6F6B75] mt-0.5">تتبع تدفق المبيعات اليومية والتراكمية عبر فترات العمل</p>
+              <p className="text-[11px] text-[#6F6B75] dark:text-slate-400 mt-0.5">تتبع تدفق المبيعات اليومية والتراكمية عبر فترات العمل</p>
             </div>
 
             <div className="flex items-center gap-2">
-              <div className="flex bg-[#FAFAFB] p-1 rounded-xl border border-[#E8E5EA]">
+              <div className="flex bg-[#FAFAFB] dark:bg-slate-900 p-1 rounded-xl border border-[#E8E5EA] dark:border-slate-800">
                 <button
                   type="button"
                   onClick={() => setTrendMode('daily')}
-                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer ${trendMode === 'daily' ? 'bg-white shadow-xs text-[#B0005A]' : 'text-[#6F6B75]'}`}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer ${trendMode === 'daily' ? 'bg-white dark:bg-slate-800 shadow-xs text-[#B0005A] dark:text-purple-300' : 'text-[#6F6B75] dark:text-slate-400'}`}
                 >
                   المبيعات اليومية 📈
                 </button>
                 <button
                   type="button"
                   onClick={() => setTrendMode('cumulative')}
-                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer ${trendMode === 'cumulative' ? 'bg-white shadow-xs text-[#8F2A87]' : 'text-[#6F6B75]'}`}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer ${trendMode === 'cumulative' ? 'bg-white dark:bg-slate-800 shadow-xs text-[#8F2A87] dark:text-purple-300' : 'text-[#6F6B75] dark:text-slate-400'}`}
                 >
                   التراكمي الشهري 📊
                 </button>
@@ -698,9 +698,9 @@ function Dashboard({
               </defs>
 
               {/* Grid Lines */}
-              <line x1={chartPadding} y1={chartPadding} x2={chartWidth - chartPadding} y2={chartPadding} stroke="#F0EEF2" strokeDasharray="3 3" />
-              <line x1={chartPadding} y1={chartHeight / 2} x2={chartWidth - chartPadding} y2={chartHeight / 2} stroke="#F0EEF2" strokeDasharray="3 3" />
-              <line x1={chartPadding} y1={chartHeight - chartPadding} x2={chartWidth - chartPadding} y2={chartHeight - chartPadding} stroke="#E8E5EA" />
+              <line x1={chartPadding} y1={chartPadding} x2={chartWidth - chartPadding} y2={chartPadding} stroke="#E8E5EA" strokeDasharray="3 3" opacity="0.5" />
+              <line x1={chartPadding} y1={chartHeight / 2} x2={chartWidth - chartPadding} y2={chartHeight / 2} stroke="#E8E5EA" strokeDasharray="3 3" opacity="0.5" />
+              <line x1={chartPadding} y1={chartHeight - chartPadding} x2={chartWidth - chartPadding} y2={chartHeight - chartPadding} stroke="#E8E5EA" opacity="0.7" />
 
               {/* Area Fill */}
               {svgCoordinates.area && (
@@ -759,44 +759,44 @@ function Dashboard({
           </div>
 
           {/* Chart Footnote Highlights */}
-          <div className="grid grid-cols-3 gap-3 pt-3 border-t border-[#E8E5EA] text-center text-xs">
+          <div className="grid grid-cols-3 gap-3 pt-3 border-t border-[#E8E5EA] dark:border-slate-800 text-center text-xs">
             <div 
               onClick={() => setActiveTab && setActiveTab('orders')}
-              className="p-2.5 rounded-xl bg-[#FAFAFB] hover:bg-[#E2F5F7] cursor-pointer transition"
-              title="انقر للانتقال إلى المبيعات والطلبات"
+              className="p-2.5 rounded-xl bg-[#FAFAFB] dark:bg-slate-900/90 hover:bg-[#E2F5F7] dark:hover:bg-slate-800 cursor-pointer transition border border-transparent dark:border-slate-800/60"
+              title="انقر للانتقال إلى أوامر المبيعات والطلبيات"
             >
-              <span className="block text-[10.5px] text-[#6F6B75] mb-0.5">إجمالي مبيعات المخطط</span>
-              <span className="font-bold font-mono text-[#007F8C]">{fmt(totalSales)} {currency.display}</span>
+              <span className="block text-[10.5px] text-[#6F6B75] dark:text-slate-400 mb-0.5">إجمالي مبيعات المخطط</span>
+              <span className="font-bold font-mono text-[#007F8C] dark:text-cyan-400">{fmt(totalSales)} {currency.display}</span>
             </div>
-            <div className="p-2.5 rounded-xl bg-[#FAFAFB]">
-              <span className="block text-[10.5px] text-[#6F6B75] mb-0.5">متوسط قيمة الطلب</span>
-              <span className="font-bold font-mono text-[#8F2A87]">{fmt(avgOrderValue)} {currency.display}</span>
+            <div className="p-2.5 rounded-xl bg-[#FAFAFB] dark:bg-slate-900/90 border border-transparent dark:border-slate-800/60">
+              <span className="block text-[10.5px] text-[#6F6B75] dark:text-slate-400 mb-0.5">متوسط قيمة الأمر</span>
+              <span className="font-bold font-mono text-[#8F2A87] dark:text-purple-400">{fmt(avgOrderValue)} {currency.display}</span>
             </div>
             <div 
               onClick={() => setActiveTab && setActiveTab('orders')}
-              className="p-2.5 rounded-xl bg-[#FAFAFB] hover:bg-[#FCE8F2] cursor-pointer transition"
-              title="انقر للانتقال إلى الطلبات"
+              className="p-2.5 rounded-xl bg-[#FAFAFB] dark:bg-slate-900/90 hover:bg-[#FCE8F2] dark:hover:bg-slate-800 cursor-pointer transition border border-transparent dark:border-slate-800/60"
+              title="انقر للانتقال إلى أوامر العمليات"
             >
-              <span className="block text-[10.5px] text-[#6F6B75] mb-0.5">عدد الطلبات المحصورة</span>
-              <span className="font-bold font-mono text-[#B0005A]">{filteredOrders.length} طلبات</span>
+              <span className="block text-[10.5px] text-[#6F6B75] dark:text-slate-400 mb-0.5">أوامر الفترة المحصورة</span>
+              <span className="font-bold font-mono text-[#B0005A] dark:text-pink-400">{filteredOrders.length} أوامر</span>
             </div>
           </div>
         </div>
 
-        {/* Section B: Atelier Production Pipeline & Completion Rate (1 Col) */}
-        <div className="bg-white p-6 rounded-2xl border border-[#E8E5EA] shadow-[0_2px_12px_rgba(0,0,0,0.02)] flex flex-col justify-between">
+        {/* Section B: Shop Floor Execution Pipeline & Completion Rate (1 Col) */}
+        <div className="bg-white dark:bg-[#0f172a] p-6 rounded-2xl border border-[#E8E5EA] dark:border-slate-800/80 shadow-[0_2px_12px_rgba(0,0,0,0.02)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.2)] flex flex-col justify-between transition-colors">
           <div>
-            <div className="flex items-center justify-between pb-3 border-b border-[#E8E5EA] mb-4">
+            <div className="flex items-center justify-between pb-3 border-b border-[#E8E5EA] dark:border-slate-800 mb-4">
               <div 
                 onClick={() => setActiveTab && setActiveTab('factory')}
                 className="flex items-center gap-2 cursor-pointer group"
-                title="انقر للانتقال إلى تفاصيل المعمل والورشة"
+                title="انقر للانتقال إلى خطوط التصنيع والتشغيل"
               >
                 <span className="w-3 h-3 rounded-full bg-[#8F2A87]"></span>
-                <h3 className="font-bold text-sm text-[#25232A] group-hover:text-[#8F2A87] transition">مراحل إنجاز المعمل والورشة</h3>
-                <span className="text-[11px] text-[#8F2A87]">↗</span>
+                <h3 className="font-bold text-sm text-[#25232A] dark:text-slate-100 group-hover:text-[#8F2A87] dark:group-hover:text-purple-300 transition">مراحل خط التشغيل والتصنيع</h3>
+                <span className="text-[11px] text-[#8F2A87] dark:text-purple-400">↗</span>
               </div>
-              <span className="text-[11px] font-bold text-[#8F2A87] bg-[#F2E7F3] px-2 py-0.5 rounded-md">
+              <span className="text-[11px] font-bold text-[#8F2A87] dark:text-purple-300 bg-[#F2E7F3] dark:bg-purple-950/50 px-2 py-0.5 rounded-md border border-transparent dark:border-purple-800/50">
                 {atelierStages.completionRate}% إنجاز
               </span>
             </div>
@@ -804,24 +804,24 @@ function Dashboard({
             {/* Stages Progress Tracker */}
             <div className="space-y-3">
               {[
-                { name: '1. التصميم والقص والتجهيز', count: atelierStages.cutting, icon: '✂️', color: 'bg-amber-500' },
-                { name: '2. الخياطة والتجميع الأساسي', count: atelierStages.tailoring, icon: '🪡', color: 'bg-[#B0005A]' },
-                { name: '3. الشك والتطريز والخرز اليدوي', count: atelierStages.embroidery, icon: '🧵', color: 'bg-[#8F2A87]' },
-                { name: '4. مراقبة الجودة والتشطيب والكي', count: atelierStages.qualityCheck, icon: '💎', color: 'bg-[#009FAE]' },
-                { name: '5. منتجات جاهزة للتسليم والتسليم النهائي', count: atelierStages.readyToDeliver, icon: '👗', color: 'bg-emerald-500' }
+                { name: '1. التجهيز والتحضير الأولي', count: atelierStages.cutting, icon: '⚙️', color: 'bg-amber-500' },
+                { name: '2. التجميع والتشغيل الأساسي', count: atelierStages.tailoring, icon: '🛠️', color: 'bg-[#B0005A]' },
+                { name: '3. المعالجة الدقيقة والتشطيب الحرفي', count: atelierStages.embroidery, icon: '💎', color: 'bg-[#8F2A87]' },
+                { name: '4. الفحص وضمان الجودة الشاملة (QA)', count: atelierStages.qualityCheck, icon: '🔍', color: 'bg-[#009FAE]' },
+                { name: '5. جاهز للتسليم والترحيل النهائي', count: atelierStages.readyToDeliver, icon: '📦', color: 'bg-emerald-500' }
               ].map((stage, idx) => (
                 <div 
                   key={idx} 
                   onClick={() => setActiveTab && setActiveTab('factory')}
-                  className="p-2.5 rounded-xl bg-[#FAFAFB] border border-[#E8E5EA] flex items-center justify-between hover:border-[#8F2A87]/40 cursor-pointer transition group"
-                  title="انقر للانتقال إلى تفاصيل المعمل"
+                  className="p-2.5 rounded-xl bg-[#FAFAFB] dark:bg-slate-900/80 border border-[#E8E5EA] dark:border-slate-800 flex items-center justify-between hover:border-[#8F2A87]/40 dark:hover:border-purple-500/50 cursor-pointer transition group"
+                  title="انقر للانتقال إلى تفاصيل خط الإنتاج"
                 >
                   <div className="flex items-center gap-2.5">
                     <span className="text-base">{stage.icon}</span>
-                    <span className="text-xs font-semibold text-[#25232A] group-hover:text-[#8F2A87] transition">{stage.name}</span>
+                    <span className="text-xs font-semibold text-[#25232A] dark:text-slate-200 group-hover:text-[#8F2A87] dark:group-hover:text-purple-300 transition">{stage.name}</span>
                   </div>
-                  <span className="font-mono font-bold text-xs px-2.5 py-0.5 rounded-md bg-white border border-[#E8E5EA] text-[#25232A]">
-                    {stage.count} فستان
+                  <span className="font-mono font-bold text-xs px-2.5 py-0.5 rounded-md bg-white dark:bg-slate-800 border border-[#E8E5EA] dark:border-slate-700 text-[#25232A] dark:text-slate-200">
+                    {stage.count} وحدة
                   </span>
                 </div>
               ))}
@@ -829,15 +829,15 @@ function Dashboard({
           </div>
 
           {/* On-Time Delivery Guarantee Box */}
-          <div className="mt-4 p-3.5 rounded-xl bg-[#E2F5F7] border border-[#C5ECF0] flex items-center justify-between">
+          <div className="mt-4 p-3.5 rounded-xl bg-[#E2F5F7] dark:bg-cyan-950/30 border border-[#C5ECF0] dark:border-cyan-800/50 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="text-base">🚀</span>
               <div>
-                <span className="block text-xs font-bold text-[#007F8C]">الالتزام بمواعيد التسليم</span>
-                <span className="block text-[10px] text-[#6F6B75]">معايير الدقة والالتزام للعميلات</span>
+                <span className="block text-xs font-bold text-[#007F8C] dark:text-cyan-300">معدل الالتزام بجدول التسليم (OTIF)</span>
+                <span className="block text-[10px] text-[#6F6B75] dark:text-slate-400">معايير الدقة والالتزام بالعقود ومواعيد العملاء</span>
               </div>
             </div>
-            <span className="font-mono text-base font-extrabold text-[#007F8C]">
+            <span className="font-mono text-base font-extrabold text-[#007F8C] dark:text-cyan-300">
               {atelierStages.onTimeRate}%
             </span>
           </div>
@@ -848,14 +848,14 @@ function Dashboard({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         
         {/* Quality Score (OQS) Radial Gauge */}
-        <div className="bg-white p-6 rounded-2xl border border-[#E8E5EA] shadow-[0_2px_12px_rgba(0,0,0,0.02)] flex flex-col justify-between">
-          <div className="flex items-center justify-between pb-3 border-b border-[#E8E5EA] mb-4">
+        <div className="bg-white dark:bg-[#0f172a] p-6 rounded-2xl border border-[#E8E5EA] dark:border-slate-800/80 shadow-[0_2px_12px_rgba(0,0,0,0.02)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.2)] flex flex-col justify-between transition-colors">
+          <div className="flex items-center justify-between pb-3 border-b border-[#E8E5EA] dark:border-slate-800 mb-4">
             <div className="flex items-center gap-2">
               <span className="w-3 h-3 rounded-full bg-[#009FAE]"></span>
-              <h3 className="font-bold text-sm text-[#25232A]">مؤشر الجودة الشامل (Overall Quality Score - OQS)</h3>
+              <h3 className="font-bold text-sm text-[#25232A] dark:text-slate-100">مؤشر الجودة الشامل (Operational Quality Score - OQS)</h3>
             </div>
-            <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
-              🌟 معايير Haute Couture
+            <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/50 px-2 py-0.5 rounded-md">
+              🌟 معايير الجودة الفائقة (Six Sigma)
             </span>
           </div>
 
@@ -863,7 +863,7 @@ function Dashboard({
             {/* Circular Gauge SVG */}
             <div className="relative w-36 h-36 flex items-center justify-center shrink-0">
               <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
-                <circle cx="50" cy="50" r="42" stroke="#E8E5EA" strokeWidth="9" fill="none" />
+                <circle cx="50" cy="50" r="42" stroke="currentColor" className="text-[#E8E5EA] dark:text-slate-800" strokeWidth="9" fill="none" />
                 <circle
                   cx="50"
                   cy="50"
@@ -884,42 +884,42 @@ function Dashboard({
                 </defs>
               </svg>
               <div className="absolute flex flex-col items-center justify-center text-center">
-                <span className="text-2xl font-extrabold font-mono text-[#007F8C]">{qualityMetrics.oqsScore}%</span>
-                <span className="text-[9.5px] font-bold text-[#6F6B75]">مؤشر OQS</span>
+                <span className="text-2xl font-extrabold font-mono text-[#007F8C] dark:text-cyan-400">{qualityMetrics.oqsScore}%</span>
+                <span className="text-[9.5px] font-bold text-[#6F6B75] dark:text-slate-400">مؤشر OQS</span>
               </div>
             </div>
 
             {/* Quality Detailed Breakdown */}
             <div className="w-full space-y-2.5">
-              <div className="flex justify-between items-center text-xs p-2 rounded-xl bg-[#FAFAFB] border border-[#E8E5EA]">
-                <span className="text-[#6F6B75]">القبول من أول فحص (First-Pass Yield)</span>
-                <span className="font-mono font-bold text-[#007F8C]">{qualityMetrics.firstPassYield}%</span>
+              <div className="flex justify-between items-center text-xs p-2 rounded-xl bg-[#FAFAFB] dark:bg-slate-900 border border-[#E8E5EA] dark:border-slate-800">
+                <span className="text-[#6F6B75] dark:text-slate-400">القبول من أول فحص (First-Pass Yield)</span>
+                <span className="font-mono font-bold text-[#007F8C] dark:text-cyan-400">{qualityMetrics.firstPassYield}%</span>
               </div>
-              <div className="flex justify-between items-center text-xs p-2 rounded-xl bg-[#FAFAFB] border border-[#E8E5EA]">
-                <span className="text-[#6F6B75]">نسبة خلو الفساتين من الملاحظات</span>
-                <span className="font-mono font-bold text-[#8F2A87]">{qualityMetrics.zeroDefectRate}%</span>
+              <div className="flex justify-between items-center text-xs p-2 rounded-xl bg-[#FAFAFB] dark:bg-slate-900 border border-[#E8E5EA] dark:border-slate-800">
+                <span className="text-[#6F6B75] dark:text-slate-400">معدل الوحدات الخالية من العيوب (Zero Defect Rate)</span>
+                <span className="font-mono font-bold text-[#8F2A87] dark:text-purple-400">{qualityMetrics.zeroDefectRate}%</span>
               </div>
-              <div className="flex justify-between items-center text-xs p-2 rounded-xl bg-[#FAFAFB] border border-[#E8E5EA]">
-                <span className="text-[#6F6B75]">تقييم ورضا العميلات النهائي</span>
-                <span className="font-mono font-bold text-amber-600">{qualityMetrics.customerRating} / 5.0 ⭐</span>
+              <div className="flex justify-between items-center text-xs p-2 rounded-xl bg-[#FAFAFB] dark:bg-slate-900 border border-[#E8E5EA] dark:border-slate-800">
+                <span className="text-[#6F6B75] dark:text-slate-400">مؤشر رضا العملاء العام (Customer CSAT)</span>
+                <span className="font-mono font-bold text-amber-600 dark:text-amber-400">{qualityMetrics.customerRating} / 5.0 ⭐</span>
               </div>
             </div>
           </div>
         </div>
 
         {/* Treasury & Cash Flow Monitor */}
-        <div className="bg-white p-6 rounded-2xl border border-[#E8E5EA] shadow-[0_2px_12px_rgba(0,0,0,0.02)] flex flex-col justify-between">
-          <div className="flex items-center justify-between pb-3 border-b border-[#E8E5EA] mb-4">
+        <div className="bg-white dark:bg-[#0f172a] p-6 rounded-2xl border border-[#E8E5EA] dark:border-slate-800/80 shadow-[0_2px_12px_rgba(0,0,0,0.02)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.2)] flex flex-col justify-between transition-colors">
+          <div className="flex items-center justify-between pb-3 border-b border-[#E8E5EA] dark:border-slate-800 mb-4">
             <div className="flex items-center gap-2">
               <span className="w-3 h-3 rounded-full bg-[#F28A00]"></span>
-              <h3 className="font-bold text-sm text-[#25232A]">رادار الخزينة والسيولة النقدية (Treasury Radar)</h3>
+              <h3 className="font-bold text-sm text-[#25232A] dark:text-slate-100">رادار الخزينة والسيولة النقدية (Treasury Radar)</h3>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-[11px] font-mono text-[#6F6B75]">العملة: {currency.display}</span>
+              <span className="text-[11px] font-mono text-[#6F6B75] dark:text-slate-400">العملة: {currency.display}</span>
               <button
                 type="button"
                 onClick={() => setActiveTab && setActiveTab('accounts')}
-                className="text-[11px] font-bold text-[#007F8C] bg-[#E2F5F7] hover:bg-[#C5ECF0] px-2 py-0.5 rounded-md cursor-pointer transition flex items-center gap-1"
+                className="text-[11px] font-bold text-[#007F8C] dark:text-cyan-300 bg-[#E2F5F7] dark:bg-cyan-950/40 hover:bg-[#C5ECF0] dark:hover:bg-cyan-900/50 px-2 py-0.5 rounded-md cursor-pointer transition flex items-center gap-1"
                 title="الانتقال إلى شجرة الحسابات المالية"
               >
                 <span>شجرة الحسابات</span>
@@ -933,59 +933,59 @@ function Dashboard({
             <div className="grid grid-cols-2 gap-3">
               <div 
                 onClick={() => setActiveTab && setActiveTab('accounts')}
-                className="p-3.5 rounded-xl bg-[#FAFAFB] border border-[#E8E5EA] hover:border-[#009FAE]/50 cursor-pointer transition group"
+                className="p-3.5 rounded-xl bg-[#FAFAFB] dark:bg-slate-900 border border-[#E8E5EA] dark:border-slate-800 hover:border-[#009FAE]/50 dark:hover:border-cyan-500/50 cursor-pointer transition group"
                 title="انقر للانتقال إلى حسابات الصناديق النقدية"
               >
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-[11px] text-[#6F6B75] group-hover:text-[#009FAE] transition">💵 الصندوق الرئيسي (كاش)</span>
-                  <span className="text-[10px] text-[#007F8C] font-mono">101</span>
+                  <span className="text-[11px] text-[#6F6B75] dark:text-slate-400 group-hover:text-[#009FAE] dark:group-hover:text-cyan-400 transition">💵 الصندوق الرئيسي (كاش)</span>
+                  <span className="text-[10px] text-[#007F8C] dark:text-cyan-400 font-mono">101</span>
                 </div>
-                <span className="text-base font-extrabold font-mono text-[#25232A] block">
+                <span className="text-base font-extrabold font-mono text-[#25232A] dark:text-slate-100 block">
                   {fmt(targetCode === 'YER' ? baseCashBalance : cashBalance)}
                 </span>
                 {foreignTreasuryDetails.length > 0 && (
-                  <span className="text-[10.5px] text-[#8F2A87] font-semibold block mt-0.5">
+                  <span className="text-[10.5px] text-[#8F2A87] dark:text-purple-400 font-semibold block mt-0.5">
                     🇸🇦 {fmt(foreignTreasuryDetails[0].foreign_balance)} SAR (صندوق الريال السعودي)
                   </span>
                 )}
               </div>
               <div 
                 onClick={() => setActiveTab && setActiveTab('accounts')}
-                className="p-3.5 rounded-xl bg-[#FAFAFB] border border-[#E8E5EA] hover:border-[#007F8C]/50 cursor-pointer transition group"
+                className="p-3.5 rounded-xl bg-[#FAFAFB] dark:bg-slate-900 border border-[#E8E5EA] dark:border-slate-800 hover:border-[#007F8C]/50 dark:hover:border-teal-500/50 cursor-pointer transition group"
                 title="انقر للانتقال إلى حسابات البنوك ونقاط البيع"
               >
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-[11px] text-[#6F6B75] group-hover:text-[#007F8C] transition">💳 البنك ونقاط البيع POS</span>
-                  <span className="text-[10px] text-[#007F8C] font-mono">103</span>
+                  <span className="text-[11px] text-[#6F6B75] dark:text-slate-400 group-hover:text-[#007F8C] dark:group-hover:text-teal-400 transition">💳 البنك ونقاط البيع POS</span>
+                  <span className="text-[10px] text-[#007F8C] dark:text-teal-400 font-mono">103</span>
                 </div>
-                <span className="text-base font-extrabold font-mono text-[#007F8C] block">
+                <span className="text-base font-extrabold font-mono text-[#007F8C] dark:text-teal-400 block">
                   {fmt(targetCode === 'YER' ? baseBankBalance : bankBalance)}
                 </span>
-                <span className="text-[10px] text-[#6F6B75] block mt-0.5">
+                <span className="text-[10px] text-[#6F6B75] dark:text-slate-400 block mt-0.5">
                   حسابات جارية ومدفوعات إلكترونية
                 </span>
               </div>
             </div>
 
             {/* Inflow vs Outflow Comparison */}
-            <div className="p-3.5 rounded-xl bg-[#FAFAFB] border border-[#E8E5EA] space-y-2">
+            <div className="p-3.5 rounded-xl bg-[#FAFAFB] dark:bg-slate-900 border border-[#E8E5EA] dark:border-slate-800 space-y-2">
               <div className="flex justify-between text-xs font-semibold">
                 <span 
                   onClick={() => setActiveTab && setActiveTab('vouchers')} 
-                  className="text-[#007F8C] cursor-pointer hover:underline"
+                  className="text-[#007F8C] dark:text-cyan-400 cursor-pointer hover:underline"
                   title="انقر لاستعراض سندات القبض"
                 >
                   المقبوضات والتحصيلات: {fmt(totalInflow)}
                 </span>
                 <span 
                   onClick={() => setActiveTab && setActiveTab('expenses')} 
-                  className="text-[#D64545] cursor-pointer hover:underline"
+                  className="text-[#D64545] dark:text-rose-400 cursor-pointer hover:underline"
                   title="انقر لاستعراض سندات الصرف والمصاريف"
                 >
                   المصروفات والتوريد: {fmt(totalOutflow)}
                 </span>
               </div>
-              <div className="w-full h-2.5 rounded-full bg-[#E8E5EA] overflow-hidden flex">
+              <div className="w-full h-2.5 rounded-full bg-[#E8E5EA] dark:bg-slate-800 overflow-hidden flex">
                 <div 
                   className="bg-[#009FAE] h-full" 
                   style={{ width: `${(totalInflow + totalOutflow) > 0 ? (totalInflow / (totalInflow + totalOutflow)) * 100 : 50}%` }}
@@ -1000,7 +1000,7 @@ function Dashboard({
             {/* Net Cash Flow Summary */}
             <div 
               onClick={() => setActiveTab && setActiveTab('reports')}
-              className={`p-3 rounded-xl border flex items-center justify-between font-bold text-xs cursor-pointer hover:opacity-90 transition ${netCashFlow >= 0 ? 'bg-[#E2F5F7] border-[#C5ECF0] text-[#007F8C]' : 'bg-rose-50 border-rose-200 text-[#D64545]'}`}
+              className={`p-3 rounded-xl border flex items-center justify-between font-bold text-xs cursor-pointer hover:opacity-90 transition ${netCashFlow >= 0 ? 'bg-[#E2F5F7] dark:bg-cyan-950/40 border-[#C5ECF0] dark:border-cyan-800 text-[#007F8C] dark:text-cyan-300' : 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-900 text-[#D64545] dark:text-rose-300'}`}
               title="انقر للانتقال إلى التقارير المالية والتدفق النقدي"
             >
               <span>صافي التدفق النقدي للفترة (Net Cash Flow)</span>
@@ -1014,51 +1014,51 @@ function Dashboard({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
         {/* Table: Upcoming Urgent Deliveries */}
-        <div className="lg:col-span-2 bg-white rounded-2xl border border-[#E8E5EA] shadow-[0_2px_8px_rgba(0,0,0,0.02)] overflow-hidden">
-          <div className="bg-[#FAFAFB] border-b border-[#E8E5EA] px-5 py-3.5 flex items-center justify-between">
-            <h3 className="font-bold text-[#25232A] flex items-center gap-2 text-xs">
-              <span className="text-[#F28A00]">⏳</span> مواعيد التسليم القادمة بالورشة (خلال 72 ساعة)
+        <div className="lg:col-span-2 bg-white dark:bg-[#0f172a] rounded-2xl border border-[#E8E5EA] dark:border-slate-800/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.2)] overflow-hidden transition-colors">
+          <div className="bg-[#FAFAFB] dark:bg-slate-900 border-b border-[#E8E5EA] dark:border-slate-800 px-5 py-3.5 flex items-center justify-between">
+            <h3 className="font-bold text-[#25232A] dark:text-slate-100 flex items-center gap-2 text-xs">
+              <span className="text-[#F28A00]">⏳</span> مواعيد التسليم والترحيل القادمة (خلال 72 ساعة)
             </h3>
-            <span className="text-[11px] text-[#6F6B75] font-mono">{urgentOrders.length} طلبات قادمة</span>
+            <span className="text-[11px] text-[#6F6B75] dark:text-slate-400 font-mono">{urgentOrders.length} أوامر قادمة</span>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
-                <tr className="bg-[#FAFAFB] text-[#6F6B75] font-semibold border-b border-[#E8E5EA]">
-                  <th className="px-4 py-3 text-right">رقم الطلب</th>
-                  <th className="px-4 py-3 text-right">العميلة</th>
-                  <th className="px-4 py-3 text-right">الموديل / الفستان</th>
-                  <th className="px-4 py-3 text-right">موعد التسليم</th>
+                <tr className="bg-[#FAFAFB] dark:bg-slate-900 text-[#6F6B75] dark:text-slate-400 font-semibold border-b border-[#E8E5EA] dark:border-slate-800">
+                  <th className="px-4 py-3 text-right">رقم الأمر</th>
+                  <th className="px-4 py-3 text-right">العميل / المنشأة</th>
+                  <th className="px-4 py-3 text-right">بند التشغيل / المنتج</th>
+                  <th className="px-4 py-3 text-right">تاريخ الاستحقاق</th>
                   <th className="px-4 py-3 text-right">الحالة</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#E8E5EA]">
+              <tbody className="divide-y divide-[#E8E5EA] dark:divide-slate-800/70">
                 {urgentOrders.length > 0 ? urgentOrders.map((o, i) => {
                   const prodSt = String(o.production_status || o.status || '').toLowerCase();
-                  let stageBadge = { label: 'قيد التنفيذ', color: 'bg-[#FFF1DC] text-[#C97300] border-[#FFE4B9]' };
+                  let stageBadge = { label: 'قيد التشغيل', color: 'bg-[#FFF1DC] dark:bg-amber-950/40 text-[#C97300] dark:text-amber-300 border-[#FFE4B9] dark:border-amber-800' };
                   if (/cutting|قص|تجهيز/i.test(prodSt)) {
-                    stageBadge = { label: 'قيد القص ✂️', color: 'bg-amber-50 text-amber-700 border-amber-200' };
+                    stageBadge = { label: 'قيد التحضير ⚙️', color: 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800' };
                   } else if (/sewing|خياطة|تجميع/i.test(prodSt)) {
-                    stageBadge = { label: 'قيد الخياطة 🪡', color: 'bg-pink-50 text-[#B0005A] border-pink-200' };
+                    stageBadge = { label: 'قيد التجميع 🛠️', color: 'bg-pink-50 dark:bg-pink-950/40 text-[#B0005A] dark:text-pink-300 border-pink-200 dark:border-pink-800' };
                   } else if (/embroidery|تطريز|شك/i.test(prodSt)) {
-                    stageBadge = { label: 'قيد التطريز 🧵', color: 'bg-purple-50 text-[#8F2A87] border-purple-200' };
+                    stageBadge = { label: 'تشطيب دقيق 💎', color: 'bg-purple-50 dark:bg-purple-950/40 text-[#8F2A87] dark:text-purple-300 border-purple-200 dark:border-purple-800' };
                   } else if (/quality|جودة|فحص/i.test(prodSt)) {
-                    stageBadge = { label: 'فحص الجودة 💎', color: 'bg-cyan-50 text-[#007F8C] border-cyan-200' };
+                    stageBadge = { label: 'فحص الجودة 🔍', color: 'bg-cyan-50 dark:bg-cyan-950/40 text-[#007F8C] dark:text-cyan-300 border-cyan-200 dark:border-cyan-800' };
                   } else if (/ready|جاهز/i.test(prodSt)) {
-                    stageBadge = { label: 'جاهز للتسليم 👗', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+                    stageBadge = { label: 'جاهز للتسليم 📦', color: 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800' };
                   }
 
                   return (
                     <tr 
                       key={i} 
                       onClick={() => setActiveTab && setActiveTab('orders')}
-                      className="hover:bg-[#FCE8F2]/30 transition-colors cursor-pointer group"
-                      title="انقر للانتقال إلى إدارة الطلبيات"
+                      className="hover:bg-[#FCE8F2]/30 dark:hover:bg-slate-800/50 transition-colors cursor-pointer group"
+                      title="انقر للانتقال إلى إدارة أوامر المبيعات والتشغيل"
                     >
-                      <td className="px-4 py-3 font-mono font-bold text-[#B0005A] group-hover:underline">{o.order_no}</td>
-                      <td className="px-4 py-3 font-semibold text-[#25232A]">{o.customer_name}</td>
-                      <td className="px-4 py-3 text-[#6F6B75] font-medium">{o.product_name || o.item_name || 'فستان سهرة وتطريز فاخر'}</td>
-                      <td className="px-4 py-3 text-[#6F6B75] font-mono">{o.delivery_date ? String(o.delivery_date).split('T')[0] : '—'}</td>
+                      <td className="px-4 py-3 font-mono font-bold text-[#B0005A] dark:text-pink-400 group-hover:underline">{o.order_no}</td>
+                      <td className="px-4 py-3 font-semibold text-[#25232A] dark:text-slate-100">{o.customer_name}</td>
+                      <td className="px-4 py-3 text-[#6F6B75] dark:text-slate-400 font-medium">{o.product_name || o.item_name || 'بند تصنيع وتشغيل قياسي'}</td>
+                      <td className="px-4 py-3 text-[#6F6B75] dark:text-slate-400 font-mono">{o.delivery_date ? String(o.delivery_date).split('T')[0] : '—'}</td>
                       <td className="px-4 py-3">
                         <span className={`${stageBadge.color} border px-2.5 py-0.5 rounded-full text-[10.5px] font-semibold inline-flex items-center gap-1`}>
                           {stageBadge.label}
@@ -1068,8 +1068,8 @@ function Dashboard({
                   );
                 }) : (
                   <tr>
-                    <td colSpan="5" className="p-8 text-center text-[#6F6B75] font-medium">
-                      جميع الطلبيات في مواعيدها ومكتملة بنجاح ✨
+                    <td colSpan="5" className="p-8 text-center text-[#6F6B75] dark:text-slate-400 font-medium">
+                      جميع أوامر التشغيل مجدولة ومكتملة بنجاح ✨
                     </td>
                   </tr>
                 )}
@@ -1081,24 +1081,24 @@ function Dashboard({
         {/* Quick Navigation Hubs */}
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           {[
-            { id: "orders", title: "المبيعات والطلبات", desc: "الفواتير والحجوزات", icon: "👗", color: "text-[#007F8C] bg-[#E2F5F7] border-[#C5ECF0]" },
-            { id: "factory", title: "المعمل والإنتاج", desc: "مراحل الخياطة والشك", icon: "🏭", color: "text-[#8F2A87] bg-[#F2E7F3] border-[#E5CEE7]" },
-            { id: "accounts", title: "الخزينة والحسابات", desc: "شجرة الحسابات والمالية", icon: "🏦", color: "text-[#009FAE] bg-[#E2F5F7] border-[#C5ECF0]" },
-            { id: "inventory", title: "مخزون الأقمشة", desc: "الخامات والمستودع", icon: "✂️", color: "text-amber-700 bg-amber-50 border-amber-200" },
-            { id: "customers", title: "العملاء و CRM", desc: "المقاسات وسجل العميلات", icon: "👥", color: "text-[#B0005A] bg-[#FCE8F2] border-[#F2A4CB]/50" },
-            { id: "reports", title: "التقارير المالية", desc: "قائمة الدخل والميزانية", icon: "📊", color: "text-[#F28A00] bg-[#FFF1DC] border-[#FFE4B9]" }
+            { id: "orders", title: "أوامر المبيعات", desc: "الفواتير والحجوزات", icon: "📑", color: "text-[#007F8C] bg-[#E2F5F7] dark:bg-cyan-950/40 border-[#C5ECF0] dark:border-cyan-800" },
+            { id: "factory", title: "خطوط التشغيل", desc: "مراحل الإنتاج والتصنيع", icon: "🏭", color: "text-[#8F2A87] bg-[#F2E7F3] dark:bg-purple-950/40 border-[#E5CEE7] dark:border-purple-800" },
+            { id: "accounts", title: "الخزينة والمالية", desc: "شجرة الحسابات والسيولة", icon: "🏦", color: "text-[#009FAE] bg-[#E2F5F7] dark:bg-teal-950/40 border-[#C5ECF0] dark:border-teal-800" },
+            { id: "inventory", title: "إدارة المخزون", desc: "المواد وسلاسل الإمداد", icon: "📦", color: "text-amber-700 bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800" },
+            { id: "customers", title: "العملاء و CRM", desc: "ملفات وسجلات العملاء", icon: "👥", color: "text-[#B0005A] bg-[#FCE8F2] dark:bg-pink-950/40 border-[#F2A4CB]/50 dark:border-pink-800" },
+            { id: "reports", title: "التقارير التنفيذية", desc: "قوائم الدخل والميزانية", icon: "📊", color: "text-[#F28A00] bg-[#FFF1DC] dark:bg-amber-950/40 border-[#FFE4B9] dark:border-amber-800" }
           ].map((c) => (
             <div 
               key={c.id} 
               onClick={() => setActiveTab(c.id)} 
-              className="cursor-pointer p-3.5 rounded-2xl border border-[#E8E5EA] bg-white shadow-2xs hover:border-[#B0005A]/40 hover:shadow-xs transition-all flex flex-col justify-center items-center text-center group"
+              className="cursor-pointer p-3.5 rounded-2xl border border-[#E8E5EA] dark:border-slate-800 bg-white dark:bg-[#0f172a] shadow-2xs hover:border-[#B0005A]/40 dark:hover:border-purple-500/50 hover:shadow-xs transition-all flex flex-col justify-center items-center text-center group"
               title={`انقر للانتقال إلى قسم ${c.title}`}
             >
               <div className={`w-10 h-10 rounded-xl mb-2 flex items-center justify-center border text-lg transition-all ${c.color} group-hover:scale-105`}>
                 {c.icon}
               </div>
-              <span className="font-bold text-xs text-[#25232A] mb-0.5 group-hover:text-[#B0005A] transition">{c.title}</span>
-              <span className="text-[10px] text-[#6F6B75]">{c.desc}</span>
+              <span className="font-bold text-xs text-[#25232A] dark:text-slate-100 mb-0.5 group-hover:text-[#B0005A] dark:group-hover:text-purple-300 transition">{c.title}</span>
+              <span className="text-[10px] text-[#6F6B75] dark:text-slate-400">{c.desc}</span>
             </div>
           ))}
         </div>
