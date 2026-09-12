@@ -56,7 +56,17 @@ function Dashboard({
   }, [orders, timeHorizon]);
 
   // Dynamic Chart of Accounts & Treasury calculation
-  const { cashBalance, bankBalance, totalTreasuryBalance } = useMemo(() => {
+  const { 
+    cashBalance = 0, 
+    bankBalance = 0, 
+    totalTreasuryBalance = 0,
+    baseCashBalance = 0,
+    baseBankBalance = 0,
+    baseTreasuryBalance = 0,
+    foreignTreasuryDetails = [],
+    totalAssetsBalance = 0,
+    inventoryBalance = 0
+  } = useMemo(() => {
     const jList = Array.isArray(journal) ? journal : [];
     const accList = Array.isArray(accounts) ? accounts : [];
 
