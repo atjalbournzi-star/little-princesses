@@ -321,7 +321,7 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
 
   // الفئات المعرفة للأصناف
   const posCategories = useMemo(() => {
-    const baseCats = ['الكل', 'فساتين سهرة', 'فساتين زفاف', 'فساتين كاجوال', 'زي مدرسي', 'تفصيل خاص'];
+    const baseCats = ['الكل', 'منتجات جاهزة', 'تفصيل مخصص', 'طلبات خاصة', 'إكسسوارات ومكملات'];
     const pCats = (products || []).map(p => p.category).filter(Boolean);
     return Array.from(new Set([...baseCats, ...pCats]));
   }, [products]);
@@ -506,39 +506,39 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
     }
   };
 
-  const inputCls = "w-full h-11 px-3.5 py-2.5 rounded-xl border border-[#E8E5EA] bg-white text-[#25232A] text-xs font-medium placeholder:text-[#6F6B75] focus:bg-white focus:border-[#B0005A] focus:ring-2 focus:ring-[#FCE8F2] transition-all outline-none";
-  const labelCls = "block text-xs font-semibold text-[#25232A] mb-1.5";
+  const inputCls = "w-full h-11 px-3.5 py-2.5 rounded-xl border border-[#E8E5EA] dark:border-slate-700 bg-white dark:bg-slate-900 text-[#25232A] dark:text-slate-100 text-xs font-medium placeholder:text-[#6F6B75] dark:placeholder:text-slate-500 focus:bg-white dark:focus:bg-slate-900 focus:border-[#B0005A] dark:focus:border-rose-500 focus:ring-2 focus:ring-[#FCE8F2] dark:focus:ring-rose-950 transition-all outline-none";
+  const labelCls = "block text-xs font-semibold text-[#25232A] dark:text-slate-200 mb-1.5";
 
   return (
     <div className="space-y-6 animate-fadeIn text-right" dir="rtl">
 
       {/* ── Studio Header & KPI Strip ── */}
-      <div className="bg-white rounded-2xl border border-[#E8E5EA] shadow-[0_2px_12px_rgba(0,0,0,0.02)] overflow-hidden">
-        <div className="p-6 border-b border-[#E8E5EA] flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-gradient-to-r from-white via-[#FAFAFB] to-white">
+      <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-[#E8E5EA] dark:border-slate-800 shadow-[0_2px_12px_rgba(0,0,0,0.02)] overflow-hidden">
+        <div className="p-6 border-b border-[#E8E5EA] dark:border-slate-800 flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-gradient-to-r from-white via-[#FAFAFB] to-white dark:from-[#0f172a] dark:via-[#131d31] dark:to-[#0f172a]">
           <div className="flex items-center gap-3.5">
-            <div className="w-12 h-12 rounded-2xl bg-[#FCE8F2] text-[#B0005A] border border-[#F2A4CB] flex items-center justify-center text-xl font-bold shadow-xs">
+            <div className="w-12 h-12 rounded-2xl bg-[#FCE8F2] dark:bg-rose-950/40 text-[#B0005A] dark:text-rose-300 border border-[#F2A4CB] dark:border-rose-900/50 flex items-center justify-center text-xl font-bold shadow-xs">
               <Icons.ShoppingBag className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-base md:text-lg font-bold text-[#25232A]">
+              <h1 className="text-base md:text-lg font-bold text-[#25232A] dark:text-slate-100">
                 استوديو المبيعات ونقاط البيع والكاشير السريع (Fashion POS & Sales Studio)
               </h1>
-              <p className="text-xs text-[#6F6B75] mt-0.5">
-                كاشير لمسي سريع، قارئ باركود، طباعة حرارية 80mm فورية، وأرشيف متكامل لطلبات وحجوزات الفساتين
+              <p className="text-xs text-[#6F6B75] dark:text-slate-400 mt-0.5">
+                كاشير لمسي سريع، قارئ باركود، طباعة حرارية 80mm فورية، وأرشيف متكامل لأوامر المبيعات والتوريد
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
             {/* Mode Switcher Buttons */}
-            <div className="flex items-center bg-[#FAFAFB] p-1 rounded-2xl border border-[#E8E5EA]">
+            <div className="flex items-center bg-[#FAFAFB] dark:bg-slate-800/80 p-1 rounded-2xl border border-[#E8E5EA] dark:border-slate-700">
               <button
                 type="button"
                 onClick={() => setActiveMode('pos')}
                 className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer ${
                   activeMode === 'pos'
                     ? 'bg-[#B0005A] text-white shadow-xs'
-                    : 'text-[#6F6B75] hover:text-[#25232A]'
+                    : 'text-[#6F6B75] dark:text-slate-400 hover:text-[#25232A] dark:hover:text-slate-100'
                 }`}
               >
                 <span>⚡ كاشير ونقاط البيع (POS)</span>
@@ -554,11 +554,11 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
                 className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer ${
                   activeMode === 'archive'
                     ? 'bg-[#B0005A] text-white shadow-xs'
-                    : 'text-[#6F6B75] hover:text-[#25232A]'
+                    : 'text-[#6F6B75] dark:text-slate-400 hover:text-[#25232A] dark:hover:text-slate-100'
                 }`}
               >
                 <span>📑 سجل الفواتير والأرشيف</span>
-                <span className="bg-[#E8E5EA] text-[#25232A] px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold">
+                <span className="bg-[#E8E5EA] dark:bg-slate-700 text-[#25232A] dark:text-slate-200 px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold">
                   {orders.length}
                 </span>
               </button>
@@ -566,7 +566,7 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
 
             {isEditing && (
               <button onClick={resetForm}
-                className="text-xs px-4 py-2 bg-white text-[#D64545] border border-rose-200 rounded-xl font-bold hover:bg-rose-50 transition cursor-pointer">
+                className="text-xs px-4 py-2 bg-white dark:bg-slate-800 text-[#D64545] border border-rose-200 dark:border-rose-900/50 rounded-xl font-bold hover:bg-rose-50 dark:hover:bg-rose-900/30 transition cursor-pointer">
                 إلغاء التعديل ✕
               </button>
             )}
@@ -574,29 +574,29 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
         </div>
 
         {/* KPI Strip */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 border-b border-[#E8E5EA] bg-[#FAFAFB] divide-x divide-x-reverse divide-[#E8E5EA]">
+        <div className="grid grid-cols-2 sm:grid-cols-4 border-b border-[#E8E5EA] dark:border-slate-800 bg-[#FAFAFB] dark:bg-slate-900/60 divide-x divide-x-reverse divide-[#E8E5EA] dark:divide-slate-800">
           <div className="p-4 text-center">
-            <span className="text-xs font-semibold text-[#6F6B75] block">إجمالي الطلبيات</span>
-            <span className="text-xl font-extrabold font-mono tabular-nums text-[#25232A] mt-1 block">
-              {orders.length.toLocaleString('en-US')} <span className="text-xs font-medium text-[#6F6B75]">طلب</span>
+            <span className="text-xs font-semibold text-[#6F6B75] dark:text-slate-400 block">إجمالي الطلبيات</span>
+            <span className="text-xl font-extrabold font-mono tabular-nums text-[#25232A] dark:text-slate-100 mt-1 block">
+              {orders.length.toLocaleString('en-US')} <span className="text-xs font-medium text-[#6F6B75] dark:text-slate-500">طلب</span>
             </span>
           </div>
           <div className="p-4 text-center">
-            <span className="text-xs font-semibold text-[#6F6B75] block">إجمالي المبيعات</span>
-            <span className="text-xl font-extrabold font-mono tabular-nums text-[#007F8C] mt-1 block">
-              {orders.reduce((acc, o) => acc + (parseFloat(o.total ?? o.total_amount) || 0), 0).toLocaleString("en-US")} <span className="text-xs font-medium text-[#6F6B75]">{currencyDisplay}</span>
+            <span className="text-xs font-semibold text-[#6F6B75] dark:text-slate-400 block">إجمالي المبيعات</span>
+            <span className="text-xl font-extrabold font-mono tabular-nums text-[#007F8C] dark:text-cyan-400 mt-1 block">
+              {orders.reduce((acc, o) => acc + (parseFloat(o.total ?? o.total_amount) || 0), 0).toLocaleString("en-US")} <span className="text-xs font-medium text-[#6F6B75] dark:text-slate-500">{currencyDisplay}</span>
             </span>
           </div>
           <div className="p-4 text-center">
-            <span className="text-xs font-semibold text-[#6F6B75] block">إجمالي المحصل</span>
-            <span className="text-xl font-extrabold font-mono tabular-nums text-[#B0005A] mt-1 block">
-              {orders.reduce((acc, o) => acc + (parseFloat(o.paid ?? o.paid_amount) || 0), 0).toLocaleString("en-US")} <span className="text-xs font-medium text-[#6F6B75]">{currencyDisplay}</span>
+            <span className="text-xs font-semibold text-[#6F6B75] dark:text-slate-400 block">إجمالي المحصل</span>
+            <span className="text-xl font-extrabold font-mono tabular-nums text-[#B0005A] dark:text-rose-400 mt-1 block">
+              {orders.reduce((acc, o) => acc + (parseFloat(o.paid ?? o.paid_amount) || 0), 0).toLocaleString("en-US")} <span className="text-xs font-medium text-[#6F6B75] dark:text-slate-500">{currencyDisplay}</span>
             </span>
           </div>
           <div className="p-4 text-center">
-            <span className="text-xs font-semibold text-[#6F6B75] block">المستحقات المتبقية</span>
-            <span className="text-xl font-extrabold font-mono tabular-nums text-[#F28A00] mt-1 block">
-              {orders.reduce((acc, o) => acc + Math.max(0, (parseFloat(o.total ?? o.total_amount) || 0) - (parseFloat(o.paid ?? o.paid_amount) || 0)), 0).toLocaleString("en-US")} <span className="text-xs font-medium text-[#6F6B75]">{currencyDisplay}</span>
+            <span className="text-xs font-semibold text-[#6F6B75] dark:text-slate-400 block">المستحقات المتبقية</span>
+            <span className="text-xl font-extrabold font-mono tabular-nums text-[#F28A00] dark:text-amber-400 mt-1 block">
+              {orders.reduce((acc, o) => acc + Math.max(0, (parseFloat(o.total ?? o.total_amount) || 0) - (parseFloat(o.paid ?? o.paid_amount) || 0)), 0).toLocaleString("en-US")} <span className="text-xs font-medium text-[#6F6B75] dark:text-slate-500">{currencyDisplay}</span>
             </span>
           </div>
         </div>
@@ -612,7 +612,7 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
           <div className="lg:col-span-7 space-y-4">
             
             {/* باركود + بحث سريع */}
-            <div className="bg-white rounded-2xl border border-[#E8E5EA] p-4 shadow-[0_2px_12px_rgba(0,0,0,0.02)] flex flex-col sm:flex-row items-center gap-3">
+            <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-[#E8E5EA] dark:border-slate-800 p-4 shadow-[0_2px_12px_rgba(0,0,0,0.02)] flex flex-col sm:flex-row items-center gap-3">
               {/* قارئ الباركود (Barcode Gun Input) */}
               <form onSubmit={handleBarcodeSubmit} className="relative flex-1 w-full">
                 <input
@@ -620,8 +620,8 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
                   type="text"
                   value={barcodeInput}
                   onChange={e => setBarcodeInput(e.target.value)}
-                  placeholder="امسحي بقارئ الباركود أو اكتبي رمز الصنف واضغطي Enter..."
-                  className="w-full h-11 pl-16 pr-10 py-2.5 rounded-xl border-2 border-dashed border-[#B0005A]/40 bg-[#FFF9FC] text-xs font-bold text-[#25232A] placeholder:text-[#6F6B75] focus:border-[#B0005A] focus:bg-white focus:ring-2 focus:ring-[#FCE8F2] outline-none transition-all"
+                  placeholder="امسح بقارئ الباركود أو اكتب رمز الصنف واضغط Enter..."
+                  className="w-full h-11 pl-16 pr-10 py-2.5 rounded-xl border-2 border-dashed border-[#B0005A]/40 bg-[#FFF9FC] dark:bg-slate-900 text-xs font-bold text-[#25232A] dark:text-slate-100 placeholder:text-[#6F6B75] dark:placeholder:text-slate-500 focus:border-[#B0005A] focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-[#FCE8F2] outline-none transition-all"
                 />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[#B0005A] text-base pointer-events-none">
                   🏷️
@@ -641,14 +641,14 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
                   type="text"
                   value={posSearch}
                   onChange={e => setPosSearch(e.target.value)}
-                  placeholder="بحث في الموديلات..."
-                  className="w-full h-11 pl-3 pr-9 py-2 rounded-xl border border-[#E8E5EA] bg-[#FAFAFB] text-xs font-medium focus:bg-white focus:border-[#B0005A] outline-none transition"
+                  placeholder="بحث في المنتجات..."
+                  className="w-full h-11 pl-3 pr-9 py-2 rounded-xl border border-[#E8E5EA] dark:border-slate-700 bg-[#FAFAFB] dark:bg-slate-900 text-xs font-medium text-[#25232A] dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:border-[#B0005A] outline-none transition"
                 />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6F6B75] text-xs pointer-events-none">
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6F6B75] dark:text-slate-400 text-xs pointer-events-none">
                   🔍
                 </span>
                 {posSearch && (
-                  <button type="button" onClick={() => setPosSearch('')} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#6F6B75] hover:text-[#25232A] text-xs">
+                  <button type="button" onClick={() => setPosSearch('')} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#6F6B75] dark:text-slate-400 hover:text-[#25232A] text-xs">
                     ✕
                   </button>
                 )}
@@ -671,12 +671,12 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
                     className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
                       isSelected
                         ? 'bg-[#B0005A] text-white shadow-xs'
-                        : 'bg-white text-[#6F6B75] hover:bg-[#FAFAFB] border border-[#E8E5EA]'
+                        : 'bg-white dark:bg-slate-800 text-[#6F6B75] dark:text-slate-300 hover:bg-[#FAFAFB] dark:hover:bg-slate-700 border border-[#E8E5EA] dark:border-slate-700'
                     }`}
                   >
                     <span>{cat}</span>
                     <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
-                      isSelected ? 'bg-white/20 text-white' : 'bg-[#FAFAFB] text-[#6F6B75]'
+                      isSelected ? 'bg-white/20 text-white' : 'bg-[#FAFAFB] dark:bg-slate-700 text-[#6F6B75] dark:text-slate-300'
                     }`}>
                       {count}
                     </span>
@@ -686,10 +686,10 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
             </div>
 
             {/* شبكة كروت المنتجات اللمسية (Touch Product Cards Grid) */}
-            <div className="bg-white rounded-2xl border border-[#E8E5EA] p-4 shadow-[0_2px_12px_rgba(0,0,0,0.02)] min-h-[460px]">
+            <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-[#E8E5EA] dark:border-slate-800 p-4 shadow-[0_2px_12px_rgba(0,0,0,0.02)] min-h-[460px]">
               {filteredProducts.length === 0 ? (
-                <div className="py-20 text-center text-[#6F6B75] space-y-2">
-                  <div className="text-4xl">👗</div>
+                <div className="py-20 text-center text-[#6F6B75] dark:text-slate-400 space-y-2">
+                  <div className="text-4xl">📦</div>
                   <p className="text-xs font-bold">لا توجد منتجات تطابق البحث أو التصنيف المحدد</p>
                 </div>
               ) : (
@@ -703,8 +703,8 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
                       <div
                         key={prodId || prod.name}
                         onClick={() => addToCart(prod)}
-                        className={`group relative bg-[#FAFAFB] hover:bg-white border rounded-2xl p-3 flex flex-col justify-between transition-all duration-200 cursor-pointer shadow-2xs hover:shadow-md hover:border-[#B0005A] select-none ${
-                          inCartItem ? 'border-[#B0005A] bg-[#FFF9FC]' : 'border-[#E8E5EA]'
+                        className={`group relative bg-[#FAFAFB] dark:bg-slate-900/70 hover:bg-white dark:hover:bg-slate-800 border rounded-2xl p-3 flex flex-col justify-between transition-all duration-200 cursor-pointer shadow-2xs hover:shadow-md hover:border-[#B0005A] select-none ${
+                          inCartItem ? 'border-[#B0005A] bg-[#FFF9FC] dark:bg-rose-950/20' : 'border-[#E8E5EA] dark:border-slate-800'
                         }`}
                       >
                         {/* شارة الكمية في السلة */}
@@ -715,30 +715,30 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
                         )}
 
                         <div className="space-y-2">
-                          <div className="w-full h-24 rounded-xl bg-gradient-to-tr from-[#FCE8F2] via-white to-[#F2E7F3] border border-[#F2A4CB]/30 flex items-center justify-center text-3xl group-hover:scale-102 transition-transform">
+                          <div className="w-full h-24 rounded-xl bg-gradient-to-tr from-[#FCE8F2] via-white to-[#F2E7F3] dark:from-slate-800 dark:via-slate-800/80 dark:to-slate-800 border border-[#F2A4CB]/30 dark:border-slate-700 flex items-center justify-center text-3xl group-hover:scale-102 transition-transform">
                             {prod.image_url ? (
                               <img src={prod.image_url} alt={prod.name} className="w-full h-full object-cover rounded-xl" />
                             ) : (
-                              <span>👗</span>
+                              <span>📦</span>
                             )}
                           </div>
 
                           <div>
-                            <div className="flex items-center justify-between text-[10px] text-[#6F6B75] mb-0.5">
+                            <div className="flex items-center justify-between text-[10px] text-[#6F6B75] dark:text-slate-400 mb-0.5">
                               <span className="font-mono">{prod.sku || `PROD-${prodId}`}</span>
-                              <span className="bg-white px-1.5 py-0.5 rounded-md border border-[#E8E5EA]">{prod.category || 'عام'}</span>
+                              <span className="bg-white dark:bg-slate-800 px-1.5 py-0.5 rounded-md border border-[#E8E5EA] dark:border-slate-700">{prod.category || 'عام'}</span>
                             </div>
-                            <h4 className="font-bold text-xs text-[#25232A] line-clamp-1 group-hover:text-[#B0005A] transition-colors">
+                            <h4 className="font-bold text-xs text-[#25232A] dark:text-slate-100 line-clamp-1 group-hover:text-[#B0005A] dark:group-hover:text-rose-400 transition-colors">
                               {prod.name || prod.model_name}
                             </h4>
                           </div>
                         </div>
 
-                        <div className="mt-3 pt-2 border-t border-[#E8E5EA] flex items-center justify-between">
-                          <span className="text-xs font-black font-mono text-[#007F8C]">
+                        <div className="mt-3 pt-2 border-t border-[#E8E5EA] dark:border-slate-800 flex items-center justify-between">
+                          <span className="text-xs font-black font-mono text-[#007F8C] dark:text-cyan-400">
                             {price.toLocaleString('en-US')} <span className="text-[10px] font-normal">{currencyDisplay}</span>
                           </span>
-                          <span className="w-6 h-6 rounded-lg bg-white border border-[#E8E5EA] group-hover:bg-[#B0005A] group-hover:text-white group-hover:border-[#B0005A] flex items-center justify-center text-xs font-bold transition-all shadow-2xs">
+                          <span className="w-6 h-6 rounded-lg bg-white dark:bg-slate-800 border border-[#E8E5EA] dark:border-slate-700 group-hover:bg-[#B0005A] group-hover:text-white group-hover:border-[#B0005A] flex items-center justify-center text-xs font-bold transition-all shadow-2xs">
                             +
                           </span>
                         </div>
@@ -753,15 +753,15 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
 
           {/* ── يسار: سلة المشتريات ولوحة المحاسبة والدفع (Col 5 / 12) ── */}
           <div className="lg:col-span-5 space-y-4">
-            <div className="bg-white rounded-2xl border border-[#E8E5EA] shadow-[0_2px_12px_rgba(0,0,0,0.02)] overflow-hidden">
+            <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-[#E8E5EA] dark:border-slate-800 shadow-[0_2px_12px_rgba(0,0,0,0.02)] overflow-hidden">
               
               {/* ترويسة السلة + اختيار العميل */}
-              <div className="p-4 border-b border-[#E8E5EA] bg-gradient-to-r from-white via-[#FAFAFB] to-white space-y-3">
+              <div className="p-4 border-b border-[#E8E5EA] dark:border-slate-800 bg-gradient-to-r from-white via-[#FAFAFB] to-white dark:from-[#0f172a] dark:via-[#131d31] dark:to-[#0f172a] space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="text-base">🛒</span>
-                    <h3 className="font-extrabold text-sm text-[#25232A]">سلة مشتريات الكاشير</h3>
-                    <span className="text-xs bg-[#FCE8F2] text-[#B0005A] font-bold px-2 py-0.5 rounded-full font-mono">
+                    <h3 className="font-extrabold text-sm text-[#25232A] dark:text-slate-100">سلة مشتريات الكاشير</h3>
+                    <span className="text-xs bg-[#FCE8F2] dark:bg-rose-950/50 text-[#B0005A] dark:text-rose-300 font-bold px-2 py-0.5 rounded-full font-mono">
                       {cart.reduce((s, i) => s + (i.qty || 1), 0)} صنف
                     </span>
                   </div>
@@ -769,7 +769,7 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
                     <button
                       type="button"
                       onClick={clearCart}
-                      className="text-[11px] text-[#D64545] hover:bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-200 font-bold transition cursor-pointer"
+                      className="text-[11px] text-[#D64545] dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 px-2.5 py-1 rounded-lg border border-rose-200 dark:border-rose-900/50 font-bold transition cursor-pointer"
                     >
                       إفراغ السلة 🗑️
                     </button>
@@ -779,11 +779,11 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
                 {/* اختيار العميل والطفلة */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                   <div>
-                    <label className="block text-[11px] font-bold text-[#6F6B75] mb-1">العميل / المشترية:</label>
+                    <label className="block text-[11px] font-bold text-[#6F6B75] dark:text-slate-400 mb-1">العميل / المشتري:</label>
                     <select
                       value={posCustomerName}
                       onChange={e => setPosCustomerName(e.target.value)}
-                      className="w-full h-9 px-2.5 rounded-xl border border-[#E8E5EA] bg-white text-xs font-semibold text-[#25232A] outline-none focus:border-[#B0005A]"
+                      className="w-full h-9 px-2.5 rounded-xl border border-[#E8E5EA] dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-semibold text-[#25232A] dark:text-slate-100 outline-none focus:border-[#B0005A]"
                     >
                       <option value="عميل عام / زائر صالة العرض">عميل عام / زائر صالة العرض</option>
                       {(customers || []).map(c => {
@@ -795,54 +795,54 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-bold text-[#6F6B75] mb-1">الأميرة (اختياري):</label>
+                    <label className="block text-[11px] font-bold text-[#6F6B75] dark:text-slate-400 mb-1">المستفيد / المواصفة (اختياري):</label>
                     <input
                       type="text"
                       value={posChildName}
                       onChange={e => setPosChildName(e.target.value)}
-                      placeholder="اسم الطفلة أو ملاحظات..."
-                      className="w-full h-9 px-2.5 rounded-xl border border-[#E8E5EA] bg-white text-xs font-semibold text-[#25232A] outline-none focus:border-[#B0005A]"
+                      placeholder="اسم المستفيد أو ملاحظات..."
+                      className="w-full h-9 px-2.5 rounded-xl border border-[#E8E5EA] dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-semibold text-[#25232A] dark:text-slate-100 outline-none focus:border-[#B0005A]"
                     />
                   </div>
                 </div>
               </div>
 
               {/* بنود السلة (Items List) */}
-              <div className="p-4 max-h-[300px] overflow-y-auto space-y-2 border-b border-[#E8E5EA] divide-y divide-[#E8E5EA]/60">
+              <div className="p-4 max-h-[300px] overflow-y-auto space-y-2 border-b border-[#E8E5EA] dark:border-slate-800 divide-y divide-[#E8E5EA]/60 dark:divide-slate-800">
                 {cart.length === 0 ? (
-                  <div className="py-12 text-center text-[#6F6B75] space-y-1">
+                  <div className="py-12 text-center text-[#6F6B75] dark:text-slate-400 space-y-1">
                     <div className="text-3xl">🛍️</div>
                     <p className="text-xs font-bold">السلة فارغة حالياً</p>
-                    <p className="text-[11px] text-[#6F6B75]">انقري على الموديلات باليمين أو امسحي الباركود للإضافة السريعة</p>
+                    <p className="text-[11px] text-[#6F6B75] dark:text-slate-400">انقر على الأصناف باليمين أو امسح الباركود للإضافة السريعة</p>
                   </div>
                 ) : (
                   cart.map((item, idx) => (
                     <div key={idx} className="pt-2.5 first:pt-0 flex items-center justify-between gap-2">
                       <div className="min-w-0 flex-1">
-                        <h5 className="font-bold text-xs text-[#25232A] truncate">{item.product_name}</h5>
-                        <div className="flex items-center gap-2 text-[10.5px] text-[#6F6B75] mt-0.5">
-                          <span className="font-mono text-[10px] text-[#8F2A87]">{item.sku}</span>
+                        <h5 className="font-bold text-xs text-[#25232A] dark:text-slate-100 truncate">{item.product_name}</h5>
+                        <div className="flex items-center gap-2 text-[10.5px] text-[#6F6B75] dark:text-slate-400 mt-0.5">
+                          <span className="font-mono text-[10px] text-[#8F2A87] dark:text-purple-300">{item.sku}</span>
                           <span>•</span>
-                          <span className="font-mono font-bold text-[#007F8C]">{(parseFloat(item.unit_price) || 0).toLocaleString('en-US')} {currencyDisplay}</span>
+                          <span className="font-mono font-bold text-[#007F8C] dark:text-cyan-400">{(parseFloat(item.unit_price) || 0).toLocaleString('en-US')} {currencyDisplay}</span>
                         </div>
                       </div>
 
                       {/* أزرار التحكم بالكمية */}
-                      <div className="flex items-center gap-1.5 bg-[#FAFAFB] border border-[#E8E5EA] p-1 rounded-xl">
+                      <div className="flex items-center gap-1.5 bg-[#FAFAFB] dark:bg-slate-900 border border-[#E8E5EA] dark:border-slate-700 p-1 rounded-xl">
                         <button
                           type="button"
                           onClick={() => updateCartQty(idx, -1)}
-                          className="w-6 h-6 rounded-lg bg-white border border-[#E8E5EA] hover:bg-rose-50 hover:text-[#D64545] font-bold text-xs flex items-center justify-center transition cursor-pointer"
+                          className="w-6 h-6 rounded-lg bg-white dark:bg-slate-800 border border-[#E8E5EA] dark:border-slate-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 hover:text-[#D64545] font-bold text-xs flex items-center justify-center transition cursor-pointer"
                         >
                           -
                         </button>
-                        <span className="w-7 text-center font-mono font-extrabold text-xs text-[#25232A]">
+                        <span className="w-7 text-center font-mono font-extrabold text-xs text-[#25232A] dark:text-slate-100">
                           {item.qty}
                         </span>
                         <button
                           type="button"
                           onClick={() => updateCartQty(idx, 1)}
-                          className="w-6 h-6 rounded-lg bg-white border border-[#E8E5EA] hover:bg-emerald-50 hover:text-emerald-700 font-bold text-xs flex items-center justify-center transition cursor-pointer"
+                          className="w-6 h-6 rounded-lg bg-white dark:bg-slate-800 border border-[#E8E5EA] dark:border-slate-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 hover:text-emerald-400 font-bold text-xs flex items-center justify-center transition cursor-pointer"
                         >
                           +
                         </button>
@@ -850,13 +850,13 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
 
                       {/* إجمالي الصنف وزر الحذف */}
                       <div className="text-left w-24 flex items-center justify-end gap-1.5">
-                        <span className="font-mono font-black text-xs text-[#25232A]">
+                        <span className="font-mono font-black text-xs text-[#25232A] dark:text-slate-100">
                           {((parseFloat(item.unit_price) || 0) * item.qty).toLocaleString('en-US')}
                         </span>
                         <button
                           type="button"
                           onClick={() => removeFromCart(idx)}
-                          className="text-[#6F6B75] hover:text-[#D64545] p-1 rounded-md transition cursor-pointer text-xs"
+                          className="text-[#6F6B75] dark:text-slate-400 hover:text-[#D64545] p-1 rounded-md transition cursor-pointer text-xs"
                           title="حذف"
                         >
                           ✕
@@ -868,14 +868,14 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
               </div>
 
               {/* ملخص الحسابات والخصم */}
-              <div className="p-4 bg-[#FAFAFB] border-b border-[#E8E5EA] space-y-2.5 text-xs">
-                <div className="flex justify-between text-[#6F6B75] font-semibold">
+              <div className="p-4 bg-[#FAFAFB] dark:bg-slate-900/60 border-b border-[#E8E5EA] dark:border-slate-800 space-y-2.5 text-xs">
+                <div className="flex justify-between text-[#6F6B75] dark:text-slate-400 font-semibold">
                   <span>المجموع الفرعي:</span>
-                  <span className="font-mono font-bold text-[#25232A]">{posSubtotal.toLocaleString('en-US')} {currencyDisplay}</span>
+                  <span className="font-mono font-bold text-[#25232A] dark:text-slate-100">{posSubtotal.toLocaleString('en-US')} {currencyDisplay}</span>
                 </div>
 
                 <div className="flex items-center justify-between gap-3">
-                  <span className="text-[#6F6B75] font-semibold">الخصم الممنوح:</span>
+                  <span className="text-[#6F6B75] dark:text-slate-400 font-semibold">الخصم الممنوح:</span>
                   <div className="flex items-center gap-1.5 w-32">
                     <input
                       type="number"
@@ -883,17 +883,17 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
                       step="0.01"
                       value={posDiscount}
                       onChange={e => setPosDiscount(e.target.value)}
-                      className="w-full h-8 px-2 rounded-lg border border-[#E8E5EA] bg-white text-xs font-mono font-bold text-center outline-none focus:border-[#B0005A]"
+                      className="w-full h-8 px-2 rounded-lg border border-[#E8E5EA] dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-mono font-bold text-center text-[#25232A] dark:text-slate-100 outline-none focus:border-[#B0005A]"
                       placeholder="0"
                     />
-                    <span className="text-[10px] text-[#6F6B75] shrink-0">{currencyDisplay.split(' ')[0]}</span>
+                    <span className="text-[10px] text-[#6F6B75] dark:text-slate-400 shrink-0">{currencyDisplay.split(' ')[0]}</span>
                   </div>
                 </div>
 
-                <div className="pt-2 border-t border-[#E8E5EA] flex justify-between items-center text-sm font-black">
-                  <span className="text-[#25232A]">الإجمالي الصافي:</span>
-                  <span className="font-mono text-base text-[#B0005A]">
-                    {posNetTotal.toLocaleString('en-US')} <span className="text-xs font-bold text-[#6F6B75]">{currencyDisplay}</span>
+                <div className="pt-2 border-t border-[#E8E5EA] dark:border-slate-800 flex justify-between items-center text-sm font-black">
+                  <span className="text-[#25232A] dark:text-slate-100">الإجمالي الصافي:</span>
+                  <span className="font-mono text-base text-[#B0005A] dark:text-rose-400">
+                    {posNetTotal.toLocaleString('en-US')} <span className="text-xs font-bold text-[#6F6B75] dark:text-slate-400">{currencyDisplay}</span>
                   </span>
                 </div>
               </div>
@@ -901,7 +901,7 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
               {/* طرق الدفع السريعة (Payment Tenders) */}
               <div className="p-4 space-y-3">
                 <div>
-                  <label className="block text-[11px] font-bold text-[#6F6B75] mb-1.5">طريقة الدفع:</label>
+                  <label className="block text-[11px] font-bold text-[#6F6B75] dark:text-slate-400 mb-1.5">طريقة الدفع:</label>
                   <div className="grid grid-cols-3 gap-2">
                     {[
                       { id: 'نقد (كاش)', label: '💵 نقد (كاش)' },
@@ -915,7 +915,7 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
                         className={`py-2 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
                           posPaymentMethod === tender.id
                             ? 'bg-[#B0005A] text-white border-[#B0005A] shadow-xs'
-                            : 'bg-white text-[#6F6B75] hover:bg-[#FAFAFB] border-[#E8E5EA]'
+                            : 'bg-white dark:bg-slate-800 text-[#6F6B75] dark:text-slate-300 hover:bg-[#FAFAFB] dark:hover:bg-slate-700 border-[#E8E5EA] dark:border-slate-700'
                         }`}
                       >
                         {tender.label}
@@ -925,16 +925,16 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
                 </div>
 
                 {/* حاسبة المبلغ المستلم والصرف (Cash Change Engine) */}
-                <div className="bg-[#FAFAFB] p-3 rounded-xl border border-[#E8E5EA] space-y-2">
+                <div className="bg-[#FAFAFB] dark:bg-slate-900/60 p-3 rounded-xl border border-[#E8E5EA] dark:border-slate-800 space-y-2">
                   <div className="flex items-center justify-between gap-3 text-xs">
-                    <span className="font-bold text-[#25232A]">المبلغ المستلم من العميل:</span>
+                    <span className="font-bold text-[#25232A] dark:text-slate-100">المبلغ المستلم من العميل:</span>
                     <input
                       type="number"
                       step="0.01"
                       value={posCashReceived}
                       onChange={e => setPosCashReceived(e.target.value)}
                       placeholder={posNetTotal > 0 ? posNetTotal.toString() : "0.00"}
-                      className="w-32 h-8 px-2 rounded-lg border border-[#E8E5EA] bg-white text-xs font-mono font-black text-center text-[#007F8C] outline-none focus:border-[#007F8C]"
+                      className="w-32 h-8 px-2 rounded-lg border border-[#E8E5EA] dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-mono font-black text-center text-[#007F8C] dark:text-cyan-400 outline-none focus:border-[#007F8C]"
                     />
                   </div>
 
@@ -943,7 +943,7 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
                     <button
                       type="button"
                       onClick={() => setPosCashReceived(posNetTotal.toString())}
-                      className="px-2 py-1 bg-white hover:bg-[#E2F5F7] text-[#007F8C] border border-[#C5ECF0] rounded-lg text-[10px] font-bold transition cursor-pointer"
+                      className="px-2 py-1 bg-white dark:bg-slate-800 hover:bg-[#E2F5F7] dark:hover:bg-cyan-950/40 text-[#007F8C] dark:text-cyan-300 border border-[#C5ECF0] dark:border-cyan-800/50 rounded-lg text-[10px] font-bold transition cursor-pointer"
                     >
                       مضبوط ✅
                     </button>
@@ -952,7 +952,7 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
                         key={amt}
                         type="button"
                         onClick={() => setPosCashReceived((posNetTotal + amt).toString())}
-                        className="px-2 py-1 bg-white hover:bg-[#F2E7F3] text-[#8F2A87] border border-[#E5CEE7] rounded-lg text-[10px] font-mono font-bold transition cursor-pointer"
+                        className="px-2 py-1 bg-white dark:bg-slate-800 hover:bg-[#F2E7F3] dark:hover:bg-purple-950/40 text-[#8F2A87] dark:text-purple-300 border border-[#E5CEE7] dark:border-slate-700 rounded-lg text-[10px] font-mono font-bold transition cursor-pointer"
                       >
                         +{amt}
                       </button>
@@ -963,10 +963,10 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
                   {posNetTotal > 0 && (
                     <div className={`p-2 rounded-lg text-xs font-bold flex justify-between items-center ${
                       posChangeDue > 0
-                        ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                        ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/50'
                         : (posDebtRemaining > 0
-                          ? 'bg-amber-50 text-amber-800 border border-amber-200'
-                          : 'bg-[#E2F5F7] text-[#007F8C] border border-[#C5ECF0]')
+                          ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800/50'
+                          : 'bg-[#E2F5F7] dark:bg-cyan-950/40 text-[#007F8C] dark:text-cyan-300 border border-[#C5ECF0] dark:border-cyan-800/50')
                     }`}>
                       <span>
                         {posChangeDue > 0 ? '💵 الصرف المستحق للعميل:' : (posDebtRemaining > 0 ? '⏳ المتبقي كدين على العميل:' : '✅ المبلغ مطابق تماماً')}
@@ -1010,26 +1010,26 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
         <div className="space-y-6 animate-fadeIn">
 
           {/* ── نموذج الإضافة / التعديل ── */}
-          <div className="bg-white rounded-2xl border border-[#E8E5EA] shadow-[0_2px_12px_rgba(0,0,0,0.02)] overflow-hidden">
-        <div className="px-6 py-4 border-b border-[#E8E5EA] flex items-center justify-between bg-gradient-to-r from-white via-[#FAFAFB] to-white">
-          <h2 className="text-sm font-bold text-[#25232A] flex items-center gap-2">
+          <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-[#E8E5EA] dark:border-slate-800 shadow-[0_2px_12px_rgba(0,0,0,0.02)] overflow-hidden">
+        <div className="px-6 py-4 border-b border-[#E8E5EA] dark:border-slate-800 flex items-center justify-between bg-gradient-to-r from-white via-[#FAFAFB] to-white dark:from-[#0f172a] dark:via-[#131d31] dark:to-[#0f172a]">
+          <h2 className="text-sm font-bold text-[#25232A] dark:text-slate-100 flex items-center gap-2">
             <span className="text-[#B0005A]">📄</span>
-            {isEditing ? "تعديل بيانات الفاتورة والطلب" : "حجز فستان / إصدار فاتورة جديدة"}
+            {isEditing ? "تعديل بيانات الفاتورة والطلب" : "إصدار أمر بيع / فاتورة جديدة"}
           </h2>
-          <span className="text-xs text-[#6F6B75]">
+          <span className="text-xs text-[#6F6B75] dark:text-slate-400">
             <span className="text-[#D64545] font-bold">*</span> الحقول الإلزامية
           </span>
         </div>
 
         <form onSubmit={handleSaveInvoice} className="p-6 space-y-5">
-          {/* العميلة + الطفلة + الموديل */}
+          {/* العميل + المستفيد + الموديل */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4.5">
             <div>
-              <label className={labelCls}>اختر العميلة من السجل <span className="text-[#D64545] font-bold">*</span></label>
+              <label className={labelCls}>اختر العميل من السجل <span className="text-[#D64545] font-bold">*</span></label>
               <select value={customerName}
                 onChange={e => { setCustomerName(e.target.value); setChildName(""); }}
                 className={inputCls}>
-                <option value="">-- اختر العميلة --</option>
+                <option value="">-- اختر العميل --</option>
                 {(customers || []).map(c => {
                   const n = getCustomerName(c);
                   if (!n) return null;
@@ -1043,11 +1043,11 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
             </div>
 
             <div>
-              <label className={labelCls}>اختر الطفلة (اختياري)</label>
+              <label className={labelCls}>اختر المستفيد / المواصفة (اختياري)</label>
               <select value={childName} onChange={e => setChildName(e.target.value)}
                 disabled={!availableChildren.length && !isEditing}
                 className={inputCls + " disabled:opacity-50"}>
-                <option value="">-- اختر الطفلة --</option>
+                <option value="">-- اختر المستفيد / المواصفة --</option>
                 {availableChildren.map(ch => (
                   <option key={ch.child_name} value={ch.child_name}>
                     {ch.child_name}{ch.estimated_age ? ` (${ch.estimated_age})` : ""}
@@ -1061,9 +1061,9 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
 
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="text-xs font-semibold text-[#25232A]">اختر الفستان / الموديل <span className="text-[#D64545] font-bold">*</span></label>
+                <label className="text-xs font-semibold text-[#25232A] dark:text-slate-200">اختر الصنف / الموديل <span className="text-[#D64545] font-bold">*</span></label>
                 <button type="button" onClick={async () => {
-                   if(!productName) return showToast('يرجى اختيار الفستان أولاً', 'error');
+                   if(!productName) return showToast('يرجى اختيار الصنف أولاً', 'error');
                    setLoadingQuote(true);
                    try {
                      const res = await fetch(`/api/pricing/quick-quote?model_name=${encodeURIComponent(productName)}`);
@@ -1076,12 +1076,12 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
                      showToast('تعذر جلب عرض السعر', 'error');
                    }
                    setLoadingQuote(false);
-                }} disabled={!productName || loadingQuote} className="text-[10px] bg-[#E2F5F7] text-[#007F8C] border border-[#C5ECF0] px-2 py-0.5 rounded-md hover:bg-[#C5ECF0] transition font-bold disabled:opacity-50 cursor-pointer">
+                }} disabled={!productName || loadingQuote} className="text-[10px] bg-[#E2F5F7] dark:bg-cyan-950/50 text-[#007F8C] dark:text-cyan-300 border border-[#C5ECF0] dark:border-cyan-800/50 px-2 py-0.5 rounded-md hover:bg-[#C5ECF0] transition font-bold disabled:opacity-50 cursor-pointer">
                    📋 عرض السعر
                 </button>
               </div>
               <select value={productName} onChange={e => setProductName(e.target.value)} className={inputCls}>
-                <option value="">-- اختر الفستان --</option>
+                <option value="">-- اختر الصنف / الموديل --</option>
                 {(products || []).map(p => (
                   <option key={p.id} value={p.name}>
                     {p.name} ({(parseFloat(p.sell_price) || 0).toLocaleString("en-US")} {currencyDisplay})
@@ -1122,11 +1122,11 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
             </div>
             <div>
               <label className={labelCls}>الإجمالي الكلي ({currencyDisplay})</label>
-              <input type="number" step="0.01" min="0" value={total} onChange={e => setTotal(e.target.value)} className={inputCls + " text-center font-mono font-bold text-[#25232A]"} placeholder="0.00" />
+              <input type="number" step="0.01" min="0" value={total} onChange={e => setTotal(e.target.value)} className={inputCls + " text-center font-mono font-bold"} placeholder="0.00" />
             </div>
             <div>
               <label className={labelCls}>المدفوع / العربون ({currencyDisplay})</label>
-              <input type="number" step="0.01" min="0" value={paid} onChange={e => setPaid(e.target.value)} className={inputCls + " text-center font-mono font-bold text-[#007F8C]"} placeholder="0.00" />
+              <input type="number" step="0.01" min="0" value={paid} onChange={e => setPaid(e.target.value)} className={inputCls + " text-center font-mono font-bold text-[#007F8C] dark:text-cyan-400"} placeholder="0.00" />
             </div>
           </div>
 
@@ -1134,8 +1134,8 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
           {(totalNum > 0 || paidNum > 0) && (
             <div className={`flex items-center justify-between px-5 py-3 rounded-xl font-bold text-xs border ${
               remainingNum === 0
-                ? "bg-[#E2F5F7] border-[#C5ECF0] text-[#007F8C]"
-                : "bg-[#FFF1DC] border-[#FFE4B9] text-[#C97300]"
+                ? "bg-[#E2F5F7] dark:bg-cyan-950/40 border-[#C5ECF0] dark:border-cyan-800/50 text-[#007F8C] dark:text-cyan-300"
+                : "bg-[#FFF1DC] dark:bg-amber-950/40 border-[#FFE4B9] dark:border-amber-800/50 text-[#C97300] dark:text-amber-300"
             }`}>
               <span>المبلغ المتبقي المحسوب لحظياً ⚡</span>
               <span className="font-mono text-sm">
@@ -1157,18 +1157,18 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
       </div>
 
       {/* ── جدول الطلبات ── */}
-      <div className="bg-white rounded-2xl border border-[#E8E5EA] shadow-[0_2px_12px_rgba(0,0,0,0.02)] overflow-hidden p-6 space-y-4">
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pb-3 border-b border-[#E8E5EA]">
+      <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-[#E8E5EA] dark:border-slate-800 shadow-[0_2px_12px_rgba(0,0,0,0.02)] overflow-hidden p-6 space-y-4">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pb-3 border-b border-[#E8E5EA] dark:border-slate-800">
           <div className="flex items-center gap-2.5 w-full sm:w-auto">
-            <h3 className="font-bold text-sm text-[#25232A]">سجل الطلبات والفواتير المعتمدة</h3>
-            <span className="text-xs bg-[#FCE8F2] text-[#B0005A] font-bold px-2.5 py-0.5 rounded-full font-mono">{filteredOrders.length}</span>
+            <h3 className="font-bold text-sm text-[#25232A] dark:text-slate-100">سجل الطلبات والفواتير المعتمدة</h3>
+            <span className="text-xs bg-[#FCE8F2] dark:bg-rose-950/50 text-[#B0005A] dark:text-rose-300 font-bold px-2.5 py-0.5 rounded-full font-mono">{filteredOrders.length}</span>
           </div>
 
           <div className="flex items-center gap-3 w-full sm:w-auto">
             <select
               value={statusFilter}
               onChange={e => setStatusFilter(e.target.value)}
-              className="h-10 px-3 rounded-xl border border-[#E8E5EA] bg-[#FAFAFB] text-xs font-semibold text-[#25232A] outline-none"
+              className="h-10 px-3 rounded-xl border border-[#E8E5EA] dark:border-slate-700 bg-[#FAFAFB] dark:bg-slate-900 text-xs font-semibold text-[#25232A] dark:text-slate-100 outline-none"
             >
               <option value="الكل">جميع الحالات</option>
               <option value="قيد القص ✂️">قيد القص ✂️</option>
@@ -1183,29 +1183,29 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
               <input
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                className="pl-3 pr-8 h-10 rounded-xl border border-[#E8E5EA] bg-[#FAFAFB] text-xs font-medium w-full focus:bg-white focus:border-[#B0005A] outline-none"
-                placeholder="بحث برقم الطلب، العميلة، أو الموديل..."
+                className="pl-3 pr-8 h-10 rounded-xl border border-[#E8E5EA] dark:border-slate-700 bg-[#FAFAFB] dark:bg-slate-900 text-xs font-medium text-[#25232A] dark:text-slate-100 w-full focus:bg-white dark:focus:bg-slate-800 focus:border-[#B0005A] outline-none"
+                placeholder="بحث برقم الطلب، العميل، أو الموديل..."
               />
-              <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#6F6B75] text-xs pointer-events-none">🔍</span>
+              <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#6F6B75] dark:text-slate-400 text-xs pointer-events-none">🔍</span>
             </div>
           </div>
         </div>
 
-        <div className="overflow-x-auto rounded-xl border border-[#E8E5EA]">
+        <div className="overflow-x-auto rounded-xl border border-[#E8E5EA] dark:border-slate-800 shadow-xs">
           {filteredOrders.length === 0 ? (
-            <div className="text-center py-12 text-[#6F6B75] text-xs font-medium">
+            <div className="text-center py-12 text-[#6F6B75] dark:text-slate-400 text-xs font-medium">
               لا توجد طلبات تطابق البحث 📄
             </div>
           ) : (
             <table className="w-full text-xs">
               <thead>
-                <tr className="bg-[#FAFAFB] text-[#6F6B75] font-semibold border-b border-[#E8E5EA]">
-                  {['رقم الطلب','العميلة','اسم الطفلة','الفستان','الإجمالي','المتبقي','تاريخ التسليم','الحالة','الإجراءات'].map(h => (
+                <tr className="bg-[#FAFAFB] dark:bg-slate-900/80 text-[#6F6B75] dark:text-slate-400 font-semibold border-b border-[#E8E5EA] dark:border-slate-800">
+                  {['رقم الطلب','العميل','المستفيد / المواصفة','الصنف / الموديل','الإجمالي','المتبقي','تاريخ التسليم','الحالة','الإجراءات'].map(h => (
                     <th key={h} className="px-4 py-3 text-right whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#E8E5EA] bg-white">
+              <tbody className="divide-y divide-[#E8E5EA] dark:divide-slate-800/70 bg-white dark:bg-[#0f172a]">
                 {filteredOrders.map(o => {
                   const cust = (customers || []).find(c => getCustomerName(c) === o.customer_name);
                   const dispChild = (o.child_name && String(o.child_name).trim()) ? o.child_name : (cust?.measurements?.[0]?.child_name || "—");
@@ -1213,29 +1213,29 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
                   const rem = Math.max(0, (parseFloat(o.total ?? o.total_amount) || 0) - (parseFloat(o.paid ?? o.paid_amount) || 0));
 
                   return (
-                  <tr key={o.id} className="hover:bg-[#FAFAFB] transition-colors">
-                    <td className="px-4 py-3 font-mono text-[11.5px] text-[#B0005A] font-bold whitespace-nowrap">{o.order_no}</td>
-                    <td className="px-4 py-3 font-bold text-[#25232A] whitespace-nowrap">{o.customer_name || "—"}</td>
-                    <td className="px-4 py-3 font-semibold text-[#8F2A87] whitespace-nowrap">{dispChild}</td>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      <span>{o.product_name}</span> <span className="text-[#6F6B75] text-[11px] font-mono">×{o.qty ?? o.quantity ?? 1}</span>
+                  <tr key={o.id} className="hover:bg-[#FAFAFB] dark:hover:bg-slate-800/60 transition-colors">
+                    <td className="px-4 py-3 font-mono text-[11.5px] text-[#B0005A] dark:text-rose-400 font-bold whitespace-nowrap">{o.order_no}</td>
+                    <td className="px-4 py-3 font-bold text-[#25232A] dark:text-slate-100 whitespace-nowrap">{o.customer_name || "—"}</td>
+                    <td className="px-4 py-3 font-semibold text-[#8F2A87] dark:text-purple-300 whitespace-nowrap">{dispChild}</td>
+                    <td className="px-4 py-3 whitespace-nowrap text-[#25232A] dark:text-slate-100">
+                      <span>{o.product_name}</span> <span className="text-[#6F6B75] dark:text-slate-400 text-[11px] font-mono">×{o.qty ?? o.quantity ?? 1}</span>
                     </td>
-                    <td className="px-4 py-3 font-mono font-bold text-[#25232A] whitespace-nowrap">
+                    <td className="px-4 py-3 font-mono font-bold text-[#25232A] dark:text-slate-100 whitespace-nowrap">
                       {(parseFloat(o.total ?? o.total_amount) || 0).toLocaleString("en-US")} {currencyDisplay}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
                       {rem === 0 ? (
-                        <span className="text-[#007F8C] bg-[#E2F5F7] border border-[#C5ECF0] px-2 py-0.5 rounded-md font-bold text-[10.5px]">مسدد ✅</span>
+                        <span className="text-[#007F8C] dark:text-cyan-300 bg-[#E2F5F7] dark:bg-cyan-950/50 border border-[#C5ECF0] dark:border-cyan-800/50 px-2 py-0.5 rounded-md font-bold text-[10.5px]">مسدد ✅</span>
                       ) : (
-                        <span className="text-[#C97300] bg-[#FFF1DC] border border-[#FFE4B9] px-2 py-0.5 rounded-md font-bold font-mono text-[10.5px]">{rem.toLocaleString("en-US")} {currencyDisplay}</span>
+                        <span className="text-[#C97300] dark:text-amber-300 bg-[#FFF1DC] dark:bg-amber-950/40 border border-[#FFE4B9] dark:border-amber-800/50 px-2 py-0.5 rounded-md font-bold font-mono text-[10.5px]">{rem.toLocaleString("en-US")} {currencyDisplay}</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 font-mono text-[#6F6B75] whitespace-nowrap">{dispDate}</td>
+                    <td className="px-4 py-3 font-mono text-[#6F6B75] dark:text-slate-400 whitespace-nowrap">{dispDate}</td>
                     <td className="px-4 py-3 whitespace-nowrap">
                       <select
                         value={o.status || "قيد الخياطة 🪡"}
                         onChange={e => handleUpdateStatus(o.id, e.target.value)}
-                        className="bg-[#FAFAFB] border border-[#E8E5EA] text-[#25232A] px-2 py-1 rounded-lg font-bold outline-none cursor-pointer text-[11px]">
+                        className="bg-[#FAFAFB] dark:bg-slate-800 border border-[#E8E5EA] dark:border-slate-700 text-[#25232A] dark:text-slate-100 px-2 py-1 rounded-lg font-bold outline-none cursor-pointer text-[11px]">
                         <option value="قيد القص ✂️">قيد القص ✂️</option>
                         <option value="قيد الخياطة 🪡">قيد الخياطة 🪡</option>
                         <option value="التطريز والشك ✨">التطريز والشك ✨</option>
@@ -1245,22 +1245,22 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
                       </select>
                     </td>
                     <td className="px-4 py-3 flex items-center gap-1 justify-center whitespace-nowrap">
-                      <button onClick={() => sendWhatsAppInvoice(o)} title="إرسال واتساب" className="w-7 h-7 rounded-lg bg-white hover:bg-[#E2F5F7] text-[#6F6B75] hover:text-[#007F8C] border border-[#E8E5EA] transition-all flex items-center justify-center cursor-pointer">
+                      <button onClick={() => sendWhatsAppInvoice(o)} title="إرسال واتساب" className="w-7 h-7 rounded-lg bg-white dark:bg-slate-800 hover:bg-[#E2F5F7] dark:hover:bg-slate-700 text-[#6F6B75] dark:text-slate-300 hover:text-[#007F8C] dark:hover:text-cyan-300 border border-[#E8E5EA] dark:border-slate-700 transition-all flex items-center justify-center cursor-pointer">
                         <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 00-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
                       </button>
-                      <button onClick={() => openPrintModal(o, 'thermal')} title="طباعة الفاتورة الحرارية 80mm" className="w-7 h-7 rounded-lg bg-white hover:bg-[#FCE8F2] text-[#6F6B75] hover:text-[#B0005A] border border-[#E8E5EA] transition-all flex items-center justify-center cursor-pointer text-xs font-bold">
+                      <button onClick={() => openPrintModal(o, 'thermal')} title="طباعة الفاتورة الحرارية 80mm" className="w-7 h-7 rounded-lg bg-white dark:bg-slate-800 hover:bg-[#FCE8F2] dark:hover:bg-slate-700 text-[#6F6B75] dark:text-slate-300 hover:text-[#B0005A] dark:hover:text-rose-300 border border-[#E8E5EA] dark:border-slate-700 transition-all flex items-center justify-center cursor-pointer text-xs font-bold">
                         🧾
                       </button>
-                      <button onClick={() => openPrintModal(o, 'job_ticket')} title="طباعة أمر العمل للورشة" className="w-7 h-7 rounded-lg bg-white hover:bg-[#F2E7F3] text-[#6F6B75] hover:text-[#8F2A87] border border-[#E8E5EA] transition-all flex items-center justify-center cursor-pointer text-xs font-bold">
+                      <button onClick={() => openPrintModal(o, 'job_ticket')} title="طباعة أمر العمل للورشة" className="w-7 h-7 rounded-lg bg-white dark:bg-slate-800 hover:bg-[#F2E7F3] dark:hover:bg-slate-700 text-[#6F6B75] dark:text-slate-300 hover:text-[#8F2A87] dark:hover:text-purple-300 border border-[#E8E5EA] dark:border-slate-700 transition-all flex items-center justify-center cursor-pointer text-xs font-bold">
                         🧵
                       </button>
-                      <button onClick={() => openPrintModal(o, 'hangtag')} title="طباعة ملصق وباركود الفستان" className="w-7 h-7 rounded-lg bg-white hover:bg-[#E2F5F7] text-[#6F6B75] hover:text-[#007F8C] border border-[#E8E5EA] transition-all flex items-center justify-center cursor-pointer text-xs font-bold">
+                      <button onClick={() => openPrintModal(o, 'hangtag')} title="طباعة ملصق وباركود الصنف" className="w-7 h-7 rounded-lg bg-white dark:bg-slate-800 hover:bg-[#E2F5F7] dark:hover:bg-slate-700 text-[#6F6B75] dark:text-slate-300 hover:text-[#007F8C] dark:hover:text-cyan-300 border border-[#E8E5EA] dark:border-slate-700 transition-all flex items-center justify-center cursor-pointer text-xs font-bold">
                         🏷️
                       </button>
-                      <button onClick={() => handleEdit(o)} title="تعديل" className="w-7 h-7 rounded-lg bg-white hover:bg-slate-100 text-[#6F6B75] hover:text-[#25232A] border border-[#E8E5EA] transition-all flex items-center justify-center cursor-pointer text-xs">
+                      <button onClick={() => handleEdit(o)} title="تعديل" className="w-7 h-7 rounded-lg bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-[#6F6B75] dark:text-slate-300 hover:text-[#25232A] dark:hover:text-slate-100 border border-[#E8E5EA] dark:border-slate-700 transition-all flex items-center justify-center cursor-pointer text-xs">
                         ✏️
                       </button>
-                      <button onClick={() => handleDelete(o.id)} title="حذف" className="w-7 h-7 rounded-lg bg-white hover:bg-rose-50 text-[#6F6B75] hover:text-[#D64545] border border-[#E8E5EA] transition-all flex items-center justify-center cursor-pointer text-xs">
+                      <button onClick={() => handleDelete(o.id)} title="حذف" className="w-7 h-7 rounded-lg bg-white dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-[#6F6B75] dark:text-slate-300 hover:text-[#D64545] dark:hover:text-rose-400 border border-[#E8E5EA] dark:border-slate-700 transition-all flex items-center justify-center cursor-pointer text-xs">
                         🗑️
                       </button>
                     </td>
@@ -1277,19 +1277,19 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
 
       {/* Quick Quote Modal */}
       {showQuoteModal && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-fadeIn" onClick={() => setShowQuoteModal(false)}>
-          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden border border-[#E8E5EA] flex flex-col" onClick={e => e.stopPropagation()}>
-            <div className="bg-[#FAFAFB] px-5 py-4 border-b border-[#E8E5EA] flex justify-between items-center">
-              <h3 className="font-bold text-[#25232A] text-sm flex items-center gap-2">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-fadeIn" onClick={() => setShowQuoteModal(false)}>
+          <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden border border-[#E8E5EA] dark:border-slate-800 flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="bg-[#FAFAFB] dark:bg-slate-800/80 px-5 py-4 border-b border-[#E8E5EA] dark:border-slate-800 flex justify-between items-center">
+              <h3 className="font-bold text-[#25232A] dark:text-slate-100 text-sm flex items-center gap-2">
                 📋 عرض السعر الجاهز للمراسلة
               </h3>
-              <button onClick={() => setShowQuoteModal(false)} className="text-[#6F6B75] hover:text-[#25232A]">✕</button>
+              <button onClick={() => setShowQuoteModal(false)} className="text-[#6F6B75] dark:text-slate-400 hover:text-[#25232A] dark:hover:text-slate-100">✕</button>
             </div>
             <div className="p-5 space-y-4">
               <textarea 
                 readOnly 
                 value={quoteText} 
-                className="w-full h-44 p-3.5 rounded-xl border border-[#E8E5EA] bg-[#FAFAFB] text-xs font-mono text-[#25232A] outline-none resize-none"
+                className="w-full h-44 p-3.5 rounded-xl border border-[#E8E5EA] dark:border-slate-700 bg-[#FAFAFB] dark:bg-slate-800 text-xs font-mono text-[#25232A] dark:text-slate-100 outline-none resize-none"
               ></textarea>
               <button 
                 onClick={() => {

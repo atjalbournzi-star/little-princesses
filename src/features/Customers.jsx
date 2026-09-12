@@ -499,10 +499,10 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
   }, [customers, search]);
 
   const catColor = (cat) => ({
-    'جديد': 'bg-[#E2F5F7] text-[#007F8C] border-[#C5ECF0]',
-    'دائم': 'bg-[#F2E7F3] text-[#8F2A87] border-[#E5CEE7] font-bold',
-    'VIP':  'bg-[#FCE8F2] text-[#B0005A] border-[#F2A4CB] font-black shadow-2xs'
-  }[cat] || 'bg-[#FAFAFB] text-[#25232A] border-[#E8E5EA]');
+    'جديد': 'bg-[#E2F5F7] dark:bg-cyan-950/40 text-[#007F8C] dark:text-cyan-300 border-[#C5ECF0] dark:border-cyan-800/50',
+    'دائم': 'bg-[#F2E7F3] dark:bg-purple-950/40 text-[#8F2A87] dark:text-purple-300 border-[#E5CEE7] dark:border-purple-800/50 font-bold',
+    'VIP':  'bg-[#FCE8F2] dark:bg-rose-950/40 text-[#B0005A] dark:text-rose-300 border-[#F2A4CB] dark:border-rose-800/50 font-black shadow-2xs'
+  }[cat] || 'bg-[#FAFAFB] dark:bg-slate-800 text-[#25232A] dark:text-slate-200 border-[#E8E5EA] dark:border-slate-700');
 
   const formatCleanDate = (d) => {
     if (!d) return '—';
@@ -513,8 +513,8 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
     return d;
   };
 
-  const inputCls = "w-full h-11 px-3.5 py-2.5 rounded-xl border border-[#E8E5EA] bg-white text-[#25232A] text-xs font-medium placeholder:text-[#6F6B75] focus:bg-white focus:border-[#B0005A] focus:ring-2 focus:ring-[#FCE8F2] transition-all outline-none";
-  const labelCls = "block text-xs font-semibold text-[#25232A] mb-1.5";
+  const inputCls = "w-full h-11 px-3.5 py-2.5 rounded-xl border border-[#E8E5EA] dark:border-slate-700 bg-white dark:bg-slate-900 text-[#25232A] dark:text-slate-100 text-xs font-medium placeholder:text-[#6F6B75] dark:placeholder:text-slate-500 focus:bg-white dark:focus:bg-slate-900 focus:border-[#B0005A] dark:focus:border-rose-500 focus:ring-2 focus:ring-[#FCE8F2] dark:focus:ring-rose-950 transition-all outline-none";
+  const labelCls = "block text-xs font-semibold text-[#25232A] dark:text-slate-200 mb-1.5";
 
   const currM = measurements[activeChildIdx] || measurements[0] || emptyMeasurement();
 
@@ -524,27 +524,27 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
       {/* ══════════════════════════════════════════
           Customer Profile Master Card
           ══════════════════════════════════════════ */}
-      <div className="bg-white rounded-2xl border border-[#E8E5EA] shadow-[0_2px_12px_rgba(0,0,0,0.02)] overflow-hidden">
+      <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-[#E8E5EA] dark:border-slate-800 shadow-[0_2px_12px_rgba(0,0,0,0.02)] overflow-hidden">
         
         {/* Profile Header with Avatar, ID & Quick Actions */}
-        <div className="p-6 border-b border-[#E8E5EA] flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-white via-[#FAFAFB] to-white">
+        <div className="p-6 border-b border-[#E8E5EA] dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-white via-[#FAFAFB] to-white dark:from-[#0f172a] dark:via-[#131d31] dark:to-[#0f172a]">
           <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-[#FCE8F2] text-[#B0005A] border border-[#F2A4CB]/50 flex items-center justify-center text-xl font-bold shadow-xs shrink-0">
-              {name.trim() ? name.trim()[0] : '👸'}
+            <div className="w-14 h-14 rounded-2xl bg-[#FCE8F2] dark:bg-rose-950/40 text-[#B0005A] dark:text-rose-300 border border-[#F2A4CB]/50 dark:border-rose-900/50 flex items-center justify-center text-xl font-bold shadow-xs shrink-0">
+              {name.trim() ? name.trim()[0] : '👤'}
             </div>
             <div>
               <div className="flex items-center gap-2.5 flex-wrap">
-                <h1 className="text-base md:text-lg font-bold text-[#25232A]">
-                  {name.trim() || 'ملف عميلة جديدة'}
+                <h1 className="text-base md:text-lg font-bold text-[#25232A] dark:text-slate-100">
+                  {name.trim() || 'ملف عميل جديد'}
                 </h1>
-                <span className="text-xs bg-[#FFF1DC] text-[#C97300] border border-[#FFE4B9] rounded-lg px-2.5 py-0.5 font-mono font-bold">
+                <span className="text-xs bg-[#FFF1DC] dark:bg-amber-950/50 text-[#C97300] dark:text-amber-400 border border-[#FFE4B9] dark:border-amber-800/50 rounded-lg px-2.5 py-0.5 font-mono font-bold">
                   {custId}
                 </span>
                 <span className={`text-[11px] px-2.5 py-0.5 rounded-md border font-semibold ${catColor(category)}`}>
                   {category}
                 </span>
               </div>
-              <p className="text-xs text-[#6F6B75] mt-0.5 flex items-center gap-2">
+              <p className="text-xs text-[#6F6B75] dark:text-slate-400 mt-0.5 flex items-center gap-2 flex-wrap">
                 <span>{platform}</span>
                 <span>•</span>
                 <span>{phone || 'لم يُحدد رقم الهاتف بعد'}</span>
@@ -562,10 +562,10 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
             <button
               type="button"
               onClick={addChildCard}
-              className="h-10 px-4 bg-[#F2E7F3] hover:bg-[#E5CEE7] text-[#8F2A87] font-bold text-xs rounded-xl border border-[#E5CEE7] transition-all flex items-center gap-1.5 cursor-pointer"
+              className="h-10 px-4 bg-[#F2E7F3] dark:bg-purple-950/40 hover:bg-[#E5CEE7] dark:hover:bg-purple-900/50 text-[#8F2A87] dark:text-purple-300 font-bold text-xs rounded-xl border border-[#E5CEE7] dark:border-purple-800/50 transition-all flex items-center gap-1.5 cursor-pointer"
             >
               <Icons.Plus className="w-4 h-4" />
-              <span>إضافة طفلة ({measurements.length})</span>
+              <span>إضافة بطاقة مواصفات ({measurements.length})</span>
             </button>
 
             <button
@@ -579,46 +579,46 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
               ) : (
                 <Icons.Check className="w-4 h-4" />
               )}
-              <span>حفظ وتوثيق العميلة</span>
+              <span>حفظ وتوثيق العميل</span>
             </button>
           </div>
         </div>
 
         {/* ── KPI Financial & Operational Metric Strip ── */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 border-b border-[#E8E5EA] bg-[#FAFAFB] divide-x divide-x-reverse divide-[#E8E5EA]">
+        <div className="grid grid-cols-2 sm:grid-cols-4 border-b border-[#E8E5EA] dark:border-slate-800 bg-[#FAFAFB] dark:bg-slate-900/60 divide-x divide-x-reverse divide-[#E8E5EA] dark:divide-slate-800">
           <div className="p-4 text-center">
-            <span className="text-xs font-semibold text-[#6F6B75] block">إجمالي المبيعات</span>
-            <span className="text-xl font-extrabold font-mono tabular-nums text-[#25232A] mt-1 block">
-              {Number(totalSales || 0).toLocaleString('en-US')} <span className="text-xs font-medium text-[#6F6B75]">{currency.display}</span>
+            <span className="text-xs font-semibold text-[#6F6B75] dark:text-slate-400 block">إجمالي المبيعات</span>
+            <span className="text-xl font-extrabold font-mono tabular-nums text-[#25232A] dark:text-slate-100 mt-1 block">
+              {Number(totalSales || 0).toLocaleString('en-US')} <span className="text-xs font-medium text-[#6F6B75] dark:text-slate-500">{currency.display}</span>
             </span>
           </div>
           <div className="p-4 text-center">
-            <span className="text-xs font-semibold text-[#6F6B75] block">العربون / المدفوع</span>
-            <span className="text-xl font-extrabold font-mono tabular-nums text-[#007F8C] mt-1 block">
-              {Number(deposit || totalPaid || 0).toLocaleString('en-US')} <span className="text-xs font-medium text-[#6F6B75]">{currency.display}</span>
+            <span className="text-xs font-semibold text-[#6F6B75] dark:text-slate-400 block">العربون / المدفوع</span>
+            <span className="text-xl font-extrabold font-mono tabular-nums text-[#007F8C] dark:text-cyan-400 mt-1 block">
+              {Number(deposit || totalPaid || 0).toLocaleString('en-US')} <span className="text-xs font-medium text-[#6F6B75] dark:text-slate-500">{currency.display}</span>
             </span>
           </div>
           <div className="p-4 text-center">
-            <span className="text-xs font-semibold text-[#6F6B75] block">المبلغ المتبقي</span>
-            <span className={`text-xl font-extrabold font-mono tabular-nums mt-1 block ${parseFloat(remaining) > 0 ? 'text-[#F28A00]' : 'text-[#007F8C]'}`}>
-              {Number(remaining || 0).toLocaleString('en-US')} <span className="text-xs font-medium text-[#6F6B75]">{currency.display}</span>
+            <span className="text-xs font-semibold text-[#6F6B75] dark:text-slate-400 block">المبلغ المتبقي</span>
+            <span className={`text-xl font-extrabold font-mono tabular-nums mt-1 block ${parseFloat(remaining) > 0 ? 'text-[#F28A00] dark:text-amber-400' : 'text-[#007F8C] dark:text-cyan-400'}`}>
+              {Number(remaining || 0).toLocaleString('en-US')} <span className="text-xs font-medium text-[#6F6B75] dark:text-slate-500">{currency.display}</span>
             </span>
           </div>
           <div className="p-4 text-center">
-            <span className="text-xs font-semibold text-[#6F6B75] block">عدد الأطفال والفساتين</span>
-            <span className="text-xl font-extrabold font-mono tabular-nums text-[#8F2A87] mt-1 block">
-              {measurements.length} <span className="text-xs font-medium text-[#6F6B75]">{measurements.length === 1 ? 'فستان' : (measurements.length === 2 ? 'فستانان' : 'فساتين')}</span>
+            <span className="text-xs font-semibold text-[#6F6B75] dark:text-slate-400 block">سجلات المواصفات والطلبات</span>
+            <span className="text-xl font-extrabold font-mono tabular-nums text-[#8F2A87] dark:text-purple-400 mt-1 block">
+              {measurements.length} <span className="text-xs font-medium text-[#6F6B75] dark:text-slate-500">{measurements.length === 1 ? 'سجل' : (measurements.length === 2 ? 'سجلان' : 'سجلات')}</span>
             </span>
           </div>
         </div>
 
         {/* ── Tabs Navigation Bar ── */}
-        <div className="px-6 border-b border-[#E8E5EA] flex items-center gap-2 overflow-x-auto no-scrollbar bg-white">
+        <div className="px-6 border-b border-[#E8E5EA] dark:border-slate-800 flex items-center gap-2 overflow-x-auto no-scrollbar bg-white dark:bg-[#0f172a]">
           {[
             { id: 'crm', label: 'الملف وبيانات التواصل', icon: Icons.Users },
-            { id: 'measurements', label: `سجل المقاسات وبطاقات الأطفال (${measurements.length})`, icon: Icons.Scissors },
+            { id: 'measurements', label: `سجل المواصفات والقياسات (${measurements.length})`, icon: Icons.Scissors },
             { id: 'ledger', label: 'كشف الحساب والمدفوعات', icon: Icons.Vouchers },
-            { id: 'directory', label: `سجل العملاء المعتمدين (${filtered.length})`, icon: Icons.Dashboard }
+            { id: 'directory', label: `سجل ودليل العملاء (${filtered.length})`, icon: Icons.Dashboard }
           ].map(tab => {
             const isActive = activeCustomerSubTab === tab.id;
             const IconComp = tab.icon;
@@ -629,8 +629,8 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
                 onClick={() => setActiveCustomerSubTab(tab.id)}
                 className={`py-3.5 px-4 text-xs font-bold border-b-2 flex items-center gap-2 transition-all whitespace-nowrap cursor-pointer ${
                   isActive
-                    ? 'border-[#B0005A] text-[#B0005A] bg-[#FCE8F2]/30'
-                    : 'border-transparent text-[#6F6B75] hover:text-[#25232A] hover:bg-[#FAFAFB]'
+                    ? 'border-[#B0005A] text-[#B0005A] dark:text-rose-400 bg-[#FCE8F2]/30 dark:bg-rose-950/30'
+                    : 'border-transparent text-[#6F6B75] dark:text-slate-400 hover:text-[#25232A] dark:hover:text-slate-100 hover:bg-[#FAFAFB] dark:hover:bg-slate-800/60'
                 }`}
               >
                 {IconComp && <IconComp className="w-4 h-4" />}
@@ -646,9 +646,9 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
         {activeCustomerSubTab === 'crm' && (
           <div className="p-6 animate-fadeIn space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4.5">
-              {/* 1. اسم العميلة */}
+              {/* 1. اسم العميل */}
               <div>
-                <label className={labelCls}>اسم العميلة (الأم / الأب) <span className="text-[#D64545] font-bold">*</span></label>
+                <label className={labelCls}>اسم العميل / المنشأة <span className="text-[#D64545] font-bold">*</span></label>
                 <input required value={name} onChange={e => setName(e.target.value)} className={inputCls} placeholder="" />
               </div>
 
@@ -659,7 +659,7 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
                   <input required value={phone} onChange={e => setPhone(e.target.value)} className={inputCls + " pr-11 pl-3 font-mono"} placeholder="" type="tel" dir="ltr" style={{textAlign:'right'}} />
                   {phone && (
                     <a href={`https://wa.me/${String(phone).replace(/^0+/, '967').replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" 
-                       className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center bg-[#E2F5F7] hover:bg-[#009FAE] hover:text-white text-[#007F8C] rounded-lg transition border border-[#C5ECF0]" title="مراسلة واتساب">
+                       className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center bg-[#E2F5F7] dark:bg-cyan-950/50 hover:bg-[#009FAE] hover:text-white text-[#007F8C] dark:text-cyan-300 rounded-lg transition border border-[#C5ECF0] dark:border-cyan-800/50" title="مراسلة واتساب">
                       <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 00-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
                     </a>
                   )}
@@ -668,15 +668,15 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
 
               {/* 3. الهاتف البديل */}
               <div>
-                <label className={labelCls}>الهاتف البديل (خطي)</label>
+                <label className={labelCls}>الهاتف الإضافي / البديل</label>
                 <input value={phoneAlt} onChange={e => setPhoneAlt(e.target.value)} className={inputCls + " font-mono"} placeholder="" type="tel" dir="ltr" style={{textAlign:'right'}} />
               </div>
 
               {/* 4. منصة التواصل */}
               <div>
-                <label className={labelCls}>منصة التواصل الاجتماعي</label>
+                <label className={labelCls}>منصة التواصل</label>
                 <select value={platform} onChange={e => setPlatform(e.target.value)} className={inputCls}>
-                  {['واتساب (WhatsApp)','انستغرام (Instagram)','فيسبوك (Facebook)','تيك توك (TikTok)','سناب شات (Snapchat)','تليجرام (Telegram)','مباشر / زيارة المحل'].map(p => (
+                  {['واتساب (WhatsApp)','انستغرام (Instagram)','فيسبوك (Facebook)','تيك توك (TikTok)','سناب شات (Snapchat)','تليجرام (Telegram)','مباشر / زيارة المعرض'].map(p => (
                     <option key={p} value={p}>{p}</option>
                   ))}
                 </select>
@@ -690,7 +690,7 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
 
               {/* 6. فئة العميل */}
               <div>
-                <label className={labelCls}>فئة العميل (CRM)</label>
+                <label className={labelCls}>فئة العميل (CRM Tier)</label>
                 <select value={category} onChange={e => setCategory(e.target.value)} className={inputCls}>
                   {['جديد','دائم','VIP'].map(c => <option key={c}>{c}</option>)}
                 </select>
@@ -704,7 +704,7 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
 
               {/* 8. الشارع */}
               <div>
-                <label className={labelCls}>الشارع / المبنى</label>
+                <label className={labelCls}>الشارع / العنوان التفصيلي</label>
                 <input value={street} onChange={e => setStreet(e.target.value)} className={inputCls} placeholder="" />
               </div>
 
@@ -716,18 +716,18 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
 
               {/* 10. ملاحظات إضافية */}
               <div className="col-span-1 md:col-span-2 lg:col-span-3">
-                <label className={labelCls}>ملاحظات إضافية وتفضيلات خاصة بالعميلة</label>
+                <label className={labelCls}>ملاحظات إضافية ومحددات العمل والتفضيلات</label>
                 <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} className={inputCls + " h-auto min-h-[56px] resize-none"} placeholder="" />
               </div>
             </div>
 
-            <div className="flex justify-end pt-4 border-t border-[#E8E5EA]">
+            <div className="flex justify-end pt-4 border-t border-[#E8E5EA] dark:border-slate-800">
               <button
                 type="button"
                 onClick={() => setActiveCustomerSubTab('measurements')}
-                className="px-6 py-2.5 bg-[#8F2A87] hover:bg-[#73216C] text-white text-xs font-bold rounded-xl transition flex items-center gap-1.5 cursor-pointer"
+                className="px-6 py-2.5 bg-[#8F2A87] dark:bg-purple-900/60 hover:bg-[#73216C] text-white text-xs font-bold rounded-xl transition flex items-center gap-1.5 cursor-pointer"
               >
-                <span>الانتقال لسجل المقاسات</span>
+                <span>الانتقال لسجل المواصفات والقياسات</span>
                 <Icons.ChevronLeft className="w-4 h-4" />
               </button>
             </div>
@@ -740,13 +740,13 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
         {activeCustomerSubTab === 'measurements' && (
           <div className="p-6 animate-fadeIn space-y-6">
             {measurements.length === 0 ? (
-              <div className="text-center py-16 bg-[#FAFAFB] border border-dashed border-[#E8E5EA] rounded-2xl p-8 space-y-4">
-                <div className="w-16 h-16 rounded-2xl bg-[#FCE8F2] text-[#B0005A] border border-[#F2A4CB]/50 flex items-center justify-center text-3xl mx-auto shadow-xs">
-                  👧
+              <div className="text-center py-16 bg-[#FAFAFB] dark:bg-slate-900/50 border border-dashed border-[#E8E5EA] dark:border-slate-800 rounded-2xl p-8 space-y-4">
+                <div className="w-16 h-16 rounded-2xl bg-[#FCE8F2] dark:bg-rose-950/40 text-[#B0005A] dark:text-rose-300 border border-[#F2A4CB]/50 dark:border-rose-900/50 flex items-center justify-center text-3xl mx-auto shadow-xs">
+                  📋
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-[#25232A]">لا توجد بطاقات مقاسات مضافة بعد</h3>
-                  <p className="text-xs text-[#6F6B75] mt-1">انقر على الزر أدناه لإضافة بطاقة مقاسات وموديل الطفلة</p>
+                  <h3 className="text-sm font-bold text-[#25232A] dark:text-slate-100">لا توجد بطاقات مواصفات أو قياسات مضافة بعد</h3>
+                  <p className="text-xs text-[#6F6B75] dark:text-slate-400 mt-1">انقر على الزر أدناه لإضافة بطاقة مواصفات ومقاسات فنية للعميل</p>
                 </div>
                 <button
                   type="button"
@@ -754,13 +754,13 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
                   className="px-5 py-2.5 bg-[#B0005A] hover:bg-[#8E0049] text-white text-xs font-bold rounded-xl transition shadow-xs flex items-center gap-2 mx-auto cursor-pointer"
                 >
                   <Icons.Plus className="w-4 h-4" />
-                  <span>إضافة بطاقة طفلة جديدة</span>
+                  <span>إضافة بطاقة مواصفات وقياسات جديدة</span>
                 </button>
               </div>
             ) : (
               <>
-                {/* Children Tabs / Sub-selector */}
-                <div className="flex items-center justify-between flex-wrap gap-3 pb-4 border-b border-[#E8E5EA]">
+                {/* Children / Specs Tabs / Sub-selector */}
+                <div className="flex items-center justify-between flex-wrap gap-3 pb-4 border-b border-[#E8E5EA] dark:border-slate-800">
                   <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
                     {measurements.map((m, idx) => {
                       const isCur = activeChildIdx === idx;
@@ -772,12 +772,12 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
                           className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 border transition-all cursor-pointer ${
                             isCur
                               ? 'bg-[#B0005A] text-white border-[#B0005A] shadow-xs'
-                              : 'bg-[#FAFAFB] text-[#25232A] border-[#E8E5EA] hover:bg-[#FCE8F2]'
+                              : 'bg-[#FAFAFB] dark:bg-slate-800 text-[#25232A] dark:text-slate-200 border-[#E8E5EA] dark:border-slate-700 hover:bg-[#FCE8F2] dark:hover:bg-slate-700'
                           }`}
                         >
-                          <span>{m.child_name || `طفلة (${idx + 1})`}</span>
+                          <span>{m.child_name || `مواصفة (${idx + 1})`}</span>
                           {m.estimated_age && (
-                            <span className={`text-[10px] px-1.5 py-0.2 rounded ${isCur ? 'bg-white/20 text-white' : 'bg-[#E2F5F7] text-[#007F8C]'}`}>
+                            <span className={`text-[10px] px-1.5 py-0.2 rounded ${isCur ? 'bg-white/20 text-white' : 'bg-[#E2F5F7] dark:bg-cyan-950/60 text-[#007F8C] dark:text-cyan-300'}`}>
                               {m.estimated_age}
                             </span>
                           )}
@@ -790,7 +790,7 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
                     <button
                       type="button"
                       onClick={() => toggleUnit(activeChildIdx)}
-                      className="h-9 px-3 bg-white text-[#007F8C] border border-[#C5ECF0] hover:bg-[#E2F5F7] text-xs font-bold rounded-xl transition flex items-center gap-1.5 cursor-pointer"
+                      className="h-9 px-3 bg-white dark:bg-slate-800 text-[#007F8C] dark:text-cyan-300 border border-[#C5ECF0] dark:border-cyan-800/50 hover:bg-[#E2F5F7] dark:hover:bg-cyan-950/40 text-xs font-bold rounded-xl transition flex items-center gap-1.5 cursor-pointer"
                     >
                       <span>🔄</span> الوحدة: {currM ? currM.unit : 'سم'} (تبديل)
                     </button>
@@ -798,23 +798,23 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
                     <button
                       type="button"
                       onClick={() => removeChildCard(activeChildIdx)}
-                      className="h-9 px-3 bg-rose-50 text-[#D64545] border border-rose-200 hover:bg-rose-100 text-xs font-bold rounded-xl transition cursor-pointer"
+                      className="h-9 px-3 bg-rose-50 dark:bg-rose-950/30 text-[#D64545] dark:text-rose-300 border border-rose-200 dark:border-rose-900/50 hover:bg-rose-100 dark:hover:bg-rose-900/40 text-xs font-bold rounded-xl transition cursor-pointer"
                     >
-                      حذف الطفلة
+                      حذف البطاقة
                     </button>
                   </div>
                 </div>
 
-                {/* Current Child Card Content */}
+                {/* Current Spec Card Content */}
                 <div className="space-y-6">
-                  {/* 1. Basic Child Info & Model */}
-                  <div className="bg-[#FAFAFB] p-5 rounded-2xl border border-[#E8E5EA] space-y-4">
-                    <h4 className="text-xs font-bold text-[#25232A] flex items-center gap-2">
-                      <span className="text-[#B0005A]">👧</span> بيانات الطفلة والموديل المختار
+                  {/* 1. Basic Spec Info & Model */}
+                  <div className="bg-[#FAFAFB] dark:bg-slate-900/50 p-5 rounded-2xl border border-[#E8E5EA] dark:border-slate-800 space-y-4">
+                    <h4 className="text-xs font-bold text-[#25232A] dark:text-slate-100 flex items-center gap-2">
+                      <span className="text-[#B0005A]">📋</span> مواصفات الطلب والموديل المعتمد
                     </h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   <div>
-                    <label className={labelCls}>اسم الطفلة <span className="text-[#D64545] font-bold">*</span></label>
+                    <label className={labelCls}>اسم المستفيد / الموديل <span className="text-[#D64545] font-bold">*</span></label>
                     <input value={currM.child_name} onChange={e => updateMeasurement(activeChildIdx,'child_name',e.target.value)} className={inputCls} placeholder="" />
                   </div>
                   <div>
@@ -822,11 +822,11 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
                     <input type="date" lang="en-GB" dir="ltr" value={currM.meas_date} onChange={e => updateMeasurement(activeChildIdx,'meas_date',e.target.value)} className={inputCls} />
                   </div>
                   <div>
-                    <label className={labelCls}>تاريخ المناسبة / التسليم</label>
+                    <label className={labelCls}>تاريخ المناسبة / التسليم المطلوب</label>
                     <input type="date" lang="en-GB" dir="ltr" value={currM.event_date} onChange={e => updateMeasurement(activeChildIdx,'event_date',e.target.value)} className={inputCls} />
                   </div>
                   <div>
-                    <label className={labelCls}>لون الفستان المختار</label>
+                    <label className={labelCls}>اللون المعتمد / الخامة</label>
                     <input type="text" value={currM.dress_color || ''} onChange={e => updateMeasurement(activeChildIdx,'dress_color',e.target.value)} className={inputCls} placeholder="" />
                   </div>
                   <div>
@@ -848,33 +848,33 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
                           reader.onload = (ev) => updateMeasurement(activeChildIdx, 'model_image', ev.target.result);
                           reader.readAsDataURL(file);
                         }
-                      }} className="block w-full text-xs text-[#6F6B75] file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-[#FCE8F2] file:text-[#B0005A] hover:file:bg-[#F8D1E5] border border-[#E8E5EA] rounded-xl p-1 bg-white cursor-pointer h-11" />
-                      {currM.model_image && <img src={currM.model_image} alt="معاينة" className="w-11 h-11 object-cover rounded-xl border border-[#E8E5EA] shadow-2xs" />}
+                      }} className="block w-full text-xs text-[#6F6B75] dark:text-slate-400 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-[#FCE8F2] dark:file:bg-rose-950/80 file:text-[#B0005A] dark:file:text-rose-300 hover:file:bg-[#F8D1E5] border border-[#E8E5EA] dark:border-slate-700 rounded-xl p-1 bg-white dark:bg-slate-800 cursor-pointer h-11" />
+                      {currM.model_image && <img src={currM.model_image} alt="معاينة" className="w-11 h-11 object-cover rounded-xl border border-[#E8E5EA] dark:border-slate-700 shadow-2xs" />}
                     </div>
                   </div>
                 </div>
               </div>
 
               {/* 2. Longitudinal Measurements */}
-              <div className="bg-white p-5 rounded-2xl border border-[#E8E5EA] space-y-3">
+              <div className="bg-white dark:bg-[#0f172a] p-5 rounded-2xl border border-[#E8E5EA] dark:border-slate-800 space-y-3">
                 <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-bold text-[#25232A] flex items-center gap-2">
-                    <span className="text-[#009FAE]">📐</span> القياسات الطولية
+                  <h4 className="text-xs font-bold text-[#25232A] dark:text-slate-100 flex items-center gap-2">
+                    <span className="text-[#009FAE]">📐</span> القياسات الطولية الفنية
                   </h4>
-                  <span className="text-[11px] font-semibold text-[#007F8C] bg-[#E2F5F7] px-2.5 py-0.5 rounded-md border border-[#C5ECF0]">
+                  <span className="text-[11px] font-semibold text-[#007F8C] dark:text-cyan-300 bg-[#E2F5F7] dark:bg-cyan-950/50 px-2.5 py-0.5 rounded-md border border-[#C5ECF0] dark:border-cyan-800/50">
                     الوحدة: {currM.unit}
                   </span>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                   {[
-                    ['total_height','الطول الكلي للطفلة'],
-                    ['dress_length','طول الفستان الكلي'],
+                    ['total_height','الطول الكلي'],
+                    ['dress_length','طول القطعة / الفستان'],
                     ['chest_length','طول الصدر'],
-                    ['skirt_length','طول التنورة'],
+                    ['skirt_length','طول التنورة / السفلي'],
                     ['sleeve_length','طول الكم']
                   ].map(([field, lbl]) => (
-                    <div key={field} className="bg-[#FAFAFB] p-3 rounded-xl border border-[#E8E5EA] transition hover:border-[#B0005A]/40">
-                      <label className="block text-[11px] font-semibold text-[#6F6B75] mb-1.5 text-center truncate">
+                    <div key={field} className="bg-[#FAFAFB] dark:bg-slate-900/60 p-3 rounded-xl border border-[#E8E5EA] dark:border-slate-800 transition hover:border-[#B0005A]/40">
+                      <label className="block text-[11px] font-semibold text-[#6F6B75] dark:text-slate-400 mb-1.5 text-center truncate">
                         {lbl} ({currM.unit})
                       </label>
                       <input 
@@ -882,7 +882,7 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
                         step="0.1" 
                         value={currM[field]} 
                         onChange={e => updateMeasurement(activeChildIdx,field,e.target.value)} 
-                        className="w-full h-10 px-2 text-center font-bold text-sm text-[#25232A] bg-white border border-[#E8E5EA] rounded-lg focus:border-[#B0005A] outline-none transition" 
+                        className="w-full h-10 px-2 text-center font-bold text-sm text-[#25232A] dark:text-slate-100 bg-white dark:bg-slate-800 border border-[#E8E5EA] dark:border-slate-700 rounded-lg focus:border-[#B0005A] dark:focus:border-rose-500 outline-none transition" 
                         placeholder="—" 
                       />
                     </div>
@@ -891,12 +891,12 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
               </div>
 
               {/* 3. Circumference Measurements */}
-              <div className="bg-white p-5 rounded-2xl border border-[#E8E5EA] space-y-3">
+              <div className="bg-white dark:bg-[#0f172a] p-5 rounded-2xl border border-[#E8E5EA] dark:border-slate-800 space-y-3">
                 <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-bold text-[#25232A] flex items-center gap-2">
+                  <h4 className="text-xs font-bold text-[#25232A] dark:text-slate-100 flex items-center gap-2">
                     <span className="text-[#8F2A87]">🔄</span> القياسات المحيطية والعرضية
                   </h4>
-                  <span className="text-[11px] font-semibold text-[#8F2A87] bg-[#F2E7F3] px-2.5 py-0.5 rounded-md border border-[#E5CEE7]">
+                  <span className="text-[11px] font-semibold text-[#8F2A87] dark:text-purple-300 bg-[#F2E7F3] dark:bg-purple-950/50 px-2.5 py-0.5 rounded-md border border-[#E5CEE7] dark:border-purple-800/50">
                     الوحدة: {currM.unit}
                   </span>
                 </div>
@@ -908,8 +908,8 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
                     ['armhole_circ','محيط الإبط (Armhole)'],
                     ['neck_circ','محيط الرقبة (Neck)']
                   ].map(([field, lbl]) => (
-                    <div key={field} className="bg-[#FAFAFB] p-3 rounded-xl border border-[#E8E5EA] transition hover:border-[#8F2A87]/40">
-                      <label className="block text-[11px] font-semibold text-[#6F6B75] mb-1.5 text-center truncate">
+                    <div key={field} className="bg-[#FAFAFB] dark:bg-slate-900/60 p-3 rounded-xl border border-[#E8E5EA] dark:border-slate-800 transition hover:border-[#8F2A87]/40">
+                      <label className="block text-[11px] font-semibold text-[#6F6B75] dark:text-slate-400 mb-1.5 text-center truncate">
                         {lbl} ({currM.unit})
                       </label>
                       <input 
@@ -917,7 +917,7 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
                         step="0.1" 
                         value={currM[field]} 
                         onChange={e => updateMeasurement(activeChildIdx,field,e.target.value)} 
-                        className="w-full h-10 px-2 text-center font-bold text-sm text-[#25232A] bg-white border border-[#E8E5EA] rounded-lg focus:border-[#8F2A87] outline-none transition" 
+                        className="w-full h-10 px-2 text-center font-bold text-sm text-[#25232A] dark:text-slate-100 bg-white dark:bg-slate-800 border border-[#E8E5EA] dark:border-slate-700 rounded-lg focus:border-[#8F2A87] outline-none transition" 
                         placeholder="—" 
                       />
                     </div>
@@ -927,8 +927,8 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
 
               {/* 4. Comfort Preferences & Tailoring Directives */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-[#FAFAFB] border border-[#E8E5EA] rounded-2xl p-4.5">
-                  <label className="block text-xs font-bold text-[#25232A] mb-3 flex items-center gap-1.5">
+                <div className="bg-[#FAFAFB] dark:bg-slate-900/50 border border-[#E8E5EA] dark:border-slate-800 rounded-2xl p-4.5">
+                  <label className="block text-xs font-bold text-[#25232A] dark:text-slate-100 mb-3 flex items-center gap-1.5">
                     <span className="text-[#F28A00]">✨</span> تفضيلات الراحة والأقمشة (اختيار متعدد)
                   </label>
                   <div className="grid grid-cols-2 gap-2.5">
@@ -936,7 +936,7 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
                       const isChecked = (currM.comfort_profile || []).includes(pref);
                       return (
                         <label key={pref} className={`flex items-center gap-2.5 cursor-pointer p-2.5 rounded-xl border text-xs font-semibold transition-all ${
-                          isChecked ? 'bg-[#FCE8F2] border-[#B0005A] text-[#B0005A]' : 'bg-white border-[#E8E5EA] text-[#25232A] hover:bg-[#FAFAFB]'
+                          isChecked ? 'bg-[#FCE8F2] dark:bg-rose-950/40 border-[#B0005A] dark:border-rose-600 text-[#B0005A] dark:text-rose-300' : 'bg-white dark:bg-slate-800 border-[#E8E5EA] dark:border-slate-700 text-[#25232A] dark:text-slate-200 hover:bg-[#FAFAFB] dark:hover:bg-slate-700'
                         }`}>
                           <input type="checkbox" className="rounded text-[#B0005A] focus:ring-[#B0005A] w-4 h-4 accent-[#B0005A] cursor-pointer" 
                             checked={isChecked}
@@ -953,12 +953,12 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
                   </div>
                 </div>
 
-                <div className="bg-[#FAFAFB] border border-[#E8E5EA] rounded-2xl p-4.5 flex flex-col">
-                  <label className="block text-xs font-bold text-[#25232A] mb-2 flex items-center gap-1.5">
-                    <span className="text-[#8F2A87]">🧵</span> تعليمات وتوجيهات الخياطة والقص
+                <div className="bg-[#FAFAFB] dark:bg-slate-900/50 border border-[#E8E5EA] dark:border-slate-800 rounded-2xl p-4.5 flex flex-col">
+                  <label className="block text-xs font-bold text-[#25232A] dark:text-slate-100 mb-2 flex items-center gap-1.5">
+                    <span className="text-[#8F2A87]">🧵</span> تعليمات وتوجيهات التشغيل والقص
                   </label>
                   <textarea 
-                    className={inputCls + " flex-1 h-auto min-h-[70px] resize-none bg-white"} 
+                    className={inputCls + " flex-1 h-auto min-h-[70px] resize-none"} 
                     placeholder="أي ملاحظات دقيقة خاصة بالمعمل أو طريقة القص، التطريز، والتبطين..." 
                     value={currM.sewing_notes || ''} 
                     onChange={e => updateMeasurement(activeChildIdx, 'sewing_notes', e.target.value)}
@@ -968,7 +968,7 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
               </div>
 
               {/* 5. Auto Model & BOM Summary Box */}
-              <div className="bg-gradient-to-r from-[#FCE8F2]/60 via-[#F2E7F3]/40 to-[#E2F5F7]/60 border border-[#E8E5EA] rounded-2xl p-4.5 flex flex-col items-center justify-center text-center gap-2">
+              <div className="bg-gradient-to-r from-[#FCE8F2]/60 via-[#F2E7F3]/40 to-[#E2F5F7]/60 dark:from-rose-950/30 dark:via-purple-950/20 dark:to-cyan-950/30 border border-[#E8E5EA] dark:border-slate-800 rounded-2xl p-4.5 flex flex-col items-center justify-center text-center gap-2">
                 {(() => {
                   const selMod = currM.selected_model;
                   const len = currM.dress_length;
@@ -1000,29 +1000,29 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
 
                     return (
                       <>
-                        <div className="flex items-center gap-3 flex-wrap justify-center text-xs font-bold text-[#25232A]">
-                          <span className="bg-white px-3 py-1.5 rounded-xl border border-[#E8E5EA] shadow-2xs">👗 الفستان: <strong className="text-[#B0005A]">{selMod}</strong></span>
+                        <div className="flex items-center gap-3 flex-wrap justify-center text-xs font-bold text-[#25232A] dark:text-slate-100">
+                          <span className="bg-white dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-[#E8E5EA] dark:border-slate-700 shadow-2xs">📦 الموديل: <strong className="text-[#B0005A] dark:text-rose-400">{selMod}</strong></span>
                           <span>•</span>
-                          <span className="bg-white px-3 py-1.5 rounded-xl border border-[#E8E5EA] shadow-2xs">العمر التقديري: <strong className="text-[#8F2A87]">{estAge || 'غير محدد'}</strong></span>
+                          <span className="bg-white dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-[#E8E5EA] dark:border-slate-700 shadow-2xs">الفئة التقديرية: <strong className="text-[#8F2A87] dark:text-purple-300">{estAge || 'غير محدد'}</strong></span>
                           <span>•</span>
-                          <span className="bg-[#E2F5F7] text-[#007F8C] px-3 py-1.5 rounded-xl border border-[#C5ECF0] shadow-2xs">السعر التقديري: <strong className="font-mono">{price} {currency.display}</strong></span>
+                          <span className="bg-[#E2F5F7] dark:bg-cyan-950/50 text-[#007F8C] dark:text-cyan-300 px-3 py-1.5 rounded-xl border border-[#C5ECF0] dark:border-cyan-800/50 shadow-2xs">السعر التقديري: <strong className="font-mono">{price} {currency.display}</strong></span>
                         </div>
                         {productData && productData.bom && (
-                           <span className="text-xs text-[#6F6B75] font-medium">
-                             أمتار الأقمشة المقدرة ({bracket}): <strong className="text-[#007F8C] font-mono">{baseMeters} متر</strong>
+                           <span className="text-xs text-[#6F6B75] dark:text-slate-400 font-medium">
+                             أمتار الأقمشة والمواد المقدرة ({bracket}): <strong className="text-[#007F8C] dark:text-cyan-400 font-mono">{baseMeters} متر</strong>
                            </span>
                         )}
                         {jumbo.factor > 1 && (
-                          <div className="text-xs font-semibold text-[#C97300] bg-[#FFF1DC] px-3 py-1 rounded-lg border border-[#FFE4B9] mt-1 shadow-2xs">
-                            ⚠️ تم تطبيق معامل عرض إضافي ({jumbo.factor.toFixed(2)}x) لضبط استهلاك القماش والتكلفة
+                          <div className="text-xs font-semibold text-[#C97300] dark:text-amber-300 bg-[#FFF1DC] dark:bg-amber-950/40 px-3 py-1 rounded-lg border border-[#FFE4B9] dark:border-amber-800/50 mt-1 shadow-2xs">
+                            ⚠️ تم تطبيق معامل استهلاك إضافي ({jumbo.factor.toFixed(2)}x) لضبط استهلاك المواد والتكلفة
                           </div>
                         )}
                       </>
                     );
                   } else {
                     return (
-                      <span className="text-xs text-[#6F6B75] font-medium">
-                        💡 اختر الموديل المعتمد وطول الفستان لحساب العمر التقديري، الأمتار، والتكلفة آلياً
+                      <span className="text-xs text-[#6F6B75] dark:text-slate-400 font-medium">
+                        💡 اختر الموديل المعتمد وطول القطعة لحساب الفئة، الأمتار، والتكلفة آلياً
                       </span>
                     );
                   }
@@ -1032,13 +1032,13 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
             </>
             )}
 
-            <div className="flex justify-between pt-4 border-t border-[#E8E5EA]">
+            <div className="flex justify-between pt-4 border-t border-[#E8E5EA] dark:border-slate-800">
               <button
                 type="button"
                 onClick={() => setActiveCustomerSubTab('crm')}
-                className="px-5 py-2 bg-white hover:bg-[#FAFAFB] text-[#6F6B75] border border-[#E8E5EA] text-xs font-bold rounded-xl transition cursor-pointer"
+                className="px-5 py-2 bg-white dark:bg-slate-800 hover:bg-[#FAFAFB] dark:hover:bg-slate-700 text-[#6F6B75] dark:text-slate-300 border border-[#E8E5EA] dark:border-slate-700 text-xs font-bold rounded-xl transition cursor-pointer"
               >
-                السابق (البيانات)
+                السابق (بيانات العميل)
               </button>
               <button
                 type="button"
@@ -1078,15 +1078,15 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
                 <label className={labelCls}>المبلغ المتبقي (آلي)</label>
                 <div className={`w-full h-11 px-3 rounded-xl border font-mono font-bold text-xs flex items-center justify-center shadow-2xs ${
                   parseFloat(remaining) > 0 
-                    ? 'bg-[#FFF1DC] border-[#FFE4B9] text-[#C97300]' 
-                    : 'bg-[#E2F5F7] border-[#C5ECF0] text-[#007F8C]'
+                    ? 'bg-[#FFF1DC] dark:bg-amber-950/40 border-[#FFE4B9] dark:border-amber-800/50 text-[#C97300] dark:text-amber-300' 
+                    : 'bg-[#E2F5F7] dark:bg-cyan-950/40 border-[#C5ECF0] dark:border-cyan-800/50 text-[#007F8C] dark:text-cyan-300'
                 }`}>
                   {remaining} {currency.display} {parseFloat(remaining) <= 0 ? '(مسدد بالكامل ✅)' : ''}
                 </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-[#E8E5EA]">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-[#E8E5EA] dark:border-slate-800">
               <div>
                 <label className={labelCls}>طريقة الدفع</label>
                 <select value={payMethod} onChange={e => setPayMethod(e.target.value)} className={inputCls}>
@@ -1094,14 +1094,14 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
                 </select>
               </div>
               <div>
-                <label className={labelCls}>📎 رفع صورة السند / الإيصال المالي</label>
+                <label className={labelCls}>📎 إرفاق صورة السند / الإيصال المالي</label>
                 <input type="file" accept="image/*" onChange={handleReceiptChange}
-                  className="w-full h-11 p-1 rounded-xl border border-[#E8E5EA] bg-white text-xs font-semibold cursor-pointer file:mr-2 file:text-xs file:font-bold file:text-[#B0005A] file:bg-[#FCE8F2] file:border-0 file:rounded-lg file:px-3 file:py-1.5 hover:file:bg-[#F8D1E5]" />
+                  className="w-full h-11 p-1 rounded-xl border border-[#E8E5EA] dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-[#25232A] dark:text-slate-200 cursor-pointer file:mr-2 file:text-xs file:font-bold file:text-[#B0005A] dark:file:text-rose-300 file:bg-[#FCE8F2] dark:file:bg-rose-950 file:border-0 file:rounded-lg file:px-3 file:py-1.5 hover:file:bg-[#F8D1E5]" />
                 {receiptPreview && (
-                  <div className="mt-2.5 flex items-center gap-3 p-3 bg-[#E2F5F7] rounded-xl border border-[#C5ECF0]">
-                    <img src={receiptPreview} alt="معاينة السند" className="w-12 h-12 object-cover rounded-xl border border-[#C5ECF0] shadow-2xs" />
-                    <div className="text-xs text-[#25232A] flex-1 flex items-center justify-between">
-                      <span className="text-[#007F8C] font-bold">✅ تم إرفاق صورة السند بنجاح</span>
+                  <div className="mt-2.5 flex items-center gap-3 p-3 bg-[#E2F5F7] dark:bg-cyan-950/40 rounded-xl border border-[#C5ECF0] dark:border-cyan-800/50">
+                    <img src={receiptPreview} alt="معاينة السند" className="w-12 h-12 object-cover rounded-xl border border-[#C5ECF0] dark:border-cyan-800/50 shadow-2xs" />
+                    <div className="text-xs text-[#25232A] dark:text-slate-100 flex-1 flex items-center justify-between">
+                      <span className="text-[#007F8C] dark:text-cyan-300 font-bold">✅ تم إرفاق صورة السند بنجاح</span>
                       <button type="button" onClick={() => { setReceiptFile(null); setReceiptPreview(null); }}
                         className="text-[#D64545] hover:underline text-xs font-bold cursor-pointer">إزالة الصورة</button>
                     </div>
@@ -1110,13 +1110,13 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
               </div>
             </div>
 
-            <div className="flex justify-between pt-4 border-t border-[#E8E5EA]">
+            <div className="flex justify-between pt-4 border-t border-[#E8E5EA] dark:border-slate-800">
               <button
                 type="button"
                 onClick={() => setActiveCustomerSubTab('measurements')}
-                className="px-5 py-2 bg-white hover:bg-[#FAFAFB] text-[#6F6B75] border border-[#E8E5EA] text-xs font-bold rounded-xl transition cursor-pointer"
+                className="px-5 py-2 bg-white dark:bg-slate-800 hover:bg-[#FAFAFB] dark:hover:bg-slate-700 text-[#6F6B75] dark:text-slate-300 border border-[#E8E5EA] dark:border-slate-700 text-xs font-bold rounded-xl transition cursor-pointer"
               >
-                السابق (المقاسات)
+                السابق (المواصفات)
               </button>
               <button
                 type="button"
@@ -1124,7 +1124,7 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
                 disabled={loading}
                 className="px-8 py-2.5 bg-[#B0005A] hover:bg-[#8E0049] text-white text-xs font-bold rounded-xl shadow-xs transition cursor-pointer"
               >
-                {loading ? 'جاري الحفظ...' : 'حفظ وتوثيق ملف العميلة بالكامل 💾'}
+                {loading ? 'جاري الحفظ...' : 'حفظ وتوثيق ملف العميل بالكامل 💾'}
               </button>
             </div>
           </div>
@@ -1137,52 +1137,52 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
           <div className="p-6 animate-fadeIn space-y-4">
             <div className="flex items-center justify-between flex-wrap gap-3 pb-3">
               <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-[#25232A]">إجمالي العملاء المسجلين:</span>
-                <span className="text-xs bg-[#FCE8F2] text-[#B0005A] font-bold px-2 py-0.5 rounded-md font-mono">{filtered.length}</span>
+                <span className="text-xs font-bold text-[#25232A] dark:text-slate-200">إجمالي العملاء المسجلين:</span>
+                <span className="text-xs bg-[#FCE8F2] dark:bg-rose-950/40 text-[#B0005A] dark:text-rose-300 font-bold px-2 py-0.5 rounded-md font-mono">{filtered.length}</span>
               </div>
               <div className="relative">
                 <input value={search} onChange={e => setSearch(e.target.value)}
-                  className="pl-3 pr-8 h-10 rounded-xl border border-[#E8E5EA] bg-[#FAFAFB] text-xs font-medium w-72 focus:bg-white focus:outline-none focus:border-[#B0005A] focus:ring-2 focus:ring-[#FCE8F2]"
+                  className="pl-3 pr-8 h-10 rounded-xl border border-[#E8E5EA] dark:border-slate-700 bg-[#FAFAFB] dark:bg-slate-900 text-xs font-medium text-[#25232A] dark:text-slate-100 w-72 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:border-[#B0005A] focus:ring-2 focus:ring-[#FCE8F2] dark:focus:ring-rose-950 transition-all"
                   placeholder="بحث بالاسم، رقم الهاتف، أو الكود..." />
                 <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#6F6B75] text-xs pointer-events-none">🔍</span>
               </div>
             </div>
 
-            <div className="overflow-x-auto rounded-xl border border-[#E8E5EA]">
+            <div className="overflow-x-auto rounded-xl border border-[#E8E5EA] dark:border-slate-800 shadow-xs">
               {filtered.length === 0 ? (
-                <div className="text-center py-12 text-[#6F6B75] text-xs font-medium">
+                <div className="text-center py-12 text-[#6F6B75] dark:text-slate-400 text-xs font-medium">
                   لا يوجد عملاء مسجلون يطابقون البحث 👤
                 </div>
               ) : (
                 <table className="w-full text-xs">
                   <thead>
-                    <tr className="bg-[#FAFAFB] text-[#6F6B75] font-semibold border-b border-[#E8E5EA]">
-                      {['الكود','اسم العميلة','الهاتف','المنصة','المدينة','الفئة','التسجيل','الأطفال','المتبقي','الإجراءات'].map(h => (
+                    <tr className="bg-[#FAFAFB] dark:bg-slate-900/80 text-[#6F6B75] dark:text-slate-400 font-semibold border-b border-[#E8E5EA] dark:border-slate-800">
+                      {['الكود','اسم العميل','الهاتف','المنصة','المدينة','الفئة','التسجيل','المواصفات','المتبقي','الإجراءات'].map(h => (
                         <th key={h} className="px-4 py-3 text-right whitespace-nowrap">{h}</th>
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[#E8E5EA] bg-white">
+                  <tbody className="divide-y divide-[#E8E5EA] dark:divide-slate-800/70 bg-white dark:bg-[#0f172a]">
                     {filtered.map((c, i) => {
                       const rem = parseFloat(c.ledger?.remaining) || 0;
                       return (
-                        <tr key={c.id || c.customer_id || i} className="hover:bg-[#FAFAFB] transition-colors">
-                          <td className="px-4 py-3 font-mono text-[11.5px] text-[#B0005A] font-bold whitespace-nowrap">{c.customer_id || `CUST-${i+1001}`}</td>
-                          <td className="px-4 py-3 font-bold text-[#25232A] whitespace-nowrap">{c.name || '—'}</td>
-                          <td className="px-4 py-3 font-mono text-[#6F6B75] whitespace-nowrap" dir="ltr" style={{textAlign:'right'}}>{c.phone || '—'}</td>
-                          <td className="px-4 py-3 text-[#6F6B75] whitespace-nowrap">{c.platform ? c.platform.split(' ')[0] : '—'}</td>
-                          <td className="px-4 py-3 text-[#6F6B75] whitespace-nowrap">{c.city || c.address || '—'}</td>
+                        <tr key={c.id || c.customer_id || i} className="hover:bg-[#FAFAFB] dark:hover:bg-slate-800/60 transition-colors">
+                          <td className="px-4 py-3 font-mono text-[11.5px] text-[#B0005A] dark:text-rose-400 font-bold whitespace-nowrap">{c.customer_id || `CUST-${i+1001}`}</td>
+                          <td className="px-4 py-3 font-bold text-[#25232A] dark:text-slate-100 whitespace-nowrap">{c.name || '—'}</td>
+                          <td className="px-4 py-3 font-mono text-[#6F6B75] dark:text-slate-400 whitespace-nowrap" dir="ltr" style={{textAlign:'right'}}>{c.phone || '—'}</td>
+                          <td className="px-4 py-3 text-[#6F6B75] dark:text-slate-400 whitespace-nowrap">{c.platform ? c.platform.split(' ')[0] : '—'}</td>
+                          <td className="px-4 py-3 text-[#6F6B75] dark:text-slate-400 whitespace-nowrap">{c.city || c.address || '—'}</td>
                           <td className="px-4 py-3 whitespace-nowrap">
                             <span className={`text-[10.5px] font-semibold px-2.5 py-0.5 rounded-md border ${catColor(c.category)}`}>{c.category || 'جديد'}</span>
                           </td>
-                          <td className="px-4 py-3 text-[#6F6B75] font-mono whitespace-nowrap">{formatCleanDate(c.reg_date)}</td>
+                          <td className="px-4 py-3 text-[#6F6B75] dark:text-slate-400 font-mono whitespace-nowrap">{formatCleanDate(c.reg_date)}</td>
                           <td className="px-4 py-3 text-center whitespace-nowrap">
                             {c.measurements && c.measurements.length > 0 ? (
                               <div className="flex flex-col gap-1 items-center">
                                 {c.measurements.map((m, idx) => {
                                   const isStale = m.meas_date ? isMeasurementStale(m.meas_date) : false;
                                   return (
-                                    <span key={idx} className="bg-[#FAFAFB] px-2 py-0.5 rounded text-[11px] font-medium text-[#25232A] border border-[#E8E5EA] flex items-center justify-between gap-1.5 min-w-[75px]">
+                                    <span key={idx} className="bg-[#FAFAFB] dark:bg-slate-800 px-2 py-0.5 rounded text-[11px] font-medium text-[#25232A] dark:text-slate-200 border border-[#E8E5EA] dark:border-slate-700 flex items-center justify-between gap-1.5 min-w-[75px]">
                                       <span>{m.child_name || 'بدون اسم'}</span>
                                       {isStale && <span title="المقاس قديم (+90 يوم)" className="w-1.5 h-1.5 rounded-full bg-[#D64545]" />}
                                     </span>
@@ -1193,27 +1193,27 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
                           </td>
                           <td className="px-4 py-3 text-center whitespace-nowrap">
                             <span className={`text-[11px] font-mono font-bold px-2.5 py-0.5 rounded-md border ${
-                              rem > 0 ? 'bg-[#FFF1DC] text-[#C97300] border-[#FFE4B9]' : 'bg-[#E2F5F7] text-[#007F8C] border-[#C5ECF0]'
+                              rem > 0 ? 'bg-[#FFF1DC] dark:bg-amber-950/40 text-[#C97300] dark:text-amber-300 border-[#FFE4B9] dark:border-amber-800/50' : 'bg-[#E2F5F7] dark:bg-cyan-950/40 text-[#007F8C] dark:text-cyan-300 border-[#C5ECF0] dark:border-cyan-800/50'
                             }`}>
                               {rem > 0 ? `${rem} ${currency.display}` : 'مسدد ✅'}
                             </span>
                           </td>
                           <td className="px-4 py-3 flex items-center gap-1.5 justify-center whitespace-nowrap">
-                            <button onClick={() => loadCustomerForEdit(c)} title="فتح وتعديل ملف العميلة" 
-                              className="w-8 h-8 rounded-xl bg-white hover:bg-[#F2E7F3] text-[#6F6B75] hover:text-[#8F2A87] border border-[#E8E5EA] transition-all flex items-center justify-center cursor-pointer">
+                            <button onClick={() => loadCustomerForEdit(c)} title="فتح وتعديل ملف العميل" 
+                              className="w-8 h-8 rounded-xl bg-white dark:bg-slate-800 hover:bg-[#F2E7F3] dark:hover:bg-slate-700 text-[#6F6B75] dark:text-slate-300 hover:text-[#8F2A87] dark:hover:text-purple-300 border border-[#E8E5EA] dark:border-slate-700 transition-all flex items-center justify-center cursor-pointer">
                               <Icons.Edit className="w-3.5 h-3.5" />
                             </button>
                             <button onClick={() => setSelectedInvoice(c)} title="طباعة فاتورة مالية (PDF)" 
-                              className="w-8 h-8 rounded-xl bg-white hover:bg-[#FCE8F2] text-[#6F6B75] hover:text-[#B0005A] border border-[#E8E5EA] transition-all flex items-center justify-center cursor-pointer">
+                              className="w-8 h-8 rounded-xl bg-white dark:bg-slate-800 hover:bg-[#FCE8F2] dark:hover:bg-slate-700 text-[#6F6B75] dark:text-slate-300 hover:text-[#B0005A] dark:hover:text-rose-300 border border-[#E8E5EA] dark:border-slate-700 transition-all flex items-center justify-center cursor-pointer">
                               <Icons.Vouchers className="w-3.5 h-3.5" />
                             </button>
                             <button onClick={() => setSelectedJobCard(c)} title="بطاقة المعمل والقص (Job Card)" 
-                              className="w-8 h-8 rounded-xl bg-white hover:bg-[#F2E7F3] text-[#6F6B75] hover:text-[#8F2A87] border border-[#E8E5EA] transition-all flex items-center justify-center cursor-pointer">
+                              className="w-8 h-8 rounded-xl bg-white dark:bg-slate-800 hover:bg-[#F2E7F3] dark:hover:bg-slate-700 text-[#6F6B75] dark:text-slate-300 hover:text-[#8F2A87] dark:hover:text-purple-300 border border-[#E8E5EA] dark:border-slate-700 transition-all flex items-center justify-center cursor-pointer">
                               <Icons.Factory className="w-3.5 h-3.5" />
                             </button>
                             <a href={`https://wa.me/${String(c.phone||'').replace(/^0+/, '967').replace(/\D/g,'')}?text=${encodeURIComponent('مرحباً ' + c.name + '، إليك كشف الحساب الخاص بك من ' + ((typeof window !== 'undefined' && window.BrandService) ? window.BrandService.getProfile().name : 'إدارة الحسابات') + '.')}`} 
                               target="_blank" rel="noopener noreferrer" title="إرسال كشف واتساب" 
-                              className="w-8 h-8 rounded-xl bg-white hover:bg-[#E2F5F7] text-[#6F6B75] hover:text-[#007F8C] border border-[#E8E5EA] transition-all flex items-center justify-center cursor-pointer">
+                              className="w-8 h-8 rounded-xl bg-white dark:bg-slate-800 hover:bg-[#E2F5F7] dark:hover:bg-slate-700 text-[#6F6B75] dark:text-slate-300 hover:text-[#007F8C] dark:hover:text-cyan-300 border border-[#E8E5EA] dark:border-slate-700 transition-all flex items-center justify-center cursor-pointer">
                               <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 00-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
                             </a>
                           </td>
@@ -1255,8 +1255,8 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
             order_no: `JOB-${selectedJobCard.customer_id || selectedJobCard.id}`,
             customer_name: selectedJobCard.name,
             phone: selectedJobCard.phone,
-            product_name: selectedJobCard.measurements?.[0]?.selected_model || 'تفصيل فستان مخصص',
-            child_name: selectedJobCard.measurements?.[0]?.child_name || 'الأميرة',
+            product_name: selectedJobCard.measurements?.[0]?.selected_model || 'تفصيل مخصص',
+            child_name: selectedJobCard.measurements?.[0]?.child_name || 'العميل',
             delivery_date: selectedJobCard.measurements?.[0]?.event_date || 'يحدد لاحقاً',
             currency: currency?.display || 'YER ﷼'
           }}

@@ -86,6 +86,11 @@ window.Header = function Header({
     } catch(e) {}
   };
 
+  const sanitizeDisplayName = (name) => {
+    if (!name) return 'المدير التنفيذي';
+    return String(name).replace(/👑|الأميرات|Little Princesses/g, '').trim() || 'المدير التنفيذي';
+  };
+
   const user = currentUser || { id: 1, username: 'admin', full_name: 'المدير العام', role: 'admin', role_label: 'المدير العام' };
   const userRole = user.role || 'admin';
 
@@ -401,7 +406,7 @@ window.Header = function Header({
             }
           }}
           title={syncInfo.pending_count > 0 ? `يوجد ${syncInfo.pending_count} عملية قيد المزامنة في الخلفية. انقر للمزامنة الفورية.` : "حالة المزامنة السحابية والحفظ اللحظي. انقر للمزامنة الفورية."}
-          className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+          className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold border whitespace-nowrap shrink-0 transition-all cursor-pointer ${
             !syncInfo.connected
               ? 'bg-[#FEE2E2] dark:bg-rose-950/40 border-[#FCA5A5] dark:border-rose-900 text-[#DC2626] dark:text-rose-400'
               : (syncInfo.pending_count > 0
@@ -409,12 +414,12 @@ window.Header = function Header({
                 : 'bg-[#E2F5F7] dark:bg-cyan-950/40 border-[#C5ECF0] dark:border-cyan-900 text-[#007F8C] dark:text-cyan-400')
           }`}
         >
-          <span className={`w-2 h-2 rounded-full ${
+          <span className={`w-2 h-2 rounded-full shrink-0 ${
             !syncInfo.connected 
               ? 'bg-[#DC2626]' 
               : (syncInfo.pending_count > 0 ? 'bg-[#F28A00] animate-ping' : 'bg-[#009FAE] animate-pulse')
           }`} />
-          <span>{syncInfo.pending_count > 0 ? `جاري المزامنة (${syncInfo.pending_count}) ⏳` : 'السنة المالية: 2026 • سحابي مباشر 🟢'}</span>
+          <span>{syncInfo.pending_count > 0 ? `جاري المزامنة (${syncInfo.pending_count})` : 'سحابي مباشر 🟢'}</span>
           <span className="text-[10px] opacity-70 font-mono">({syncInfo.last_sync})</span>
         </button>
 
@@ -503,7 +508,7 @@ window.Header = function Header({
             </div>
             <div className="flex flex-col text-right hidden sm:flex">
               <span className="text-xs font-bold text-[#25232A] dark:text-slate-100 leading-tight">
-                {user.full_name || user.username}
+                {sanitizeDisplayName(user.full_name || user.username)}
               </span>
               <span className="text-[10.5px] text-[#6F6B75] dark:text-slate-400">
                 {userRole === 'admin' ? 'المدير التنفيذي' : (user.role_label || user.role)}
@@ -519,7 +524,7 @@ window.Header = function Header({
           {userDropdown && (
             <div className="absolute left-0 mt-2 w-64 bg-white dark:bg-slate-900 border border-[#E8E5EA] dark:border-slate-800 rounded-2xl shadow-xl p-2 z-50 animate-fadeIn space-y-1.5">
               <div className="p-3 bg-[#FAFAFB] dark:bg-slate-800/60 rounded-xl border border-[#E8E5EA] dark:border-slate-700/60 text-right">
-                <div className="font-bold text-sm text-[#25232A] dark:text-slate-100">{user.full_name || user.username}</div>
+                <div className="font-bold text-sm text-[#25232A] dark:text-slate-100">{sanitizeDisplayName(user.full_name || user.username)}</div>
                 <div className="text-xs text-[#6F6B75] dark:text-slate-400 font-mono">@{user.username}</div>
                 <div className={`mt-2 inline-block text-[11px] font-bold px-2 py-0.5 rounded-md border ${getRoleBadgeColor(userRole)}`}>
                   {userRole === 'admin' ? '🛡️ المدير التنفيذي (Executive Admin)' : (user.role_label || userRole)}
