@@ -203,6 +203,7 @@ function App() {
             onLogout={handleLogout}
             onToggleSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
             isSidebarCollapsed={isSidebarCollapsed}
+            currency={systemCurrency}
           />
         )}
         

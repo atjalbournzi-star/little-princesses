@@ -98,29 +98,64 @@ function Dashboard({
       if (a.account_code) accountBalances[String(a.account_code)] = calculatedBal;
     });
 
-    let totalCash = (accountBalances['1111'] !== undefined ? accountBalances['1111'] : (accountBalances['101'] || 0.0));
+    // Sum cash accounts (leaf accounts to prevent parent double-counting)
+    let totalCash = 0.0;
     const cashChildAccs = accList.filter(a => {
       const code = String(a.code || a.acc_code || a.account_code || a.id || '');
-      return (code.startsWith('1111.') || code.startsWith('101.') || code === '1121' || code.startsWith('ACC-101'));
+      return (code.startsWith('1111.') || code.startsWith('101.') || code === '1121' || code.startsWith('ACC-101-'));
     });
     if (cashChildAccs.length > 0) {
       cashChildAccs.forEach(ca => {
         const code = String(ca.code || ca.acc_code || ca.account_code || ca.id || '');
         if (code !== '1111' && code !== '101') totalCash += (accountBalances[code] || 0.0);
       });
+    } else {
+      totalCash = (accountBalances['1111'] !== undefined ? accountBalances['1111'] : (accountBalances['101'] || 0.0));
     }
 
-    let totalBank = (accountBalances['1112'] !== undefined ? accountBalances['1112'] : (accountBalances['103'] || 0.0));
+    // Sum bank accounts (leaf accounts to prevent parent double-counting)
+    let totalBank = 0.0;
     const bankChildAccs = accList.filter(a => {
       const code = String(a.code || a.acc_code || a.account_code || a.id || '');
-      return (code.startsWith('1112.') || code.startsWith('103.') || code.startsWith('ACC-103'));
+      return (code.startsWith('1112.') || code.startsWith('103.') || code.startsWith('ACC-103-'));
     });
     if (bankChildAccs.length > 0) {
       bankChildAccs.forEach(ba => {
         const code = String(ba.code || ba.acc_code || ba.account_code || ba.id || '');
         if (code !== '1112' && code !== '103') totalBank += (accountBalances[code] || 0.0);
       });
+    } else {
+      totalBank = (accountBalances['1112'] !== undefined ? accountBalances['1112'] : (accountBalances['103'] || 0.0));
     }
+
+    // Identify foreign currency accounts in treasury (e.g. 101.2 صندوق الريال السعودي SAR)
+    const foreignTreasuryDetails = [];
+    accList.forEach(a => {
+      const code = String(a.code || a.acc_code || a.account_code || a.id || '');
+      const isTreasury = code.startsWith('101.') || code.startsWith('103.') || code.startsWith('1111.') || code.startsWith('1112.') || code === '1121';
+      if (isTreasury && a.currency && a.currency !== 'YER') {
+        const balInBase = accountBalances[code] || 0;
+        let fBal = (a.foreign_balance !== undefined && a.foreign_balance !== null && a.foreign_balance !== '') 
+          ? parseFloat(a.foreign_balance) 
+          : (balInBase > 0 ? (window.CurrencyService ? window.CurrencyService.fromBase(balInBase, a.currency) : balInBase / 142) : 0);
+        if (fBal !== 0 || balInBase !== 0) {
+          foreignTreasuryDetails.push({
+            code,
+            name: a.name || a.account_name || 'صندوق العملة الأجنبية',
+            currency: a.currency,
+            foreign_balance: fBal,
+            base_balance: balInBase
+          });
+        }
+      }
+    });
+
+    // Material and fabric inventory balance (Account 105 or 113)
+    const inventoryBalance = accountBalances['105'] || accountBalances['113'] || 0.0;
+    // Total Assets in chart of accounts (Account 1 if rolled-up, otherwise sum of cash + bank + inventory)
+    const totalAssetsBalance = (accountBalances['1'] && accountBalances['1'] > 0)
+      ? accountBalances['1']
+      : (totalCash + totalBank + inventoryBalance);
 
     const cBal = toCurr(totalCash, 'YER', 1.0);
     const bBal = toCurr(totalBank, 'YER', 1.0);
@@ -128,7 +163,13 @@ function Dashboard({
     return {
       cashBalance: cBal,
       bankBalance: bBal,
-      totalTreasuryBalance: cBal + bBal
+      totalTreasuryBalance: cBal + bBal,
+      baseCashBalance: totalCash,
+      baseBankBalance: totalBank,
+      baseTreasuryBalance: totalCash + totalBank,
+      foreignTreasuryDetails,
+      totalAssetsBalance,
+      inventoryBalance
     };
   }, [accounts, journal, targetCode]);
 
@@ -419,10 +460,14 @@ function Dashboard({
       {/* ── 2. 6 Executive KPI Metric Cards ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         {/* Card 1: Total Sales */}
-        <div className="bg-white p-4.5 rounded-2xl border border-[#E8E5EA] shadow-[0_2px_8px_rgba(0,0,0,0.02)] hover:border-[#009FAE]/50 transition-all flex flex-col justify-between">
+        <div 
+          onClick={() => setActiveTab && setActiveTab('orders')}
+          className="bg-white p-4.5 rounded-2xl border border-[#E8E5EA] shadow-[0_2px_8px_rgba(0,0,0,0.02)] hover:border-[#009FAE]/60 transition-all flex flex-col justify-between cursor-pointer group"
+          title="انقر للانتقال إلى قسم المبيعات والطلبيات"
+        >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-[#6F6B75]">إجمالي المبيعات</span>
-            <div className="w-8 h-8 rounded-xl bg-[#E2F5F7] text-[#009FAE] flex items-center justify-center text-sm font-bold border border-[#C5ECF0]">
+            <span className="text-xs font-semibold text-[#6F6B75] group-hover:text-[#009FAE] transition">إجمالي المبيعات</span>
+            <div className="w-8 h-8 rounded-xl bg-[#E2F5F7] text-[#009FAE] flex items-center justify-center text-sm font-bold border border-[#C5ECF0] group-hover:scale-105 transition-transform">
               🛍️
             </div>
           </div>
@@ -440,10 +485,14 @@ function Dashboard({
         </div>
 
         {/* Card 2: Net Profit */}
-        <div className="bg-white p-4.5 rounded-2xl border border-[#E8E5EA] shadow-[0_2px_8px_rgba(0,0,0,0.02)] hover:border-[#009FAE]/50 transition-all flex flex-col justify-between">
+        <div 
+          onClick={() => setActiveTab && setActiveTab('reports')}
+          className="bg-white p-4.5 rounded-2xl border border-[#E8E5EA] shadow-[0_2px_8px_rgba(0,0,0,0.02)] hover:border-[#007F8C]/60 transition-all flex flex-col justify-between cursor-pointer group"
+          title="انقر للانتقال إلى التقارير المالية وقائمة الدخل والأرباح"
+        >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-[#6F6B75]">صافي الأرباح المحققة</span>
-            <div className="w-8 h-8 rounded-xl bg-[#E2F5F7] text-[#007F8C] flex items-center justify-center text-sm font-bold border border-[#C5ECF0]">
+            <span className="text-xs font-semibold text-[#6F6B75] group-hover:text-[#007F8C] transition">صافي الأرباح المحققة</span>
+            <div className="w-8 h-8 rounded-xl bg-[#E2F5F7] text-[#007F8C] flex items-center justify-center text-sm font-bold border border-[#C5ECF0] group-hover:scale-105 transition-transform">
               ✨
             </div>
           </div>
@@ -531,24 +580,52 @@ function Dashboard({
         {/* Card 6: Treasury & Bank Vaults */}
         <div 
           onClick={() => setActiveTab && setActiveTab('accounts')}
-          className="bg-white p-4.5 rounded-2xl border border-[#E8E5EA] shadow-[0_2px_8px_rgba(0,0,0,0.02)] hover:border-[#009FAE]/50 transition-all flex flex-col justify-between cursor-pointer group"
-          title="انقر للانتقال إلى شجرة الحسابات المالية"
+          className="bg-white p-4.5 rounded-2xl border border-[#E8E5EA] shadow-[0_2px_8px_rgba(0,0,0,0.02)] hover:border-[#009FAE]/60 transition-all flex flex-col justify-between cursor-pointer group"
+          title="انقر للانتقال إلى شجرة الحسابات المالية والدليل المحاسبي"
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-[#6F6B75] group-hover:text-[#009FAE] transition">رصيد الخزينة والبنوك</span>
-            <div className="w-8 h-8 rounded-xl bg-[#E2F5F7] text-[#009FAE] flex items-center justify-center text-sm font-bold border border-[#C5ECF0]">
+            <div className="w-8 h-8 rounded-xl bg-[#E2F5F7] text-[#009FAE] flex items-center justify-center text-sm font-bold border border-[#C5ECF0] group-hover:scale-105 transition-transform">
               🏦
             </div>
           </div>
           <div className="mt-3">
-            <div className={`text-[1.65rem] font-extrabold font-mono tabular-nums leading-tight flex items-baseline ${totalTreasuryBalance < 0 ? 'text-rose-600' : 'text-[#25232A]'}`}>
-              <span>{fmt(totalTreasuryBalance)}</span>
+            <div className={`text-[1.55rem] font-extrabold font-mono tabular-nums leading-tight flex items-baseline flex-wrap ${totalTreasuryBalance < 0 ? 'text-rose-600' : 'text-[#25232A]'}`}>
+              <span>{targetCode === 'YER' ? fmt(baseTreasuryBalance) : fmt(totalTreasuryBalance)}</span>
               <span className="text-xs font-medium text-[#6F6B75] mr-1.5">{currency.display}</span>
             </div>
-            <div className="text-[11px] text-[#6F6B75] mt-1 font-mono tabular-nums flex items-center gap-1.5">
-              <span>كاش: {fmt(cashBalance)}</span>
-              <span>|</span>
-              <span>بنك: {fmt(bankBalance)}</span>
+
+            {/* Detailed Sub-balances & Multi-Currency Context */}
+            <div className="mt-1.5 space-y-1">
+              <div className="text-[11px] text-[#6F6B75] font-mono tabular-nums flex items-center gap-1.5">
+                <span>كاش: {fmt(targetCode === 'YER' ? baseCashBalance : cashBalance)}</span>
+                <span>|</span>
+                <span>بنك: {fmt(targetCode === 'YER' ? baseBankBalance : bankBalance)}</span>
+              </div>
+
+              {/* Foreign Currency Badge (e.g. SAR 18,746.48 for 101.2 صندوق الريال السعودي) */}
+              {foreignTreasuryDetails.length > 0 && targetCode === 'YER' && (
+                <div className="text-[10.5px] font-semibold text-[#8F2A87] bg-[#F2E7F3] px-1.5 py-0.5 rounded-md inline-flex items-center gap-1 border border-[#E5CEE7]">
+                  <span>🇸🇦</span>
+                  <span>SAR {fmt(foreignTreasuryDetails[0].foreign_balance)} (صندوق الريال السعودي)</span>
+                </div>
+              )}
+
+              {/* Base Currency Equivalent Badge if viewing in foreign currency */}
+              {targetCode !== 'YER' && (
+                <div className="text-[10.5px] font-semibold text-[#007F8C] bg-[#E2F5F7] px-1.5 py-0.5 rounded-md inline-flex items-center gap-1 border border-[#C5ECF0]">
+                  <span>🇾🇪</span>
+                  <span>ما يعادل بالشجرة: {fmt(baseTreasuryBalance)} YER ﷼</span>
+                </div>
+              )}
+
+              {/* Total Assets Overview Badge */}
+              <div className="text-[10px] text-[#6F6B75] pt-0.5 border-t border-[#F0EEF2] flex items-center justify-between">
+                <span>إجمالي أصول الشجرة:</span>
+                <span className="font-mono font-bold text-[#25232A]">
+                  {fmt(targetCode === 'YER' ? totalAssetsBalance : toCurr(totalAssetsBalance, 'YER', 1.0))} {currency.display}
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -667,7 +744,11 @@ function Dashboard({
 
           {/* Chart Footnote Highlights */}
           <div className="grid grid-cols-3 gap-3 pt-3 border-t border-[#E8E5EA] text-center text-xs">
-            <div className="p-2.5 rounded-xl bg-[#FAFAFB]">
+            <div 
+              onClick={() => setActiveTab && setActiveTab('orders')}
+              className="p-2.5 rounded-xl bg-[#FAFAFB] hover:bg-[#E2F5F7] cursor-pointer transition"
+              title="انقر للانتقال إلى المبيعات والطلبات"
+            >
               <span className="block text-[10.5px] text-[#6F6B75] mb-0.5">إجمالي مبيعات المخطط</span>
               <span className="font-bold font-mono text-[#007F8C]">{fmt(totalSales)} {currency.display}</span>
             </div>
@@ -675,7 +756,11 @@ function Dashboard({
               <span className="block text-[10.5px] text-[#6F6B75] mb-0.5">متوسط قيمة الطلب</span>
               <span className="font-bold font-mono text-[#8F2A87]">{fmt(avgOrderValue)} {currency.display}</span>
             </div>
-            <div className="p-2.5 rounded-xl bg-[#FAFAFB]">
+            <div 
+              onClick={() => setActiveTab && setActiveTab('orders')}
+              className="p-2.5 rounded-xl bg-[#FAFAFB] hover:bg-[#FCE8F2] cursor-pointer transition"
+              title="انقر للانتقال إلى الطلبات"
+            >
               <span className="block text-[10.5px] text-[#6F6B75] mb-0.5">عدد الطلبات المحصورة</span>
               <span className="font-bold font-mono text-[#B0005A]">{filteredOrders.length} طلبات</span>
             </div>
@@ -686,9 +771,14 @@ function Dashboard({
         <div className="bg-white p-6 rounded-2xl border border-[#E8E5EA] shadow-[0_2px_12px_rgba(0,0,0,0.02)] flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between pb-3 border-b border-[#E8E5EA] mb-4">
-              <div className="flex items-center gap-2">
+              <div 
+                onClick={() => setActiveTab && setActiveTab('factory')}
+                className="flex items-center gap-2 cursor-pointer group"
+                title="انقر للانتقال إلى تفاصيل المعمل والورشة"
+              >
                 <span className="w-3 h-3 rounded-full bg-[#8F2A87]"></span>
-                <h3 className="font-bold text-sm text-[#25232A]">مراحل إنجاز المعمل والورشة</h3>
+                <h3 className="font-bold text-sm text-[#25232A] group-hover:text-[#8F2A87] transition">مراحل إنجاز المعمل والورشة</h3>
+                <span className="text-[11px] text-[#8F2A87]">↗</span>
               </div>
               <span className="text-[11px] font-bold text-[#8F2A87] bg-[#F2E7F3] px-2 py-0.5 rounded-md">
                 {atelierStages.completionRate}% إنجاز
@@ -808,27 +898,76 @@ function Dashboard({
               <span className="w-3 h-3 rounded-full bg-[#F28A00]"></span>
               <h3 className="font-bold text-sm text-[#25232A]">رادار الخزينة والسيولة النقدية (Treasury Radar)</h3>
             </div>
-            <span className="text-[11px] font-mono text-[#6F6B75]">العملة: {currency.display}</span>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-mono text-[#6F6B75]">العملة: {currency.display}</span>
+              <button
+                type="button"
+                onClick={() => setActiveTab && setActiveTab('accounts')}
+                className="text-[11px] font-bold text-[#007F8C] bg-[#E2F5F7] hover:bg-[#C5ECF0] px-2 py-0.5 rounded-md cursor-pointer transition flex items-center gap-1"
+                title="الانتقال إلى شجرة الحسابات المالية"
+              >
+                <span>شجرة الحسابات</span>
+                <span>↗</span>
+              </button>
+            </div>
           </div>
 
           <div className="space-y-3.5">
             {/* Cash vs Bank Vaults */}
             <div className="grid grid-cols-2 gap-3">
-              <div className="p-3.5 rounded-xl bg-[#FAFAFB] border border-[#E8E5EA]">
-                <span className="block text-[11px] text-[#6F6B75] mb-1">💵 الصندوق الرئيسي (كاش)</span>
-                <span className="text-base font-extrabold font-mono text-[#25232A]">{fmt(cashBalance)}</span>
+              <div 
+                onClick={() => setActiveTab && setActiveTab('accounts')}
+                className="p-3.5 rounded-xl bg-[#FAFAFB] border border-[#E8E5EA] hover:border-[#009FAE]/50 cursor-pointer transition group"
+                title="انقر للانتقال إلى حسابات الصناديق النقدية"
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[11px] text-[#6F6B75] group-hover:text-[#009FAE] transition">💵 الصندوق الرئيسي (كاش)</span>
+                  <span className="text-[10px] text-[#007F8C] font-mono">101</span>
+                </div>
+                <span className="text-base font-extrabold font-mono text-[#25232A] block">
+                  {fmt(targetCode === 'YER' ? baseCashBalance : cashBalance)}
+                </span>
+                {foreignTreasuryDetails.length > 0 && (
+                  <span className="text-[10.5px] text-[#8F2A87] font-semibold block mt-0.5">
+                    🇸🇦 {fmt(foreignTreasuryDetails[0].foreign_balance)} SAR (صندوق الريال السعودي)
+                  </span>
+                )}
               </div>
-              <div className="p-3.5 rounded-xl bg-[#FAFAFB] border border-[#E8E5EA]">
-                <span className="block text-[11px] text-[#6F6B75] mb-1">💳 البنك ونقاط البيع POS</span>
-                <span className="text-base font-extrabold font-mono text-[#007F8C]">{fmt(bankBalance)}</span>
+              <div 
+                onClick={() => setActiveTab && setActiveTab('accounts')}
+                className="p-3.5 rounded-xl bg-[#FAFAFB] border border-[#E8E5EA] hover:border-[#007F8C]/50 cursor-pointer transition group"
+                title="انقر للانتقال إلى حسابات البنوك ونقاط البيع"
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[11px] text-[#6F6B75] group-hover:text-[#007F8C] transition">💳 البنك ونقاط البيع POS</span>
+                  <span className="text-[10px] text-[#007F8C] font-mono">103</span>
+                </div>
+                <span className="text-base font-extrabold font-mono text-[#007F8C] block">
+                  {fmt(targetCode === 'YER' ? baseBankBalance : bankBalance)}
+                </span>
+                <span className="text-[10px] text-[#6F6B75] block mt-0.5">
+                  حسابات جارية ومدفوعات إلكترونية
+                </span>
               </div>
             </div>
 
             {/* Inflow vs Outflow Comparison */}
             <div className="p-3.5 rounded-xl bg-[#FAFAFB] border border-[#E8E5EA] space-y-2">
               <div className="flex justify-between text-xs font-semibold">
-                <span className="text-[#007F8C]">المقبوضات والتحصيلات: {fmt(totalInflow)}</span>
-                <span className="text-[#D64545]">المصروفات والتوريد: {fmt(totalOutflow)}</span>
+                <span 
+                  onClick={() => setActiveTab && setActiveTab('vouchers')} 
+                  className="text-[#007F8C] cursor-pointer hover:underline"
+                  title="انقر لاستعراض سندات القبض"
+                >
+                  المقبوضات والتحصيلات: {fmt(totalInflow)}
+                </span>
+                <span 
+                  onClick={() => setActiveTab && setActiveTab('expenses')} 
+                  className="text-[#D64545] cursor-pointer hover:underline"
+                  title="انقر لاستعراض سندات الصرف والمصاريف"
+                >
+                  المصروفات والتوريد: {fmt(totalOutflow)}
+                </span>
               </div>
               <div className="w-full h-2.5 rounded-full bg-[#E8E5EA] overflow-hidden flex">
                 <div 
@@ -843,7 +982,11 @@ function Dashboard({
             </div>
 
             {/* Net Cash Flow Summary */}
-            <div className={`p-3 rounded-xl border flex items-center justify-between font-bold text-xs ${netCashFlow >= 0 ? 'bg-[#E2F5F7] border-[#C5ECF0] text-[#007F8C]' : 'bg-rose-50 border-rose-200 text-[#D64545]'}`}>
+            <div 
+              onClick={() => setActiveTab && setActiveTab('reports')}
+              className={`p-3 rounded-xl border flex items-center justify-between font-bold text-xs cursor-pointer hover:opacity-90 transition ${netCashFlow >= 0 ? 'bg-[#E2F5F7] border-[#C5ECF0] text-[#007F8C]' : 'bg-rose-50 border-rose-200 text-[#D64545]'}`}
+              title="انقر للانتقال إلى التقارير المالية والتدفق النقدي"
+            >
               <span>صافي التدفق النقدي للفترة (Net Cash Flow)</span>
               <span className="font-mono text-sm">{fmt(netCashFlow)} {currency.display}</span>
             </div>
@@ -920,23 +1063,26 @@ function Dashboard({
         </div>
 
         {/* Quick Navigation Hubs */}
-        <div className="grid grid-cols-2 gap-3.5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           {[
-            { id: "customers", title: "العملاء و CRM", desc: "المقاسات والملفات", icon: "👥", color: "text-[#B0005A] bg-[#FCE8F2] border-[#F2A4CB]/50" },
-            { id: "factory", title: "المعمل والإنتاج", desc: "مراحل الخياطة والشك", icon: "🏭", color: "text-[#8F2A87] bg-[#F2E7F3] border-[#E5CEE7]" },
             { id: "orders", title: "المبيعات والطلبات", desc: "الفواتير والحجوزات", icon: "👗", color: "text-[#007F8C] bg-[#E2F5F7] border-[#C5ECF0]" },
-            { id: "reports", title: "التقارير المالية", desc: "قائمة الدخل والمركز المالي", icon: "📊", color: "text-[#F28A00] bg-[#FFF1DC] border-[#FFE4B9]" }
+            { id: "factory", title: "المعمل والإنتاج", desc: "مراحل الخياطة والشك", icon: "🏭", color: "text-[#8F2A87] bg-[#F2E7F3] border-[#E5CEE7]" },
+            { id: "accounts", title: "الخزينة والحسابات", desc: "شجرة الحسابات والمالية", icon: "🏦", color: "text-[#009FAE] bg-[#E2F5F7] border-[#C5ECF0]" },
+            { id: "inventory", title: "مخزون الأقمشة", desc: "الخامات والمستودع", icon: "✂️", color: "text-amber-700 bg-amber-50 border-amber-200" },
+            { id: "customers", title: "العملاء و CRM", desc: "المقاسات وسجل العميلات", icon: "👥", color: "text-[#B0005A] bg-[#FCE8F2] border-[#F2A4CB]/50" },
+            { id: "reports", title: "التقارير المالية", desc: "قائمة الدخل والميزانية", icon: "📊", color: "text-[#F28A00] bg-[#FFF1DC] border-[#FFE4B9]" }
           ].map((c) => (
             <div 
               key={c.id} 
               onClick={() => setActiveTab(c.id)} 
-              className="cursor-pointer p-4 rounded-2xl border border-[#E8E5EA] bg-white shadow-2xs hover:border-[#B0005A]/40 hover:shadow-xs transition-all flex flex-col justify-center items-center text-center group"
+              className="cursor-pointer p-3.5 rounded-2xl border border-[#E8E5EA] bg-white shadow-2xs hover:border-[#B0005A]/40 hover:shadow-xs transition-all flex flex-col justify-center items-center text-center group"
+              title={`انقر للانتقال إلى قسم ${c.title}`}
             >
-              <div className={`w-11 h-11 rounded-xl mb-2.5 flex items-center justify-center border text-lg transition-all ${c.color}`}>
+              <div className={`w-10 h-10 rounded-xl mb-2 flex items-center justify-center border text-lg transition-all ${c.color} group-hover:scale-105`}>
                 {c.icon}
               </div>
-              <span className="font-bold text-xs text-[#25232A] mb-0.5">{c.title}</span>
-              <span className="text-[10.5px] text-[#6F6B75]">{c.desc}</span>
+              <span className="font-bold text-xs text-[#25232A] mb-0.5 group-hover:text-[#B0005A] transition">{c.title}</span>
+              <span className="text-[10px] text-[#6F6B75]">{c.desc}</span>
             </div>
           ))}
         </div>
