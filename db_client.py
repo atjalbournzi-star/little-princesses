@@ -139,11 +139,14 @@ def get_db_connection(mode=None):
     conn = None
     try:
         conn = p.getconn()
-        # فحص سلامة الاتصال والتأكد من أنه لم ينقطع
+        # فحص سلامة الاتصال والتأكد من أنه لم ينقطع سحابياً
         is_bad = False
         try:
             if conn.closed != 0:
                 is_bad = True
+            else:
+                with conn.cursor() as probe:
+                    probe.execute("SELECT 1;")
         except Exception:
             is_bad = True
 
@@ -154,9 +157,12 @@ def get_db_connection(mode=None):
             except Exception:
                 pass
             conn = p.getconn()
+            is_bad = False
 
         yield conn
     except Exception as e:
+        if isinstance(e, (psycopg2.OperationalError, psycopg2.InterfaceError)):
+            is_bad = True
         if conn:
             try:
                 if not conn.closed:
@@ -167,7 +173,10 @@ def get_db_connection(mode=None):
     finally:
         if conn and not p.closed:
             try:
-                p.putconn(conn)
+                if is_bad or conn.closed != 0:
+                    p.putconn(conn, close=True)
+                else:
+                    p.putconn(conn)
             except Exception as pe:
                 logger.error(f"⚠️ خطأ أثناء إعادة الاتصال إلى الحوض: {pe}")
 

@@ -218,6 +218,12 @@ window.Icons = {
       <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
       <circle cx="12" cy="12" r="3" />
     </svg>
+  ),
+  Tag: ({ className = "w-4 h-4" } = {}) => (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2">
+      <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+      <line x1="7" y1="7" x2="7.01" y2="7" />
+    </svg>
   )
 };
 
@@ -241,6 +247,8 @@ Icons.menu = Icons.Menu;
 Icons.edit = Icons.Edit;
 Icons.trash = Icons.Trash;
 Icons.eye = Icons.Eye;
+Icons.tag = Icons.Tag;
+Icons.collection = Icons.Tag;
 
 // Safe fallback Proxy: If an unknown icon name is accessed, return a safe component instead of undefined (prevents React #130)
 if (typeof Proxy !== 'undefined') {

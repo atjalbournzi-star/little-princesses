@@ -14,7 +14,7 @@ function Expenses({ expenses = [], setExpenses, accounts = [], setAccounts, vouc
     date: TODAY_STR_ISO,
     notes: '',
     pay_method: typeof PAY_METHODS !== 'undefined' ? PAY_METHODS[0] : 'نقد (كاش)',
-    source_acc: '1111 - الصندوق الرئيسي'
+    source_acc: '101.1 - صندوق الريال اليمني (YER)'
   });
 
   const handleQuickAddCategory = async (e) => {
@@ -117,7 +117,7 @@ function Expenses({ expenses = [], setExpenses, accounts = [], setAccounts, vouc
     const rawExpStr = String(formData.exp_category || '5211 - مصاريف تشغيل وصيانة الورشة').trim();
     const expCode = rawExpStr.includes(' - ') ? rawExpStr.split(' - ')[0].trim() : (rawExpStr.match(/\d+(\.\d+)?/)?.[0] || rawExpStr);
     
-    const rawSourceStr = String(formData.source_acc || '1111 - الصندوق الرئيسي').trim();
+    const rawSourceStr = String(formData.source_acc || '101.1 - صندوق الريال اليمني (YER)').trim();
     const sourceCode = rawSourceStr.includes(' - ') ? rawSourceStr.split(' - ')[0].trim() : (rawSourceStr.match(/\d+(\.\d+)?/)?.[0] || rawSourceStr);
 
     const expAccObj = (accounts || []).find(a => String(a.code || a.acc_code) === String(expCode) || (a.name && rawExpStr.includes(a.name)));

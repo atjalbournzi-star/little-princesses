@@ -121,19 +121,22 @@ async function callGAS(action, payload = {}) {
 async function loadAllData() {
   try {
     const [cRes, iRes, aRes, pRes, oRes, puRes, fRes, vRes, eRes, jRes, fBRes, empRes, payRes] = await Promise.allSettled([
-      callGAS("getCustomers"),
+      fetch("/api/customers").then(r => r.json()).catch(() => callGAS("getCustomers")),
       fetch("/api/inventory").then(r => r.json()).catch(() => callGAS("getInventory")),
       fetch("/api/accounts/list").then(r => r.json()).then(d => {
         const list = (d && Array.isArray(d.data)) ? d.data : (Array.isArray(d) ? d : []);
         return { data: list };
       }).catch(() => ({ data: [] })),
-      callGAS("getProducts"),
-      callGAS("getOrders"),
+      fetch("/api/products").then(r => r.json()).catch(() => callGAS("getProducts")),
+      fetch("/api/orders").then(r => r.json()).catch(() => callGAS("getOrders")),
       fetch("/api/purchases").then(r => r.json()).then(d => {
         const list = (d && Array.isArray(d.data)) ? d.data : (Array.isArray(d) ? d : []);
         return { data: list };
       }).catch(() => ({ data: [] })),
-      callGAS("getFactory"),
+      fetch("/api/factory").then(r => r.json()).then(d => {
+        const list = (d && Array.isArray(d.data)) ? d.data : (Array.isArray(d) ? d : []);
+        return { data: list };
+      }).catch(() => callGAS("getFactory")),
       fetch("/api/vouchers").then(r => r.json()).then(d => {
         const list = (d && Array.isArray(d.data)) ? d.data : (Array.isArray(d) ? d : []);
         return { data: list };
@@ -197,17 +200,20 @@ async function loadAllData() {
       customers: (cRes.status === "fulfilled" && cRes.value?.data && Array.isArray(cRes.value.data)) ? cRes.value.data.map(c => ({
         ...c,
         id: c.id,
+        customer_id: c.customer_id || c.id,
         name: c.name || c.customer_name || "",
         phone: c.phone || "",
         category: c.category || "VIP",
-        city: c.city || "صنعاء"
+        city: c.city || "صنعاء",
+        reg_date: c.reg_date || (c.created_at ? String(c.created_at).slice(0, 10) : "")
       })) : [],
       inventory: inventoryData,
       accounts: accountsData,
       products: (pRes.status === "fulfilled" && pRes.value?.data && Array.isArray(pRes.value.data)) ? pRes.value.data.map(p => ({
         ...p,
         id: p.id,
-        name: p.name || p.title || "",
+        name: p.name || p.model_name || p.title || "",
+        model_name: p.model_name || p.name || p.title || "",
         price: Number(p.base_price !== undefined ? p.base_price : (p.price || 0)),
         cost: Number(p.cost_price !== undefined ? p.cost_price : (p.cost || 0)),
         sku: p.sku || p.id,
@@ -235,7 +241,7 @@ async function loadAllData() {
         production_status: o.production_status || "قيد الخياطة 🪡"
       })) : [],
       purchases: (puRes.status === "fulfilled" && puRes.value) ? (Array.isArray(puRes.value.data) ? puRes.value.data : (Array.isArray(puRes.value) ? puRes.value : [])) : [],
-      factory: (fRes.status === "fulfilled" && fRes.value?.data && Array.isArray(fRes.value.data)) ? fRes.value.data : [],
+      factory: (fRes.status === "fulfilled" && fRes.value) ? (Array.isArray(fRes.value.data) ? fRes.value.data : (Array.isArray(fRes.value) ? fRes.value : [])) : [],
       vouchers: (vRes.status === "fulfilled" && vRes.value) ? (Array.isArray(vRes.value.data) ? vRes.value.data : (Array.isArray(vRes.value) ? vRes.value : [])) : [],
       expenses: (eRes.status === "fulfilled" && eRes.value) ? (Array.isArray(eRes.value.data) ? eRes.value.data : (Array.isArray(eRes.value) ? eRes.value : [])) : [],
       journal: (jRes.status === "fulfilled" && jRes.value) ? (Array.isArray(jRes.value.data) ? jRes.value.data : (Array.isArray(jRes.value) ? jRes.value : [])) : [],

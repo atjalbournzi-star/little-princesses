@@ -1,6 +1,6 @@
 const { useState, useEffect, useRef } = React;
 
-function PrintModal({ order, customer, measurements, isOpen, onClose, defaultTemplate = 'thermal' }) {
+function PrintModal({ order, customer, measurements, product, products, isOpen, onClose, defaultTemplate = 'thermal' }) {
   if (!isOpen || !order) return null;
 
   const [activeTemplate, setActiveTemplate] = useState(defaultTemplate); // 'thermal', 'job_ticket', 'hangtag'
@@ -22,7 +22,6 @@ function PrintModal({ order, customer, measurements, isOpen, onClose, defaultTem
 
   const orderNo = order.order_no || `ORD-${order.id}`;
   const custName = order.customer_name || customer?.name || 'عميلة راقية';
-  const childName = order.child_name || customer?.measurements?.[0]?.child_name || 'الأميرة';
   const prodName = order.product_name || order.item_name || 'فستان سهرة وتطريز فاخر';
   const qty = parseInt(order.qty || order.quantity || 1);
   const total = parseFloat(order.total_amount !== undefined ? order.total_amount : (order.total || 0));
@@ -34,7 +33,77 @@ function PrintModal({ order, customer, measurements, isOpen, onClose, defaultTem
   const phone = customer?.phone || customer?.customer_phone || customer?.['رقم الهاتف'] || order.customer_phone || order.phone || '—';
 
   // Find detailed child measurements if available
-  const m = measurements || customer?.measurements?.find(x => x.child_name === childName) || customer?.measurements?.[0] || {};
+  const initialChildName = order.child_name || customer?.measurements?.[0]?.child_name || 'الأميرة';
+  const m = measurements || customer?.measurements?.find(x => x.child_name === initialChildName) || customer?.measurements?.[0] || {};
+
+  // Resolve child name properly if it matched mother's name or was prefixed
+  let childName = order.child_name;
+  if (!childName || childName === custName || childName.startsWith('ام ') || childName.startsWith('أم ')) {
+    const measChild = customer?.measurements?.find(x => x.child_name && x.child_name !== custName)?.child_name;
+    const custChild = customer?.children?.find(x => x.child_name && x.child_name !== custName)?.child_name;
+    if (measChild) childName = measChild;
+    else if (custChild) childName = custChild;
+    else if (m.child_name && m.child_name !== custName) childName = m.child_name;
+    else if (!childName) childName = 'الأميرة';
+  }
+
+  // Resolve Target Product from props or products catalog
+  const targetProduct = product || (products && products.find(p => 
+    (order.product_id && (String(p.id) === String(order.product_id) || String(p.product_id) === String(order.product_id))) ||
+    (p.name && (p.name === prodName || prodName.includes(p.name))) ||
+    (p.model_name && (p.model_name === prodName || prodName.includes(p.model_name)))
+  ));
+
+  // Resolve Fabrics and Materials dynamically
+  const fabricItems = [];
+  if (targetProduct && Array.isArray(targetProduct.bom) && targetProduct.bom.length > 0) {
+    const ageBracket = m.estimated_age || '6-9 سنوات';
+    targetProduct.bom.forEach(b => {
+      const bName = b.fabric_name || b.name || b.item_name;
+      if (bName) {
+        const br = b.brackets || {};
+        const metersPerDress = parseFloat(br[ageBracket] || br['6-9 سنوات'] || b.meters || b.quantity || 0);
+        if (metersPerDress > 0) {
+          const totalMeters = (metersPerDress * qty).toFixed(1).replace(/\.0$/, '');
+          fabricItems.push(`${bName} - ${totalMeters} متر (${metersPerDress}م × ${qty})`);
+        } else {
+          fabricItems.push(bName);
+        }
+      }
+    });
+  } else if (order.fabric_name || order.fabric) {
+    fabricItems.push(order.fabric_name || order.fabric);
+  } else if (targetProduct?.fabric_name && targetProduct.fabric_name.trim()) {
+    fabricItems.push(targetProduct.fabric_name);
+  } else if (m.fabric_name || m.fabric) {
+    fabricItems.push(m.fabric_name || m.fabric);
+  }
+
+  const fallbackFabricText = (
+    order.fabric_name ||
+    targetProduct?.fabric_name ||
+    targetProduct?.description ||
+    'حسب مواصفات وخامات الموديل المعتمدة بالكتالوج'
+  );
+
+  // Parse comfort profile / notes
+  let comfortText = '';
+  if (m.comfort_profile) {
+    if (Array.isArray(m.comfort_profile)) {
+      comfortText = m.comfort_profile.filter(Boolean).join('، ');
+    } else if (typeof m.comfort_profile === 'string') {
+      try {
+        const parsed = JSON.parse(m.comfort_profile);
+        if (Array.isArray(parsed)) comfortText = parsed.filter(Boolean).join('، ');
+        else comfortText = m.comfort_profile;
+      } catch (e) {
+        comfortText = m.comfort_profile.replace(/[\[\]"']/g, '').trim();
+      }
+    }
+  }
+
+  // Sewing / Embroidery notes
+  const resolvedSewingNotes = m.sewing_notes || order.sewing_notes || order.notes || (typeof m.notes === 'string' && m.notes.trim()) || '';
 
   const handleExecutePrint = () => {
     const printContent = printAreaRef.current.innerHTML;
@@ -441,17 +510,60 @@ function PrintModal({ order, customer, measurements, isOpen, onClose, defaultTem
                 {/* Fabrics, Colors, and Special Instructions */}
                 <div className="grid grid-cols-2 gap-3 text-xs">
                   <div className="border border-gray-200 p-3 rounded-xl bg-[#FAFAFB]">
-                    <span className="font-bold text-black block mb-1">🧵 الأقمشة والخامات المطلوبة:</span>
-                    <p className="text-gray-700 text-[11px] leading-relaxed">
-                      {m.dress_color ? `اللون: ${m.dress_color} | ` : ''}
-                      قماش كريب ستان ملكي فاخر، تول فرنسي متعدد الطبقات، بطانة قطنية 100% مريحة لجسم الطفلة.
-                    </p>
+                    <span className="font-bold text-black block mb-1.5 flex items-center gap-1.5">
+                      <span>🧵</span>
+                      <span>الأقمشة والخامات المطلوبة:</span>
+                    </span>
+                    <div className="text-gray-700 text-[11px] leading-relaxed space-y-1.5">
+                      {m.dress_color && (
+                        <div className="font-bold text-[#8F2A87] bg-[#FDF8FE] px-2 py-0.5 rounded border border-[#E5CEE7] inline-block">
+                          اللون المعتمد: {m.dress_color}
+                        </div>
+                      )}
+                      {fabricItems.length > 0 ? (
+                        <div className="space-y-1">
+                          {fabricItems.map((fItem, idx) => (
+                            <div key={idx} className="flex items-start gap-1.5 font-bold text-gray-900">
+                              <span className="text-[#8F2A87] font-bold">•</span>
+                              <span>{fItem}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-gray-700 font-medium">
+                          {fallbackFabricText}
+                        </p>
+                      )}
+                      {comfortText && (
+                        <div className="text-[10px] text-purple-900 bg-[#F6EEF8] p-2 rounded-lg border border-[#E5CEE7] mt-1.5">
+                          <span className="font-bold block mb-0.5">تفضيلات القماش والراحة للأميرة:</span>
+                          <span>{comfortText}</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
+
                   <div className="border border-gray-200 p-3 rounded-xl bg-[#FAFAFB]">
-                    <span className="font-bold text-black block mb-1">✨ تعليمات الشك والتطريز والتشطيب:</span>
-                    <p className="text-gray-700 text-[11px] leading-relaxed">
-                      {m.sewing_notes || m.notes || 'تطريز يدوي على منطقة الصدر، تركيب فيونكة خلفية متحركة، سحاب مخفي مع أزرار لؤلؤية.'}
-                    </p>
+                    <span className="font-bold text-black block mb-1.5 flex items-center gap-1.5">
+                      <span>✨</span>
+                      <span>تعليمات الشك والتطريز والتشطيب:</span>
+                    </span>
+                    <div className="text-gray-700 text-[11px] leading-relaxed space-y-1.5">
+                      {resolvedSewingNotes ? (
+                        <p className="font-medium text-gray-900 bg-white p-2 rounded-lg border border-gray-200">
+                          {resolvedSewingNotes}
+                        </p>
+                      ) : (
+                        <p className="text-gray-600 italic">
+                          تفصيل وتشطيب يدوي قياسي متقن وفق تصميم الموديل ومقاسات الأميرة المعتمدة.
+                        </p>
+                      )}
+                      {m.notes && m.notes !== resolvedSewingNotes && (
+                        <p className="text-[10.5px] text-gray-600 mt-1 border-t border-gray-200 pt-1">
+                          <span className="font-bold">ملاحظات القياس: </span>{m.notes}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
 

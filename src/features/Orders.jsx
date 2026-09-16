@@ -29,6 +29,18 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
   const [printModalData, setPrintModalData] = useState(null);
   const [printTemplate, setPrintTemplate] = useState('thermal');
 
+  // Delivery Modal State
+  const [deliveryModalOrder, setDeliveryModalOrder] = useState(null);
+  const [deliveryForm, setDeliveryForm] = useState({
+    amount_collected: '',
+    discount: '0',
+    account_id: 'ACC-101',
+    payment_method: 'نقد (كاش)',
+    notes: ''
+  });
+  const [submittingDelivery, setSubmittingDelivery] = useState(false);
+  const [deliverySuccessData, setDeliverySuccessData] = useState(null);
+
   // ── نمط العرض: كاشير لمسي سريع أم أرشيف الطلبيات ──
   const [activeMode, setActiveMode] = useState('pos'); // 'pos' | 'archive'
 
@@ -49,6 +61,9 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
   const [quoteText, setQuoteText] = useState('');
   const [showQuoteModal, setShowQuoteModal] = useState(false);
   const [loadingQuote, setLoadingQuote] = useState(false);
+
+  // ── حالة نافذة رسائل اعتماد الحجز للأم عبر المنصات (واتساب، انستغرام، تيك توك) ──
+  const [customerMessageModalData, setCustomerMessageModalData] = useState(null);
 
   // ── الحساب اللحظي للمتبقي (Math Balance Engine) ──
   const totalNum     = Math.max(0, parseFloat(total) || 0);
@@ -130,8 +145,16 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
       );
 
       try {
-        await callGAS("updateOrder", updatedOrd);
-        showToast("تم تحديث الفاتورة بنجاح 💾");
+        if (window.salesAPI && window.salesAPI.updateOrder) {
+          await window.salesAPI.updateOrder(editingOrderId, updatedOrd);
+        } else {
+          await fetch('/api/sales/orders/update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updatedOrd)
+          });
+        }
+        showToast("تم تحديث الفاتورة في سوبابيز بنجاح 💾", "success");
       } catch {
         showToast("تم الحفظ محلياً ☁️");
       }
@@ -176,8 +199,10 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
           await callGAS("addOrder", newOrd);
         }
         showToast(msg);
+        openCustomerMessageModal(newOrd);
       } catch (err) {
         showToast(err.message || "تم الحفظ محلياً 📄");
+        openCustomerMessageModal(newOrd);
       }
       resetForm();
     }
@@ -210,10 +235,18 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
 
   // ── تحديث حالة الطلب ──
   const handleUpdateStatus = async (orderId, newStatus) => {
-    setOrders && setOrders(orders.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
+    setOrders && setOrders(orders.map(o => o.id === orderId ? { ...o, status: newStatus, production_status: newStatus } : o));
     try {
-      await callGAS("updateOrder", { id: orderId, status: newStatus });
-      showToast("تم تحديث الحالة 🔄");
+      if (window.salesAPI && window.salesAPI.updateOrder) {
+        await window.salesAPI.updateOrder(orderId, { status: newStatus, production_status: newStatus });
+      } else {
+        await fetch('/api/sales/orders/update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: orderId, status: newStatus, production_status: newStatus })
+        });
+      }
+      showToast("تم تحديث الحالة في سوبابيز بنجاح 🔄", "success");
     } catch { showToast("خطأ في التحديث", "error"); }
   };
 
@@ -231,41 +264,163 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
     } catch { showToast("خطأ في الحذف", "error"); }
   };
 
-  // ── إرسال واتساب ──
-  const sendWhatsAppInvoice = (order) => {
-    const cust = (customers || []).find(c => getCustomerName(c) === order.customer_name);
-    let phone = cust?.phone || cust?.["رقم الهاتف"] || cust?.Phone || "";
-    
-    if (!phone) {
-      showToast("عذراً، رقم الهاتف غير مسجل لهذه العميلة ⚠️", "error");
-      return;
-    }
-
-    phone = phone.toString().replace(/\D/g, '');
-    if (phone.startsWith("0")) phone = "967" + phone.substring(1);
-    else if (!phone.startsWith("967") && !phone.startsWith("966")) phone = "967" + phone;
-
-    const tot = parseFloat(order.total || 0);
-    const pd  = parseFloat(order.paid  || 0);
+  // ── دورة التسليم النهائي والتحصيل وقيد الخزينة المزدوج ──
+  const handleOpenDeliveryModal = (order) => {
+    const tot = parseFloat(order.total ?? order.total_amount ?? 0);
+    const pd = parseFloat(order.paid ?? order.paid_amount ?? 0);
     const rem = Math.max(0, tot - pd);
-    const cur = order.currency || currencyDisplay;
+    setDeliveryForm({
+      amount_collected: String(rem),
+      discount: '0',
+      account_id: 'ACC-101',
+      payment_method: 'نقد (كاش)',
+      notes: ''
+    });
+    setDeliverySuccessData(null);
+    setDeliveryModalOrder({
+      ...order,
+      resolvedTotal: tot,
+      resolvedPaid: pd,
+      resolvedRemaining: rem
+    });
+  };
 
+  const handleConfirmDelivery = async () => {
+    if (!deliveryModalOrder) return;
+    setSubmittingDelivery(true);
+    const orderNo = deliveryModalOrder.order_no || deliveryModalOrder.id;
+    const amt = parseFloat(deliveryForm.amount_collected || 0);
+    const disc = parseFloat(deliveryForm.discount || 0);
+
+    try {
+      const res = await fetch('/api/sales/orders/deliver-and-settle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          order_id: orderNo,
+          amount_collected: amt,
+          discount: disc,
+          account_id: deliveryForm.account_id,
+          payment_method: deliveryForm.payment_method,
+          notes: deliveryForm.notes
+        })
+      }).then(r => r.json());
+
+      if (res.success) {
+        showToast(res.message || 'تم تسليم الفستان والتحصيل بنجاح 👑🎉', 'success');
+        setOrders && setOrders(orders.map(o => (o.order_no === orderNo || o.id === orderNo) ? {
+          ...o,
+          status: 'تم التسليم ✅',
+          production_status: 'Delivered',
+          paid: (parseFloat(o.paid || 0) + amt),
+          paid_amount: (parseFloat(o.paid_amount || 0) + amt),
+          remaining: Math.max(0, (parseFloat(o.total || o.total_amount || 0) - disc) - (parseFloat(o.paid || o.paid_amount || 0) + amt))
+        } : o));
+        setDeliverySuccessData(res.data || { order_no: orderNo, collected_amount: amt });
+      } else {
+        showToast(res.error || 'فشلت عملية التسليم والتحصيل ❌', 'error');
+      }
+    } catch (err) {
+      showToast('خطأ أثناء التسليم: ' + err.message, 'error');
+    } finally {
+      setSubmittingDelivery(false);
+    }
+  };
+
+  const sendWhatsAppDeliveryGreeting = (data) => {
+    const cName = data?.customer_name || deliveryModalOrder?.customer_name || 'العميلة الكريمة';
+    const chName = data?.child_name || deliveryModalOrder?.child_name || 'الأميرة';
+    const pName = data?.product_name || deliveryModalOrder?.product_name || 'فستان الأميرات الفاخر';
+    const orderNo = data?.order_no || deliveryModalOrder?.order_no || deliveryModalOrder?.id;
+    const paidAmt = parseFloat(deliveryForm?.amount_collected || 0);
+
+    const msg = `👑 *ليتل برنسيس للأزياء الفاخرة* 👑\n\nألف مبارك استلام الفستان الملكي لأميرتنا الجميلة *${chName}*! 🌸✨\n\n👗 *الموديل:* ${pName}\n📋 *رقم الطلب:* ${orderNo}\n${paidAmt > 0 ? `💰 *المبلغ المحصل عند التسليم:* ${paidAmt.toLocaleString()} ر.ي\n` : ''}✅ *حالة الطلب:* تم التسليم بالكامل وبأعلى معايير الجودة الملكية.\n\nنتمنى لأميرتنا الصغيرة إطلالة ساحرة تملأ قلوبكم بهجة وسعادة! نسعد دائماً بخدمتكم وتجدد لقائكم معنا 💖👑`;
+
+    const cust = customers.find(c => (c.name && cName.includes(c.name)) || (cName && c.name && cName.includes(c.name)));
+    const phone = (cust?.phone || cust?.['رقم الهاتف'] || '').replace(/[^0-9]/g, '');
+    const waUrl = phone 
+      ? `https://api.whatsapp.com/send?phone=${phone.startsWith('0') ? '967' + phone.substring(1) : (phone.startsWith('967') ? phone : '967' + phone)}&text=${encodeURIComponent(msg)}`
+      : `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
+    window.open(waUrl, '_blank');
+  };
+
+  // ── بناء محرك صياغة الرسالة الملكية للأم عبر المنصات المتعددة ──
+  const buildRoyalCustomerConfirmation = (order) => {
+    const cust = (customers || []).find(c => getCustomerName(c) === order.customer_name);
+    const childMeas = cust?.measurements?.find(m => m.child_name === order.child_name) || cust?.measurements?.[0];
+    const prod = (products || []).find(p => (order.product_id && (p.id === order.product_id || p.product_id === order.product_id)) || p.name === order.product_name || p.model_name === order.product_name);
+    
     const brandName = (typeof window !== 'undefined' && window.BrandService)
       ? window.BrandService.getProfile().name
-      : 'نظام إدارة الطلبات والمبيعات';
+      : 'دار أميرات الصغار للأزياء الفاخرة';
+      
+    const tot = parseFloat(order.total ?? order.total_amount ?? 0);
+    const pd  = parseFloat(order.paid ?? order.paid_amount ?? 0);
+    const rem = Math.max(0, tot - pd);
+    const cur = order.currency || currencyDisplay;
+    
+    const chName = (order.child_name && String(order.child_name).trim()) ? order.child_name : (childMeas?.child_name || 'الأميرة');
+    const motherName = cust?.name || cust?.customer_name || order.customer_name || 'عزيزتنا الأم';
+    const deliveryDateFormatted = order.delivery_date ? String(order.delivery_date).split('T')[0] : 'يحدد لاحقاً مع المشغل';
+    
+    let measLines = [];
+    if (childMeas) {
+      const u = childMeas.unit || 'سم';
+      if (childMeas.estimated_age) measLines.push(`  • الفئة العمرية: ${childMeas.estimated_age}`);
+      if (childMeas.dress_length)  measLines.push(`  • طول الفستان: ${childMeas.dress_length} ${u}`);
+      if (childMeas.chest)         measLines.push(`  • محيط الصدر: ${childMeas.chest} ${u}`);
+      if (childMeas.waist)         measLines.push(`  • محيط الخصر: ${childMeas.waist} ${u}`);
+      if (childMeas.shoulder)      measLines.push(`  • عرض الكتف: ${childMeas.shoulder} ${u}`);
+      if (childMeas.notes)         measLines.push(`  • تفضيلات خاصة: ${childMeas.notes}`);
+    } else if (order.age_bracket || order.size) {
+      measLines.push(`  • المقاس المعتمد: ${order.age_bracket || order.size}`);
+    }
 
-    const msg = `مرحباً بكِ في ${brandName} 🌸\n\n` +
-      `تم تسجيل طلبك بنجاح ✅\n` +
-      `رقم الطلب: ${order.order_no}\n` +
-      `الصنف / المنتج: ${order.product_name || "غير محدد"} × ${order.qty || 1}\n` +
-      `المبلغ الإجمالي: ${tot.toLocaleString("en-US")} ${cur}\n` +
-      `المدفوع (عربون): ${pd.toLocaleString("en-US")} ${cur}\n` +
-      `المتبقي: ${rem.toLocaleString("en-US")} ${cur}\n\n` +
-      `تاريخ التسليم المتوقع: ${order.delivery_date ? order.delivery_date.split('T')[0] : "يحدد لاحقاً"}\n\n` +
-      `نسعد بخدمتكم دائماً 🌸!`;
+    const measSection = measLines.length > 0 
+      ? `\n📏 *المواصفات والمقاسات المعتمدة للأميرة:* \n${measLines.join('\n')}\n`
+      : '';
 
-    const encodedMsg = encodeURIComponent(msg);
-    window.open(`https://wa.me/${phone}?text=${encodedMsg}`, '_blank');
+    const imgUrl = prod?.image_url || prod?.image || order.image_url;
+    const imgSection = imgUrl ? `\n🖼️ *معاينة صورة الموديل:* ${imgUrl}\n` : '';
+
+    const msg = `👑 *${brandName}* 👑\n\n` +
+      `أهلاً وسهلاً بكِ عزيزتنا *${motherName}* 🌸✨\n` +
+      `تم بحمد الله اعتماد وتأكيد حجز تفصيل الفستان لأميرتنا الجميلة *${chName}* بنجاح ✅\n\n` +
+      `👗 *الموديل المختار:* ${order.product_name || prod?.name || "موديل راقي خاص"}\n` +
+      `📋 *رقم الطلب:* ${order.order_no || ('ORD-' + order.id)}\n` +
+      imgSection +
+      measSection +
+      `\n💰 *البيان المالي للحجز:* \n` +
+      `  • المبلغ الإجمالي: ${tot.toLocaleString("en-US")} ${cur}\n` +
+      `  • المبلغ الموصل (العربون): ${pd.toLocaleString("en-US")} ${cur}\n` +
+      `  • المبلغ المتبقي عند الاستلام: ${rem.toLocaleString("en-US")} ${cur}\n\n` +
+      `📅 *موعد التسليم والبروفة:* ${deliveryDateFormatted}\n\n` +
+      `نعتني بأدق تفاصيل الخياطة الملكية واللمسات الفاخرة لتتألق أميرتك بأجمل إطلالة تليق بها! 🎀👑✨\n` +
+      `نسعد دائماً بخدمتكم وتواصلكم معنا 💖`;
+
+    return {
+      msg,
+      motherName,
+      chName,
+      phone: cust?.phone || cust?.['رقم الهاتف'] || '',
+      platform: cust?.platform || cust?.social_platform || 'واتساب',
+      platformAccount: cust?.account_handle || cust?.username || cust?.social_id || '',
+      order,
+      cust,
+      prod,
+      childMeas
+    };
+  };
+
+  // ── فتح نافذة رسائل اعتماد الطلب للأم ──
+  const openCustomerMessageModal = (order) => {
+    const data = buildRoyalCustomerConfirmation(order);
+    setCustomerMessageModalData(data);
+  };
+
+  // ── إرسال واتساب ──
+  const sendWhatsAppInvoice = (order) => {
+    openCustomerMessageModal(order);
   };
 
   // ── فتح نافذة الطباعة المتقدمة (Print Engine) ──
@@ -275,6 +430,7 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
     const tot = parseFloat(order.total ?? order.total_amount ?? 0);
     const pd = parseFloat(order.paid ?? order.paid_amount ?? 0);
     const rem = Math.max(0, tot - pd);
+    const prod = (products || []).find(p => (order.product_id && (p.id === order.product_id || p.product_id === order.product_id)) || p.name === order.product_name || p.model_name === order.product_name);
     setPrintTemplate(template);
     setPrintModalData({
       order: {
@@ -287,7 +443,9 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
         qty: order.qty ?? order.quantity ?? 1
       },
       customer: cust,
-      measurements: childMeas
+      measurements: childMeas,
+      product: prod,
+      products: products
     });
   };
 
@@ -1245,6 +1403,16 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
                       </select>
                     </td>
                     <td className="px-4 py-3 flex items-center gap-1 justify-center whitespace-nowrap">
+                      {/* تسليم فستان الأميرة وتحصيل المتبقي */}
+                      {(o.status === 'جاهز للتسليم 🛍️' || o.status === 'جاهز للتسليم 📦' || rem > 0) && (
+                        <button 
+                          onClick={() => handleOpenDeliveryModal(o)} 
+                          title="تسليم الفستان وتحصيل المتبقي وقيد الخزينة 🛍️" 
+                          className="w-7 h-7 rounded-lg bg-gradient-to-r from-[#B0005A] to-[#8F2A87] hover:opacity-95 text-white flex items-center justify-center cursor-pointer text-xs font-bold shadow-2xs"
+                        >
+                          🛍️
+                        </button>
+                      )}
                       <button onClick={() => sendWhatsAppInvoice(o)} title="إرسال واتساب" className="w-7 h-7 rounded-lg bg-white dark:bg-slate-800 hover:bg-[#E2F5F7] dark:hover:bg-slate-700 text-[#6F6B75] dark:text-slate-300 hover:text-[#007F8C] dark:hover:text-cyan-300 border border-[#E8E5EA] dark:border-slate-700 transition-all flex items-center justify-center cursor-pointer">
                         <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 00-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
                       </button>
@@ -1305,6 +1473,174 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
         </div>
       )}
 
+      {/* ── نافذة تسليم فستان الأميرة وتحصيل المتبقي والترحيل الخزني (Delivery & Settlement Modal) ── */}
+      {deliveryModalOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-fadeIn" dir="rtl">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-[#E8E5EA] dark:border-slate-800 space-y-4 text-right">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-[#E8E5EA] dark:border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <span className="text-2xl">👑</span>
+                <div>
+                  <h3 className="text-sm font-bold text-[#25232A] dark:text-slate-100">تسليم فستان الأميرة والتحصيل النهائي</h3>
+                  <p className="text-[11px] text-[#6F6B75] dark:text-slate-400">فاتورة رقم: {deliveryModalOrder.order_no || deliveryModalOrder.id}</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setDeliveryModalOrder(null)}
+                className="w-8 h-8 rounded-full bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-600 dark:text-slate-300 flex items-center justify-center font-bold text-sm cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* إذا تمت العملية بنجاح: عرض كرت التهنئة وزر الواتساب */}
+            {deliverySuccessData ? (
+              <div className="space-y-4 py-2">
+                <div className="p-5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-center space-y-2">
+                  <span className="text-4xl block animate-bounce">🎉</span>
+                  <h4 className="text-sm font-black text-emerald-900 dark:text-emerald-300">تم تسليم الفستان الملكي بنجاح!</h4>
+                  <p className="text-xs text-emerald-800 dark:text-emerald-400">
+                    تم تحصيل مبلغ <strong>{deliverySuccessData.collected_amount?.toLocaleString() || deliveryForm.amount_collected} {currencyDisplay}</strong> وإصدار سند القبض وترحيل قيد الخزينة المزدوج آلياً.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => sendWhatsAppDeliveryGreeting(deliverySuccessData)}
+                  className="w-full py-3.5 px-4 rounded-xl bg-[#25D366] hover:bg-[#20bd5a] text-white font-black text-xs shadow-md transition flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <span>📲</span>
+                  <span>إرسال بطاقة تهنئة التسليم للأميرة عبر واتساب 🌸</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setDeliveryModalOrder(null)}
+                  className="w-full py-2.5 rounded-xl bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-300 font-bold text-xs transition cursor-pointer"
+                >
+                  إغلاق النافذة
+                </button>
+              </div>
+            ) : (
+              /* نموذج التحصيل والتسليم */
+              <div className="space-y-3.5">
+                {/* بطاقة معلومات الأميرة والطلب */}
+                <div className="p-3.5 rounded-2xl bg-[#FCE8F2]/60 dark:bg-rose-950/30 border border-[#F2A4CB]/40 dark:border-rose-900/40 space-y-1.5 text-xs">
+                  <div className="flex justify-between items-center">
+                    <span className="font-bold text-[#B0005A] dark:text-rose-400">👧 الأميرة: {deliveryModalOrder.child_name || 'الأميرة'}</span>
+                    <span className="text-[#6F6B75] dark:text-slate-400">العميلة: {deliveryModalOrder.customer_name}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-[11px] pt-1 border-t border-[#F2A4CB]/30 dark:border-rose-900/30">
+                    <span>👗 الموديل: <strong>{deliveryModalOrder.product_name}</strong></span>
+                    <span className="font-mono text-[#B0005A] dark:text-rose-400">الكمية: {deliveryModalOrder.qty || 1} قطعة</span>
+                  </div>
+                </div>
+
+                {/* الحسابات المالية اللحظية */}
+                <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                  <div className="p-2.5 bg-[#FAFAFB] dark:bg-slate-800/80 rounded-xl border border-[#E8E5EA] dark:border-slate-700">
+                    <span className="text-[10.5px] text-[#6F6B75] dark:text-slate-400 block">إجمالي الفاتورة</span>
+                    <span className="font-mono font-bold text-[#25232A] dark:text-slate-100 mt-0.5 block">{deliveryModalOrder.resolvedTotal?.toLocaleString()} {currencyDisplay.split(' ')[0]}</span>
+                  </div>
+                  <div className="p-2.5 bg-[#FAFAFB] dark:bg-slate-800/80 rounded-xl border border-[#E8E5EA] dark:border-slate-700">
+                    <span className="text-[10.5px] text-[#6F6B75] dark:text-slate-400 block">العربون المسدد</span>
+                    <span className="font-mono font-bold text-[#007F8C] dark:text-cyan-400 mt-0.5 block">{deliveryModalOrder.resolvedPaid?.toLocaleString()} {currencyDisplay.split(' ')[0]}</span>
+                  </div>
+                  <div className="p-2.5 bg-amber-50 dark:bg-amber-950/40 rounded-xl border border-amber-200 dark:border-amber-900/50">
+                    <span className="text-[10.5px] text-amber-800 dark:text-amber-300 font-bold block">المتبقي للتحصيل</span>
+                    <span className="font-mono font-black text-[#B0005A] dark:text-rose-400 mt-0.5 block">{deliveryModalOrder.resolvedRemaining?.toLocaleString()} {currencyDisplay.split(' ')[0]}</span>
+                  </div>
+                </div>
+
+                {/* حقول التحصيل والخزينة */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={labelCls}>المبلغ المحصل الآن ({currencyDisplay.split(' ')[0]}) <span className="text-[#D64545] font-bold">*</span></label>
+                    <input
+                      type="number"
+                      step="100"
+                      min="0"
+                      className={inputCls + " font-mono font-bold text-[#B0005A] dark:text-rose-400 text-center"}
+                      value={deliveryForm.amount_collected}
+                      onChange={e => setDeliveryForm({ ...deliveryForm, amount_collected: e.target.value })}
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <div>
+                    <label className={labelCls}>خصم إضافي إن وجد ({currencyDisplay.split(' ')[0]})</label>
+                    <input
+                      type="number"
+                      step="100"
+                      min="0"
+                      className={inputCls + " font-mono text-center"}
+                      value={deliveryForm.discount}
+                      onChange={e => setDeliveryForm({ ...deliveryForm, discount: e.target.value })}
+                      placeholder="0"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={labelCls}>حساب الخزينة المورد إليه <span className="text-[#D64545] font-bold">*</span></label>
+                    <select
+                      className={inputCls}
+                      value={deliveryForm.account_id}
+                      onChange={e => setDeliveryForm({ ...deliveryForm, account_id: e.target.value })}
+                    >
+                      <option value="ACC-101">ACC-101 (الصندوق الرئيسي - كاش)</option>
+                      <option value="ACC-103">ACC-103 (بنك الكريمي - تحويل بنكي)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className={labelCls}>طريقة الدفع</label>
+                    <select
+                      className={inputCls}
+                      value={deliveryForm.payment_method}
+                      onChange={e => setDeliveryForm({ ...deliveryForm, payment_method: e.target.value })}
+                    >
+                      <option value="نقد (كاش)">💵 نقد (كاش)</option>
+                      <option value="تحويل كريمي">📲 تحويل كريمي</option>
+                      <option value="شبكة / بطاقة">💳 شبكة / مدى</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className={labelCls}>ملاحظات التسليم والتسوية</label>
+                  <input
+                    type="text"
+                    className={inputCls}
+                    value={deliveryForm.notes}
+                    onChange={e => setDeliveryForm({ ...deliveryForm, notes: e.target.value })}
+                    placeholder="تم تسليم الفستان للأميرة واستلام المتبقي..."
+                  />
+                </div>
+
+                <div className="pt-2 flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={submittingDelivery}
+                    onClick={handleConfirmDelivery}
+                    className="flex-1 py-3 px-4 rounded-xl brand-gradient hover:opacity-95 text-white font-bold text-xs shadow-md transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                  >
+                    <span>{submittingDelivery ? 'جاري التسليم والترحيل...' : '✅ تأكيد التسليم النهائي والترحيل المالي'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDeliveryModalOrder(null)}
+                    className="py-3 px-4 rounded-xl bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-300 font-bold text-xs transition cursor-pointer"
+                  >
+                    إلغاء
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Modern Print Engine Modal */}
       {printModalData && typeof PrintModal !== 'undefined' && (
         <PrintModal
@@ -1312,9 +1648,107 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
           order={printModalData.order}
           customer={printModalData.customer}
           measurements={printModalData.measurements}
+          product={printModalData.product}
+          products={printModalData.products || products}
           defaultTemplate={printTemplate}
           onClose={() => setPrintModalData(null)}
         />
+      )}
+
+      {/* ── Omnichannel Royal Customer Confirmation Modal ── */}
+      {customerMessageModalData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn" dir="rtl">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-[#E8E5EA] dark:border-slate-800 space-y-4 text-right max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-[#E8E5EA] dark:border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-pink-500 to-[#8F2A87] text-white flex items-center justify-center text-xl shadow-xs">
+                  💌
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-[#25232A] dark:text-slate-100">رسالة اعتماد الطلب الملكية للأم</h3>
+                  <p className="text-[11px] text-[#6F6B75] dark:text-slate-400">
+                    للأميرة: <span className="font-bold text-[#8F2A87]">{customerMessageModalData.chName}</span> • طلب: {customerMessageModalData.order?.order_no}
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setCustomerMessageModalData(null)}
+                className="w-8 h-8 rounded-full bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-600 dark:text-slate-300 flex items-center justify-center font-bold text-sm cursor-pointer transition"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Platform Badge & Info */}
+            <div className="p-3 rounded-2xl bg-purple-50/70 dark:bg-purple-950/30 border border-[#E5CEE7] dark:border-purple-900/50 flex items-center justify-between text-xs">
+              <div className="flex items-center gap-2">
+                <span className="text-base">🌐</span>
+                <div>
+                  <span className="text-[10px] text-[#8F2A87] dark:text-purple-300 font-bold block">منصة التواصل المسجلة:</span>
+                  <span className="font-bold text-[#25232A] dark:text-slate-200">{customerMessageModalData.platform}</span>
+                </div>
+              </div>
+              {customerMessageModalData.phone && (
+                <div className="text-left font-mono font-bold text-[#007F8C]">
+                  📱 {customerMessageModalData.phone}
+                </div>
+              )}
+            </div>
+
+            {/* Message Preview Box */}
+            <div>
+              <label className={labelCls}>معاينة نص الرسالة الملكية المنسقة:</label>
+              <div className="p-3.5 rounded-2xl bg-[#FAFAFB] dark:bg-slate-950 border border-[#E8E5EA] dark:border-slate-800 text-xs text-[#25232A] dark:text-slate-200 font-sans leading-relaxed whitespace-pre-wrap max-h-56 overflow-y-auto select-all selection:bg-purple-100">
+                {customerMessageModalData.msg}
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="pt-2 space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                {/* WhatsApp Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    let p = customerMessageModalData.phone ? String(customerMessageModalData.phone).replace(/\D/g, '') : '';
+                    if (p.startsWith('0')) p = '967' + p.substring(1);
+                    else if (!p.startsWith('967') && !p.startsWith('966') && p.length > 0) p = '967' + p;
+                    const url = p 
+                      ? `https://wa.me/${p}?text=${encodeURIComponent(customerMessageModalData.msg)}`
+                      : `https://wa.me/?text=${encodeURIComponent(customerMessageModalData.msg)}`;
+                    window.open(url, '_blank');
+                  }}
+                  className="py-3 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 00-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                  <span>إرسال فوري عبر واتساب 📲</span>
+                </button>
+
+                {/* Copy to Clipboard Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(customerMessageModalData.msg);
+                    showToast('تم نسخ الرسالة الملكية بنجاح! يمكنكِ لصقها مباشرة في خاص انستغرام أو تيك توك 🌸📋', 'success');
+                  }}
+                  className="py-3 px-3 rounded-xl bg-[#8F2A87] hover:bg-[#76206f] text-white font-bold text-xs shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <span>📋</span>
+                  <span>نسخ للمنصة (انستغرام / تيك توك)</span>
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setCustomerMessageModalData(null)}
+                className="w-full py-2.5 rounded-xl bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-300 font-bold text-xs transition cursor-pointer"
+              >
+                إغلاق النافذة
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -2617,29 +2617,21 @@ class UnifiedERPHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         if parsed_url.path == '/api/quality/inspections':
-            conn = get_db()
-            c = conn.cursor()
-            c.execute("SELECT * FROM quality_inspections ORDER BY id DESC")
-            data = [dict(r) for r in c.fetchall()]
-            conn.close()
+            data = pg_service.get_quality_inspections()
             self.send_response(200)
             self._send_cors_headers()
             self.send_header('Content-Type', 'application/json; charset=utf-8')
             self.end_headers()
-            self.wfile.write(json.dumps({'success': True, 'data': data}, ensure_ascii=False).encode('utf-8'))
+            self.wfile.write(json.dumps({'success': True, 'data': data}, ensure_ascii=False, default=str).encode('utf-8'))
             return
 
         if parsed_url.path == '/api/quality/defects':
-            conn = get_db()
-            c = conn.cursor()
-            c.execute("SELECT * FROM quality_defects ORDER BY id DESC")
-            data = [dict(r) for r in c.fetchall()]
-            conn.close()
+            data = pg_service.get_quality_defects()
             self.send_response(200)
             self._send_cors_headers()
             self.send_header('Content-Type', 'application/json; charset=utf-8')
             self.end_headers()
-            self.wfile.write(json.dumps({'success': True, 'data': data}, ensure_ascii=False).encode('utf-8'))
+            self.wfile.write(json.dumps({'success': True, 'data': data}, ensure_ascii=False, default=str).encode('utf-8'))
             return
 
         if parsed_url.path == '/api/quality/feedback':
@@ -2729,6 +2721,71 @@ class UnifiedERPHandler(http.server.SimpleHTTPRequestHandler):
 
         if parsed_url.path in ('/api/factory', '/api/factory/orders'):
             data = pg_service.get_factory()
+            self.send_response(200)
+            self._send_cors_headers()
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.end_headers()
+            self.wfile.write(json.dumps({'success': True, 'data': data}, ensure_ascii=False, default=str).encode('utf-8'))
+            return
+
+        if parsed_url.path in ('/api/factory/analytics', '/api/production/analytics'):
+            data = pg_service.get_factory_analytics()
+            self.send_response(200)
+            self._send_cors_headers()
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.end_headers()
+            self.wfile.write(json.dumps(data, ensure_ascii=False, default=str).encode('utf-8'))
+            return
+
+        if parsed_url.path in ('/api/factory/job-card', '/api/production/job-card'):
+            query_params = urllib.parse.parse_qs(parsed_url.query)
+            order_id = query_params.get('id', [None])[0] or query_params.get('order_no', [None])[0]
+            data = pg_service.get_production_order_for_job_card(order_id)
+            status_code = 200 if 'error' not in data else 404
+            self.send_response(status_code)
+            self._send_cors_headers()
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.end_headers()
+            self.wfile.write(json.dumps({'success': 'error' not in data, 'data': data}, ensure_ascii=False, default=str).encode('utf-8'))
+            return
+
+        if parsed_url.path in ('/api/hr/commissions', '/api/commissions'):
+            query_params = urllib.parse.parse_qs(parsed_url.query)
+            params = {k: v[0] for k, v in query_params.items()}
+            data = pg_service.get_tailor_commissions(params)
+            self.send_response(200)
+            self._send_cors_headers()
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.end_headers()
+            self.wfile.write(json.dumps({'success': True, 'data': data}, ensure_ascii=False, default=str).encode('utf-8'))
+            return
+
+        if parsed_url.path in ('/api/hr/tailors-summary', '/api/tailors-summary'):
+            query_params = urllib.parse.parse_qs(parsed_url.query)
+            params = {k: v[0] for k, v in query_params.items()}
+            data = pg_service.get_tailor_payout_summary(params)
+            self.send_response(200)
+            self._send_cors_headers()
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.end_headers()
+            self.wfile.write(json.dumps({'success': True, 'data': data}, ensure_ascii=False, default=str).encode('utf-8'))
+            return
+
+        if parsed_url.path in ('/api/hr/tailor-pieces', '/api/tailor-pieces'):
+            query_params = urllib.parse.parse_qs(parsed_url.query)
+            params = {k: v[0] for k, v in query_params.items()}
+            data = pg_service.get_tailor_unpaid_pieces(params)
+            self.send_response(200)
+            self._send_cors_headers()
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.end_headers()
+            self.wfile.write(json.dumps({'success': True, 'data': data}, ensure_ascii=False, default=str).encode('utf-8'))
+            return
+
+        if parsed_url.path in ('/api/hr/tailor-vouchers', '/api/tailor-vouchers'):
+            query_params = urllib.parse.parse_qs(parsed_url.query)
+            params = {k: v[0] for k, v in query_params.items()}
+            data = pg_service.get_tailor_payout_vouchers(params)
             self.send_response(200)
             self._send_cors_headers()
             self.send_header('Content-Type', 'application/json; charset=utf-8')
@@ -3601,29 +3658,14 @@ class UnifiedERPHandler(http.server.SimpleHTTPRequestHandler):
             post_data = self.rfile.read(content_length)
             try:
                 d = json.loads(post_data.decode('utf-8'))
-                conn = get_db()
-                c = conn.cursor()
-                insp_id = d.get('inspection_id') or ('INSP-' + str(int(time.time() * 1000)))
-                c.execute('''
-                    INSERT INTO quality_inspections (inspection_id, inspection_date, product_id, product_name, sku, model_id, color, size, production_order_id, production_stage, batch_id, quantity_checked, quantity_passed, quantity_failed, inspection_result, inspector_id, inspector_name, notes, attachment_url)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ''', (
-                    insp_id, d.get('inspection_date', ''), d.get('product_id', ''), d.get('product_name', ''), d.get('sku', ''),
-                    d.get('model_id', ''), d.get('color', ''), d.get('size', ''), d.get('production_order_id', ''),
-                    d.get('production_stage', 'الفحص النهائي'), d.get('batch_id', ''), float(d.get('quantity_checked', 1)),
-                    float(d.get('quantity_passed', 1)), float(d.get('quantity_failed', 0)), d.get('inspection_result', 'PASS'),
-                    d.get('inspector_id', ''), d.get('inspector_name', ''), d.get('notes', ''), d.get('attachment_url', '')
-                ))
-                conn.commit()
-                conn.close()
-
+                res = pg_service.add_quality_inspection(d)
                 sync_quality_to_gas_async('addQualityInspection', d)
 
                 self.send_response(200)
                 self._send_cors_headers()
                 self.send_header('Content-Type', 'application/json; charset=utf-8')
                 self.end_headers()
-                self.wfile.write(json.dumps({'success': True, 'message': 'تم تسجيل فحص الجودة بنجاح', 'id': insp_id}, ensure_ascii=False).encode('utf-8'))
+                self.wfile.write(json.dumps({'success': True, 'message': 'تم تسجيل فحص الجودة في سوبابيز بنجاح', 'id': res.get('id'), 'data': res}, ensure_ascii=False, default=str).encode('utf-8'))
             except Exception as e:
                 self.send_response(500)
                 self._send_cors_headers()
@@ -3637,31 +3679,14 @@ class UnifiedERPHandler(http.server.SimpleHTTPRequestHandler):
             post_data = self.rfile.read(content_length)
             try:
                 d = json.loads(post_data.decode('utf-8'))
-                conn = get_db()
-                c = conn.cursor()
-                def_id = d.get('defect_id') or ('DEF-' + str(int(time.time() * 1000)))
-                c.execute('''
-                    INSERT INTO quality_defects (defect_id, defect_date, inspection_id, product_id, sku, model_id, color, size, production_order_id, production_stage, defect_type, defect_category, severity, affected_quantity, root_cause, corrective_action, preventive_action, status, assigned_to, due_date, resolved_date, rework_cost, waste_cost, return_cost, total_cost, notes)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ''', (
-                    def_id, d.get('defect_date', ''), d.get('inspection_id', ''), d.get('product_id', ''), d.get('sku', ''),
-                    d.get('model_id', ''), d.get('color', ''), d.get('size', ''), d.get('production_order_id', ''),
-                    d.get('production_stage', 'الخياطة'), d.get('defect_type', 'عيب خياطة'), d.get('defect_category', 'تشغيلي'),
-                    d.get('severity', 'Medium'), float(d.get('affected_quantity', 1)), d.get('root_cause', ''),
-                    d.get('corrective_action', ''), d.get('preventive_action', ''), d.get('status', 'Open'),
-                    d.get('assigned_to', ''), d.get('due_date', ''), d.get('resolved_date', ''), float(d.get('rework_cost', 0)),
-                    float(d.get('waste_cost', 0)), float(d.get('return_cost', 0)), float(d.get('total_cost', 0)), d.get('notes', '')
-                ))
-                conn.commit()
-                conn.close()
-
+                res = pg_service.add_quality_defect(d)
                 sync_quality_to_gas_async('addQualityDefect', d)
 
                 self.send_response(200)
                 self._send_cors_headers()
                 self.send_header('Content-Type', 'application/json; charset=utf-8')
                 self.end_headers()
-                self.wfile.write(json.dumps({'success': True, 'message': 'تم تسجيل عيب الجودة بنجاح', 'id': def_id}, ensure_ascii=False).encode('utf-8'))
+                self.wfile.write(json.dumps({'success': True, 'message': 'تم تسجيل عيب الجودة في سوبابيز بنجاح', 'id': res.get('id'), 'data': res}, ensure_ascii=False, default=str).encode('utf-8'))
             except Exception as e:
                 self.send_response(500)
                 self._send_cors_headers()
@@ -4939,11 +4964,14 @@ class UnifiedERPHandler(http.server.SimpleHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(json.dumps({'success': True, 'data': res, 'customer': res}, ensure_ascii=False, default=str).encode('utf-8'))
             except Exception as e:
-                self.send_response(500)
-                self._send_cors_headers()
-                self.send_header('Content-Type', 'application/json; charset=utf-8')
-                self.end_headers()
-                self.wfile.write(json.dumps({'success': False, 'error': str(e)}).encode('utf-8'))
+                try:
+                    self.send_response(500)
+                    self._send_cors_headers()
+                    self.send_header('Content-Type', 'application/json; charset=utf-8')
+                    self.end_headers()
+                    self.wfile.write(json.dumps({'success': False, 'error': str(e)}).encode('utf-8'))
+                except Exception:
+                    pass
             return
 
         # ── مسارات الموارد البشرية والرواتب (HR & Payroll POST Routes) ──
@@ -5052,6 +5080,222 @@ class UnifiedERPHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_header('Content-Type', 'application/json; charset=utf-8')
                 self.end_headers()
                 self.wfile.write(json.dumps(res, ensure_ascii=False, default=str).encode('utf-8'))
+            except Exception as e:
+                self.send_response(500)
+                self._send_cors_headers()
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({'success': False, 'error': str(e)}).encode('utf-8'))
+        # ── FACTORY / PRODUCTION WRITE ROUTES ──
+        if path in ('/api/factory', '/api/factory/update', '/api/production/update-stage', '/api/production/assign'):
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length)
+            try:
+                data = json.loads(post_data.decode('utf-8')) if post_data else {}
+                res = pg_service.update_factory(data)
+                self.send_response(200)
+                self._send_cors_headers()
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({'success': True, 'data': res, 'message': 'تم تحديث حالة المشغل وأمر الإنتاج بنجاح 🚀'}, ensure_ascii=False, default=str).encode('utf-8'))
+            except Exception as e:
+                self.send_response(500)
+                self._send_cors_headers()
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+            return
+
+        if path in ('/api/factory/delete', '/api/production/delete', '/api/factory/remove'):
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length)
+            try:
+                data = json.loads(post_data.decode('utf-8')) if post_data else {}
+                res = pg_service.delete_factory_order(data)
+                self.send_response(200)
+                self._send_cors_headers()
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps(res, ensure_ascii=False, default=str).encode('utf-8'))
+            except Exception as e:
+                self.send_response(500)
+                self._send_cors_headers()
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({'success': False, 'error': str(e)}).encode('utf-8'))
+            return
+
+        # ── TAILOR JOB CARD & QUALITY APPROVAL WRITE ROUTES ──
+        if path in ('/api/factory/job-card/complete', '/api/production/job-card/complete'):
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length)
+            try:
+                data = json.loads(post_data.decode('utf-8')) if post_data else {}
+                res = pg_service.submit_tailor_stage_completion(data)
+                self.send_response(200)
+                self._send_cors_headers()
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({'success': True, 'data': res, 'message': res.get('message', 'تم رفع إشعار الإنجاز بنجاح')}, ensure_ascii=False, default=str).encode('utf-8'))
+            except Exception as e:
+                self.send_response(500)
+                self._send_cors_headers()
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({'success': False, 'error': str(e)}).encode('utf-8'))
+            return
+
+        if path in ('/api/factory/job-card/approve', '/api/production/job-card/approve', '/api/factory/qc/approve'):
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length)
+            try:
+                data = json.loads(post_data.decode('utf-8')) if post_data else {}
+                res = pg_service.approve_tailor_commission_and_qc(data)
+                self.send_response(200)
+                self._send_cors_headers()
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({'success': True, 'data': res, 'message': res.get('message', 'تم اعتماد الجودة والعمولة بنجاح')}, ensure_ascii=False, default=str).encode('utf-8'))
+            except Exception as e:
+                self.send_response(500)
+                self._send_cors_headers()
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({'success': False, 'error': str(e)}).encode('utf-8'))
+            return
+
+        if path in ('/api/factory/job-card/rework', '/api/production/job-card/rework', '/api/factory/qc/rework'):
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length)
+            try:
+                data = json.loads(post_data.decode('utf-8')) if post_data else {}
+                res = pg_service.reject_tailor_job_and_rework(data)
+                self.send_response(200)
+                self._send_cors_headers()
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({'success': True, 'data': res, 'message': res.get('message', 'تم إرجاع الفستان للتعديل وتوثيق العيب بنجاح')}, ensure_ascii=False, default=str).encode('utf-8'))
+            except Exception as e:
+                self.send_response(500)
+                self._send_cors_headers()
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({'success': False, 'error': str(e)}).encode('utf-8'))
+            return
+
+        # ── STOCK INFLOW & REVERSAL FOR BATCH PRODUCTION ──
+        if path in ('/api/factory/stock-inflow', '/api/production/stock-inflow'):
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length)
+            try:
+                data = json.loads(post_data.decode('utf-8')) if post_data else {}
+                res = pg_service.process_stock_inflow(data)
+                status_code = 200 if res.get('success') else 400
+                self.send_response(status_code)
+                self._send_cors_headers()
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps(res, ensure_ascii=False, default=str).encode('utf-8'))
+            except Exception as e:
+                self.send_response(500)
+                self._send_cors_headers()
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({'success': False, 'error': str(e)}).encode('utf-8'))
+            return
+
+        if path in ('/api/factory/stock-inflow/reverse', '/api/production/stock-inflow/reverse'):
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length)
+            try:
+                data = json.loads(post_data.decode('utf-8')) if post_data else {}
+                res = pg_service.reverse_stock_inflow(data)
+                status_code = 200 if res.get('success') else 400
+                self.send_response(status_code)
+                self._send_cors_headers()
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps(res, ensure_ascii=False, default=str).encode('utf-8'))
+            except Exception as e:
+                self.send_response(500)
+                self._send_cors_headers()
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({'success': False, 'error': str(e)}).encode('utf-8'))
+            return
+
+        # ── SALES DELIVERY & REMAINING SETTLEMENT ──
+        if path in ('/api/sales/orders/deliver-and-settle', '/api/orders/deliver', '/api/sales/deliver'):
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length)
+            try:
+                data = json.loads(post_data.decode('utf-8')) if post_data else {}
+                res = pg_service.deliver_and_settle_order(data)
+                status_code = 200 if res.get('success') else 400
+                self.send_response(status_code)
+                self._send_cors_headers()
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps(res, ensure_ascii=False, default=str).encode('utf-8'))
+            except Exception as e:
+                self.send_response(500)
+                self._send_cors_headers()
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({'success': False, 'error': str(e)}).encode('utf-8'))
+            return
+
+        if path in ('/api/sales/orders/reverse-delivery', '/api/orders/reverse-delivery'):
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length)
+            try:
+                data = json.loads(post_data.decode('utf-8')) if post_data else {}
+                res = pg_service.reverse_order_delivery(data)
+                status_code = 200 if res.get('success') else 400
+                self.send_response(status_code)
+                self._send_cors_headers()
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps(res, ensure_ascii=False, default=str).encode('utf-8'))
+            except Exception as e:
+                self.send_response(500)
+                self._send_cors_headers()
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({'success': False, 'error': str(e)}).encode('utf-8'))
+            return
+
+        if path in ('/api/hr/tailor-payout', '/api/tailor-payout', '/api/hr/tailor/payout'):
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length)
+            try:
+                data = json.loads(post_data.decode('utf-8')) if post_data else {}
+                res = pg_service.post_tailor_payout_voucher(data)
+                status_code = 200 if res.get('success') else 400
+                self.send_response(status_code)
+                self._send_cors_headers()
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps(res, ensure_ascii=False, default=str).encode('utf-8'))
+            except Exception as e:
+                self.send_response(500)
+                self._send_cors_headers()
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({'success': False, 'error': str(e)}).encode('utf-8'))
+            return
+
+        # ── INVENTORY DEDUCTION / UPDATE ROUTES ──
+        if path in ('/api/inventory/update_qty', '/api/inventory/deduct', '/api/inventory/issue'):
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length)
+            try:
+                data = json.loads(post_data.decode('utf-8')) if post_data else {}
+                res = pg_service.update_inventory_qty(data)
+                self.send_response(200)
+                self._send_cors_headers()
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({'success': True, 'data': res}, ensure_ascii=False, default=str).encode('utf-8'))
             except Exception as e:
                 self.send_response(500)
                 self._send_cors_headers()

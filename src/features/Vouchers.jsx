@@ -79,7 +79,7 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
   const [modalTargetAcc, setModalTargetAcc] = useState('');
   const [modalNotes, setModalNotes] = useState('');
   const [splitPayments, setSplitPayments] = useState([
-    { id: 1, method: 'نقداً (الصندوق الرئيسي)', acc_code: '101', amount: '' }
+    { id: 1, method: 'نقداً (صندوق الريال اليمني)', acc_code: '101.1', amount: '' }
   ]);
   const [isSubmittingAdv, setIsSubmittingAdv] = useState(false);
 
@@ -388,7 +388,7 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
     setModalTargetAcc(resolvedAcc || (mode === 'receipt' ? '104' : '201'));
     setModalNotes(defaultNotes || '');
     setSplitPayments([
-      { id: 1, method: 'نقداً (الصندوق الرئيسي)', acc_code: '101', amount: '' }
+      { id: 1, method: 'نقداً (صندوق الريال اليمني)', acc_code: '101.1', amount: '' }
     ]);
     setShowAdvancedModal(true);
   };
@@ -2150,7 +2150,7 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
                           className="w-full h-9 px-2.5 rounded-lg border border-[#374151] bg-[#181d2a] text-white text-xs font-semibold focus:border-[#00E5FF] outline-none"
                         >
                           <optgroup label="💵 الصناديق النقدية">
-                            <option value="نقداً (الصندوق الرئيسي)__101">💵 نقداً - الصندوق الرئيسي (101)</option>
+                            <option value="صندوق الريال اليمني (YER)__101.1">💵 صندوق الريال اليمني YER (101.1)</option>
                             <option value="صندوق الريال السعودي (SAR)__101.2">💵 صندوق الريال السعودي SAR (101.2)</option>
                             <option value="صندوق الدولار (USD)__101.3">💵 صندوق الدولار USD (101.3)</option>
                           </optgroup>
@@ -2161,7 +2161,7 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
                             <option value="عهدة الورشة والمشغل__103">💼 عهد الورشة والمشغل (103)</option>
                           </optgroup>
                           {(() => {
-                            const standardCodes = new Set(['101', '101.2', '101.3', '102', '103', '1111', '1112', '1121']);
+                            const standardCodes = new Set(['101', '101.1', '101.2', '101.3', '102', '103', '1111', '1112', '1121']);
                             const customCash = (accounts || []).filter(a => {
                               const c = String(a.code || a.acc_code || '');
                               return (c.startsWith('101.') || c.startsWith('102.') || c.startsWith('103.')) && !standardCodes.has(c) && !a.is_group;

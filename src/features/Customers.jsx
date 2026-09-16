@@ -10,7 +10,7 @@ function isMeasurementStale(measDate) {
   } catch { return false; }
 }
 
-function Customers({ customers = [], setCustomers, products = [], showToast, currency = { display: 'YER', symbol: '﷼' } }) {
+function Customers({ customers = [], setCustomers, products = [], showToast, currency = { display: 'YER', symbol: '﷼' }, onSendToFactory }) {
 
   // ── توليد Customer ID تلقائياً ──
   const genCustId = () => {
@@ -37,6 +37,36 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
   const [category, setCategory]   = useState('جديد');
   const [regDate, setRegDate]     = useState(TODAY_STR_ISO);
   const [notes, setNotes]         = useState('');
+
+  // ── حالات ومراجع القوائم المنسدلة الذكية للعملاء والأميرات ──
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+  const [showChildDropdown, setShowChildDropdown]       = useState(false);
+  const customerDropdownRef = useRef(null);
+  const childDropdownRef    = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (customerDropdownRef.current && !customerDropdownRef.current.contains(e.target)) {
+        setShowCustomerDropdown(false);
+      }
+      if (childDropdownRef.current && !childDropdownRef.current.contains(e.target)) {
+        setShowChildDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const filteredCustomers = useMemo(() => {
+    if (!name || !name.trim()) return (customers || []).slice(0, 10);
+    const q = name.trim().toLowerCase();
+    return (customers || []).filter(c => {
+      const cName = (c.name || c.customer_name || '').toLowerCase();
+      const cPhone = String(c.phone || '');
+      const cId = String(c.customer_id || c.id || '').toLowerCase();
+      return cName.includes(q) || cPhone.includes(q) || cId.includes(q);
+    }).slice(0, 10);
+  }, [name, customers]);
 
   // ── حالات القسم الثاني: مقاسات الأطفال (متعددة) ──
   const isOlderThan90Days = (dateStr) => {
@@ -71,6 +101,48 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
 
   const [measurements, setMeasurements] = useState([]);
 
+  // ── قائمة الأميرات/البنات المسجلات للعميلة الحالية لاسترجاع مقاساتهن فوراً ──
+  const knownPrincesses = useMemo(() => {
+    const list = [];
+    const seen = new Set();
+    const curCust = (customers || []).find(c => 
+      (c.customer_id && c.customer_id === custId) || 
+      (c.id && c.id === custId) || 
+      (phone && c.phone === phone) || 
+      (name && c.name === name)
+    );
+    const allMeas = [
+      ...(curCust?.measurements || []),
+      ...(measurements || [])
+    ];
+    allMeas.forEach(m => {
+      const cName = (m.child_name || m.name || '').trim();
+      if (cName && !seen.has(cName)) {
+        seen.add(cName);
+        list.push({
+          child_name: cName,
+          selected_model: m.selected_model || m.model_name || '',
+          total_height: m.total_height || m.total_len || '',
+          dress_length: m.dress_length || m.dress_len || '',
+          chest_length: m.chest_length || m.chest_len || '',
+          skirt_length: m.skirt_length || m.skirt_len || '',
+          sleeve_length: m.sleeve_length || m.sleeve_len || '',
+          chest_circ: m.chest_circ || '',
+          waist_circ: m.waist_circ || '',
+          shoulder_width: m.shoulder_width || m.shoulder_w || '',
+          armhole_circ: m.armhole_circ || m.armpit_circ || '',
+          neck_circ: m.neck_circ || '',
+          comfort_profile: Array.isArray(m.comfort_profile) ? m.comfort_profile : (typeof m.comfort_profile === 'string' ? m.comfort_profile.split(',').map(s=>s.trim()).filter(Boolean) : []),
+          sewing_notes: m.sewing_notes || m.notes || '',
+          dress_color: m.dress_color || '',
+          meas_date: m.meas_date || m.date || TODAY_STR_ISO,
+          event_date: m.event_date || ''
+        });
+      }
+    });
+    return list;
+  }, [custId, phone, name, customers, measurements]);
+
   const addChildCard = () => {
     setMeasurements(prev => {
       const next = [...prev, emptyMeasurement()];
@@ -93,10 +165,13 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
     showToast('تم حذف بطاقة الطفلة 🗑️');
   };
 
-  const calculateAge = (length, selectedModelName) => {
+  const calculateAge = (length, selectedModelName, unit = 'سم') => {
     if (!length) return '';
-    const l = parseFloat(length);
+    let l = parseFloat(length);
     if (isNaN(l)) return '';
+    if (unit === 'إنش' || unit === 'انش' || unit === 'inch' || unit === '"') {
+      l = l * 2.54;
+    }
 
     if (selectedModelName && products && products.length > 0) {
        const model = products.find(p => p.name === selectedModelName);
@@ -149,12 +224,115 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
     return '10-13 سنة';
   };
 
+  // ── قائمة الموديلات المعتمدة المجمعة بدون أي تكرار ──
+  const uniqueModels = useMemo(() => {
+    const set = new Set();
+    (products || []).forEach(p => {
+      const n = (p.name || p.model_name || '').trim();
+      if (n) set.add(n);
+    });
+    return Array.from(set);
+  }, [products]);
+
+  // ── محرك التسعير الذكي وربط الفئة العمرية تلقائياً بالمقاسات ──
+  const getSmartModelMatch = useCallback((m, productsList = []) => {
+    const selMod = (m?.selected_model || '').trim();
+    if (!selMod) return null;
+
+    const allMatches = (productsList || []).filter(p => {
+      const pName = (p.name || p.model_name || '').trim();
+      return pName === selMod || pName.startsWith(selMod);
+    });
+
+    if (allMatches.length === 0) return null;
+
+    let length = parseFloat(m.dress_length || m.total_height || 0);
+    if (m.unit === 'إنش' && length > 0) length = length * 2.54;
+
+    let tier = 'toddler';
+    let ageLabel = '1-3 سنوات (الأميرات الصغيرات)';
+    let broadBracket = '1-2 سنة';
+
+    if (length > 0) {
+      if (length <= 55) {
+        tier = 'toddler';
+        ageLabel = '1-3 سنوات (الأميرات الصغيرات)';
+        broadBracket = '1-2 سنة';
+      } else if (length <= 75) {
+        tier = 'kids';
+        ageLabel = '4-7 سنوات (فئة الوسط)';
+        broadBracket = '3-5 سنوات';
+      } else if (length <= 95) {
+        tier = 'junior';
+        ageLabel = '8-11 سنة (فئة الكبار)';
+        broadBracket = '6-9 سنوات';
+      } else {
+        tier = 'teen';
+        ageLabel = '12+ سنة (فئة اليافعات)';
+        broadBracket = '10-13 سنة';
+      }
+    } else if (m.estimated_age) {
+      broadBracket = getBroadBracket(m.estimated_age);
+      ageLabel = m.estimated_age;
+    }
+
+    // إذا كان الموديل مسجلاً بعدة أصناف/تسعيرات منفصلة في الكتالوج (مثل فساتين ساندريلا الثلاثة):
+    let matchedProduct = allMatches[0];
+    if (allMatches.length > 1) {
+      const sortedByPrice = [...allMatches].sort((a, b) => {
+        const pA = parseFloat(a.sell_price || a.price || a.base_price || 0);
+        const pB = parseFloat(b.sell_price || b.price || b.base_price || 0);
+        return pA - pB;
+      });
+
+      if (tier === 'toddler') {
+        matchedProduct = sortedByPrice[0];
+      } else if (tier === 'kids') {
+        matchedProduct = sortedByPrice[Math.min(1, sortedByPrice.length - 1)];
+      } else {
+        matchedProduct = sortedByPrice[sortedByPrice.length - 1];
+      }
+    }
+
+    let finalPrice = parseFloat(matchedProduct.sell_price || matchedProduct.price || matchedProduct.base_price || 0);
+    if (matchedProduct.price_matrix && matchedProduct.price_matrix[broadBracket]) {
+      finalPrice = parseFloat(matchedProduct.price_matrix[broadBracket]);
+    }
+
+    const jumbo = getJumboFactor(m);
+    if (jumbo.factor > 1) {
+      finalPrice = finalPrice * jumbo.factor;
+    }
+
+    let fabricMeters = 0;
+    if (matchedProduct.bom && Array.isArray(matchedProduct.bom)) {
+      matchedProduct.bom.forEach(f => {
+        fabricMeters += (f.brackets && f.brackets[broadBracket]) || parseFloat(f.meters || 0);
+      });
+    } else {
+      fabricMeters = parseFloat(matchedProduct.yards_used || (tier === 'toddler' ? 1.5 : (tier === 'kids' ? 2.5 : 3.5)));
+    }
+    if (jumbo.factor > 1) {
+      fabricMeters = fabricMeters * jumbo.factor;
+    }
+
+    return {
+      product: matchedProduct,
+      modelName: selMod,
+      ageLabel,
+      broadBracket,
+      price: Math.round(finalPrice),
+      fabricMeters: parseFloat(fabricMeters.toFixed(2)),
+      jumboFactor: jumbo.factor
+    };
+  }, [products]);
+
   const updateMeasurement = (idx, field, value) => {
     setMeasurements(prev => prev.map((m, i) => {
       if (i === idx) {
         const updated = { ...m, [field]: value };
-        if (field === 'dress_length' || field === 'selected_model') {
-          updated.estimated_age = calculateAge(updated.dress_length, updated.selected_model);
+        if (field === 'dress_length' || field === 'total_height' || field === 'selected_model' || field === 'unit') {
+          updated.estimated_age = calculateAge(updated.dress_length || updated.total_height, updated.selected_model, updated.unit);
         }
         return updated;
       }
@@ -165,14 +343,17 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
   // تحويل وحدة القياس (سم ↔ إنش)
   const toggleUnit = (idx) => {
     const m = measurements[idx];
-    const factor = m.unit === 'سم' ? (1 / 2.54) : 2.54;
+    const isCm = m.unit === 'سم';
+    const factor = isCm ? (1 / 2.54) : 2.54;
+    const targetUnit = isCm ? 'إنش' : 'سم';
     const fields = ['total_height','dress_length','chest_length','skirt_length','sleeve_length','chest_circ','waist_circ','shoulder_width','armhole_circ','neck_circ'];
-    const updated = { ...m, unit: m.unit === 'سم' ? 'إنش' : 'سم' };
+    const updated = { ...m, unit: targetUnit };
     fields.forEach(f => {
       if (m[f] !== '' && !isNaN(parseFloat(m[f]))) {
         updated[f] = (parseFloat(m[f]) * factor).toFixed(1);
       }
     });
+    updated.estimated_age = calculateAge(updated.dress_length || updated.total_height, updated.selected_model, updated.unit);
     setMeasurements(prev => prev.map((item, i) => i === idx ? updated : item));
   };
 
@@ -186,28 +367,13 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
   const [delivery, setDelivery]         = useState('');
   const [autoCalculatedSum, setAutoCalculatedSum] = useState(0);
 
-  // ── حساب إجمالي المبيعات تلقائياً ──
+  // ── حساب إجمالي المبيعات تلقائياً بالمحرك الذكي ──
   useEffect(() => {
     let sum = 0;
     measurements.forEach(m => {
-      const selMod = m.selected_model;
-      const len = m.dress_length;
-      const estAge = m.estimated_age;
-      
-      if (selMod && len) {
-        const productData = (products || []).find(p => p.name === selMod);
-        let price = productData ? parseFloat(productData.sell_price) || 0 : 0;
-        
-        const bracket = getBroadBracket(estAge);
-        if (productData && productData.price_matrix && productData.price_matrix[bracket]) {
-            price = parseFloat(productData.price_matrix[bracket]);
-        }
-        
-        const jumbo = getJumboFactor(m);
-        if (jumbo.factor > 1) {
-          price = (price * jumbo.factor);
-        }
-        sum += price;
+      const match = getSmartModelMatch(m, products);
+      if (match && match.price > 0) {
+        sum += match.price;
       }
     });
     
@@ -216,7 +382,7 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
        if (sum > 0) setTotalSales(sum.toFixed(1));
        else setTotalSales('');
     }
-  }, [measurements, products, autoCalculatedSum]);
+  }, [measurements, products, autoCalculatedSum, getSmartModelMatch]);
 
   const remaining = (() => {
     const s = Number(totalSales) || 0;
@@ -255,9 +421,33 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
     setStreet(c.street || c.address || '');
     setCategory(c.category || 'جديد');
     setRegDate(c.reg_date || TODAY_STR_ISO);
-    setNotes(c.notes || '');
     if (Array.isArray(c.measurements) && c.measurements.length > 0) {
-      setMeasurements(c.measurements);
+      setMeasurements(c.measurements.map((m, idx) => ({
+        id: m.id || (Date.now() + idx),
+        child_id: m.child_id || '',
+        child_name: m.child_name || m.name || '',
+        event_date: m.event_date || '',
+        meas_date: m.meas_date || m.date || TODAY_STR_ISO,
+        unit: m.unit || 'سم',
+        total_height: m.total_height || m.total_len || '',
+        dress_length: m.dress_length || m.dress_len || '',
+        chest_length: m.chest_length || m.chest_len || '',
+        skirt_length: m.skirt_length || m.skirt_len || '',
+        sleeve_length: m.sleeve_length || m.sleeve_len || '',
+        chest_circ: m.chest_circ || '',
+        waist_circ: m.waist_circ || '',
+        shoulder_width: m.shoulder_width || m.shoulder_w || '',
+        armhole_circ: m.armhole_circ || m.armpit_circ || '',
+        neck_circ: m.neck_circ || '',
+        comfort_profile: Array.isArray(m.comfort_profile) ? m.comfort_profile : (typeof m.comfort_profile === 'string' && m.comfort_profile ? m.comfort_profile.split(',').map(s=>s.trim()).filter(Boolean) : []),
+        sewing_notes: m.sewing_notes || m.notes || '',
+        model_image: m.model_image || m.model_img || '',
+        dress_color: m.dress_color || '',
+        selected_model: m.selected_model || m.model_name || '',
+        estimated_age: m.estimated_age || calculateAge(m.dress_length || m.dress_len || m.total_height || m.total_len, m.selected_model || m.model_name)
+      })));
+    } else {
+      setMeasurements([emptyMeasurement()]);
     }
     const salesVal = c.total_sales !== undefined ? c.total_sales : (c.ledger?.total_sales !== undefined ? c.ledger.total_sales : '');
     const paidVal = c.total_paid !== undefined ? c.total_paid : (c.ledger?.total_paid !== undefined ? c.ledger.total_paid : '');
@@ -297,42 +487,35 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
       items_count:     0,
       notes:           notes.trim(),
       measurements:    measurements.map((m, idx) => {
-        const j = getJumboFactor(m);
-        const pData = (products || []).find(p => p.name === m.selected_model);
+        const match = getSmartModelMatch(m, products);
+        const adjPrice = match ? match.price : 0;
+        const adjMeters = match ? match.fabricMeters : 0;
+        const pData = match ? match.product : null;
+        const jFactor = match ? match.jumboFactor : 1;
         
         let fabric_deductions = [];
-        let baseMetersSum = 0;
         let baseCostSum = 0;
         
         if (pData && pData.bom) {
-           const bracket = getBroadBracket(m.estimated_age);
+           const bracket = match ? match.broadBracket : '6-9 سنوات';
            fabric_deductions = pData.bom.map(fab => {
              const br = fab.brackets || {};
              const meters = br[bracket] || 0;
-             const adjMeters = parseFloat((j.factor > 1 ? meters * j.factor : meters).toFixed(2));
-             
-             baseMetersSum += meters;
-             baseCostSum += (meters * fab.unit_cost);
+             const mAdj = parseFloat((jFactor > 1 ? meters * jFactor : meters).toFixed(2));
+             baseCostSum += (mAdj * (fab.unit_cost || 0));
              
              return {
                fabric_name: fab.fabric_name,
-               meters: adjMeters
+               meters: mAdj
              };
            });
         }
-        
-        const adjMeters = j.factor > 1 ? (baseMetersSum * j.factor).toFixed(2) : baseMetersSum.toFixed(2);
-        let basePrice = pData ? parseFloat(pData.sell_price) || 0 : 0;
-        if (pData && pData.price_matrix) {
-            const bracket = getBroadBracket(m.estimated_age);
-            basePrice = parseFloat(pData.price_matrix[bracket] || basePrice);
-        }
-        const adjPrice = j.factor > 1 ? (basePrice * j.factor).toFixed(2) : basePrice.toFixed(2);
 
         return {
           ...m,
-          child_name: m.child_name.trim() || 'طفلة ' + (idx + 1),
-          jumbo_factor: j.factor.toFixed(2),
+          child_name: m.child_name.trim() || 'الأميرة ' + (idx + 1),
+          estimated_age: match ? match.ageLabel : (m.estimated_age || ''),
+          jumbo_factor: jFactor.toFixed(2),
           adjusted_meters: adjMeters,
           fabric_deductions,
           adjusted_price: adjPrice,
@@ -373,107 +556,35 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
       }
 
       const newRecord = (apiRes && (apiRes.data || apiRes.customer)) ? (apiRes.data || apiRes.customer) : { ...payload, id: custId };
-      if (setCustomers) setCustomers(prev => [newRecord, ...(prev || []).filter(c => (c.customer_id || c.id) !== custId)]);
-      
-      // -- الترحيل التلقائي إلى القيود اليومية (Synergy) --
-      const currCode = window.CurrencyService ? window.CurrencyService.normalizeCode(currency?.display || 'YER') : 'YER';
-      const rate = window.CurrencyService ? window.CurrencyService.getRate(currCode) : 1.0;
-
-      if (payload.ledger.total_sales > 0) {
-        const salesBase = window.CurrencyService ? window.CurrencyService.toBase(payload.ledger.total_sales, currCode, rate) : { base_amount: payload.ledger.total_sales, exchange_rate: rate };
-        callGAS('addJournalEntry', {
-          id: Date.now(),
-          transaction_id: `TX-CUST-SALES-${custId}`,
-          entry_no: 'AUTOSALES-' + custId,
-          debit: '1131', // ذمم العميلات
-          credit: '4111', // إيرادات تفصيل وتصميم الفساتين
-          amount: payload.ledger.total_sales,
-          currency: currCode,
-          exchange_rate: rate,
-          base_amount: salesBase.base_amount,
-          ref_type: 'فاتورة عميل',
-          ref_id: String(custId),
-          date: TODAY_STR_ISO,
-          notes: `قيد آلي: مبيعات العميل ${name.trim()}`
-        }).catch(e => console.log('Journal Sync Failed', e));
-      }
-      if (payload.ledger.deposit > 0) {
-        const depBase = window.CurrencyService ? window.CurrencyService.toBase(payload.ledger.deposit, currCode, rate) : { base_amount: payload.ledger.deposit, exchange_rate: rate };
-        callGAS('addJournalEntry', {
-          id: Date.now() + 1,
-          transaction_id: `TX-CUST-DEP-${custId}`,
-          entry_no: 'AUTODEP-' + custId,
-          debit: '1111', // الصندوق الرئيسي
-          credit: '1131', // ذمم العميلات
-          amount: payload.ledger.deposit,
-          currency: currCode,
-          exchange_rate: rate,
-          base_amount: depBase.base_amount,
-          ref_type: 'عربون مبيعات',
-          ref_id: String(custId),
-          date: TODAY_STR_ISO,
-          notes: `قيد آلي: استلام عربون من ${name.trim()}`
-        }).catch(e => console.log('Journal Sync Failed', e));
-      }
-
-      // ارسال بيانات تفصيلية للأمتار المخصومة إلى الورشة والطلبات والمخزون
-      for (const m of payload.measurements) {
-        if (m.selected_model) {
-          const notesText = m.jumbo_factor > 1 
-            ? `أمتار القص المخصومة (جامبو):\n` + (m.fabric_deductions||[]).map(f => `${f.fabric_name}: ${f.meters}م`).join('\n') 
-            : `أمتار القص:\n` + (m.fabric_deductions||[]).map(f => `${f.fabric_name}: ${f.meters}م`).join('\n');
-          
-          fetch('/api/gas', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json; charset=utf-8' },
-            body: JSON.stringify({
-              action: 'addOrder',
-              customer_name: payload.name,
-              product_name: m.selected_model,
-              qty: 1,
-              total: m.adjusted_price,
-              notes: notesText
-            })
-          }).catch(console.error);
-
-          fetch('/api/gas', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json; charset=utf-8' },
-            body: JSON.stringify({
-              action: 'updateFactory',
-              order_no: custId,
-              customer_name: payload.name,
-              product_name: m.selected_model,
-              stage: 'مرحلة القص ✂️',
-              notes: notesText
-            })
-          }).catch(console.error);
-
-          // Automatic Deduct Engine for Inventory
-          if (m.fabric_deductions && m.fabric_deductions.length > 0) {
-            m.fabric_deductions.forEach((item, index) => {
-              if (item.meters > 0) {
-                callGAS('addInventory', { 
-                  id: Date.now() + 2 + index, 
-                  item_name: `${item.fabric_name} (منصرف آلي للعميل - ${custId})`, 
-                  category: 'أقمشة', 
-                  qty: -item.meters, 
-                  cost: 0, 
-                  currency: currency?.display || 'YER ﷼', 
-                  supply_date: TODAY_STR_ISO 
-                }).catch(e=>e);
-              }
-            });
-          }
-        }
+      const finalCustId = newRecord.id || newRecord.customer_id || custId;
+      if (setCustomers) {
+        setCustomers(prev => [
+          newRecord,
+          ...(prev || []).filter(c => {
+            const cid = c.customer_id || c.id;
+            return cid !== finalCustId && cid !== custId && (!phone.trim() || c.phone !== phone.trim());
+          })
+        ]);
       }
       
-      showToast(`✅ تم حفظ بيانات ${name} سحابياً بنجاح`);
+      const depAmt = parseFloat(payload.ledger?.deposit || 0);
+      const successMsg = depAmt > 0
+        ? `✅ تم حفظ ${name} وقطع سند قبض بمبلغ (${depAmt.toLocaleString('en-US')}) وتوريده للصندوق وتحديث المخزون بنجاح`
+        : `✅ تم حفظ بيانات ${name} وربط طلب التفصيل والمخزون بنجاح`;
+      showToast(successMsg);
 
     } catch (err) {
       console.error(err);
       const localRecord = { ...payload, id: custId };
-      if (setCustomers) setCustomers(prev => [localRecord, ...(prev || [])]);
+      if (setCustomers) {
+        setCustomers(prev => [
+          localRecord,
+          ...(prev || []).filter(c => {
+            const cid = c.customer_id || c.id;
+            return cid !== custId && (!phone.trim() || c.phone !== phone.trim());
+          })
+        ]);
+      }
       showToast('تم الحفظ محلياً ⚡ — يُرجى مراجعة الاتصال', 'warning');
     } finally {
       setLoading(false);
@@ -646,10 +757,100 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
         {activeCustomerSubTab === 'crm' && (
           <div className="p-6 animate-fadeIn space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4.5">
-              {/* 1. اسم العميل */}
-              <div>
-                <label className={labelCls}>اسم العميل / المنشأة <span className="text-[#D64545] font-bold">*</span></label>
-                <input required value={name} onChange={e => setName(e.target.value)} className={inputCls} placeholder="" />
+              {/* 1. اسم العميل مع قائمة منسدلة ذكية للعملاء السابقين */}
+              <div className="relative" ref={customerDropdownRef}>
+                <div className="flex justify-between items-center mb-1">
+                  <label className={labelCls + " mb-0"}>اسم العميل / المنشأة <span className="text-[#D64545] font-bold">*</span></label>
+                  {name && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCustId(genCustId());
+                        setName('');
+                        setPhone('');
+                        setPhoneAlt('');
+                        setPlatform('واتساب (WhatsApp)');
+                        setHandle('');
+                        setCity('');
+                        setStreet('');
+                        setCategory('جديد');
+                        setRegDate(TODAY_STR_ISO);
+                        setNotes('');
+                        setMeasurements([emptyMeasurement()]);
+                        setTotalSales('');
+                        setTotalPaid('');
+                        setDeposit('');
+                        showToast('تمت تهيئة نموذج عميل جديد 👤✨');
+                      }}
+                      className="text-[10px] text-[#B0005A] hover:underline font-bold flex items-center gap-0.5 cursor-pointer"
+                      title="تفريغ النموذج والبدء بعميل جديد"
+                    >
+                      <span>+ عميل جديد</span>
+                    </button>
+                  )}
+                </div>
+                <div className="relative">
+                  <input
+                    required
+                    value={name}
+                    onChange={e => {
+                      setName(e.target.value);
+                      setShowCustomerDropdown(true);
+                    }}
+                    onFocus={() => setShowCustomerDropdown(true)}
+                    className={inputCls + " pl-8"}
+                    placeholder="ابحث بالاسم أو الهاتف، أو اكتب اسماً جديداً..."
+                    autoComplete="off"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowCustomerDropdown(prev => !prev)}
+                    className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-white cursor-pointer p-0.5"
+                    tabIndex={-1}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
+                  </button>
+                </div>
+
+                {/* القائمة المنسدلة الذكية للعملاء السابقين */}
+                {showCustomerDropdown && filteredCustomers.length > 0 && (
+                  <div className="absolute z-50 right-0 left-0 mt-1.5 bg-white dark:bg-slate-900 border border-[#E8E5EA] dark:border-slate-700 rounded-xl shadow-2xl max-h-64 overflow-y-auto divide-y divide-gray-100 dark:divide-slate-800">
+                    <div className="p-2 text-[10px] font-bold text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-slate-800/60 flex justify-between items-center sticky top-0 backdrop-blur-xs">
+                      <span>👥 عملاء مسجلون سابقاً (انقر لاختيار العميل وتعبئة بياناته):</span>
+                      <button type="button" onClick={() => setShowCustomerDropdown(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-white text-xs px-1">✕</button>
+                    </div>
+                    {filteredCustomers.map(c => {
+                      const cName = c.name || c.customer_name;
+                      const cId = c.customer_id || c.id;
+                      const cPhone = c.phone || 'بدون هاتف';
+                      const childrenCount = (c.measurements?.length || c.children?.length || 0);
+                      return (
+                        <div
+                          key={cId}
+                          onClick={() => {
+                            loadCustomerForEdit(c);
+                            setShowCustomerDropdown(false);
+                          }}
+                          className="p-2.5 hover:bg-[#FCE8F2] dark:hover:bg-slate-800 cursor-pointer transition flex items-center justify-between text-right"
+                        >
+                          <div>
+                            <div className="text-xs font-bold text-[#25232A] dark:text-white flex items-center gap-1.5">
+                              <span>{cName}</span>
+                              <span className="text-[10px] font-mono font-normal text-[#8F2A87] bg-[#F2E7F3] dark:bg-purple-950/40 px-1.5 py-0.2 rounded">{cId}</span>
+                              {childrenCount > 0 && (
+                                <span className="text-[10px] font-normal text-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.2 rounded">👧 {childrenCount} أميرات</span>
+                              )}
+                            </div>
+                            <div className="text-[11px] text-gray-500 font-mono mt-0.5">📞 {cPhone} {c.city ? `• ${c.city}` : ''}</div>
+                          </div>
+                          <div className="text-left shrink-0">
+                            <span className="text-[10.5px] text-[#B0005A] font-bold bg-pink-50 dark:bg-pink-950/40 border border-pink-200 dark:border-pink-800/40 px-2 py-0.5 rounded-lg">اختيار ↵</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               {/* 2. الهاتف الرئيسي */}
@@ -775,7 +976,7 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
                               : 'bg-[#FAFAFB] dark:bg-slate-800 text-[#25232A] dark:text-slate-200 border-[#E8E5EA] dark:border-slate-700 hover:bg-[#FCE8F2] dark:hover:bg-slate-700'
                           }`}
                         >
-                          <span>{m.child_name || `مواصفة (${idx + 1})`}</span>
+                          <span>{m.child_name || `الأميرة (${idx + 1})`}</span>
                           {m.estimated_age && (
                             <span className={`text-[10px] px-1.5 py-0.2 rounded ${isCur ? 'bg-white/20 text-white' : 'bg-[#E2F5F7] dark:bg-cyan-950/60 text-[#007F8C] dark:text-cyan-300'}`}>
                               {m.estimated_age}
@@ -787,13 +988,33 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => toggleUnit(activeChildIdx)}
-                      className="h-9 px-3 bg-white dark:bg-slate-800 text-[#007F8C] dark:text-cyan-300 border border-[#C5ECF0] dark:border-cyan-800/50 hover:bg-[#E2F5F7] dark:hover:bg-cyan-950/40 text-xs font-bold rounded-xl transition flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <span>🔄</span> الوحدة: {currM ? currM.unit : 'سم'} (تبديل)
-                    </button>
+                    {/* محول وحدة القياس العالمي (إنش / سم) */}
+                    <div className="flex items-center bg-[#F2E7F3] dark:bg-purple-950/60 p-1 rounded-xl border border-[#E5CEE7] dark:border-purple-800">
+                      <button
+                        type="button"
+                        onClick={() => currM.unit !== 'إنش' && toggleUnit(activeChildIdx)}
+                        className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                          currM.unit === 'إنش'
+                            ? 'bg-[#8F2A87] text-white shadow-xs'
+                            : 'text-[#8F2A87] hover:bg-white/60 dark:text-purple-300'
+                        }`}
+                        title="القياس بشريط المازورة بالإنش (بوصة)"
+                      >
+                        <span>📏 إنش (بوصة ")</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => currM.unit !== 'سم' && toggleUnit(activeChildIdx)}
+                        className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                          currM.unit === 'سم'
+                            ? 'bg-[#007F8C] text-white shadow-xs'
+                            : 'text-[#007F8C] hover:bg-white/60 dark:text-cyan-300'
+                        }`}
+                        title="القياس بالسنتيمتر (سم)"
+                      >
+                        <span>📐 سم (سنتيمتر)</span>
+                      </button>
+                    </div>
 
                     <button
                       type="button"
@@ -813,9 +1034,146 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
                       <span className="text-[#B0005A]">📋</span> مواصفات الطلب والموديل المعتمد
                     </h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  <div>
-                    <label className={labelCls}>اسم المستفيد / الموديل <span className="text-[#D64545] font-bold">*</span></label>
-                    <input value={currM.child_name} onChange={e => updateMeasurement(activeChildIdx,'child_name',e.target.value)} className={inputCls} placeholder="" />
+                  {/* اسم الطفلة / الأميرة مع الربط التلقائي بالمقاسات السابقة */}
+                  <div className="relative" ref={childDropdownRef}>
+                    <div className="flex justify-between items-center mb-1">
+                      <label className={labelCls + " mb-0"}>👧 اسم الطفلة (الأميرة) <span className="text-[#D64545] font-bold">*</span></label>
+                      <button
+                        type="button"
+                        onClick={addChildCard}
+                        className="text-[10px] text-[#8F2A87] hover:underline font-bold flex items-center gap-0.5 cursor-pointer"
+                        title="إضافة بطاقة جديدة لطفلة أخرى لنفس العميلة"
+                      >
+                        <span>+ طفلة أخرى</span>
+                      </button>
+                    </div>
+                    <div className="relative">
+                      <input
+                        value={currM.child_name}
+                        onChange={e => {
+                          updateMeasurement(activeChildIdx, 'child_name', e.target.value);
+                          setShowChildDropdown(true);
+                        }}
+                        onFocus={() => setShowChildDropdown(true)}
+                        className={inputCls + (knownPrincesses.length > 0 ? " pl-8" : "")}
+                        placeholder="مثال: الأميرة هنادي..."
+                        autoComplete="off"
+                      />
+                      {knownPrincesses.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setShowChildDropdown(prev => !prev)}
+                          className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-white cursor-pointer p-0.5"
+                          tabIndex={-1}
+                          title="عرض أميرات العميلة المسجلات"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
+                        </button>
+                      )}
+                    </div>
+
+                    {/* قائمة منسدلة بأميرات العميلة المسجلات سابقاً */}
+                    {showChildDropdown && knownPrincesses.length > 0 && (
+                      <div className="absolute z-40 right-0 left-0 mt-1 bg-white dark:bg-slate-900 border border-[#E8E5EA] dark:border-slate-700 rounded-xl shadow-xl max-h-48 overflow-y-auto divide-y divide-gray-100 dark:divide-slate-800">
+                        <div className="p-1.5 text-[9.5px] font-bold text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-slate-800/60 flex justify-between items-center">
+                          <span>👑 أميرات العميلة المسجلات (انقر لتحميل المقاسات فوراً):</span>
+                          <button type="button" onClick={() => setShowChildDropdown(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-white text-xs px-1">✕</button>
+                        </div>
+                        {knownPrincesses.map((p, pIdx) => (
+                          <div
+                            key={pIdx}
+                            onClick={() => {
+                              setMeasurements(prev => prev.map((m, i) => {
+                                if (i !== activeChildIdx) return m;
+                                return {
+                                  ...m,
+                                  child_name: p.child_name,
+                                  selected_model: p.selected_model || m.selected_model,
+                                  total_height: p.total_height || m.total_height,
+                                  dress_length: p.dress_length || m.dress_length,
+                                  chest_length: p.chest_length || m.chest_length,
+                                  skirt_length: p.skirt_length || m.skirt_length,
+                                  sleeve_length: p.sleeve_length || m.sleeve_length,
+                                  chest_circ: p.chest_circ || m.chest_circ,
+                                  waist_circ: p.waist_circ || m.waist_circ,
+                                  shoulder_width: p.shoulder_width || m.shoulder_width,
+                                  armhole_circ: p.armhole_circ || m.armhole_circ,
+                                  neck_circ: p.neck_circ || m.neck_circ,
+                                  comfort_profile: p.comfort_profile || m.comfort_profile,
+                                  sewing_notes: p.sewing_notes || m.sewing_notes,
+                                  dress_color: p.dress_color || m.dress_color,
+                                  meas_date: p.meas_date || m.meas_date,
+                                  event_date: p.event_date || m.event_date,
+                                  estimated_age: calculateAge(p.dress_length || p.total_height || m.dress_length || m.total_height, p.selected_model || m.selected_model)
+                                };
+                              }));
+                              setShowChildDropdown(false);
+                              showToast(`✨ تم ربط مقاسات الأميرة (${p.child_name}) المحفوظة بنجاح، يمكنك تعديلها أو اختيار موديل آخر بكل سهولة!`);
+                            }}
+                            className="p-2 hover:bg-[#F2E7F3] dark:hover:bg-purple-950/30 cursor-pointer transition flex items-center justify-between text-right"
+                          >
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs font-bold text-[#8F2A87] dark:text-purple-300">👑 {p.child_name}</span>
+                              {p.dress_length && (
+                                <span className="text-[10px] text-gray-500 bg-gray-100 dark:bg-slate-800 px-1.5 py-0.5 rounded font-mono">طول: {p.dress_length}سم</span>
+                              )}
+                              {p.selected_model && (
+                                <span className="text-[10px] text-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.5 rounded">{p.selected_model}</span>
+                              )}
+                            </div>
+                            <span className="text-[9.5px] text-[#8F2A87] font-bold bg-purple-50 dark:bg-purple-950/50 border border-purple-200 dark:border-purple-800/40 px-1.5 py-0.5 rounded">ربط المقاسات ↵</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* أزرار اختيار سريعة (Pills) للأميرات المسجلات */}
+                    {knownPrincesses.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1.5">
+                        {knownPrincesses.map((p, pIdx) => (
+                          <button
+                            key={pIdx}
+                            type="button"
+                            onClick={() => {
+                              setMeasurements(prev => prev.map((m, i) => {
+                                if (i !== activeChildIdx) return m;
+                                return {
+                                  ...m,
+                                  child_name: p.child_name,
+                                  selected_model: p.selected_model || m.selected_model,
+                                  total_height: p.total_height || m.total_height,
+                                  dress_length: p.dress_length || m.dress_length,
+                                  chest_length: p.chest_length || m.chest_length,
+                                  skirt_length: p.skirt_length || m.skirt_length,
+                                  sleeve_length: p.sleeve_length || m.sleeve_length,
+                                  chest_circ: p.chest_circ || m.chest_circ,
+                                  waist_circ: p.waist_circ || m.waist_circ,
+                                  shoulder_width: p.shoulder_width || m.shoulder_width,
+                                  armhole_circ: p.armhole_circ || m.armhole_circ,
+                                  neck_circ: p.neck_circ || m.neck_circ,
+                                  comfort_profile: p.comfort_profile || m.comfort_profile,
+                                  sewing_notes: p.sewing_notes || m.sewing_notes,
+                                  dress_color: p.dress_color || m.dress_color,
+                                  meas_date: p.meas_date || m.meas_date,
+                                  event_date: p.event_date || m.event_date,
+                                  estimated_age: calculateAge(p.dress_length || p.total_height || m.dress_length || m.total_height, p.selected_model || m.selected_model)
+                                };
+                              }));
+                              showToast(`✨ تم ربط مقاسات الأميرة (${p.child_name}) المحفوظة بنجاح، يمكنك تعديلها أو اختيار موديل آخر بكل سهولة!`);
+                            }}
+                            className={`px-2 py-0.5 rounded-lg text-[10.5px] font-bold transition flex items-center gap-1 cursor-pointer ${
+                              currM.child_name === p.child_name
+                                ? 'bg-[#8F2A87] text-white shadow-xs'
+                                : 'bg-[#F2E7F3] dark:bg-purple-950/40 text-[#8F2A87] dark:text-purple-300 hover:bg-[#8F2A87] hover:text-white'
+                            }`}
+                            title="انقر لربط وتعبئة المقاسات المحفوظة لهذه الطفلة فوراً"
+                          >
+                            <span>👑 {p.child_name}</span>
+                            {p.dress_length && <span className="text-[9px] opacity-80">({p.dress_length}سم)</span>}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   <div>
                     <label className={labelCls}>تاريخ أخذ المقاس</label>
@@ -833,8 +1191,8 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
                     <label className={labelCls}>الموديل المعتمد</label>
                     <select value={currM.selected_model || ''} onChange={e => updateMeasurement(activeChildIdx,'selected_model',e.target.value)} className={inputCls}>
                       <option value="">-- اختر الموديل المعتمد --</option>
-                      {(products || []).map(p => (
-                        <option key={p.id} value={p.name}>{p.name}</option>
+                      {uniqueModels.map(name => (
+                        <option key={name} value={name}>{name}</option>
                       ))}
                     </select>
                   </div>
@@ -857,13 +1215,22 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
 
               {/* 2. Longitudinal Measurements */}
               <div className="bg-white dark:bg-[#0f172a] p-5 rounded-2xl border border-[#E8E5EA] dark:border-slate-800 space-y-3">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-2">
                   <h4 className="text-xs font-bold text-[#25232A] dark:text-slate-100 flex items-center gap-2">
                     <span className="text-[#009FAE]">📐</span> القياسات الطولية الفنية
                   </h4>
-                  <span className="text-[11px] font-semibold text-[#007F8C] dark:text-cyan-300 bg-[#E2F5F7] dark:bg-cyan-950/50 px-2.5 py-0.5 rounded-md border border-[#C5ECF0] dark:border-cyan-800/50">
-                    الوحدة: {currM.unit}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-semibold text-[#007F8C] dark:text-cyan-300 bg-[#E2F5F7] dark:bg-cyan-950/50 px-2.5 py-0.5 rounded-md border border-[#C5ECF0] dark:border-cyan-800/50">
+                      الوحدة الحالية: {currM.unit === 'إنش' ? 'إنش (بوصة ")' : 'سم (سنتيمتر)'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => toggleUnit(activeChildIdx)}
+                      className="text-[11px] font-bold text-[#8F2A87] dark:text-purple-300 hover:bg-[#F2E7F3] dark:hover:bg-purple-950/40 px-2 py-0.5 rounded-md border border-[#E5CEE7] dark:border-purple-800 transition cursor-pointer"
+                    >
+                      تحويل إلى ({currM.unit === 'إنش' ? 'سم' : 'إنش'}) 🔄
+                    </button>
+                  </div>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                   {[
@@ -885,6 +1252,13 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
                         className="w-full h-10 px-2 text-center font-bold text-sm text-[#25232A] dark:text-slate-100 bg-white dark:bg-slate-800 border border-[#E8E5EA] dark:border-slate-700 rounded-lg focus:border-[#B0005A] dark:focus:border-rose-500 outline-none transition" 
                         placeholder="—" 
                       />
+                      {currM[field] !== '' && !isNaN(parseFloat(currM[field])) && parseFloat(currM[field]) > 0 && (
+                        <span className="block text-[10.5px] text-center font-mono font-bold text-[#007F8C] dark:text-cyan-400 mt-1 bg-white/80 dark:bg-slate-800/80 rounded py-0.5 border border-[#E8E5EA] dark:border-slate-700 shadow-2xs">
+                          ≈ {currM.unit === 'إنش' 
+                              ? (parseFloat(currM[field]) * 2.54).toFixed(1) + ' سم' 
+                              : (parseFloat(currM[field]) / 2.54).toFixed(1) + ' "'}
+                        </span>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -892,13 +1266,22 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
 
               {/* 3. Circumference Measurements */}
               <div className="bg-white dark:bg-[#0f172a] p-5 rounded-2xl border border-[#E8E5EA] dark:border-slate-800 space-y-3">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-2">
                   <h4 className="text-xs font-bold text-[#25232A] dark:text-slate-100 flex items-center gap-2">
                     <span className="text-[#8F2A87]">🔄</span> القياسات المحيطية والعرضية
                   </h4>
-                  <span className="text-[11px] font-semibold text-[#8F2A87] dark:text-purple-300 bg-[#F2E7F3] dark:bg-purple-950/50 px-2.5 py-0.5 rounded-md border border-[#E5CEE7] dark:border-purple-800/50">
-                    الوحدة: {currM.unit}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-semibold text-[#8F2A87] dark:text-purple-300 bg-[#F2E7F3] dark:bg-purple-950/50 px-2.5 py-0.5 rounded-md border border-[#E5CEE7] dark:border-purple-800/50">
+                      الوحدة الحالية: {currM.unit === 'إنش' ? 'إنش (بوصة ")' : 'سم (سنتيمتر)'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => toggleUnit(activeChildIdx)}
+                      className="text-[11px] font-bold text-[#8F2A87] dark:text-purple-300 hover:bg-[#F2E7F3] dark:hover:bg-purple-950/40 px-2 py-0.5 rounded-md border border-[#E5CEE7] dark:border-purple-800 transition cursor-pointer"
+                    >
+                      تحويل إلى ({currM.unit === 'إنش' ? 'سم' : 'إنش'}) 🔄
+                    </button>
+                  </div>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                   {[
@@ -920,6 +1303,13 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
                         className="w-full h-10 px-2 text-center font-bold text-sm text-[#25232A] dark:text-slate-100 bg-white dark:bg-slate-800 border border-[#E8E5EA] dark:border-slate-700 rounded-lg focus:border-[#8F2A87] outline-none transition" 
                         placeholder="—" 
                       />
+                      {currM[field] !== '' && !isNaN(parseFloat(currM[field])) && parseFloat(currM[field]) > 0 && (
+                        <span className="block text-[10.5px] text-center font-mono font-bold text-[#8F2A87] dark:text-purple-300 mt-1 bg-white/80 dark:bg-slate-800/80 rounded py-0.5 border border-[#E8E5EA] dark:border-slate-700 shadow-2xs">
+                          ≈ {currM.unit === 'إنش' 
+                              ? (parseFloat(currM[field]) * 2.54).toFixed(1) + ' سم' 
+                              : (parseFloat(currM[field]) / 2.54).toFixed(1) + ' "'}
+                        </span>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -970,51 +1360,25 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
               {/* 5. Auto Model & BOM Summary Box */}
               <div className="bg-gradient-to-r from-[#FCE8F2]/60 via-[#F2E7F3]/40 to-[#E2F5F7]/60 dark:from-rose-950/30 dark:via-purple-950/20 dark:to-cyan-950/30 border border-[#E8E5EA] dark:border-slate-800 rounded-2xl p-4.5 flex flex-col items-center justify-center text-center gap-2">
                 {(() => {
-                  const selMod = currM.selected_model;
-                  const len = currM.dress_length;
-                  const estAge = currM.estimated_age;
-                  
-                  if (selMod && len) {
-                    const productData = (products || []).find(p => p.name === selMod);
-                    let price = productData ? parseFloat(productData.sell_price) || 0 : 0;
-                    let baseMeters = 0;
-                    const bracket = getBroadBracket(estAge);
-                    
-                    if (productData && productData.price_matrix && productData.price_matrix[bracket]) {
-                        price = parseFloat(productData.price_matrix[bracket]);
-                    }
-                    
-                    if (productData && productData.bom) {
-                       productData.bom.forEach(f => {
-                         baseMeters += (f.brackets && f.brackets[bracket]) || 0;
-                       });
-                    } else {
-                       baseMeters = productData ? parseFloat(productData.yards_used) || 0 : 0;
-                    }
-                    
-                    const jumbo = getJumboFactor(currM);
-                    if (jumbo.factor > 1) {
-                      price = (price * jumbo.factor).toFixed(1);
-                      baseMeters = (baseMeters * jumbo.factor).toFixed(2);
-                    }
-
+                  const match = getSmartModelMatch(currM, products);
+                  if (match) {
                     return (
                       <>
                         <div className="flex items-center gap-3 flex-wrap justify-center text-xs font-bold text-[#25232A] dark:text-slate-100">
-                          <span className="bg-white dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-[#E8E5EA] dark:border-slate-700 shadow-2xs">📦 الموديل: <strong className="text-[#B0005A] dark:text-rose-400">{selMod}</strong></span>
+                          <span className="bg-white dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-[#E8E5EA] dark:border-slate-700 shadow-2xs">📦 الموديل: <strong className="text-[#B0005A] dark:text-rose-400">{match.modelName}</strong></span>
                           <span>•</span>
-                          <span className="bg-white dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-[#E8E5EA] dark:border-slate-700 shadow-2xs">الفئة التقديرية: <strong className="text-[#8F2A87] dark:text-purple-300">{estAge || 'غير محدد'}</strong></span>
+                          <span className="bg-white dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-[#E8E5EA] dark:border-slate-700 shadow-2xs">الفئة المقدرة: <strong className="text-[#8F2A87] dark:text-purple-300">{match.ageLabel}</strong></span>
                           <span>•</span>
-                          <span className="bg-[#E2F5F7] dark:bg-cyan-950/50 text-[#007F8C] dark:text-cyan-300 px-3 py-1.5 rounded-xl border border-[#C5ECF0] dark:border-cyan-800/50 shadow-2xs">السعر التقديري: <strong className="font-mono">{price} {currency.display}</strong></span>
+                          <span className="bg-[#E2F5F7] dark:bg-cyan-950/50 text-[#007F8C] dark:text-cyan-300 px-3 py-1.5 rounded-xl border border-[#C5ECF0] dark:border-cyan-800/50 shadow-2xs">السعر المعتمد تلقائياً: <strong className="font-mono text-sm">{match.price.toLocaleString()} {currency.display}</strong></span>
                         </div>
-                        {productData && productData.bom && (
-                           <span className="text-xs text-[#6F6B75] dark:text-slate-400 font-medium">
-                             أمتار الأقمشة والمواد المقدرة ({bracket}): <strong className="text-[#007F8C] dark:text-cyan-400 font-mono">{baseMeters} متر</strong>
-                           </span>
+                        {match.fabricMeters > 0 && (
+                          <span className="text-xs text-[#6F6B75] dark:text-slate-400 font-medium">
+                            أمتار الأقمشة والمواد المقدرة ({match.broadBracket}): <strong className="text-[#007F8C] dark:text-cyan-400 font-mono">{match.fabricMeters} متر</strong>
+                          </span>
                         )}
-                        {jumbo.factor > 1 && (
+                        {match.jumboFactor > 1 && (
                           <div className="text-xs font-semibold text-[#C97300] dark:text-amber-300 bg-[#FFF1DC] dark:bg-amber-950/40 px-3 py-1 rounded-lg border border-[#FFE4B9] dark:border-amber-800/50 mt-1 shadow-2xs">
-                            ⚠️ تم تطبيق معامل استهلاك إضافي ({jumbo.factor.toFixed(2)}x) لضبط استهلاك المواد والتكلفة
+                            ⚠️ تم تطبيق معامل استهلاك إضافي ({match.jumboFactor.toFixed(2)}x) لضبط استهلاك المواد والتكلفة بناءً على مقاسات الصدر
                           </div>
                         )}
                       </>
@@ -1022,7 +1386,7 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
                   } else {
                     return (
                       <span className="text-xs text-[#6F6B75] dark:text-slate-400 font-medium">
-                        💡 اختر الموديل المعتمد وطول القطعة لحساب الفئة، الأمتار، والتكلفة آلياً
+                        💡 اختر الموديل المعتمد وطول القطعة أو الطول الكلي لحساب الفئة العمرية، السعر، والأمتار آلياً
                       </span>
                     );
                   }
@@ -1167,7 +1531,7 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
                       const rem = parseFloat(c.ledger?.remaining) || 0;
                       return (
                         <tr key={c.id || c.customer_id || i} className="hover:bg-[#FAFAFB] dark:hover:bg-slate-800/60 transition-colors">
-                          <td className="px-4 py-3 font-mono text-[11.5px] text-[#B0005A] dark:text-rose-400 font-bold whitespace-nowrap">{c.customer_id || `CUST-${i+1001}`}</td>
+                          <td className="px-4 py-3 font-mono text-[11.5px] text-[#B0005A] dark:text-rose-400 font-bold whitespace-nowrap">{c.customer_id || c.id || `CUST-${i+1001}`}</td>
                           <td className="px-4 py-3 font-bold text-[#25232A] dark:text-slate-100 whitespace-nowrap">{c.name || '—'}</td>
                           <td className="px-4 py-3 font-mono text-[#6F6B75] dark:text-slate-400 whitespace-nowrap" dir="ltr" style={{textAlign:'right'}}>{c.phone || '—'}</td>
                           <td className="px-4 py-3 text-[#6F6B75] dark:text-slate-400 whitespace-nowrap">{c.platform ? c.platform.split(' ')[0] : '—'}</td>
@@ -1175,21 +1539,51 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
                           <td className="px-4 py-3 whitespace-nowrap">
                             <span className={`text-[10.5px] font-semibold px-2.5 py-0.5 rounded-md border ${catColor(c.category)}`}>{c.category || 'جديد'}</span>
                           </td>
-                          <td className="px-4 py-3 text-[#6F6B75] dark:text-slate-400 font-mono whitespace-nowrap">{formatCleanDate(c.reg_date)}</td>
-                          <td className="px-4 py-3 text-center whitespace-nowrap">
+                          <td className="px-4 py-3 text-[#6F6B75] dark:text-slate-400 font-mono whitespace-nowrap">{formatCleanDate(c.reg_date || c.created_at)}</td>
+                          <td className="px-4 py-3 text-right whitespace-nowrap">
                             {c.measurements && c.measurements.length > 0 ? (
-                              <div className="flex flex-col gap-1 items-center">
+                              <div className="flex flex-col gap-1.5 items-start">
                                 {c.measurements.map((m, idx) => {
                                   const isStale = m.meas_date ? isMeasurementStale(m.meas_date) : false;
+                                  const model = m.model_name || m.selected_model || '';
+                                  const dressLen = m.dress_len || m.dress_length || '';
+                                  const chestCirc = m.chest_circ || '';
+                                  const waistCirc = m.waist_circ || '';
                                   return (
-                                    <span key={idx} className="bg-[#FAFAFB] dark:bg-slate-800 px-2 py-0.5 rounded text-[11px] font-medium text-[#25232A] dark:text-slate-200 border border-[#E8E5EA] dark:border-slate-700 flex items-center justify-between gap-1.5 min-w-[75px]">
-                                      <span>{m.child_name || 'بدون اسم'}</span>
-                                      {isStale && <span title="المقاس قديم (+90 يوم)" className="w-1.5 h-1.5 rounded-full bg-[#D64545]" />}
-                                    </span>
+                                    <div key={idx} className="bg-[#FAFAFB] dark:bg-slate-800 px-2 py-1 rounded-md border border-[#E8E5EA] dark:border-slate-700 min-w-[130px] max-w-[200px]">
+                                      <div className="flex items-center justify-between gap-1">
+                                        <span className="font-bold text-[#8F2A87] dark:text-purple-300 text-[11px] truncate">
+                                          👧 {m.child_name || 'الأميرة'}
+                                        </span>
+                                        {isStale ? (
+                                          <span title="المقاس قديم (+90 يوم)" className="text-[9px] bg-rose-100 text-rose-600 px-1 rounded">قديم</span>
+                                        ) : (
+                                          <span title="المقاس معتمد" className="text-[9px] text-emerald-600 font-bold">✓</span>
+                                        )}
+                                      </div>
+                                      {model && (
+                                        <div className="text-[10px] text-[#25232A] dark:text-slate-200 font-medium truncate mt-0.5" title={model}>
+                                          👗 {model}
+                                        </div>
+                                      )}
+                                      <div className="text-[9.5px] text-[#6F6B75] dark:text-slate-400 font-mono flex items-center gap-1.5 mt-0.5">
+                                        {dressLen ? <span>طول:<strong className="text-[#007F8C]">{dressLen}</strong></span> : null}
+                                        {chestCirc ? <span>صدر:<strong className="text-[#007F8C]">{chestCirc}</strong></span> : null}
+                                        {waistCirc ? <span>خصر:<strong className="text-[#007F8C]">{waistCirc}</strong></span> : null}
+                                      </div>
+                                    </div>
                                   );
                                 })}
                               </div>
-                            ) : '—'}
+                            ) : (c.children && c.children.length > 0 ? (
+                              <div className="flex flex-col gap-1">
+                                {c.children.map((ch, idx) => (
+                                  <span key={idx} className="text-[10px] bg-slate-100 dark:bg-slate-800 text-[#6F6B75] px-1.5 py-0.5 rounded border border-slate-200">
+                                    👧 {ch.child_name || 'الأميرة'} (بانتظار القياس)
+                                  </span>
+                                ))}
+                              </div>
+                            ) : '—')}
                           </td>
                           <td className="px-4 py-3 text-center whitespace-nowrap">
                             <span className={`text-[11px] font-mono font-bold px-2.5 py-0.5 rounded-md border ${
@@ -1202,6 +1596,26 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
                             <button onClick={() => loadCustomerForEdit(c)} title="فتح وتعديل ملف العميل" 
                               className="w-8 h-8 rounded-xl bg-white dark:bg-slate-800 hover:bg-[#F2E7F3] dark:hover:bg-slate-700 text-[#6F6B75] dark:text-slate-300 hover:text-[#8F2A87] dark:hover:text-purple-300 border border-[#E8E5EA] dark:border-slate-700 transition-all flex items-center justify-center cursor-pointer">
                               <Icons.Edit className="w-3.5 h-3.5" />
+                            </button>
+                            <button onClick={() => {
+                              if (typeof onSendToFactory === 'function') {
+                                const latestMeas = (c.measurements && c.measurements.length > 0) ? c.measurements[0] : null;
+                                onSendToFactory({
+                                  customer_id: c.customer_id || c.id,
+                                  customer: c.name || c.customer_name,
+                                  customer_name: c.name || c.customer_name,
+                                  child_name: latestMeas?.child_name || (c.children?.[0]?.child_name || 'هنادي'),
+                                  product: latestMeas?.selected_model || latestMeas?.model_name || 'فستان سندرلا',
+                                  product_name: latestMeas?.selected_model || latestMeas?.model_name || 'فستان سندرلا',
+                                  measurements: latestMeas,
+                                  quantity: 1,
+                                  notes: `أمر تشغيل صادر من سجل العملاء - العميل: ${c.name}`
+                                });
+                                showToast(`تم نقل بيانات (${c.name}) إلى خطوط التصنيع ✂️🧵`, 'success');
+                              }
+                            }} title="إصدار أمر تصنيع وتشغيل في المعمل" 
+                              className="w-8 h-8 rounded-xl bg-white dark:bg-slate-800 hover:bg-[#F2E7F3] dark:hover:bg-slate-700 text-[#8F2A87] dark:text-purple-300 border border-[#E5CEE7] dark:border-purple-800/50 transition-all flex items-center justify-center cursor-pointer">
+                              <Icons.Scissors className="w-3.5 h-3.5" />
                             </button>
                             <button onClick={() => setSelectedInvoice(c)} title="طباعة فاتورة مالية (PDF)" 
                               className="w-8 h-8 rounded-xl bg-white dark:bg-slate-800 hover:bg-[#FCE8F2] dark:hover:bg-slate-700 text-[#6F6B75] dark:text-slate-300 hover:text-[#B0005A] dark:hover:text-rose-300 border border-[#E8E5EA] dark:border-slate-700 transition-all flex items-center justify-center cursor-pointer">
@@ -1235,13 +1649,35 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
           onClose={() => setSelectedInvoice(null)}
           customer={selectedInvoice}
           order={{
-            order_no: `INV-${selectedInvoice.customer_id || selectedInvoice.id}`,
+            order_no: selectedInvoice.latest_order_no || `INV-${selectedInvoice.customer_id || selectedInvoice.id}`,
             customer_name: selectedInvoice.name,
+            child_name: selectedInvoice.measurements?.[0]?.child_name || 'الأميرة',
             phone: selectedInvoice.phone,
-            total: parseFloat(selectedInvoice.ledger?.total_sales || 0),
-            paid: parseFloat(selectedInvoice.ledger?.total_paid || 0),
-            currency: currency?.display || 'YER ﷼'
+            total: parseFloat(selectedInvoice.ledger?.total_sales || selectedInvoice.total_sales || 0),
+            paid: parseFloat(selectedInvoice.ledger?.deposit || selectedInvoice.ledger?.total_paid || selectedInvoice.deposit || selectedInvoice.total_paid || 0),
+            remaining: parseFloat(selectedInvoice.ledger?.remaining !== undefined ? selectedInvoice.ledger.remaining : (selectedInvoice.remaining || Math.max(0, (selectedInvoice.total_sales || 0) - (selectedInvoice.deposit || 0)))),
+            currency: currency?.display || 'YER ﷼',
+            delivery_date: selectedInvoice.measurements?.[0]?.event_date || 'يحدد لاحقاً',
+            items: (selectedInvoice.measurements && selectedInvoice.measurements.length > 0)
+              ? selectedInvoice.measurements.map((m, idx) => ({
+                  id: m.id || idx,
+                  name: m.model_name || m.selected_model || 'تفصيل فستان فاخر',
+                  product_name: m.model_name || m.selected_model || 'تفصيل فستان فاخر',
+                  qty: 1,
+                  price: parseFloat(m.adjusted_price || selectedInvoice.ledger?.total_sales || selectedInvoice.total_sales || 0),
+                  total_price: parseFloat(m.adjusted_price || selectedInvoice.ledger?.total_sales || selectedInvoice.total_sales || 0)
+                }))
+              : [{
+                  name: 'تفصيل فستان فاخر',
+                  product_name: 'تفصيل فستان فاخر',
+                  qty: 1,
+                  price: parseFloat(selectedInvoice.ledger?.total_sales || selectedInvoice.total_sales || 0),
+                  total_price: parseFloat(selectedInvoice.ledger?.total_sales || selectedInvoice.total_sales || 0)
+                }]
           }}
+          measurements={selectedInvoice.measurements?.[0] || {}}
+          product={products?.find(p => p.name === (selectedInvoice.measurements?.[0]?.model_name || selectedInvoice.measurements?.[0]?.selected_model) || p.model_name === (selectedInvoice.measurements?.[0]?.model_name || selectedInvoice.measurements?.[0]?.selected_model))}
+          products={products}
           defaultTemplate="thermal"
         />
       )}
@@ -1255,12 +1691,14 @@ function Customers({ customers = [], setCustomers, products = [], showToast, cur
             order_no: `JOB-${selectedJobCard.customer_id || selectedJobCard.id}`,
             customer_name: selectedJobCard.name,
             phone: selectedJobCard.phone,
-            product_name: selectedJobCard.measurements?.[0]?.selected_model || 'تفصيل مخصص',
-            child_name: selectedJobCard.measurements?.[0]?.child_name || 'العميل',
+            product_name: selectedJobCard.measurements?.[0]?.model_name || selectedJobCard.measurements?.[0]?.selected_model || 'تفصيل مخصص',
+            child_name: selectedJobCard.measurements?.[0]?.child_name || 'الأميرة',
             delivery_date: selectedJobCard.measurements?.[0]?.event_date || 'يحدد لاحقاً',
             currency: currency?.display || 'YER ﷼'
           }}
           measurements={selectedJobCard.measurements?.[0] || {}}
+          product={products?.find(p => p.name === (selectedJobCard.measurements?.[0]?.model_name || selectedJobCard.measurements?.[0]?.selected_model) || p.model_name === (selectedJobCard.measurements?.[0]?.model_name || selectedJobCard.measurements?.[0]?.selected_model))}
+          products={products}
           defaultTemplate="job_ticket"
         />
       )}

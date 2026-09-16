@@ -21,12 +21,29 @@ function Products({ products = [], setProducts, inventory = [], showToast, curre
   }, [getCurrencyCode]);
 
   const [modelName, setModelName] = useState("");
+  const [collection, setCollection] = useState("");
   const [category, setCategory] = useState("فساتين وبدلات خاصة");
   const [editId, setEditId] = useState(null);
-  const [activeTab, setActiveTab] = useState("calculator"); // 'calculator' | 'catalog'
+  const [activeTab, setActiveTab] = useState("catalog"); // 'calculator' | 'catalog'
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("الكل");
   
+  const availableCategories = useMemo(() => {
+    const set = new Set(PRODUCT_CATEGORIES || []);
+    (products || []).forEach(p => {
+      if (p.category) set.add(p.category);
+    });
+    return Array.from(set);
+  }, [products]);
+
+  const availableCollections = useMemo(() => {
+    const set = new Set(["تشكيلة العيد 2026", "تشكيلة الصيف", "تشكيلة الأميرات الفاخرة", "فساتين سهرة وأعراس"]);
+    (products || []).forEach(p => {
+      if (p.collection && String(p.collection).trim()) set.add(String(p.collection).trim());
+    });
+    return Array.from(set);
+  }, [products]);
+
   // Model Pricing Currency: defaults to active currency or YER
   const [formCurrency, setFormCurrency] = useState(() => getCurrencyCode(currency) || "YER");
   const activeModelCurrency = useMemo(() => getCurrencyCode(formCurrency), [formCurrency, getCurrencyCode]);
@@ -150,6 +167,7 @@ function Products({ products = [], setProducts, inventory = [], showToast, curre
       id: editId || Date.now(),
       name: modelName.trim(),
       category,
+      collection: collection.trim() || null,
       fabric_name: fabricNamesString,
       yards_used: totalMeters,
       fabric_cost: computedFabricTotal,
@@ -200,6 +218,7 @@ function Products({ products = [], setProducts, inventory = [], showToast, curre
     }
 
     setModelName("");
+    setCollection("");
     setFabricsList([{ id: Date.now(), name: "", currency: activeModelCurrency, meters_1_2: "1.0", meters_3_5: "1.5", meters_6_9: "2.0", meters_10_13: "2.5", cost: 0 }]);
     setActiveTab("catalog");
   };
@@ -207,6 +226,7 @@ function Products({ products = [], setProducts, inventory = [], showToast, curre
   const handleEditProduct = (p) => {
     setEditId(p.id);
     setModelName(p.name);
+    setCollection(p.collection || "");
     setCategory(p.category || "فساتين وبدلات خاصة");
     setLaborCost(p.labor_cost);
     setPackagingCost(p.packaging_cost);
@@ -279,6 +299,7 @@ function Products({ products = [], setProducts, inventory = [], showToast, curre
       const matchesSearch = !search || 
         (p.name || '').toLowerCase().includes(search.toLowerCase()) || 
         (p.fabric_name || '').toLowerCase().includes(search.toLowerCase()) ||
+        (p.collection || '').toLowerCase().includes(search.toLowerCase()) ||
         String(p.id).includes(search);
       const matchesCategory = categoryFilter === "الكل" || p.category === categoryFilter;
       return matchesSearch && matchesCategory;
@@ -311,7 +332,7 @@ function Products({ products = [], setProducts, inventory = [], showToast, curre
           <div className="flex items-center gap-2 self-start sm:self-auto">
             <button
               type="button"
-              onClick={() => { setActiveTab("calculator"); setEditId(null); setModelName(""); }}
+              onClick={() => { setActiveTab("calculator"); setEditId(null); setModelName(""); setCollection(""); }}
               className={`h-10 px-4 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
                 activeTab === "calculator"
                   ? "bg-[#8F2A87] text-white shadow-xs"
@@ -380,10 +401,30 @@ function Products({ products = [], setProducts, inventory = [], showToast, curre
           </div>
 
           {/* Basic Model Info */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             <div>
               <label className={labelCls}>اسم الموديل <span className="text-[#D64545] font-bold">*</span></label>
-              <input required type="text" value={modelName} onChange={e=>setModelName(e.target.value)} className={inputCls} placeholder="" />
+              <input required type="text" value={modelName} onChange={e=>setModelName(e.target.value)} className={inputCls} placeholder="مثال: فستان سندريلا" />
+            </div>
+            <div>
+              <label className={labelCls + " flex items-center gap-1.5"}>
+                <Icons.Tag className="w-3.5 h-3.5 text-[#8F2A87]" />
+                <span>الكولكشن / التشكيلة</span>
+              </label>
+              <div className="relative">
+                <input 
+                  type="text" 
+                  list="collections-list" 
+                  value={collection} 
+                  onChange={e=>setCollection(e.target.value)} 
+                  className={inputCls + " pl-8"} 
+                  placeholder="مثال: تشكيلة العيد 2026" 
+                />
+                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs pointer-events-none">🏷️</span>
+                <datalist id="collections-list">
+                  {availableCollections.map(c => <option key={c} value={c} />)}
+                </datalist>
+              </div>
             </div>
             <div>
               <label className={labelCls}>التصنيف الفني</label>
@@ -416,7 +457,7 @@ function Products({ products = [], setProducts, inventory = [], showToast, curre
                 <label className="block text-xs font-bold text-[#25232A]">
                   🧵 مصفوفة استهلاك الأقمشة والبطانات (BOM Material Consumption)
                 </label>
-                <p className="text-[11px] text-[#6F6B75] mt-0.5">حدد أمتار القماش المطلوبة لكل شريحة عمرية بدقة</p>
+                <p className="text-[11px] text-[#6F6B75] mt-0.5">حدد استهلاك القماش المطلوب لكل شريحة عمرية (1 متر ≈ 1.09 وار | 1 وار ≈ 0.91 م)</p>
               </div>
               <button type="button" onClick={addFabricRow} className="h-9 px-3.5 bg-white hover:bg-[#F2E7F3] text-[#8F2A87] text-xs font-bold rounded-xl border border-[#E5CEE7] shadow-2xs flex items-center gap-1.5 transition cursor-pointer">
                 <Icons.Plus className="w-3.5 h-3.5" />
@@ -435,6 +476,7 @@ function Products({ products = [], setProducts, inventory = [], showToast, curre
                         const invCurr = getCurrencyCode(inv.currency || 'YER');
                         const invCurrLabel = getCurrencyLabel(invCurr);
                         const invCost = parseFloat(inv.cost || inv.cost_per_meter || inv.unit_cost || 0);
+                        const invUnit = inv.unit || 'متر';
                         let convText = "";
                         if (invCurr !== activeModelCurrency && window.CurrencyService) {
                           const convVal = window.CurrencyService.convert(invCost, invCurr, activeModelCurrency);
@@ -443,7 +485,7 @@ function Products({ products = [], setProducts, inventory = [], showToast, curre
                         }
                         return (
                           <option key={inv.id} value={inv.item_name || inv.name}>
-                            {inv.item_name || inv.name} ({invCost} {invCurrLabel}/متر{convText})
+                            {inv.item_name || inv.name} ({invCost} {invCurrLabel}/{invUnit}{convText})
                           </option>
                         );
                       })}
@@ -589,7 +631,7 @@ function Products({ products = [], setProducts, inventory = [], showToast, curre
                 className="h-10 px-3 rounded-xl border border-[#E8E5EA] bg-[#FAFAFB] text-xs font-semibold text-[#25232A] outline-none"
               >
                 <option value="الكل">جميع التصنيفات</option>
-                {(PRODUCT_CATEGORIES || []).map(c => <option key={c} value={c}>{c}</option>)}
+                {(availableCategories || []).map(c => <option key={c} value={c}>{c}</option>)}
               </select>
 
               <div className="relative flex-1 sm:w-64">
@@ -613,7 +655,7 @@ function Products({ products = [], setProducts, inventory = [], showToast, curre
               <table className="w-full text-xs">
                 <thead>
                   <tr className="bg-[#FAFAFB] text-[#6F6B75] font-semibold border-b border-[#E8E5EA]">
-                    {['الكود','اسم الموديل','التصنيف','قائمة الأقمشة (BOM)','الأمتار','تكلفة القماش','الخياطة','التغليف','إجمالي التكلفة','سعر البيع','الربح','الإجراءات'].map(h => (
+                    {['الكود','اسم الموديل','التشكيلة (Collection)','التصنيف','قائمة الأقمشة (BOM)','الأمتار','تكلفة القماش','الخياطة','التغليف','إجمالي التكلفة','سعر البيع','الربح','الإجراءات'].map(h => (
                       <th key={h} className="px-4 py-3 text-right whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -623,6 +665,16 @@ function Products({ products = [], setProducts, inventory = [], showToast, curre
                     <tr key={p.id} className="hover:bg-[#FAFAFB] transition-colors">
                       <td className="px-4 py-3 font-mono text-[11.5px] text-[#8F2A87] font-bold whitespace-nowrap">#{p.id}</td>
                       <td className="px-4 py-3 font-bold text-[#25232A] whitespace-nowrap">{p.name}</td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        {p.collection ? (
+                          <span className="bg-[#FEF6EE] text-[#B54708] border border-[#F9DBAF] px-2 py-0.5 rounded-md text-[10.5px] font-semibold inline-flex items-center gap-1">
+                            <Icons.Tag className="w-3 h-3 text-[#B54708]" />
+                            <span>{p.collection}</span>
+                          </span>
+                        ) : (
+                          <span className="text-[#A09BA5] text-[11px]">—</span>
+                        )}
+                      </td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         <span className="bg-[#F2E7F3] text-[#8F2A87] border border-[#E5CEE7] px-2.5 py-0.5 rounded-md text-[10.5px] font-semibold">{p.category}</span>
                       </td>

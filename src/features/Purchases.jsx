@@ -754,10 +754,10 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
               const newC = e.target.value;
               const norm = window.CurrencyService ? window.CurrencyService.normalizeCode(newC) : 'YER';
               let autoBox = headerData.payment_source;
-              if (!autoBox || autoBox.includes('الصندوق الرئيسي') || autoBox.includes('صندوق الريال السعودي') || autoBox.includes('صندوق الدولار')) {
+              if (!autoBox || autoBox.includes('الصندوق الرئيسي') || autoBox.includes('صندوق الريال اليمني') || autoBox.includes('صندوق الريال السعودي') || autoBox.includes('صندوق الدولار')) {
                 if (norm === 'SAR') autoBox = '101.2 - صندوق الريال السعودي (SAR)';
                 else if (norm === 'USD') autoBox = '101.3 - صندوق الدولار (USD)';
-                else autoBox = '101 - الصندوق الرئيسي (خزينة الورشة)';
+                else autoBox = '101.1 - صندوق الريال اليمني (YER)';
               }
               setHeaderData(p=>({...p, currency: newC, payment_source: autoBox, exchange_rate: window.CurrencyService ? window.CurrencyService.getRate(newC) : ''}));
             }}>
@@ -781,7 +781,7 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
                 const norm = window.CurrencyService ? window.CurrencyService.normalizeCode(headerData.currency) : 'YER';
                 if (norm === 'SAR') autoBox = '101.2 - صندوق الريال السعودي (SAR)';
                 else if (norm === 'USD') autoBox = '101.3 - صندوق الدولار (USD)';
-                else autoBox = '101 - الصندوق الرئيسي (خزينة الورشة)';
+                else autoBox = '101.1 - صندوق الريال اليمني (YER)';
               }
               setHeaderData(p=>({...p, pay_type: pt, payment_source: autoBox}));
             }}>

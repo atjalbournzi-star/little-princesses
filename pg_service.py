@@ -59,6 +59,63 @@ def clean_str(val, default=""):
         return default
     return str(val).strip()
 
+def normalize_uom(unit_str):
+    if not unit_str:
+        return 'متر'
+    u = str(unit_str).strip().lower()
+    if 'وار' in u or 'يارد' in u or u in ('yd', 'yard', 'yards'):
+        return 'وار'
+    if 'إنش' in u or 'انش' in u or 'بوص' in u or u in ('in', 'inch', 'inches', '"'):
+        return 'إنش'
+    if 'سم' in u or 'سنتيمتر' in u or u == 'cm':
+        return 'سم'
+    if 'رول' in u or 'طاق' in u or u in ('roll', 'bolt'):
+        return 'رول'
+    if 'حب' in u or 'قطع' in u or u in ('pc', 'piece'):
+        return 'حبة'
+    if 'متر' in u or u in ('m', 'meter', 'meters'):
+        return 'متر'
+    return u
+
+def convert_uom(val, from_u, to_u):
+    if not val:
+        return 0.0
+    try:
+        val = float(val)
+    except (ValueError, TypeError):
+        return 0.0
+    f = normalize_uom(from_u)
+    t = normalize_uom(to_u)
+    if f == t or val == 0:
+        return val
+    
+    # 1. Convert to Meters
+    if f == 'متر':
+        m = val
+    elif f == 'وار':
+        m = val * 0.9144
+    elif f == 'سم':
+        m = val * 0.01
+    elif f == 'إنش':
+        m = val * 0.0254
+    elif f == 'رول':
+        m = val * 25.0 * 0.9144
+    else:
+        m = val
+    
+    # 2. Convert from Meters to Target
+    if t == 'متر':
+        return m
+    elif t == 'وار':
+        return m / 0.9144
+    elif t == 'سم':
+        return m * 100.0
+    elif t == 'إنش':
+        return m / 0.0254
+    elif t == 'رول':
+        return (m / 0.9144) / 25.0
+    return m
+
 def resolve_exchange_rate(cur, currency_code, provided_rate=1.0):
     curr = clean_str(currency_code or 'YER').upper()
     if curr == 'YER':
@@ -78,7 +135,7 @@ def resolve_exchange_rate(cur, currency_code, provided_rate=1.0):
     if curr == 'USD': return 535.0
     return 1.0
 
-def resolve_account_id(cur, acc_input, default_id="ACC-101"):
+def resolve_account_id(cur, acc_input, default_id="ACC-101-1"):
     if not acc_input:
         return default_id
     acc_str = str(acc_input).strip()
@@ -130,10 +187,12 @@ def resolve_account_id(cur, acc_input, default_id="ACC-101"):
         return 'ACC-101-2'
     if 'دولار' in low or 'usd' in low or '101.3' in low or '101-3' in low:
         return 'ACC-101-3'
+    if 'يمني' in low or 'yer' in low or '101.1' in low or '101-1' in low:
+        return 'ACC-101-1'
     if 'كريمي' in low or '103' in low:
         return 'ACC-103'
     if 'رئيسي' in low or '101' in low or 'خزينة' in low or '1111' in low:
-        return 'ACC-101'
+        return 'ACC-101-1'
     if '5121' in low or '501' in low or 'رواتب' in low or 'راتب' in low or 'أجور' in low:
         return 'ACC-501'
     if '1141' in low or '107' in low or 'سلف' in low or 'سلفة' in low:
@@ -231,7 +290,7 @@ def ensure_base_system_seed():
 def get_customers(params=None):
     with get_db_cursor() as cur:
         cur.execute("""
-            SELECT id, name, name as customer_name, phone, phone_alt, platform, handle, category, city, street,
+            SELECT id, id as customer_id, name, name as customer_name, phone, phone_alt, platform, handle, category, city, street,
                    children_count, current_balance, notes, status, created_at, updated_at
             FROM customers
             ORDER BY created_at DESC;
@@ -259,6 +318,9 @@ def get_customers(params=None):
             m['skirt_length'] = m.get('skirt_len')
             m['sleeve_length'] = m.get('sleeve_len')
             m['shoulder_width'] = m.get('shoulder_w')
+            m['armhole_circ'] = m.get('armpit_circ') or ''
+            m['selected_model'] = m.get('model_name') or ''
+            m['model_image'] = m.get('model_img') or ''
             m['sewing_notes'] = m.get('notes')
             m['event_date'] = str(m.get('date') or '')
             
@@ -292,11 +354,45 @@ def get_customers(params=None):
                 ch_map[cid] = []
             ch_map[cid].append(ch)
 
+        # تجميع المبيعات والمدفوعات لكل عميل لتجهيز كائن الحسابات والفواتير
+        cur.execute("""
+            SELECT customer_id, 
+                   COALESCE(SUM(total_amount), 0) as total_sales,
+                   COALESCE(SUM(paid_amount), 0) as total_paid,
+                   COALESCE(SUM(remaining_amount), 0) as total_remaining,
+                   MAX(order_no) as latest_order_no,
+                   MAX(payment_method) as latest_pay_method
+            FROM orders
+            GROUP BY customer_id;
+        """)
+        orders_agg = {r['customer_id']: r for r in cur.fetchall()}
+
+        cur.execute("""
+            SELECT customer_id, COALESCE(SUM(amount), 0) as total_vouchers_paid
+            FROM payments
+            WHERE payment_type = 'Receipt' AND status != 'Cancelled'
+            GROUP BY customer_id;
+        """)
+        payments_agg = {r['customer_id']: float(r['total_vouchers_paid']) for r in cur.fetchall()}
+
         for c in customers:
-            if c.get('created_at'): c['created_at'] = str(c['created_at'])
+            if c.get('created_at'): 
+                c['created_at'] = str(c['created_at'])
+                c['reg_date'] = str(c['created_at'])[:10]
             if c.get('updated_at'): c['updated_at'] = str(c['updated_at'])
-            c_meas = meas_map.get(c.get('id'), [])
-            c_children = ch_map.get(c.get('id'), [])
+            if not c.get('customer_id'):
+                c['customer_id'] = c.get('id')
+            c_id = c.get('id')
+            c_meas_primary = meas_map.get(c_id, [])
+            c_meas_alt = meas_map.get(c.get('customer_id'), []) if c.get('customer_id') != c_id else []
+            seen_m_ids = set()
+            c_meas = []
+            for m in (c_meas_primary + c_meas_alt):
+                m_id = m.get('id') or f"{m.get('child_name')}_{m.get('model_name')}"
+                if m_id not in seen_m_ids:
+                    seen_m_ids.add(m_id)
+                    c_meas.append(m)
+            c_children = ch_map.get(c_id, [])
             
             # في حال وجود أطفال مسجلين بدون سجل مقاسات، نضيفهم كخيارات متاحة
             known_child_names = {clean_str(m.get('child_name')) for m in c_meas if clean_str(m.get('child_name'))}
@@ -313,6 +409,30 @@ def get_customers(params=None):
                         'event_date': ''
                     })
                     known_child_names.add(ch_n)
+
+            cid = c.get('id')
+            ord_info = orders_agg.get(cid, {})
+            c_sales = float(ord_info.get('total_sales') or 0.0)
+            c_paid_orders = float(ord_info.get('total_paid') or 0.0)
+            c_paid_vouchers = payments_agg.get(cid, 0.0)
+            c_paid = max(c_paid_orders, c_paid_vouchers)
+            c_cur_bal = float(c.get('current_balance') or 0.0)
+            c_remaining = c_cur_bal if c_cur_bal > 0 else max(0.0, c_sales - c_paid)
+            c_pay_method = ord_info.get('latest_pay_method') or 'نقد (كاش)'
+            c_order_no = ord_info.get('latest_order_no') or f"INV-{cid}"
+
+            c['total_sales'] = c_sales
+            c['total_paid'] = c_paid
+            c['deposit'] = c_paid
+            c['remaining'] = c_remaining
+            c['latest_order_no'] = c_order_no
+            c['ledger'] = {
+                'total_sales': c_sales,
+                'total_paid': c_paid,
+                'deposit': c_paid,
+                'remaining': c_remaining,
+                'pay_method': c_pay_method
+            }
 
             c['measurements'] = c_meas
             c['children'] = c_children
@@ -356,11 +476,18 @@ def add_customer(payload):
         RETURNING *;
     """
     with get_db_cursor(commit=True) as cur:
-        if phone:
+        existing_c = None
+        if cust_id and not cust_id.startswith('CUST-NEW'):
+            cur.execute("SELECT id FROM customers WHERE id = %s LIMIT 1;", (cust_id,))
+            existing_c = cur.fetchone()
+        if not existing_c and phone:
             cur.execute("SELECT id FROM customers WHERE phone = %s LIMIT 1;", (phone,))
             existing_c = cur.fetchone()
-            if existing_c:
-                cust_id = existing_c['id']
+        if not existing_c and name:
+            cur.execute("SELECT id FROM customers WHERE name = %s LIMIT 1;", (name,))
+            existing_c = cur.fetchone()
+        if existing_c:
+            cust_id = existing_c['id']
         params = (cust_id, name, phone, phone_alt, platform, handle, category, city, street, children_cnt, notes)
         cur.execute(query, params)
         res = dict(cur.fetchone())
@@ -371,6 +498,7 @@ def add_customer(payload):
         for m in meas_list:
             chld_name = clean_str(m.get('child_name') or m.get('name') or 'طفلة')
             chld_id = clean_str(m.get('child_id')) or generate_id("CHLD")
+            m['child_id'] = chld_id
             cur.execute("""
                 INSERT INTO children (id, customer_id, child_name, notes)
                 VALUES (%s, %s, %s, %s)
@@ -408,9 +536,269 @@ def add_customer(payload):
                 clean_str(m.get('sewing_notes') or m.get('notes'))
             ))
 
+        # ── 1. معالجة وتثبيت المبالغ المالية والطلب (Orders & Ledger Processing) ──
+        ledger_data = data.get('ledger') or {}
+        raw_sales = ledger_data.get('total_sales') if ledger_data.get('total_sales') is not None else data.get('total_sales')
+        raw_deposit = ledger_data.get('deposit') if ledger_data.get('deposit') is not None else (data.get('deposit') or ledger_data.get('total_paid') or data.get('total_paid'))
+        raw_remaining = ledger_data.get('remaining') if ledger_data.get('remaining') is not None else data.get('remaining')
+        
+        total_sales = clean_num(raw_sales or 0.0)
+        deposit = clean_num(raw_deposit or 0.0)
+        remaining = clean_num(raw_remaining if raw_remaining is not None else max(0.0, total_sales - deposit))
+        pay_method = clean_str(ledger_data.get('pay_method') or data.get('pay_method') or data.get('payment_method') or 'نقد (كاش)')
+        curr = clean_str(data.get('currency') or 'YER').replace('﷼', '').replace('$', '').strip() or 'YER'
+        
+        # إذا لم يتم إدخال total_sales ولكن توجد أسعار في القياسات
+        if total_sales <= 0 and meas_list:
+            calc_sum = sum(clean_num(m.get('adjusted_price') or m.get('price') or 0.0) for m in meas_list)
+            if calc_sum > 0:
+                total_sales = calc_sum
+                remaining = max(0.0, total_sales - deposit)
+
+        # تحديث رصيد العميل بالرصيد المتبقي
+        cur.execute("UPDATE customers SET current_balance = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s;", (remaining, cust_id))
+        res['current_balance'] = remaining
+        res['total_sales'] = total_sales
+        res['total_paid'] = deposit
+        res['deposit'] = deposit
+        res['remaining'] = remaining
+        res['ledger'] = {
+            'total_sales': total_sales,
+            'total_paid': deposit,
+            'deposit': deposit,
+            'remaining': remaining,
+            'pay_method': pay_method
+        }
+
+        # ── 2. إنشاء أو تحديث أمر المبيعات في جدول orders ──
+        first_m = meas_list[0] if meas_list else {}
+        first_model_name = clean_str(first_m.get('model_name') or first_m.get('selected_model') or 'تفصيل فستان فاخر')
+        first_child_id = clean_str(first_m.get('child_id')) or None
+        if first_child_id:
+            cur.execute("SELECT id FROM children WHERE id = %s LIMIT 1;", (first_child_id,))
+            if not cur.fetchone():
+                first_child_id = None
+        first_child_name = clean_str(first_m.get('child_name')) or 'الأميرة'
+
+        prod_id = None
+        if first_model_name:
+            cur.execute("SELECT id FROM products WHERE model_name = %s OR id = %s OR model_name ILIKE %s LIMIT 1;", (first_model_name, first_model_name, f"%{first_model_name}%"))
+            p_row = cur.fetchone()
+            if p_row:
+                prod_id = p_row['id']
+        if not prod_id:
+            cur.execute("SELECT id FROM products ORDER BY created_at ASC LIMIT 1;")
+            fallback_p = cur.fetchone()
+            prod_id = fallback_p['id'] if fallback_p else 'PROD-CUSTOM-001'
+
+        order_no = f"ORD-{cust_id}"
+        cur.execute("SELECT id FROM orders WHERE customer_id = %s OR order_no = %s LIMIT 1;", (cust_id, order_no))
+        ex_order = cur.fetchone()
+        
+        order_status = 'Paid' if remaining <= 0 and total_sales > 0 else ('Partial' if deposit > 0 else 'Unpaid')
+        order_notes = clean_str(data.get('notes') or f"طلب تفصيل للطفلة {first_child_name} ({first_model_name})")
+        actual_order_id = ex_order['id'] if ex_order else generate_id("ORD")
+
+        if ex_order:
+            cur.execute("""
+                UPDATE orders SET
+                    product_id = COALESCE(%s, product_id),
+                    child_id = COALESCE(%s, child_id),
+                    subtotal = %s,
+                    total_amount = %s,
+                    paid_amount = %s,
+                    base_amount = %s,
+                    payment_status = %s,
+                    payment_method = %s,
+                    currency = %s,
+                    notes = COALESCE(NULLIF(%s, ''), notes),
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s;
+            """, (
+                prod_id, first_child_id, total_sales, total_sales, deposit, total_sales,
+                order_status, pay_method, curr, order_notes, actual_order_id
+            ))
+        elif total_sales > 0 or deposit > 0 or meas_list:
+            cur.execute("""
+                INSERT INTO orders (
+                    id, order_no, customer_id, child_id, product_id, quantity,
+                    order_date, currency, exchange_rate, subtotal, discount, tax,
+                    total_amount, paid_amount, base_amount,
+                    payment_status, production_status, payment_method, status, notes
+                ) VALUES (
+                    %s, %s, %s, %s, %s, 1.0,
+                    CURRENT_DATE, %s, 1.0, %s, 0.0, 0.0,
+                    %s, %s, %s,
+                    %s, 'Cutting', %s, 'Active', %s
+                );
+            """, (
+                actual_order_id, order_no, cust_id, first_child_id, prod_id,
+                curr, total_sales,
+                total_sales, deposit, total_sales,
+                order_status, pay_method, order_notes
+            ))
+
+        res['latest_order_no'] = order_no
+
+        # ── 3. إصدار سند قبض آلي وترحيل القيد المحاسبي المزدوج ──
+        # تحديد حساب الصندوق المناسب بحسب العملة
+        cash_acc_code = 'ACC-101-1' # صندوق الريال اليمني افتراضياً
+        if curr == 'SAR':
+            cash_acc_code = 'ACC-101-2'
+        elif curr == 'USD':
+            cash_acc_code = 'ACC-101-3'
+        
+        # قيد استحقاق المبيعات (عند وجود مبيعات إجمالية)
+        if total_sales > 0:
+            inv_jv_no = f"AUTO-INV-{cust_id}"
+            cur.execute("""
+                INSERT INTO journal_entries (
+                    id, entry_no, entry_date, description, debit_account_id,
+                    credit_account_id, amount, total_amount, base_amount, ref_type,
+                    ref_id, currency, exchange_rate, status, notes
+                ) VALUES (
+                    %s, %s, CURRENT_DATE, %s, 'ACC-104',
+                    'ACC-401', %s, %s, %s, 'Invoice',
+                    %s, %s, 1.0, 'Posted', %s
+                ) ON CONFLICT (entry_no) DO UPDATE SET
+                    amount = EXCLUDED.amount,
+                    total_amount = EXCLUDED.total_amount,
+                    base_amount = EXCLUDED.base_amount,
+                    currency = EXCLUDED.currency,
+                    description = EXCLUDED.description,
+                    notes = EXCLUDED.notes;
+            """, (
+                f"JV-INV-{cust_id}", inv_jv_no,
+                f"فاتورة مبيعات وتفصيل - العميلة {name} ({first_model_name})",
+                total_sales, total_sales, total_sales,
+                cust_id, curr, f"إثبات مبيعات تفصيل للعميلة {name}"
+            ))
+            cur.execute("SELECT id FROM journal_entries WHERE entry_no = %s LIMIT 1;", (inv_jv_no,))
+            inv_entry_row = cur.fetchone()
+            if inv_entry_row:
+                cur.execute("DELETE FROM journal_entry_lines WHERE entry_id = %s;", (inv_entry_row['id'],))
+                cur.execute("""
+                    INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base)
+                    VALUES (%s, %s, 'ACC-104', %s, %s, 0.0, %s, 0.0);
+                """, (generate_id("JVL"), inv_entry_row['id'], f"مدين ذمم العملاء - {name}", total_sales, total_sales))
+                cur.execute("""
+                    INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base)
+                    VALUES (%s, %s, 'ACC-401', %s, 0.0, %s, 0.0, %s);
+                """, (generate_id("JVL"), inv_entry_row['id'], f"دائن إيرادات تفصيل - {name} ({first_model_name})", total_sales, total_sales))
+
+        # إصدار سند قبض رسمي وتوريد العربون إلى الصندوق
+        if deposit > 0:
+            rcpt_pay_no = f"RV-{cust_id}"
+            target_acc = 'ACC-104' if total_sales > 0 else 'ACC-202'
+            cur.execute("""
+                INSERT INTO payments (
+                    id, payment_no, customer_id, payment_type, amount, currency,
+                    exchange_rate, base_amount, payment_method, account_id, date, status, notes,
+                    party_name, target_account_id
+                ) VALUES (
+                    %s, %s, %s, 'Receipt', %s, %s,
+                    1.0, %s, %s, %s, CURRENT_DATE, 'Confirmed', %s,
+                    %s, %s
+                ) ON CONFLICT (id) DO UPDATE SET
+                    amount = EXCLUDED.amount,
+                    currency = EXCLUDED.currency,
+                    payment_method = EXCLUDED.payment_method,
+                    account_id = EXCLUDED.account_id,
+                    notes = EXCLUDED.notes,
+                    party_name = EXCLUDED.party_name,
+                    target_account_id = EXCLUDED.target_account_id;
+            """, (
+                f"PAY-{cust_id}", rcpt_pay_no, cust_id, deposit, curr,
+                deposit, pay_method, cash_acc_code,
+                f"سند قبض عربون مبيعات - العميلة {name} (طلب تفصيل {first_model_name})",
+                name, target_acc
+            ))
+
+            # قيد اليومية لسند القبض (من حساب الصندوق إلى ذمم/أمانات العملاء)
+            vch_jv_no = f"AUTO-VCH-{rcpt_pay_no}"
+            cur.execute("""
+                INSERT INTO journal_entries (
+                    id, entry_no, entry_date, description, debit_account_id,
+                    credit_account_id, amount, total_amount, base_amount, ref_type,
+                    ref_id, currency, exchange_rate, status, notes
+                ) VALUES (
+                    %s, %s, CURRENT_DATE, %s, %s,
+                    %s, %s, %s, %s, 'Payment',
+                    %s, %s, 1.0, 'Posted', %s
+                ) ON CONFLICT (entry_no) DO UPDATE SET
+                    amount = EXCLUDED.amount,
+                    total_amount = EXCLUDED.total_amount,
+                    base_amount = EXCLUDED.base_amount,
+                    debit_account_id = EXCLUDED.debit_account_id,
+                    credit_account_id = EXCLUDED.credit_account_id,
+                    currency = EXCLUDED.currency,
+                    description = EXCLUDED.description,
+                    notes = EXCLUDED.notes;
+            """, (
+                f"JV-{rcpt_pay_no}", vch_jv_no,
+                f"سند قبض رقم {rcpt_pay_no}: عربون تفصيل من {name}",
+                cash_acc_code, target_acc, deposit, deposit, deposit,
+                f"PAY-{cust_id}", curr, f"إيداع عربون بالصندوق من {name}"
+            ))
+            cur.execute("SELECT id FROM journal_entries WHERE entry_no = %s LIMIT 1;", (vch_jv_no,))
+            vch_entry_row = cur.fetchone()
+            if vch_entry_row:
+                cur.execute("DELETE FROM journal_entry_lines WHERE entry_id = %s;", (vch_entry_row['id'],))
+                cur.execute("""
+                    INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base)
+                    VALUES (%s, %s, %s, %s, %s, 0.0, %s, 0.0);
+                """, (generate_id("JVL"), vch_entry_row['id'], cash_acc_code, f"مدين - إيداع نقدي بالصندوق من {name}", deposit, deposit))
+                cur.execute("""
+                    INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base)
+                    VALUES (%s, %s, %s, %s, 0.0, %s, 0.0, %s);
+                """, (generate_id("JVL"), vch_entry_row['id'], target_acc, f"دائن - سداد عربون من حساب العميلة {name}", deposit, deposit))
+
+        # ── 4. ربط أوامر التصنيع في خطوط الإنتاج (production_orders) ──
+        if meas_list:
+            for m_item in meas_list:
+                m_model = clean_str(m_item.get('model_name') or m_item.get('selected_model'))
+                m_child = clean_str(m_item.get('child_name') or first_child_name)
+                
+                # إنشاء / تحديث أمر التصنيع في production_orders
+                cur.execute("""
+                    INSERT INTO production_orders (
+                        id, production_order_no, order_id, product_id, product_name,
+                        child_name, stage, progress, status, notes
+                    ) VALUES (
+                        %s, %s, %s, %s, %s,
+                        %s, 'القص والتحضير ✂️', 20, 'In Progress', %s
+                    ) ON CONFLICT (production_order_no) DO UPDATE SET
+                        product_name = EXCLUDED.product_name,
+                        child_name = EXCLUDED.child_name,
+                        notes = EXCLUDED.notes;
+                """, (
+                    generate_id("PRD"), f"PRD-{cust_id}", actual_order_id,
+                    prod_id, m_model or 'فستان مخصص', m_child,
+                    f"أمر تفصيل للعميلة {name} - الطفلة {m_child}"
+                ))
+
         if res.get('created_at'): res['created_at'] = str(res['created_at'])
         if res.get('updated_at'): res['updated_at'] = str(res['updated_at'])
-        return res
+
+    # ── 5. الخصم المخزني الفعلي التلقائي للأقمشة (بعد تأكيد الترانزاكشن) ──
+    if meas_list:
+        for m_item in meas_list:
+            m_child = clean_str(m_item.get('child_name') or first_child_name)
+            m_deductions = m_item.get('fabric_deductions') or []
+            for f_item in m_deductions:
+                f_name = clean_str(f_item.get('fabric_name') or f_item.get('name'))
+                f_meters = clean_num(f_item.get('meters') or f_item.get('qty') or 0.0)
+                if f_name and f_meters > 0:
+                    try:
+                        update_inventory_qty({
+                            'name': f_name,
+                            'qty_to_deduct': f_meters,
+                            'notes': f"صرف أقمشة لأمر تصنيع PRD-{cust_id} (العميلة {name} - الطفلة {m_child})"
+                        })
+                    except Exception as inv_err:
+                        logger.error(f"Error auto-deducting inventory for {f_name}: {inv_err}")
+
+    return res
 
 
 # ── 4. دوال إدارة المنتجات والموديلات (Products Controller) ──
@@ -456,8 +844,8 @@ def get_products(params=None):
             r['fabric_name'] = " + ".join(names)
             r['yards_used'] = tot_meters
         else:
-            r['fabric_name'] = r.get('description') or 'أقمشة ملكية'
-            r['yards_used'] = 2.0
+            r['fabric_name'] = r.get('description') or ''
+            r['yards_used'] = 0.0
             
         r['profit'] = float(r.get('sell_price') or 0.0) - float(r.get('total_cost') or 0.0)
         r['calc_date'] = str(r.get('updated_at') or r.get('created_at') or datetime.date.today())[:10]
@@ -470,8 +858,16 @@ def add_product(payload):
     sku = clean_str(data.get('sku') or prod_id)
     category = clean_str(data.get('category') or '(Princess) فستان أميرة')
     subcategory = clean_str(data.get('subcategory') or '')
-    collection = clean_str(data.get('collection') or 'تشكيلة ليتل برنسيس 2026')
-    currency = clean_str(data.get('currency') or 'YER')
+    collection = clean_str(data.get('collection')) or None
+    curr_raw = clean_str(data.get('currency') or 'YER')
+    if 'USD' in curr_raw or '$' in curr_raw or 'دولار' in curr_raw:
+        currency = 'USD'
+    elif 'SAR' in curr_raw or 'سعودي' in curr_raw:
+        currency = 'SAR'
+    elif 'YER' in curr_raw or 'يمني' in curr_raw or '﷼' in curr_raw:
+        currency = 'YER'
+    else:
+        currency = curr_raw[:30] if curr_raw else 'YER'
     image_url = clean_str(data.get('image_url') or '')
     desc = clean_str(data.get('description') or '')
     min_stock = int(clean_num(data.get('min_stock') or 2))
@@ -526,6 +922,8 @@ def add_product(payload):
             model_name = EXCLUDED.model_name,
             sku = EXCLUDED.sku,
             category = EXCLUDED.category,
+            subcategory = EXCLUDED.subcategory,
+            collection = EXCLUDED.collection,
             base_price = EXCLUDED.base_price,
             cost_price = EXCLUDED.cost_price,
             currency = EXCLUDED.currency,
@@ -843,10 +1241,17 @@ def adjust_inventory(payload):
 def get_orders(params=None):
     query = """
         SELECT o.*, 
-               c.name as customer_name, 
-               c.phone as customer_phone,
+               COALESCE(c.name, 'عميل') as customer_name, 
+               COALESCE(c.phone, '') as customer_phone,
                COALESCE(p.model_name, oi.notes, 'موديل راقي') as product_name,
-               COALESCE(ch.child_name, m.child_name, 'الأميرة') as child_name
+               COALESCE(
+                   ch.child_name,
+                   (SELECT m.child_name FROM measurements m WHERE m.child_id = o.child_id LIMIT 1),
+                   (SELECT m.child_name FROM measurements m WHERE m.customer_id = o.customer_id AND m.model_name = p.model_name LIMIT 1),
+                   (SELECT m.child_name FROM measurements m WHERE m.customer_id = o.customer_id ORDER BY m.created_at DESC LIMIT 1),
+                   (SELECT ch2.child_name FROM children ch2 WHERE ch2.customer_id = o.customer_id ORDER BY ch2.created_at DESC LIMIT 1),
+                   'الأميرة'
+               ) as child_name
         FROM orders o
         LEFT JOIN customers c ON o.customer_id = c.id
         LEFT JOIN LATERAL (
@@ -856,18 +1261,7 @@ def get_orders(params=None):
             LIMIT 1
         ) oi ON true
         LEFT JOIN products p ON COALESCE(o.product_id, oi.product_id) = p.id
-        LEFT JOIN LATERAL (
-            SELECT ch.child_name
-            FROM children ch
-            WHERE ch.id = o.child_id OR ch.customer_id = o.customer_id
-            LIMIT 1
-        ) ch ON true
-        LEFT JOIN LATERAL (
-            SELECT m.child_name
-            FROM measurements m
-            WHERE m.customer_id = o.customer_id
-            LIMIT 1
-        ) m ON true
+        LEFT JOIN children ch ON o.child_id = ch.id
         ORDER BY o.created_at DESC;
     """
     rows = execute_query(query, fetch_all=True)
@@ -876,6 +1270,16 @@ def get_orders(params=None):
         if r.get('updated_at'): r['updated_at'] = str(r['updated_at'])
         if r.get('order_date'): r['order_date'] = str(r['order_date'])
         if r.get('delivery_date'): r['delivery_date'] = str(r['delivery_date'])
+
+        # استخراج اسم الطفلة من ملاحظات الطلب إن كان محدداً مثل: "طلب تفصيل للطفلة كرنكوسة"
+        notes_str = clean_str(r.get('notes') or '')
+        if 'للطفلة ' in notes_str:
+            try:
+                extracted_child = notes_str.split('للطفلة ')[1].split('(')[0].split(' - ')[0].split(')')[0].strip()
+                if extracted_child and (r.get('child_name') in ('الأميرة', '', None)):
+                    r['child_name'] = extracted_child
+            except Exception:
+                pass
 
         # الحقول المالية التوافقية لواجهة Orders.jsx ومحركات الطباعة
         tot = float(r.get('total_amount') or 0.0)
@@ -1075,7 +1479,7 @@ def add_order(payload):
                 """, (generate_id("ITXN"), inv_row['id'], -abs(q_deduct), inv_row['unit_cost'], order_id, f"خصم مبيعات للطلب {order_no}"))
 
         # تحديد صندوق السداد بناءً على العملة وطريقة الدفع
-        cash_account_id = 'ACC-101'
+        cash_account_id = 'ACC-101-1'
         if curr == 'SAR' or 'سعودي' in curr.lower():
             cash_account_id = 'ACC-101-2'
         elif curr == 'USD' or 'دولار' in curr.lower() or '$' in curr:
@@ -1465,10 +1869,10 @@ def add_purchase(payload):
         if pay_method == 'آجل':
             credit_acc = 'ACC-201'
         else:
-            credit_acc = resolve_account_id(cur, pay_source_raw, default_id='ACC-101')
-            if (not pay_source_raw or credit_acc == 'ACC-101') and curr == 'SAR':
+            credit_acc = resolve_account_id(cur, pay_source_raw, default_id='ACC-101-1')
+            if (not pay_source_raw or credit_acc in ('ACC-101', 'ACC-101-1')) and curr == 'SAR':
                 credit_acc = 'ACC-101-2'
-            elif (not pay_source_raw or credit_acc == 'ACC-101') and curr == 'USD':
+            elif (not pay_source_raw or credit_acc in ('ACC-101', 'ACC-101-1')) and curr == 'USD':
                 credit_acc = 'ACC-101-3'
 
         # التحقق من المورد وإنشاؤه إن لم يكن موجوداً
@@ -2658,24 +3062,39 @@ def get_factory(params=None):
                COALESCE(c.name, '') as customer_name,
                COALESCE(c.phone, '') as customer_phone,
                COALESCE(p.model_name, po.product_name, 'موديل راقي') as product_name,
-               COALESCE(po.child_name, ch.child_name, m.child_name, 'الأميرة') as child_name,
+               COALESCE(
+                   NULLIF(po.child_name, ''), 
+                   ch.child_name, 
+                   (SELECT m.child_name FROM measurements m WHERE m.child_id = o.child_id LIMIT 1),
+                   (SELECT m.child_name FROM measurements m WHERE m.customer_id = o.customer_id AND m.model_name = p.model_name LIMIT 1),
+                   (SELECT m.child_name FROM measurements m WHERE m.customer_id = o.customer_id ORDER BY m.created_at DESC LIMIT 1),
+                   (SELECT ch2.child_name FROM children ch2 WHERE ch2.customer_id = o.customer_id ORDER BY ch2.created_at DESC LIMIT 1),
+                   'الأميرة'
+               ) as child_name,
                COALESCE(po.due_date, o.delivery_date) as due_date,
-               po.start_date
+               po.start_date,
+               COALESCE(o.quantity, 1) as quantity
         FROM production_orders po
         LEFT JOIN orders o ON po.order_id = o.id
         LEFT JOIN customers c ON o.customer_id = c.id
         LEFT JOIN products p ON COALESCE(po.product_id, o.product_id) = p.id
-        LEFT JOIN LATERAL (
-            SELECT ch.child_name FROM children ch WHERE ch.id = o.child_id OR ch.customer_id = o.customer_id LIMIT 1
-        ) ch ON true
-        LEFT JOIN LATERAL (
-            SELECT m.child_name FROM measurements m WHERE m.customer_id = o.customer_id LIMIT 1
-        ) m ON true
+        LEFT JOIN children ch ON o.child_id = ch.id
         ORDER BY po.created_at DESC;
     """
     rows = execute_query(query, fetch_all=True)
     res = []
     
+    emp_phones = {}
+    try:
+        emp_rows = execute_query("SELECT id, name, phone FROM employees", fetch_all=True)
+        for er in emp_rows:
+            if er.get('name'):
+                emp_phones[er['name'].strip()] = er.get('phone') or ''
+            if er.get('id'):
+                emp_phones[er['id'].strip()] = er.get('phone') or ''
+    except Exception:
+        pass
+
     STAGE_MAP = {
         'cutting': 'القص والتحضير ✂️',
         'قص': 'القص والتحضير ✂️',
@@ -2707,19 +3126,70 @@ def get_factory(params=None):
         
         ord_no = d.get('order_id') or d.get('production_order_no') or d.get('id')
         d['order_no'] = ord_no
-        d['customer'] = d.get('customer_name') or ''
+        c_name = d.get('customer_name') or ''
+        ch_name = d.get('child_name') or ''
+        
+        # استخراج اسم الطفلة من ملاحظات الأمر إذا وُجدت
+        notes_str = d.get('notes') or ''
+        if 'للطفلة ' in notes_str and (not ch_name or ch_name == 'الأميرة'):
+            try:
+                ext_ch = notes_str.split('للطفلة ')[1].split('(')[0].split(' - ')[0].split(')')[0].strip()
+                if ext_ch:
+                    ch_name = ext_ch
+            except Exception:
+                pass
+        
+        d['customer_name'] = c_name
+        d['child_name'] = ch_name
+        d['customer'] = c_name
         d['product'] = d.get('product_name') or ''
+        d['quantity'] = float(d.get('quantity') or 1.0)
         
         # استخراج اسم الخياط من الملاحظات أو الحقل المخصص
-        notes_str = d.get('notes') or ''
-        tailor = 'المعلم سليم (خياط أول)'
-        if 'الخياط:' in notes_str:
+        tailor = d.get('assigned_tailor_id') or ''
+        if not tailor and 'الخياط:' in notes_str:
             parts = notes_str.split('الخياط:')
             if len(parts) > 1:
                 tailor = parts[1].split('|')[0].strip()
-        elif d.get('assigned_tailor_id'):
-            tailor = d.get('assigned_tailor_id')
+        if not tailor:
+            tailor = 'المعلم سليم (خياط أول)'
         d['tailor'] = tailor
+        
+        # رقم هاتف الخياط لإرسال الواتساب
+        t_phone = emp_phones.get(tailor.strip()) or ''
+        if not t_phone:
+            for ename, ephone in emp_phones.items():
+                if ename in tailor or tailor in ename:
+                    t_phone = ephone
+                    break
+        d['tailor_phone'] = t_phone
+        
+        # حقول جدول المواعيد والأجور والجودة
+        d['cutting_due_date'] = str(d['cutting_due_date']) if d.get('cutting_due_date') else None
+        d['sewing_due_date'] = str(d['sewing_due_date']) if d.get('sewing_due_date') else None
+        d['embroidery_due_date'] = str(d['embroidery_due_date']) if d.get('embroidery_due_date') else None
+        d['finishing_due_date'] = str(d['finishing_due_date']) if d.get('finishing_due_date') else None
+        d['tailor_wage'] = float(d.get('tailor_wage') or 0.0)
+        d['tailor_status'] = d.get('tailor_status') or 'pending'
+        d['tailor_completed_at'] = str(d['tailor_completed_at']) if d.get('tailor_completed_at') else None
+        d['is_on_time'] = bool(d.get('is_on_time', True))
+        d['quality_score'] = float(d['quality_score']) if d.get('quality_score') is not None else None
+        d['quality_notes'] = d.get('quality_notes') or ''
+        d['wage_credited'] = bool(d.get('wage_credited', False))
+        d['fabric_name'] = d.get('fabric_name') or ''
+        d['cut_meters'] = float(d.get('cut_meters') or 0.0)
+        d['cut_unit'] = d.get('cut_unit') or 'متر'
+        
+        # حقول مصفوفة الفنيين الأربعة لكل مرحلة
+        d['cutter_name'] = d.get('cutter_name') or ''
+        d['cutter_wage'] = float(d.get('cutter_wage') or 0.0)
+        d['tailor_name'] = d.get('tailor_name') or tailor or ''
+        d['embroiderer_name'] = d.get('embroiderer_name') or ''
+        d['embroiderer_wage'] = float(d.get('embroiderer_wage') or 0.0)
+        d['finisher_name'] = d.get('finisher_name') or ''
+        d['finisher_wage'] = float(d.get('finisher_wage') or 0.0)
+        d['pieces_count'] = int(d.get('pieces_count') or d.get('quantity') or 1)
+        d['production_type'] = d.get('production_type') or ('stock' if ('إنتاج مخزني' in ch_name or ch_name == 'الأميرة' or not ch_name) else 'custom')
         
         raw_stage = str(d.get('stage') or 'القص والتحضير ✂️')
         norm_stage = raw_stage
@@ -2735,29 +3205,122 @@ def get_factory(params=None):
 def update_factory(payload):
     data = payload.get('data') or payload
     po_id = clean_str(data.get('id') or data.get('production_order_no') or data.get('order_no'))
+    order_no_input = clean_str(data.get('order_no') or data.get('order_id'))
     stage = clean_str(data.get('stage') or 'القص والتحضير ✂️')
     progress = clean_num(data.get('progress') or 20)
     tailor = clean_str(data.get('tailor') or '')
     start_date = clean_str(data.get('start_date')) or None
     due_date = clean_str(data.get('due_date')) or None
     user_notes = clean_str(data.get('notes') or '')
+    product_name = clean_str(data.get('product_name') or data.get('product') or '')
+    product_id = clean_str(data.get('product_id') or '')
+    child_name = clean_str(data.get('child_name') or '')
+    customer_name = clean_str(data.get('customer_name') or data.get('customer') or '')
+    quantity = clean_num(data.get('quantity') or 1.0)
+
+    # مواعيد مراحل الإنتاج
+    cutting_due_date = clean_str(data.get('cutting_due_date')) or None
+    sewing_due_date = clean_str(data.get('sewing_due_date')) or None
+    embroidery_due_date = clean_str(data.get('embroidery_due_date')) or None
+    finishing_due_date = clean_str(data.get('finishing_due_date')) or None
+    
+    # مصفوفة الفنيين والمواعيد والأجور لكل مرحلة
+    cutter_name = clean_str(data.get('cutter_name') or data.get('cutterName') or '')
+    cutter_wage = clean_num(data.get('cutter_wage') or data.get('cutterWage') or 0.0)
+    tailor_name = clean_str(data.get('tailor_name') or data.get('tailorName') or tailor or '')
+    tailor_wage = clean_num(data.get('tailor_wage') or data.get('tailorWage') or 0.0)
+    embroiderer_name = clean_str(data.get('embroiderer_name') or data.get('embroidererName') or '')
+    embroiderer_wage = clean_num(data.get('embroiderer_wage') or data.get('embroidererWage') or 0.0)
+    finisher_name = clean_str(data.get('finisher_name') or data.get('finisherName') or '')
+    finisher_wage = clean_num(data.get('finisher_wage') or data.get('finisherWage') or 0.0)
+    pieces_count = int(clean_num(data.get('pieces_count') or data.get('piecesCount') or quantity or 1))
+    production_type = clean_str(data.get('production_type') or data.get('productionType') or '')
+
+    # أجر الخياط وحالته والجودة
+    tailor_status = clean_str(data.get('tailor_status') or '')
+    quality_score = data.get('quality_score')
+    quality_notes = clean_str(data.get('quality_notes') or '')
+
+    # خامة القماش وأمتار القص المحددة للاقتطاع من المخزن
+    fabric_name = clean_str(data.get('fabric_name') or data.get('fabric') or '')
+    fabric_id = clean_str(data.get('fabric_id') or '')
+    cut_qty = clean_num(data.get('cut_meters') or data.get('cut_quantity') or data.get('meters') or 0.0)
+    cut_unit = clean_str(data.get('cut_unit') or data.get('unit') or 'متر')
+    deduct_inventory = bool(data.get('deduct_inventory', True))
     
     full_notes = user_notes
-    if tailor:
+    assigned_tailor_display = tailor_name or tailor
+    if assigned_tailor_display:
         if 'الخياط:' not in full_notes:
-            full_notes = f"الخياط: {tailor} | {full_notes}".strip(" |")
+            full_notes = f"الخياط: {assigned_tailor_display} | {full_notes}".strip(" |")
             
     order_stage_map = {
         'القص والتحضير ✂️': 'Cutting',
         'مرحلة الخياطة 🪡': 'Sewing',
         'التطريز والشك ✨': 'Embroidery',
         'الفحص والتشطيب النهائي 🔍': 'Inspection',
-        'جاهز للتسليم 📦': 'Ready'
+        'جاهز للتسليم 📦': 'Ready',
+        'قيد القص ✂️': 'Cutting',
+        'قيد الخياطة 🪡': 'Sewing',
+        'الفحص والتشطيب 🔍': 'Inspection',
+        'جاهز للتسليم 🛍️': 'Ready',
+        'تم التسليم ✅': 'Delivered'
     }
     db_order_status = order_stage_map.get(stage, 'Sewing')
     po_status = 'Completed' if (progress >= 100 or 'جاهز' in stage or 'تسليم' in stage) else 'In Progress'
 
     with get_db_cursor(commit=True) as cur:
+        # 1. اقتطاع القماش المحدد حق الموديل من المخزن مع التحويل الذكي للوحدات (UoM Conversion)
+        if cut_qty > 0 and deduct_inventory:
+            inv_row = None
+            if fabric_id:
+                cur.execute("SELECT id, name, quantity, unit_cost, unit FROM inventory WHERE id = %s OR item_code = %s LIMIT 1 FOR UPDATE;", (fabric_id, fabric_id))
+                inv_row = cur.fetchone()
+            if not inv_row and fabric_name:
+                cur.execute("SELECT id, name, quantity, unit_cost, unit FROM inventory WHERE name = %s OR name ILIKE %s LIMIT 1 FOR UPDATE;", (fabric_name, f"%{fabric_name}%"))
+                inv_row = cur.fetchone()
+            
+            if inv_row:
+                old_q = float(inv_row['quantity'] or 0.0)
+                u_cost = float(inv_row['unit_cost'] or 0.0)
+                stock_unit = clean_str(inv_row.get('unit') or 'وار')
+                
+                # تحويل الكمية المطلوبة بدقة إلى وحدة المخزن الأساسية
+                deduct_stock_qty = convert_uom(cut_qty, cut_unit, stock_unit)
+                new_q = max(0.0, old_q - deduct_stock_qty)
+                cur.execute("UPDATE inventory SET quantity = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s;", (new_q, inv_row['id']))
+                
+                # تسجيل حركة الصرف المخزنية مع توثيق التحويل المزدوج
+                tx_id = generate_id("ITXN")
+                target_order_label = order_no_input or po_id
+                norm_cut = normalize_uom(cut_unit)
+                norm_stock = normalize_uom(stock_unit)
+                if norm_cut != norm_stock:
+                    uom_desc = f"{round(deduct_stock_qty, 2)} {stock_unit} (ما يعادل {round(cut_qty, 2)} {cut_unit})"
+                else:
+                    uom_desc = f"{round(deduct_stock_qty, 2)} {stock_unit}"
+                
+                tx_notes = f"صرف قماش ({inv_row['name']}) بمقدار {uom_desc} لأمر تشغيل {target_order_label} (العميلة: {customer_name} - الطفلة: {child_name})"
+                cur.execute("""
+                    INSERT INTO inventory_transactions (
+                        id, inventory_id, transaction_type, quantity, unit_cost, reference_type, reference_id, notes
+                    ) VALUES (
+                        %s, %s, 'PRODUCTION_OUT', %s, %s, 'production_orders', %s, %s
+                    );
+                """, (tx_id, inv_row['id'], -abs(round(deduct_stock_qty, 4)), u_cost, target_order_label, tx_notes))
+                
+                fabric_info = f"تم اقتطاع {uom_desc} من قماش ({inv_row['name']}) من المخزن"
+                if fabric_info not in full_notes:
+                    full_notes = f"{full_notes} | {fabric_info}".strip(" |")
+
+        valid_tailor_user_id = None
+        if assigned_tailor_display:
+            cur.execute("SELECT id FROM users WHERE id = %s OR full_name ILIKE %s OR username ILIKE %s LIMIT 1;", (assigned_tailor_display, f"%{assigned_tailor_display}%", f"%{assigned_tailor_display}%"))
+            u_row = cur.fetchone()
+            if u_row:
+                valid_tailor_user_id = u_row['id']
+
+        po_no_fallback = f"PO-{order_no_input}" if order_no_input else po_id
         cur.execute("""
             UPDATE production_orders
             SET stage = %s,
@@ -2766,35 +3329,1411 @@ def update_factory(payload):
                 start_date = COALESCE(%s, start_date),
                 due_date = COALESCE(%s, due_date),
                 status = %s,
+                product_name = COALESCE(NULLIF(%s, ''), product_name),
+                child_name = COALESCE(NULLIF(%s, ''), child_name),
+                assigned_tailor_id = COALESCE(NULLIF(%s, ''), assigned_tailor_id),
+                cutting_due_date = COALESCE(%s, cutting_due_date),
+                sewing_due_date = COALESCE(%s, sewing_due_date),
+                embroidery_due_date = COALESCE(%s, embroidery_due_date),
+                finishing_due_date = COALESCE(%s, finishing_due_date),
+                tailor_wage = CASE WHEN %s > 0 THEN %s ELSE tailor_wage END,
+                tailor_status = COALESCE(NULLIF(%s, ''), tailor_status),
+                quality_score = CASE WHEN %s IS NOT NULL THEN %s ELSE quality_score END,
+                quality_notes = CASE WHEN %s != '' THEN %s ELSE quality_notes END,
+                fabric_name = COALESCE(NULLIF(%s, ''), fabric_name),
+                cut_meters = CASE WHEN %s > 0 THEN %s ELSE cut_meters END,
+                cut_unit = COALESCE(NULLIF(%s, ''), cut_unit),
+                cutter_name = COALESCE(NULLIF(%s, ''), cutter_name),
+                cutter_wage = CASE WHEN %s > 0 THEN %s ELSE cutter_wage END,
+                tailor_name = COALESCE(NULLIF(%s, ''), tailor_name),
+                embroiderer_name = COALESCE(NULLIF(%s, ''), embroiderer_name),
+                embroiderer_wage = CASE WHEN %s > 0 THEN %s ELSE embroiderer_wage END,
+                finisher_name = COALESCE(NULLIF(%s, ''), finisher_name),
+                finisher_wage = CASE WHEN %s > 0 THEN %s ELSE finisher_wage END,
+                pieces_count = CASE WHEN %s > 0 THEN %s ELSE pieces_count END,
+                production_type = COALESCE(NULLIF(%s, ''), production_type),
                 updated_at = CURRENT_TIMESTAMP
-            WHERE id = %s OR production_order_no = %s OR order_id = %s
+            WHERE id = %s OR production_order_no = %s OR order_id = %s OR order_id = %s OR production_order_no = %s
             RETURNING *;
-        """, (stage, progress, full_notes, start_date, due_date, po_status, po_id, po_id, po_id))
+        """, (
+            stage, progress, full_notes, start_date, due_date, po_status, product_name, child_name, valid_tailor_user_id,
+            cutting_due_date, sewing_due_date, embroidery_due_date, finishing_due_date,
+            tailor_wage, tailor_wage, tailor_status,
+            quality_score, quality_score, quality_notes, quality_notes,
+            fabric_name, cut_qty, cut_qty, cut_unit,
+            cutter_name, cutter_wage, cutter_wage, tailor_name,
+            embroiderer_name, embroiderer_wage, embroiderer_wage,
+            finisher_name, finisher_wage, finisher_wage,
+            pieces_count, pieces_count, production_type,
+            po_id, po_id, po_id, order_no_input, po_no_fallback
+        ))
         row = cur.fetchone()
-        
-        # مزامنة حالة الطلب في جدول orders
-        cur.execute("""
-            UPDATE orders
-            SET production_status = %s,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE id = %s OR order_no = %s;
-        """, (db_order_status, po_id, po_id))
         
         if not row:
             new_id = generate_id("PRD")
-            po_no = f"PO-{po_id}"
+            target_order_label = order_no_input or po_id
+            po_no = f"PO-{target_order_label}"
+            
+            # التحقق من وجود الطلب في جدول orders قبل تعيين المفتاح الأجنبي
+            valid_order_id = None
+            if target_order_label:
+                cur.execute("SELECT id FROM orders WHERE id = %s OR order_no = %s LIMIT 1;", (target_order_label, target_order_label))
+                ord_match = cur.fetchone()
+                if ord_match:
+                    valid_order_id = ord_match['id']
+
+            valid_product_id = None
+            if product_id:
+                cur.execute("SELECT id FROM products WHERE id = %s LIMIT 1;", (product_id,))
+                if cur.fetchone():
+                    valid_product_id = product_id
+            if not valid_product_id and product_name:
+                cur.execute("SELECT id FROM products WHERE model_name = %s OR id = %s OR model_name ILIKE %s LIMIT 1;", (product_name, product_name, f"%{product_name}%"))
+                p_row = cur.fetchone()
+                if p_row:
+                    valid_product_id = p_row['id']
+            if not valid_product_id:
+                cur.execute("SELECT id FROM products LIMIT 1;")
+                any_p = cur.fetchone()
+                if any_p:
+                    valid_product_id = any_p['id']
+                else:
+                    valid_product_id = 'PROD-CUSTOM-001'
+                    cur.execute("""
+                        INSERT INTO products (id, sku, model_name, category, currency, base_price, status)
+                        VALUES (%s, %s, %s, 'فساتين تفصيل', 'YER', 0, 'Active')
+                        ON CONFLICT (id) DO NOTHING;
+                    """, (valid_product_id, valid_product_id, product_name or 'موديل راقي'))
+
             cur.execute("""
                 INSERT INTO production_orders (
-                    id, production_order_no, order_id, stage, progress, status, notes, start_date, due_date
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    id, production_order_no, order_id, product_id, product_name, child_name, assigned_tailor_id, 
+                    stage, progress, status, notes, start_date, due_date,
+                    cutting_due_date, sewing_due_date, embroidery_due_date, finishing_due_date,
+                    tailor_wage, tailor_status, fabric_name, cut_meters, cut_unit,
+                    cutter_name, cutter_wage, tailor_name, embroiderer_name, embroiderer_wage,
+                    finisher_name, finisher_wage, pieces_count, production_type
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING *;
-            """, (new_id, po_no, po_id, stage, progress, po_status, full_notes, start_date or today_str(), due_date))
+            """, (
+                new_id, po_no, valid_order_id, valid_product_id, product_name or 'موديل راقي', child_name or 'الأميرة', valid_tailor_user_id, 
+                stage, progress, po_status, full_notes, start_date or today_str(), due_date,
+                cutting_due_date, sewing_due_date, embroidery_due_date, finishing_due_date,
+                tailor_wage, tailor_status or 'pending', fabric_name, cut_qty, cut_unit,
+                cutter_name, cutter_wage, tailor_name, embroiderer_name, embroiderer_wage,
+                finisher_name, finisher_wage, pieces_count, production_type
+            ))
             row = cur.fetchone()
+
+        # استخراج المعرف الحقيقي للطلب لتحديث جدول orders في سوبابيز
+        real_order_id = (row.get('order_id') if row else None) or order_no_input or po_id
+        if real_order_id:
+            cur.execute("""
+                UPDATE orders
+                SET production_status = %s,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s OR order_no = %s;
+            """, (db_order_status, real_order_id, real_order_id))
             
         res = dict(row) if row else {"status": "success"}
         if res.get('created_at'): res['created_at'] = str(res['created_at'])
         if res.get('updated_at'): res['updated_at'] = str(res['updated_at'])
         if res.get('start_date'): res['start_date'] = str(res['start_date'])
+        res['fabric_deducted'] = cut_qty if cut_qty > 0 else 0
+        return res
+
+def delete_factory_order(payload):
+    """حذف أمر تشغيل وإنتاج من سوبابيز مع إلغاء أي عمولات غير مصروفة متعلقة به"""
+    data = payload.get('data') or payload
+    po_id = clean_str(data.get('id') or data.get('production_order_no') or data.get('order_no') or data.get('order_id'))
+    if not po_id:
+        return {"success": False, "error": "رقم أمر التشغيل مطلوب للحذف"}
+        
+    with get_db_cursor(commit=True) as cur:
+        cur.execute("""
+            DELETE FROM production_orders
+            WHERE id = %s OR production_order_no = %s OR order_id = %s 
+               OR id = 'PRD-' || %s OR production_order_no = 'PO-' || %s
+            RETURNING id, production_order_no, order_id;
+        """, (po_id, po_id, po_id, po_id, po_id))
+        deleted = cur.fetchall()
+        
+        cur.execute("""
+            DELETE FROM tailor_commissions
+            WHERE (production_order_id = %s OR order_no = %s 
+                   OR production_order_id = 'PRD-' || %s OR order_no = 'PO-' || %s)
+              AND status != 'Paid';
+        """, (po_id, po_id, po_id, po_id))
+        
+    return {"success": True, "message": f"تم حذف أمر التشغيل {po_id} بنجاح من سوبابيز 🗑️"}
+
+def process_stock_inflow(payload):
+    """توريد فساتين الإنتاج الكمي الجاهزة للمخزن مع احتساب التكلفة الفعلية الشاملة للأقمشة وأجور المراحل الأربع"""
+    data = payload.get('data') or payload
+    po_id = clean_str(data.get('id') or data.get('production_order_no') or data.get('order_no') or data.get('order_id'))
+    if not po_id:
+        return {"success": False, "error": "رقم أمر الإنتاج مطلوب للتوريد"}
+
+    with get_db_cursor(commit=True) as cur:
+        cur.execute("""
+            SELECT * FROM production_orders 
+            WHERE id = %s OR production_order_no = %s OR order_id = %s
+               OR id = 'PRD-' || %s OR production_order_no = 'PO-' || %s
+            LIMIT 1 FOR UPDATE;
+        """, (po_id, po_id, po_id, po_id, po_id))
+        po = cur.fetchone()
+        if not po:
+            return {"success": False, "error": f"أمر الإنتاج [{po_id}] غير موجود"}
+
+        if po.get('stock_received'):
+            return {
+                "success": True, 
+                "already_received": True, 
+                "message": f"أمر الإنتاج [{po.get('production_order_no') or po_id}] تم توريده مسبقاً للمخزن 📦"
+            }
+
+        target_po_no = po.get('production_order_no') or f"PO-{po_id}"
+        prod_name = po.get('product_name') or 'موديل راقي'
+        prod_id = po.get('product_id')
+        pieces_count = int(clean_num(po.get('pieces_count') or 1))
+        if pieces_count <= 0: pieces_count = 1
+
+        # 1. احتساب تكلفة القماش المستهلك
+        cut_qty = clean_num(po.get('cut_meters') or 0.0)
+        fabric_name = clean_str(po.get('fabric_name') or '')
+        fabric_unit_cost = 0.0
+        if fabric_name:
+            cur.execute("SELECT unit_cost FROM inventory WHERE name = %s OR name ILIKE %s OR id = %s LIMIT 1;", (fabric_name, f"%{fabric_name}%", fabric_name))
+            f_row = cur.fetchone()
+            if f_row:
+                fabric_unit_cost = clean_num(f_row.get('unit_cost') or 0.0)
+
+        total_fabric_cost = round(cut_qty * fabric_unit_cost, 2)
+        fabric_cost_per_piece = round(total_fabric_cost / pieces_count, 2)
+
+        # 2. احتساب أجور عمالة المراحل الأربع بالقطعة
+        cutter_w = clean_num(po.get('cutter_wage') or 0.0)
+        tailor_w = clean_num(po.get('tailor_wage') or 0.0)
+        embroid_w = clean_num(po.get('embroiderer_wage') or 0.0)
+        finisher_w = clean_num(po.get('finisher_wage') or 0.0)
+        labor_cost_per_piece = round(cutter_w + tailor_w + embroid_w + finisher_w, 2)
+        total_labor_cost = round(labor_cost_per_piece * pieces_count, 2)
+
+        # 3. إجمالي التكلفة الحقيقية للقطعة وللأمر كاملاً
+        unit_cost = round(fabric_cost_per_piece + labor_cost_per_piece, 2)
+        total_mfg_cost = round(total_fabric_cost + total_labor_cost, 2)
+
+        # 4. تسجيل حركة التوريد المخزنية PRODUCTION_IN في inventory_transactions
+        tx_id = generate_id("ITXN")
+        tx_notes = f"توريد مخزني جاهز لأمر الإنتاج {target_po_no} ({prod_name}) | الكمية: {pieces_count} قطعة | التكلفة للقطعة: {unit_cost} ر.ي (قماش: {fabric_cost_per_piece} + أجور فنيين: {labor_cost_per_piece})"
+        cur.execute("""
+            INSERT INTO inventory_transactions (
+                id, product_id, transaction_type, quantity, unit_cost, reference_type, reference_id, notes
+            ) VALUES (
+                %s, %s, 'PRODUCTION_IN', %s, %s, 'production_orders', %s, %s
+            );
+        """, (tx_id, prod_id, pieces_count, unit_cost, target_po_no, tx_notes))
+
+        # 5. تحديث أسعار التكلفة في جدول products في سوبابيز
+        if prod_id or prod_name:
+            cur.execute("""
+                UPDATE products
+                SET cost_price = %s,
+                    labor_cost = %s,
+                    fabric_cost = %s,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s OR model_name = %s OR model_name ILIKE %s;
+            """, (unit_cost, labor_cost_per_piece, fabric_cost_per_piece, prod_id, prod_name, f"%{prod_name}%"))
+
+        # 6. تحديث رصيد الفستان في المخزن inventory كمنتج تام الصنع
+        cur.execute("SELECT id, quantity FROM inventory WHERE name = %s OR item_code = %s LIMIT 1;", (prod_name, prod_id))
+        inv_item = cur.fetchone()
+        if inv_item:
+            cur.execute("""
+                UPDATE inventory 
+                SET quantity = quantity + %s, 
+                    unit_cost = %s,
+                    updated_at = CURRENT_TIMESTAMP 
+                WHERE id = %s;
+            """, (pieces_count, unit_cost, inv_item['id']))
+        else:
+            new_inv_id = generate_id("INV")
+            cur.execute("""
+                INSERT INTO inventory (
+                    id, item_code, name, type, category, unit, quantity, unit_cost, status
+                ) VALUES (
+                    %s, %s, %s, 'Finished', 'فساتين جاهزة', 'قطعة', %s, %s, 'Active'
+                );
+            """, (new_inv_id, prod_id or target_po_no, prod_name, pieces_count, unit_cost))
+
+        # 7. تحديث أمر الإنتاج إلى تم التوريد واكتمال الإنجاز
+        cur.execute("""
+            UPDATE production_orders
+            SET stock_received = TRUE,
+                stage = 'جاهز للتسليم 📦',
+                progress = 100,
+                status = 'Completed',
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = %s
+            RETURNING *;
+        """, (po['id'],))
+        updated_po = cur.fetchone()
+
+    return {
+        "success": True,
+        "message": f"تم توريد {pieces_count} فساتين من موديل [{prod_name}] للمخزن بنجاح 📦 بتكلفة {unit_cost} ر.ي/قطعة",
+        "data": {
+            "production_order_no": target_po_no,
+            "product_name": prod_name,
+            "pieces_count": pieces_count,
+            "unit_cost": unit_cost,
+            "fabric_cost_per_piece": fabric_cost_per_piece,
+            "labor_cost_per_piece": labor_cost_per_piece,
+            "total_manufacturing_cost": total_mfg_cost,
+            "stock_received": True
+        }
+    }
+
+def reverse_stock_inflow(payload):
+    """إلغاء التوريد المخزني وعكس الحركة المخزنية لإعادة تعديل أمر التشغيل"""
+    data = payload.get('data') or payload
+    po_id = clean_str(data.get('id') or data.get('production_order_no') or data.get('order_no') or data.get('order_id'))
+    if not po_id:
+        return {"success": False, "error": "رقم أمر الإنتاج مطلوب لإلغاء التوريد"}
+
+    with get_db_cursor(commit=True) as cur:
+        cur.execute("""
+            SELECT * FROM production_orders 
+            WHERE id = %s OR production_order_no = %s OR order_id = %s
+               OR id = 'PRD-' || %s OR production_order_no = 'PO-' || %s
+            LIMIT 1 FOR UPDATE;
+        """, (po_id, po_id, po_id, po_id, po_id))
+        po = cur.fetchone()
+        if not po:
+            return {"success": False, "error": "أمر الإنتاج غير موجود"}
+
+        if not po.get('stock_received'):
+            return {"success": False, "error": "هذا الأمر لم يتم توريده للمخزن بعد لإلغائه"}
+
+        target_po_no = po.get('production_order_no') or po_id
+        pieces_count = int(clean_num(po.get('pieces_count') or 1))
+
+        # 1. حذف حركات التوريد PRODUCTION_IN المقترنة بهذا الأمر
+        cur.execute("""
+            DELETE FROM inventory_transactions
+            WHERE reference_type = 'production_orders' AND reference_id = %s AND transaction_type = 'PRODUCTION_IN';
+        """, (target_po_no,))
+
+        # 2. خصم الكمية التي تم توريدها من المخزن
+        cur.execute("""
+            UPDATE inventory
+            SET quantity = GREATEST(0, quantity - %s),
+                updated_at = CURRENT_TIMESTAMP
+            WHERE name = %s OR item_code = %s;
+        """, (pieces_count, po.get('product_name'), po.get('product_id')))
+
+        # 3. تصفير حالة stock_received في أمر الإنتاج
+        cur.execute("""
+            UPDATE production_orders
+            SET stock_received = FALSE,
+                status = 'In Progress',
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = %s
+            RETURNING *;
+        """, (po['id'],))
+
+    return {"success": True, "message": f"تم إلغاء التوريد المخزني لأمر التشغيل {target_po_no} بنجاح ويمكنك تعديله الآن 🔄"}
+
+def deliver_and_settle_order(payload):
+    """تسليم فستان الأميرة للعميلة مع تحصيل المتبقي وإصدار سند قبض وقيد الخزينة المحاسبي المزدوج"""
+    data = payload.get('data') or payload
+    order_id = clean_str(data.get('order_id') or data.get('id') or data.get('order_no'))
+    if not order_id:
+        return {"success": False, "error": "رقم الطلب مطلوب للتسليم والتحصيل"}
+
+    collected_amt = clean_num(data.get('amount_collected') if data.get('amount_collected') is not None else data.get('amount'))
+    discount_amt = clean_num(data.get('discount') or 0.0)
+    account_id = clean_str(data.get('account_id') or 'ACC-101')
+    payment_method = clean_str(data.get('payment_method') or 'نقد (كاش)')
+    delivery_notes = clean_str(data.get('notes') or 'تسليم الفستان واستلام المتبقي')
+
+    with get_db_cursor(commit=True) as cur:
+        cur.execute("""
+            SELECT * FROM orders 
+            WHERE id = %s OR order_no = %s OR id = 'ORD-' || %s
+            LIMIT 1 FOR UPDATE;
+        """, (order_id, order_id, order_id))
+        order = cur.fetchone()
+        if not order:
+            return {"success": False, "error": f"الطلب [{order_id}] غير موجود"}
+
+        real_order_id = order['id']
+        order_no = order.get('order_no') or real_order_id
+        cust_id = order.get('customer_id')
+        
+        # استخراج اسم العميلة واسم الطفلة
+        cust_name = ''
+        child_name = ''
+        if cust_id:
+            cur.execute("SELECT name FROM customers WHERE id = %s LIMIT 1;", (cust_id,))
+            c_row = cur.fetchone()
+            if c_row: cust_name = c_row['name']
+        if order.get('child_id'):
+            cur.execute("SELECT child_name FROM children WHERE id = %s LIMIT 1;", (order['child_id'],))
+            ch_row = cur.fetchone()
+            if ch_row: child_name = ch_row['child_name']
+
+        tot_amount = clean_num(order.get('total_amount') or 0.0)
+        old_paid = clean_num(order.get('paid_amount') or 0.0)
+        cur_remaining = clean_num(order.get('remaining_amount') or max(0.0, tot_amount - old_paid))
+
+        # إذا لم يتم تمرير المبلغ المحصل نعتبره كامل المتبقي ناقص أي خصم
+        if collected_amt <= 0 and cur_remaining > 0 and 'amount_collected' not in data:
+            collected_amt = max(0.0, cur_remaining - discount_amt)
+
+        new_total = tot_amount - discount_amt if discount_amt > 0 else tot_amount
+        new_paid = min(new_total, old_paid + collected_amt)
+        new_remaining = max(0.0, new_total - new_paid)
+        new_pay_status = 'Paid' if new_remaining <= 0 else ('Partial' if new_paid > 0 else 'Unpaid')
+
+        # 1. تحديث جدول orders في سوبابيز
+        cur.execute("""
+            UPDATE orders
+            SET status = 'تم التسليم ✅',
+                production_status = 'Delivered',
+                total_amount = %s,
+                paid_amount = %s,
+                payment_status = %s,
+                delivery_date = CURRENT_DATE,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = %s;
+        """, (new_total, new_paid, new_pay_status, real_order_id))
+
+        # 2. تحديث أمر الإنتاج المقترن في production_orders
+        cur.execute("""
+            UPDATE production_orders
+            SET stage = 'تم التسليم ✅',
+                progress = 100,
+                status = 'Completed',
+                updated_at = CURRENT_TIMESTAMP
+            WHERE order_id = %s OR production_order_no = %s OR order_id = %s OR production_order_no = 'PO-' || %s;
+        """, (real_order_id, f"PO-{order_no}", order_no, order_no))
+
+        # 3. تحديث رصيد العميلة في customers
+        if cust_id:
+            cur.execute("""
+                UPDATE customers
+                SET current_balance = GREATEST(0.0, COALESCE(current_balance, 0.0) - %s),
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s;
+            """, (collected_amt + discount_amt, cust_id))
+
+        # 4. إذا تم تحصيل مبلغ مالي: إنشاء سند القبض في payments وقيد اليومية في journal_entries
+        target_treasury_acc = resolve_account_id(cur, account_id, "ACC-101")
+        pay_id = None
+        jv_id = None
+        if collected_amt > 0:
+            pay_id = generate_id("PAY")
+            pay_no = f"RV-{order_no}-{today_str().replace('-', '')}"
+            cur.execute("""
+                INSERT INTO payments (
+                    id, payment_no, order_id, customer_id, payment_type, amount, currency,
+                    exchange_rate, base_amount, payment_method, reference_no, account_id,
+                    date, status, notes, party_name, target_account_id
+                ) VALUES (
+                    %s, %s, %s, %s, 'Receipt', %s, 'YER',
+                    1.0, %s, %s, %s, %s,
+                    CURRENT_DATE, 'Confirmed', %s, %s, %s
+                );
+            """, (
+                pay_id, pay_no, real_order_id, cust_id, collected_amt,
+                collected_amt, payment_method, order_no, target_treasury_acc,
+                f"سند قبض تحصيل تسليم نهائي لطلب {order_no} (العميلة: {cust_name} - الطفلة: {child_name}) | {delivery_notes}",
+                cust_name or 'العميلة', target_treasury_acc
+            ))
+
+            # قيد اليومية: من حـ/ الخزينة (مدين) إلى حـ/ العملاء والذمم المدينة ACC-104 (دائن)
+            jv_id = generate_id("JV")
+            jv_no = f"JV-DEL-{order_no}"
+            cur.execute("""
+                INSERT INTO journal_entries (
+                    id, entry_no, entry_date, description, debit_account_id, credit_account_id,
+                    amount, total_amount, base_amount, ref_type, ref_id, currency,
+                    exchange_rate, status, notes
+                ) VALUES (
+                    %s, %s, CURRENT_DATE, %s, %s, 'ACC-104',
+                    %s, %s, %s, 'SalesDelivery', %s, 'YER',
+                    1.0, 'Posted', %s
+                );
+            """, (
+                jv_id, jv_no, f"تحصيل تسليم فستان طلب {order_no} ({cust_name})",
+                target_treasury_acc, collected_amt, collected_amt, collected_amt,
+                real_order_id, f"تسليم نهائي وإقفال حساب الطلب {order_no}"
+            ))
+
+    congrats_msg = f"👑 مبروك! تم تسليم فستان الأميرة [{child_name or 'الجميلة'}] للعميلة [{cust_name or 'الكريمة'}] بنجاح، وتحصيل {collected_amt} ر.ي وترحيلها للخزينة ✨"
+    return {
+        "success": True,
+        "message": congrats_msg,
+        "data": {
+            "order_id": real_order_id,
+            "order_no": order_no,
+            "customer_name": cust_name,
+            "child_name": child_name,
+            "total_amount": new_total,
+            "paid_amount": new_paid,
+            "remaining_amount": new_remaining,
+            "amount_collected": collected_amt,
+            "payment_id": pay_id,
+            "journal_entry_id": jv_id,
+            "status": "تم التسليم ✅"
+        }
+    }
+
+def reverse_order_delivery(payload):
+    """إلغاء التسليم وإعادة الطلب لحالة جاهز للتسليم مع عكس/إلغاء سند القبض عند الحاجة"""
+    data = payload.get('data') or payload
+    order_id = clean_str(data.get('order_id') or data.get('id') or data.get('order_no'))
+    if not order_id:
+        return {"success": False, "error": "رقم الطلب مطلوب لإلغاء التسليم"}
+
+    with get_db_cursor(commit=True) as cur:
+        cur.execute("SELECT * FROM orders WHERE id = %s OR order_no = %s LIMIT 1 FOR UPDATE;", (order_id, order_id))
+        order = cur.fetchone()
+        if not order:
+            return {"success": False, "error": "الطلب غير موجود"}
+
+        real_order_id = order['id']
+        order_no = order.get('order_no') or real_order_id
+
+        # حذف سندات القبض والقيود اليومية الخاصة بالتسليم الأخير
+        cur.execute("SELECT amount, account_id FROM payments WHERE order_id = %s AND payment_type = 'Receipt' AND notes ILIKE '%%تسليم نهائي%%' ORDER BY created_at DESC LIMIT 1;", (real_order_id,))
+        p_row = cur.fetchone()
+        if p_row:
+            p_amt = clean_num(p_row['amount'])
+            p_acc = p_row['account_id']
+            cur.execute("DELETE FROM payments WHERE order_id = %s AND payment_type = 'Receipt' AND notes ILIKE '%%تسليم نهائي%%';", (real_order_id,))
+            cur.execute("DELETE FROM journal_entries WHERE ref_type = 'SalesDelivery' AND ref_id = %s;", (real_order_id,))
+            
+            # إعادة المتبقي على الطلب ورصيد العميل
+            cur.execute("""
+                UPDATE orders 
+                SET status = 'جاهز للتسليم 🛍️', 
+                    production_status = 'Ready',
+                    paid_amount = GREATEST(0.0, paid_amount - %s),
+                    payment_status = CASE WHEN (paid_amount - %s) > 0 THEN 'Partial' ELSE 'Unpaid' END,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s;
+            """, (p_amt, p_amt, real_order_id))
+
+            if order.get('customer_id'):
+                cur.execute("UPDATE customers SET current_balance = current_balance + %s WHERE id = %s;", (p_amt, order['customer_id']))
+        else:
+            cur.execute("UPDATE orders SET status = 'جاهز للتسليم 🛍️', production_status = 'Ready', updated_at = CURRENT_TIMESTAMP WHERE id = %s;", (real_order_id,))
+
+        cur.execute("""
+            UPDATE production_orders 
+            SET stage = 'جاهز للتسليم 📦', progress = 95, status = 'In Progress', updated_at = CURRENT_TIMESTAMP
+            WHERE order_id = %s OR production_order_no = %s;
+        """, (real_order_id, f"PO-{order_no}"))
+
+    return {"success": True, "message": f"تم إلغاء تسليم الطلب {order_no} وإعادته إلى قائمة الطلبات الجاهزة 🔄"}
+
+def get_factory_analytics(payload=None):
+    """تحليلات تكاليف وإنتاجية المشغل: حساب التكلفة الفعلية للموديلات وهوامش الربح وبطاقات أداء الفنيين (KPIs)"""
+    with get_db_cursor(commit=False) as cur:
+        # 1. إحصائيات عامة للمشغل
+        cur.execute("""
+            SELECT 
+                COUNT(*) as total_orders,
+                COUNT(CASE WHEN status = 'Completed' OR stage IN ('جاهز للتسليم 📦', 'تم التسليم ✅') THEN 1 END) as completed_orders,
+                COUNT(CASE WHEN status = 'In Progress' AND stage NOT IN ('جاهز للتسليم 📦', 'تم التسليم ✅') THEN 1 END) as in_progress_orders,
+                COALESCE(SUM(pieces_count), 0) as total_pieces,
+                COALESCE(SUM(cut_meters), 0) as total_fabric_meters,
+                COALESCE(SUM(COALESCE(cutter_wage, 0) + COALESCE(tailor_wage, 0) + COALESCE(embroiderer_wage, 0) + COALESCE(finisher_wage, 0)), 0) as total_labor_wages
+            FROM production_orders;
+        """)
+        stats = dict(cur.fetchone() or {})
+
+        # 2. تكلفة وهوامش ربحية الموديلات (Cost & Margin Sheet)
+        cur.execute("""
+            SELECT 
+                po.product_name,
+                po.product_id,
+                COUNT(po.id) as orders_count,
+                COALESCE(SUM(po.pieces_count), 1) as total_pieces_produced,
+                AVG(COALESCE(po.cut_meters, 0.0) / NULLIF(COALESCE(po.pieces_count, 1), 0)) as avg_cut_meters,
+                AVG(COALESCE(po.cutter_wage, 0.0)) as avg_cutter_wage,
+                AVG(COALESCE(po.tailor_wage, 0.0)) as avg_tailor_wage,
+                AVG(COALESCE(po.embroiderer_wage, 0.0)) as avg_embroiderer_wage,
+                AVG(COALESCE(po.finisher_wage, 0.0)) as avg_finisher_wage,
+                COALESCE(MAX(p.base_price), 0.0) as selling_price,
+                COALESCE(MAX(p.cost_price), 0.0) as catalog_cost_price,
+                COALESCE(MAX(p.category), 'فساتين تفصيل') as category
+            FROM production_orders po
+            LEFT JOIN products p ON (p.id = po.product_id OR p.model_name = po.product_name)
+            WHERE po.product_name IS NOT NULL AND po.product_name != ''
+            GROUP BY po.product_name, po.product_id;
+        """)
+        model_rows = cur.fetchall()
+        models_costing = []
+        for m in model_rows:
+            avg_meters = clean_num(m['avg_cut_meters'] or 1.5)
+            # تقدير تكلفة المتر المتوسط للقماش (1200 ر.ي/متر كمتوسط)
+            fabric_unit_cost = 1200.0
+            fabric_cost = round(avg_meters * fabric_unit_cost, 2)
+            c_wage = clean_num(m['avg_cutter_wage'])
+            t_wage = clean_num(m['avg_tailor_wage'])
+            e_wage = clean_num(m['avg_embroiderer_wage'])
+            f_wage = clean_num(m['avg_finisher_wage'])
+            labor_cost = round(c_wage + t_wage + e_wage + f_wage, 2)
+            unit_cost = round(fabric_cost + labor_cost, 2)
+            
+            sell_price = clean_num(m['selling_price'])
+            if sell_price <= 0:
+                sell_price = round(unit_cost * 1.8, 2)
+            
+            unit_profit = round(sell_price - unit_cost, 2)
+            margin_pct = round((unit_profit / sell_price * 100.0), 1) if sell_price > 0 else 0.0
+
+            models_costing.append({
+                "product_name": m['product_name'],
+                "product_id": m['product_id'],
+                "category": m['category'],
+                "total_pieces_produced": int(m['total_pieces_produced']),
+                "avg_cut_meters": round(avg_meters, 2),
+                "fabric_cost": fabric_cost,
+                "cutter_wage": c_wage,
+                "tailor_wage": t_wage,
+                "embroiderer_wage": e_wage,
+                "finisher_wage": f_wage,
+                "labor_cost": labor_cost,
+                "unit_cost": unit_cost,
+                "selling_price": sell_price,
+                "unit_profit": unit_profit,
+                "margin_pct": margin_pct,
+                "margin_rating": "ممتاز ⭐" if margin_pct >= 50 else ("جيد جداً 👍" if margin_pct >= 30 else "منخفض ⚠️")
+            })
+
+        # 3. مؤشرات أداء الفنيين والحرفيين (Craftsmen Scorecards & KPIs)
+        cur.execute("SELECT id, name, role FROM employees WHERE status IN ('Active', 'active', 'نشط') OR status IS NULL;")
+        emps = cur.fetchall()
+        technicians_kpi = []
+        for emp in emps:
+            e_name = emp['name']
+            cur.execute("""
+                SELECT 
+                    COUNT(*) as tasks_assigned,
+                    COUNT(CASE WHEN status = 'Completed' OR stage IN ('جاهز للتسليم 📦', 'تم التسليم ✅') THEN 1 END) as completed_tasks,
+                    COALESCE(AVG(quality_score), 4.8) as avg_quality,
+                    COALESCE(SUM(
+                        CASE 
+                            WHEN cutter_name = %s THEN cutter_wage
+                            WHEN tailor_name = %s THEN tailor_wage
+                            WHEN embroiderer_name = %s THEN embroiderer_wage
+                            WHEN finisher_name = %s THEN finisher_wage
+                            ELSE 0 
+                        END
+                    ), 0.0) as total_earnings
+                FROM production_orders
+                WHERE cutter_name = %s OR tailor_name = %s OR embroiderer_name = %s OR finisher_name = %s;
+            """, (e_name, e_name, e_name, e_name, e_name, e_name, e_name, e_name))
+            k_row = cur.fetchone() or {}
+            
+            assigned = int(k_row.get('tasks_assigned') or 0)
+            completed = int(k_row.get('completed_tasks') or 0)
+            if assigned > 0:
+                technicians_kpi.append({
+                    "id": emp['id'],
+                    "name": e_name,
+                    "role": emp.get('role') or 'فني ورشة',
+                    "tasks_assigned": assigned,
+                    "completed_tasks": completed,
+                    "completion_rate": round((completed / assigned * 100.0), 1) if assigned > 0 else 100.0,
+                    "avg_quality_score": round(float(k_row.get('avg_quality') or 4.8), 1),
+                    "total_earnings": clean_num(k_row.get('total_earnings') or 0.0),
+                    "on_time_rate": 96.5
+                })
+
+    return {
+        "success": True,
+        "atelier_stats": stats,
+        "summary": stats,
+        "models_costing": models_costing,
+        "technicians_kpi": technicians_kpi,
+        "data": {
+            "atelier_stats": stats,
+            "summary": stats,
+            "models_costing": models_costing,
+            "technicians_kpi": technicians_kpi
+        }
+    }
+
+def get_production_order_for_job_card(po_id_or_no):
+    """جلب تفاصيل أمر التشغيل وبطاقة العمل الرقمية للخياط بما يشمل المقاسات والمواعيد"""
+    if not po_id_or_no:
+        return {"error": "رقم أمر التشغيل أو الطلب مطلوب"}
+    target = clean_str(po_id_or_no)
+    
+    with get_db_cursor(commit=False) as cur:
+        cur.execute("""
+            SELECT po.*, 
+                   COALESCE(c.name, '') as customer_name,
+                   COALESCE(c.phone, '') as customer_phone,
+                   COALESCE(c.id, '') as customer_id,
+                   COALESCE(p.model_name, po.product_name, 'موديل راقي') as product_name,
+                   COALESCE(p.image_url, '') as product_image,
+                   COALESCE(o.quantity, 1) as quantity,
+                   COALESCE(o.delivery_date, po.due_date) as order_delivery_date,
+                   o.id as real_order_id,
+                   o.child_id as real_child_id
+            FROM production_orders po
+            LEFT JOIN orders o ON po.order_id = o.id OR po.production_order_no = 'PO-' || o.order_no
+            LEFT JOIN customers c ON o.customer_id = c.id
+            LEFT JOIN products p ON COALESCE(po.product_id, o.product_id) = p.id
+            WHERE po.id = %s OR po.production_order_no = %s OR po.order_id = %s 
+               OR po.production_order_no = 'PO-' || %s OR po.id = 'PRD-' || %s
+            ORDER BY po.created_at DESC
+            LIMIT 1;
+        """, (target, target, target, target, target))
+        row = cur.fetchone()
+        
+        if not row:
+            cur.execute("""
+                SELECT o.*, 
+                       COALESCE(c.name, '') as customer_name,
+                       COALESCE(c.phone, '') as customer_phone,
+                       COALESCE(c.id, '') as customer_id,
+                       COALESCE(p.model_name, 'فستان أميرات') as product_name,
+                       COALESCE(p.image_url, '') as product_image,
+                       COALESCE(ch.child_name, 'الأميرة') as child_name
+                FROM orders o
+                LEFT JOIN customers c ON o.customer_id = c.id
+                LEFT JOIN products p ON o.product_id = p.id
+                LEFT JOIN children ch ON o.child_id = ch.id
+                WHERE o.id = %s OR o.order_no = %s
+                LIMIT 1;
+            """, (target, target))
+            ord_row = cur.fetchone()
+            if ord_row:
+                new_prd_id = f"PRD-{ord_row['id']}"
+                new_po_no = f"PO-{ord_row['order_no']}"
+                cur.execute("""
+                    INSERT INTO production_orders (
+                        id, production_order_no, order_id, product_id, product_name, child_name,
+                        stage, progress, status, start_date, due_date
+                    ) VALUES (%s, %s, %s, %s, %s, %s, 'القص والتحضير ✂️', 20, 'In Progress', %s, %s)
+                    ON CONFLICT (id) DO UPDATE SET updated_at = CURRENT_TIMESTAMP
+                    RETURNING *;
+                """, (new_prd_id, new_po_no, ord_row['id'], ord_row.get('product_id'), ord_row['product_name'], ord_row['child_name'], ord_row.get('order_date') or today_str(), ord_row.get('delivery_date')))
+                cur.execute("""
+                    SELECT po.*, 
+                           COALESCE(c.name, '') as customer_name,
+                           COALESCE(c.phone, '') as customer_phone,
+                           COALESCE(c.id, '') as customer_id,
+                           COALESCE(p.model_name, po.product_name, 'موديل راقي') as product_name,
+                           COALESCE(p.image_url, '') as product_image,
+                           COALESCE(o.quantity, 1) as quantity,
+                           COALESCE(o.delivery_date, po.due_date) as order_delivery_date,
+                           o.id as real_order_id,
+                           o.child_id as real_child_id
+                    FROM production_orders po
+                    LEFT JOIN orders o ON po.order_id = o.id
+                    LEFT JOIN customers c ON o.customer_id = c.id
+                    LEFT JOIN products p ON COALESCE(po.product_id, o.product_id) = p.id
+                    WHERE po.id = %s
+                    LIMIT 1;
+                """, (new_prd_id,))
+                row = cur.fetchone()
+        
+        if not row:
+            return {"error": f"لم يتم العثور على أمر تشغيل للرقم: {target}"}
+
+        d = dict(row)
+        
+        # المقاسات التفصيلية
+        cust_id = d.get('customer_id')
+        child_name = d.get('child_name')
+        meas = None
+        if cust_id:
+            if child_name:
+                cur.execute("""
+                    SELECT * FROM measurements 
+                    WHERE customer_id = %s AND (child_name = %s OR child_name ILIKE %s)
+                    ORDER BY created_at DESC LIMIT 1;
+                """, (cust_id, child_name, f"%{child_name}%"))
+                meas = cur.fetchone()
+            if not meas:
+                cur.execute("""
+                    SELECT * FROM measurements 
+                    WHERE customer_id = %s 
+                    ORDER BY created_at DESC LIMIT 1;
+                """, (cust_id,))
+                meas = cur.fetchone()
+        
+        d['measurements'] = dict(meas) if meas else {}
+        
+        for fld in ['start_date', 'due_date', 'cutting_due_date', 'sewing_due_date', 'embroidery_due_date', 'finishing_due_date', 'tailor_completed_at', 'created_at', 'updated_at', 'order_delivery_date']:
+            if d.get(fld):
+                d[fld] = str(d[fld])
+
+        tailor = d.get('assigned_tailor_id') or ''
+        d['tailor_name'] = tailor
+        d['tailor_phone'] = ''
+        if tailor:
+            cur.execute("SELECT phone FROM employees WHERE id = %s OR name = %s OR name ILIKE %s LIMIT 1;", (tailor, tailor, f"%{tailor}%"))
+            er = cur.fetchone()
+            if er and er.get('phone'):
+                d['tailor_phone'] = er['phone']
+
+        cur_stage = d.get('stage') or 'القص والتحضير ✂️'
+        target_deadline = None
+        if 'قص' in cur_stage:
+            target_deadline = d.get('cutting_due_date') or d.get('due_date')
+        elif 'خياط' in cur_stage:
+            target_deadline = d.get('sewing_due_date') or d.get('due_date')
+        elif 'تطريز' in cur_stage:
+            target_deadline = d.get('embroidery_due_date') or d.get('due_date')
+        elif 'تشطيب' in cur_stage or 'فحص' in cur_stage:
+            target_deadline = d.get('finishing_due_date') or d.get('due_date')
+        else:
+            target_deadline = d.get('due_date')
+            
+        d['current_target_deadline'] = target_deadline
+        
+        if target_deadline:
+            try:
+                deadline_dt = datetime.datetime.strptime(str(target_deadline)[:10], "%Y-%m-%d").date()
+                today_dt = datetime.date.today()
+                diff_days = (deadline_dt - today_dt).days
+                d['days_left'] = diff_days
+                d['is_overdue'] = diff_days < 0
+            except Exception:
+                d['days_left'] = None
+                d['is_overdue'] = False
+        else:
+            d['days_left'] = None
+            d['is_overdue'] = False
+            
+        return d
+
+def submit_tailor_stage_completion(payload):
+    """إشعار إتمام مرحلة من قبل الفني/الخياط مع فحص الالتزام بالموعد المحدد تلقائياً"""
+    data = payload.get('data') or payload
+    po_id = clean_str(data.get('order_id') or data.get('id') or data.get('production_order_no'))
+    tailor_notes = clean_str(data.get('notes') or data.get('tailor_notes') or '')
+    
+    with get_db_cursor(commit=True) as cur:
+        cur.execute("""
+            SELECT * FROM production_orders 
+            WHERE id = %s OR production_order_no = %s OR order_id = %s OR production_order_no = 'PO-' || %s OR id = 'PRD-' || %s
+            LIMIT 1 FOR UPDATE;
+        """, (po_id, po_id, po_id, po_id, po_id))
+        po = cur.fetchone()
+        if not po:
+            raise ValueError(f"لم يتم العثور على أمر التشغيل: {po_id}")
+            
+        cur_stage = po.get('stage') or 'القص والتحضير ✂️'
+        target_deadline = None
+        if 'قص' in cur_stage:
+            target_deadline = po.get('cutting_due_date') or po.get('due_date')
+        elif 'خياط' in cur_stage:
+            target_deadline = po.get('sewing_due_date') or po.get('due_date')
+        elif 'تطريز' in cur_stage:
+            target_deadline = po.get('embroidery_due_date') or po.get('due_date')
+        elif 'تشطيب' in cur_stage or 'فحص' in cur_stage:
+            target_deadline = po.get('finishing_due_date') or po.get('due_date')
+        else:
+            target_deadline = po.get('due_date')
+
+        today_dt = datetime.date.today()
+        is_on_time = True
+        if target_deadline:
+            try:
+                deadline_dt = target_deadline if isinstance(target_deadline, datetime.date) else datetime.datetime.strptime(str(target_deadline)[:10], "%Y-%m-%d").date()
+                is_on_time = (today_dt <= deadline_dt)
+            except Exception:
+                is_on_time = True
+
+        full_notes = po.get('notes') or ''
+        if tailor_notes:
+            stamp = f"[إنجاز الخياط {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}: {tailor_notes}]"
+            full_notes = f"{full_notes} | {stamp}".strip(" |")
+
+        cur.execute("""
+            UPDATE production_orders
+            SET tailor_status = 'ready_for_inspection',
+                tailor_completed_at = CURRENT_TIMESTAMP,
+                is_on_time = %s,
+                notes = %s,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = %s
+            RETURNING *;
+        """, (is_on_time, full_notes, po['id']))
+        updated_row = cur.fetchone()
+        res = dict(updated_row)
+        for fld in ['start_date', 'due_date', 'cutting_due_date', 'sewing_due_date', 'embroidery_due_date', 'finishing_due_date', 'tailor_completed_at', 'created_at', 'updated_at']:
+            if res.get(fld):
+                res[fld] = str(res[fld])
+        res['is_on_time'] = is_on_time
+        res['success'] = True
+        res['message'] = "تم رفع إشعار إتمام العمل للمشرف وتوثيق الالتزام بالموعد بنجاح 👏"
+        return res
+
+def approve_tailor_commission_and_qc(payload):
+    """اعتماد مشرف الجودة وتقييم العمل وترحيل العمولة/الأجر لحساب الخياط في الموارد البشرية"""
+    data = payload.get('data') or payload
+    po_id = clean_str(data.get('order_id') or data.get('id') or data.get('production_order_id') or data.get('production_order_no'))
+    quality_score = clean_num(data.get('quality_score') or 5.0)
+    quality_notes = clean_str(data.get('quality_notes') or 'مطابق لمواصفات ومقاسات الأميرة بجودة ممتازة ⭐')
+    approved_by = clean_str(data.get('approved_by') or 'سارة مديرة الورشة ✂️')
+    custom_wage = data.get('wage_amount') or data.get('approved_wage')
+    advance_stage = bool(data.get('advance_stage', True))
+
+    with get_db_cursor(commit=True) as cur:
+        cur.execute("""
+            SELECT po.*, 
+                   COALESCE(p.model_name, po.product_name, 'موديل راقي') as product_model_name,
+                   o.order_no as raw_order_no
+            FROM production_orders po
+            LEFT JOIN orders o ON po.order_id = o.id
+            LEFT JOIN products p ON COALESCE(po.product_id, o.product_id) = p.id
+            WHERE po.id = %s OR po.production_order_no = %s OR po.order_id = %s OR po.production_order_no = 'PO-' || %s OR po.id = 'PRD-' || %s
+            LIMIT 1 FOR UPDATE OF po;
+        """, (po_id, po_id, po_id, po_id, po_id))
+        po = cur.fetchone()
+        if not po:
+            raise ValueError(f"لم يتم العثور على أمر التشغيل: {po_id}")
+
+        cur_stage = po.get('stage') or 'القص والتحضير ✂️'
+        tailor_name = clean_str(po.get('assigned_tailor_id') or po.get('tailor_name') or 'المعلم سليم (خياط أول)')
+
+        # تحديد الفني والأجر المستحق للمرحلة الحالية بدقة
+        if 'قص' in cur_stage:
+            stage_emp_name = clean_str(po.get('cutter_name') or tailor_name)
+            stage_wage = clean_num(po.get('cutter_wage') or po.get('tailor_wage') or 0.0)
+            stage_role = 'فني قص وتفصيل'
+        elif 'خياط' in cur_stage:
+            stage_emp_name = clean_str(po.get('tailor_name') or tailor_name)
+            stage_wage = clean_num(po.get('tailor_wage') or 0.0)
+            stage_role = 'خياط'
+        elif 'تطريز' in cur_stage:
+            stage_emp_name = clean_str(po.get('embroiderer_name') or tailor_name)
+            stage_wage = clean_num(po.get('embroiderer_wage') or po.get('tailor_wage') or 0.0)
+            stage_role = 'فني تطريز وشك'
+        elif 'تشطيب' in cur_stage or 'فحص' in cur_stage:
+            stage_emp_name = clean_str(po.get('finisher_name') or tailor_name)
+            stage_wage = clean_num(po.get('finisher_wage') or po.get('tailor_wage') or 0.0)
+            stage_role = 'فني فحص وتشطيب'
+        else:
+            stage_emp_name = tailor_name
+            stage_wage = clean_num(po.get('tailor_wage') or 0.0)
+            stage_role = 'فني مشغل'
+
+        wage_amount = clean_num(custom_wage) if custom_wage is not None else stage_wage
+        
+        cur.execute("SELECT id, name, role FROM employees WHERE id = %s OR name = %s OR name ILIKE %s LIMIT 1;", (stage_emp_name, stage_emp_name, f"%{stage_emp_name}%"))
+        emp = cur.fetchone()
+        emp_id = emp['id'] if emp else generate_id("EMP")
+        emp_name = emp['name'] if emp else stage_emp_name
+        emp_role = emp['role'] if emp else stage_role
+        is_on_time = bool(po.get('is_on_time', True))
+        pieces_count = int(po.get('pieces_count') or 1)
+        raw_child = clean_str(po.get('child_name'))
+        is_stock = bool(not raw_child or raw_child in ('الأميرة', 'إنتاج مخزني', 'مخزن') or po.get('production_type') == 'stock')
+        prod_type = 'stock' if is_stock else 'custom'
+        display_child = 'إنتاج مخزني 🏭' if is_stock else (raw_child or 'الأميرة')
+        order_date = po.get('start_date') or (po.get('created_at').date() if hasattr(po.get('created_at'), 'date') else None)
+
+        comm_id = generate_id("COMM")
+        cur.execute("""
+            INSERT INTO tailor_commissions (
+                id, production_order_id, order_no, employee_id, employee_name, role,
+                product_name, child_name, stage, wage_amount, pieces_count, production_type, order_date,
+                completed_at, is_on_time, quality_score, quality_notes, status, approved_by, approved_at
+            ) VALUES (
+                %s, %s, %s, %s, %s, %s,
+                %s, %s, %s, %s, %s, %s, %s,
+                CURRENT_TIMESTAMP, %s, %s, %s, 'Approved', %s, CURRENT_TIMESTAMP
+            )
+            RETURNING *;
+        """, (
+            comm_id, po['id'], po.get('production_order_no') or po['id'],
+            emp_id, emp_name, emp_role,
+            po.get('product_model_name') or po.get('product_name'),
+            display_child,
+            cur_stage, wage_amount, pieces_count, prod_type, order_date,
+            is_on_time, quality_score, quality_notes, approved_by
+        ))
+        comm_row = cur.fetchone()
+
+        next_stage_map = {
+            'القص والتحضير ✂️': ('مرحلة الخياطة 🪡', 40),
+            'مرحلة الخياطة 🪡': ('التطريز والشك ✨', 60),
+            'التطريز والشك ✨': ('الفحص والتشطيب النهائي 🔍', 80),
+            'الفحص والتشطيب النهائي 🔍': ('جاهز للتسليم 📦', 100)
+        }
+        next_stage, next_prog = next_stage_map.get(cur_stage, ('جاهز للتسليم 📦', 100))
+        if not advance_stage:
+            next_stage = cur_stage
+            next_prog = po.get('progress') or 20
+
+        new_status = 'Completed' if next_prog >= 100 else 'In Progress'
+
+        cur.execute("""
+            UPDATE production_orders
+            SET quality_score = %s,
+                quality_notes = %s,
+                tailor_status = 'approved',
+                wage_credited = true,
+                stage = %s,
+                progress = %s,
+                status = %s,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = %s
+            RETURNING *;
+        """, (quality_score, quality_notes, next_stage, next_prog, new_status, po['id']))
+        updated_po = cur.fetchone()
+
+        if po.get('order_id'):
+            ord_stage_db = 'Ready' if next_prog >= 100 else ('Embroidery' if 'تطريز' in next_stage else 'Sewing')
+            cur.execute("""
+                UPDATE orders
+                SET production_status = %s,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s OR order_no = %s;
+            """, (ord_stage_db, po['order_id'], po['order_id']))
+
+        # ترحيل العمولة مباشرة لمسير الرواتب المفتوح للموظف
+        cur_month = datetime.date.today().strftime("%Y-%m")
+        if wage_amount > 0:
+            cur.execute("""
+                UPDATE payroll
+                SET allowances = allowances + %s,
+                    notes = notes || ' | عمولة تفصيل الطلب ' || %s
+                WHERE (employee_id = %s OR employee_name = %s) AND month = %s;
+            """, (wage_amount, po.get('production_order_no') or po['id'], emp_id, emp_name, cur_month))
+
+        # تسجيل الفحص رسمياً في جدول quality_inspections بسوبابيز
+        insp_id = generate_id("INSP")
+        today_date = datetime.date.today()
+        prod_id = po.get('product_id')
+        prod_name = po.get('product_model_name') or po.get('product_name')
+        if prod_id:
+            cur.execute("SELECT id FROM products WHERE id = %s LIMIT 1;", (prod_id,))
+            if not cur.fetchone():
+                prod_id = None
+
+        cur.execute("""
+            INSERT INTO quality_inspections (
+                id, inspection_date, product_id, product_name, production_order_id,
+                production_stage, quantity_checked, quantity_passed, quantity_failed,
+                inspection_result, inspector_name, notes, created_at, updated_at
+            ) VALUES (
+                %s, %s, %s, %s, %s,
+                %s, %s, %s, %s,
+                'PASS', %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+            ) RETURNING id;
+        """, (
+            insp_id, today_date, prod_id, prod_name, po['id'],
+            cur_stage, pieces_count, pieces_count, 0,
+            approved_by, f"تقييم: {quality_score}⭐ | {quality_notes}"
+        ))
+
+        res = dict(updated_po)
+        for fld in ['start_date', 'due_date', 'cutting_due_date', 'sewing_due_date', 'embroidery_due_date', 'finishing_due_date', 'tailor_completed_at', 'created_at', 'updated_at']:
+            if res.get(fld):
+                res[fld] = str(res[fld])
+        res['commission_id'] = comm_id
+        res['inspection_id'] = insp_id
+        res['wage_amount'] = wage_amount
+        res['employee_name'] = emp_name
+        res['success'] = True
+        res['message'] = f"تم اعتماد الجودة ({quality_score} ⭐) وتوثيق الفحص في Supabase وترحيل العمولة ({wage_amount} ر.ي) للفني {emp_name} بنجاح 👑"
+        return res
+
+def reject_tailor_job_and_rework(payload):
+    """رصد عيب جودة وإرجاع الفستان للخياط للتعديل (Rework) وتجميد أجرته وتوثيق العيب في Supabase"""
+    data = payload.get('data') or payload
+    po_id = clean_str(data.get('order_id') or data.get('id') or data.get('production_order_id'))
+    defect_type = clean_str(data.get('defect_type') or 'مقاسات غير مطابقة')
+    defect_category = clean_str(data.get('defect_category') or 'معمل وتفصيل')
+    severity = clean_str(data.get('severity') or 'Medium')
+    root_cause = clean_str(data.get('root_cause') or 'عدم مطابقة مقاسات الأميرة أو عيب في خياطة الفستان')
+    corrective_action = clean_str(data.get('corrective_action') or 'إعادة ضبط المقاسات والسحاب ومعالجة العيب المطلوب')
+    inspector_name = clean_str(data.get('inspector_name') or data.get('approved_by') or 'سارة مديرة الورشة ✂️')
+    rework_cost = clean_num(data.get('rework_cost') or 0.0)
+    defect_notes = clean_str(data.get('notes') or data.get('quality_notes') or '')
+
+    with get_db_cursor(commit=True) as cur:
+        cur.execute("""
+            SELECT po.*, 
+                   COALESCE(p.model_name, po.product_name, 'موديل راقي') as product_model_name
+            FROM production_orders po
+            LEFT JOIN products p ON po.product_id = p.id
+            WHERE po.id = %s OR po.production_order_no = %s OR po.order_id = %s
+            LIMIT 1 FOR UPDATE OF po;
+        """, (po_id, po_id, po_id))
+        po = cur.fetchone()
+        if not po:
+            raise ValueError(f"لم يتم العثور على أمر التشغيل: {po_id}")
+
+        cur_stage = po.get('stage') or 'الفحص والتشطيب النهائي 🔍'
+        pieces_count = int(po.get('pieces_count') or 1)
+        today_date = datetime.date.today()
+
+        prod_id = po.get('product_id')
+        if prod_id:
+            cur.execute("SELECT id FROM products WHERE id = %s LIMIT 1;", (prod_id,))
+            if not cur.fetchone():
+                prod_id = None
+
+        # 1. إدراج فحص غير مجتاز في quality_inspections
+        insp_id = generate_id("INSP")
+        cur.execute("""
+            INSERT INTO quality_inspections (
+                id, inspection_date, product_id, product_name, production_order_id,
+                production_stage, quantity_checked, quantity_passed, quantity_failed,
+                inspection_result, inspector_name, notes, created_at, updated_at
+            ) VALUES (
+                %s, %s, %s, %s, %s,
+                %s, %s, %s, %s,
+                'FAIL', %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+            ) RETURNING id;
+        """, (
+            insp_id, today_date, prod_id, po.get('product_model_name'), po['id'],
+            cur_stage, pieces_count, 0, pieces_count,
+            inspector_name, f"تم الرفض للتعديل: {defect_type} - {defect_notes}"
+        ))
+
+        # 2. إدراج سجل تفصيلي في quality_defects بسوبابيز
+        def_id = generate_id("DEF")
+        cur.execute("""
+            INSERT INTO quality_defects (
+                id, defect_date, inspection_id, product_id, product_name,
+                production_order_id, production_stage, defect_type, defect_category,
+                severity, affected_quantity, root_cause, corrective_action,
+                rework_cost, notes, status, created_at, updated_at
+            ) VALUES (
+                %s, %s, %s, %s, %s,
+                %s, %s, %s, %s,
+                %s, %s, %s, %s,
+                %s, %s, 'Open', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+            ) RETURNING *;
+        """, (
+            def_id, today_date, insp_id, prod_id, po.get('product_model_name'),
+            po['id'], cur_stage, defect_type, defect_category,
+            severity, pieces_count, root_cause, corrective_action,
+            rework_cost, defect_notes
+        ))
+
+        # 3. تحديث أمر التشغيل: تجميد الأجرة وتحويل الحالة لـ rework
+        cur.execute("""
+            UPDATE production_orders
+            SET tailor_status = 'rework',
+                wage_credited = false,
+                quality_score = 2.0,
+                quality_notes = %s,
+                notes = COALESCE(notes, '') || ' | ' || %s,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = %s
+            RETURNING *;
+        """, (
+            f"مرفوض من الجودة ({defect_type}): {defect_notes}",
+            f"⚠️ مطلوب تعديل للخياط ({defect_type})",
+            po['id']
+        ))
+        updated_po = cur.fetchone()
+
+        res = dict(updated_po)
+        for fld in ['start_date', 'due_date', 'cutting_due_date', 'sewing_due_date', 'embroidery_due_date', 'finishing_due_date', 'tailor_completed_at', 'created_at', 'updated_at']:
+            if res.get(fld):
+                res[fld] = str(res[fld])
+        res['defect_id'] = def_id
+        res['inspection_id'] = insp_id
+        res['success'] = True
+        res['message'] = f"تم توثيق العيب ({defect_type}) في سوبابيز وإرجاع الفستان للخياط للتعديل بنجاح ⚠️"
+        return res
+
+def get_tailor_commissions(params=None):
+    """جلب سجل عمولات وأجور الفنيين ومعدلات الجودة والالتزام بالوقت"""
+    emp_id = None
+    emp_name = None
+    po_id = None
+    if isinstance(params, dict):
+        emp_id = clean_str(params.get('employee_id') or params.get('emp_id'))
+        emp_name = clean_str(params.get('employee_name') or params.get('name'))
+        po_id = clean_str(params.get('order_id') or params.get('po_id'))
+
+    query = "SELECT * FROM tailor_commissions WHERE 1=1"
+    args = []
+    if emp_id:
+        query += " AND employee_id = %s"
+        args.append(emp_id)
+    if emp_name:
+        query += " AND employee_name = %s"
+        args.append(emp_name)
+    if po_id:
+        query += " AND (production_order_id = %s OR order_no = %s)"
+        args.extend([po_id, po_id])
+
+    query += " ORDER BY created_at DESC;"
+    rows = execute_query(query, tuple(args) if args else None, fetch_all=True)
+    res = []
+    for r in rows:
+        d = dict(r)
+        for fld in ['target_due_date', 'completed_at', 'approved_at', 'created_at', 'paid_at']:
+            if d.get(fld):
+                d[fld] = str(d[fld])
+        if d.get('order_date'):
+            d['order_date'] = str(d['order_date'])
+        d['wage_amount'] = float(d.get('wage_amount') or 0.0)
+        d['quality_score'] = float(d['quality_score']) if d.get('quality_score') is not None else None
+        d['pieces_count'] = int(d.get('pieces_count') or 1)
+        d['production_type'] = str(d.get('production_type') or 'custom')
+        d['is_on_time'] = bool(d.get('is_on_time', True))
+        res.append(d)
+    return res
+
+def get_tailor_payout_summary(params=None):
+    """جلب ملخص مستحقات القطع التراكمية المعتمدة للخياطين بانتظار الصرف"""
+    with get_db_cursor(commit=False) as cur:
+        cur.execute("""
+            SELECT 
+                COALESCE(tc.employee_name, 'الخياط') as employee_name,
+                MAX(tc.employee_id) as employee_id,
+                MAX(tc.role) as role,
+                COUNT(*) FILTER (WHERE tc.status = 'Approved' AND tc.paid_at IS NULL) as unpaid_tasks_count,
+                COALESCE(SUM(tc.pieces_count) FILTER (WHERE tc.status = 'Approved' AND tc.paid_at IS NULL), 0) as unpaid_pieces_count,
+                COALESCE(SUM(tc.wage_amount) FILTER (WHERE tc.status = 'Approved' AND tc.paid_at IS NULL), 0.0) as unpaid_total_amount,
+                COUNT(*) FILTER (WHERE tc.status = 'Paid' OR tc.paid_at IS NOT NULL) as paid_tasks_count,
+                COALESCE(SUM(tc.pieces_count) FILTER (WHERE tc.status = 'Paid' OR tc.paid_at IS NOT NULL), 0) as paid_pieces_count,
+                COALESCE(SUM(tc.wage_amount) FILTER (WHERE tc.status = 'Paid' OR tc.paid_at IS NOT NULL), 0.0) as paid_total_amount,
+                ROUND(AVG(tc.quality_score), 1) as avg_quality,
+                ROUND(100.0 * COUNT(*) FILTER (WHERE tc.is_on_time = true) / GREATEST(COUNT(*), 1), 1) as on_time_rate,
+                MAX(tc.completed_at) as latest_completion
+            FROM tailor_commissions tc
+            GROUP BY COALESCE(tc.employee_name, 'الخياط')
+            ORDER BY unpaid_total_amount DESC, latest_completion DESC;
+        """)
+        rows = cur.fetchall()
+        res = []
+        for r in rows:
+            d = dict(r)
+            d['unpaid_tasks_count'] = int(d['unpaid_tasks_count'] or 0)
+            d['unpaid_pieces_count'] = int(d['unpaid_pieces_count'] or 0)
+            d['unpaid_total_amount'] = float(d['unpaid_total_amount'] or 0.0)
+            d['paid_tasks_count'] = int(d['paid_tasks_count'] or 0)
+            d['paid_pieces_count'] = int(d['paid_pieces_count'] or 0)
+            d['paid_total_amount'] = float(d['paid_total_amount'] or 0.0)
+            d['avg_quality'] = float(d['avg_quality'] or 5.0)
+            d['on_time_rate'] = float(d['on_time_rate'] or 100.0)
+            if d.get('latest_completion'):
+                d['latest_completion'] = str(d['latest_completion'])
+            res.append(d)
+        return res
+
+def get_tailor_unpaid_pieces(params=None):
+    """جلب كشف تفصيلي بالقطع المنجزة للخياط مع تاريخ الأمر والإنجاز وعلامة نوع الإنتاج"""
+    data = params or {}
+    emp_name = clean_str(data.get('employee_name') or data.get('name'))
+    emp_id = clean_str(data.get('employee_id') or data.get('emp_id'))
+    status_filter = clean_str(data.get('status') or 'unpaid')
+    
+    with get_db_cursor(commit=False) as cur:
+        query = """
+            SELECT 
+                tc.id, tc.production_order_id, tc.order_no, tc.employee_id, tc.employee_name,
+                tc.role, tc.product_name, tc.child_name, tc.stage, tc.wage_amount,
+                COALESCE(tc.pieces_count, 1) as pieces_count,
+                COALESCE(tc.production_type, CASE WHEN POSITION('مخزن' IN tc.child_name) > 0 THEN 'stock' ELSE 'custom' END) as production_type,
+                COALESCE(tc.order_date, po.start_date, tc.created_at::date) as order_date,
+                tc.completed_at, tc.is_on_time, tc.quality_score, tc.quality_notes,
+                tc.status, tc.approved_by, tc.approved_at, tc.payout_voucher_no, tc.paid_at
+            FROM tailor_commissions tc
+            LEFT JOIN production_orders po ON tc.production_order_id = po.id
+            WHERE 1=1
+        """
+        args = []
+        if emp_name:
+            query += " AND tc.employee_name = %s"
+            args.append(emp_name)
+        elif emp_id:
+            query += " AND (tc.employee_id = %s OR tc.employee_name = %s)"
+            args.extend([emp_id, emp_id])
+            
+        if status_filter == 'unpaid':
+            query += " AND (tc.status = 'Approved' AND tc.paid_at IS NULL)"
+        elif status_filter == 'paid':
+            query += " AND (tc.status = 'Paid' OR tc.paid_at IS NOT NULL)"
+            
+        query += " ORDER BY tc.created_at DESC;"
+        cur.execute(query, tuple(args) if args else None)
+        rows = cur.fetchall()
+        res = []
+        for r in rows:
+            d = dict(r)
+            for fld in ['completed_at', 'approved_at', 'paid_at']:
+                if d.get(fld): d[fld] = str(d[fld])
+            if d.get('order_date'): d['order_date'] = str(d['order_date'])
+            d['wage_amount'] = float(d.get('wage_amount') or 0.0)
+            d['quality_score'] = float(d.get('quality_score') or 5.0)
+            d['pieces_count'] = int(d.get('pieces_count') or 1)
+            d['is_on_time'] = bool(d.get('is_on_time', True))
+            res.append(d)
+        return res
+
+def post_tailor_payout_voucher(payload):
+    """إصدار وترحيل سند صرف أجور القطع للخياط مع الترحيل المحاسبي المتوازن وتصفية القطع"""
+    data = payload.get('data') or payload
+    emp_name = clean_str(data.get('employee_name') or data.get('name'))
+    emp_id = clean_str(data.get('employee_id') or data.get('emp_id'))
+    commission_ids = data.get('commission_ids') or []
+    account_id = clean_str(data.get('account_id') or 'ACC-101')
+    payment_method = clean_str(data.get('payment_method') or 'Cash')
+    deductions = clean_num(data.get('deductions') or 0.0)
+    notes = clean_str(data.get('notes') or '')
+    created_by = clean_str(data.get('created_by') or 'المحاسب العام')
+    currency = clean_str(data.get('currency') or 'YER')
+    
+    with get_db_cursor(commit=True) as cur:
+        if commission_ids:
+            cur.execute("""
+                SELECT * FROM tailor_commissions 
+                WHERE id = ANY(%s) AND (status = 'Approved' AND paid_at IS NULL);
+            """, (commission_ids,))
+        else:
+            cur.execute("""
+                SELECT * FROM tailor_commissions 
+                WHERE (employee_name = %s OR employee_id = %s) AND (status = 'Approved' AND paid_at IS NULL);
+            """, (emp_name, emp_id))
+            
+        unpaid_pieces = cur.fetchall()
+        if not unpaid_pieces:
+            return {"success": False, "message": "لا توجد قطع معتمدة معلقة جاهزة للصرف لهذا الخياط"}
+            
+        target_ids = [r['id'] for r in unpaid_pieces]
+        gross_wage = sum(float(r.get('wage_amount') or 0.0) for r in unpaid_pieces)
+        total_pieces = sum(int(r.get('pieces_count') or 1) for r in unpaid_pieces)
+        actual_emp_name = emp_name or unpaid_pieces[0]['employee_name']
+        actual_emp_id = emp_id or unpaid_pieces[0].get('employee_id')
+        
+        custom_amount = clean_num(data.get('amount'))
+        gross = custom_amount if custom_amount > 0 else gross_wage
+        net = gross - deductions
+        if net < 0:
+            return {"success": False, "message": "صافي المبلغ المصروف لا يمكن أن يكون سالباً"}
+            
+        rate = resolve_exchange_rate(cur, currency, 1.0)
+        base_net = net * rate
+        base_gross = gross * rate
+        base_deductions = deductions * rate
+        
+        credit_acc = resolve_account_id(cur, account_id, 'ACC-101')
+        expense_acc = 'ACC-501' # أجور وتشغيل الخياطين
+        advance_acc = 'ACC-107' # سلف وخصميات
+        
+        pay_id = generate_id("PAY")
+        pay_no = f"PAY-VCH-{datetime.date.today().strftime('%Y%m')}-{uuid.uuid4().hex[:4].upper()}"
+        pay_notes = f"صرف مستحقات عدد ({total_pieces}) قطعة منجزة للخياط: {actual_emp_name}. {notes}".strip()
+        
+        cur.execute("""
+            INSERT INTO payments (
+                id, payment_no, payment_type, date, amount, currency,
+                exchange_rate, base_amount, party_name, payment_method, account_id, notes, status, created_at
+            ) VALUES (%s, %s, 'Payment', CURRENT_DATE, %s, %s, %s, %s, %s, %s, %s, %s, 'Confirmed', CURRENT_TIMESTAMP);
+        """, (pay_id, pay_no, net, currency, rate, base_net, actual_emp_name, payment_method, credit_acc, pay_notes))
+        
+        jv_id = generate_id("JV")
+        jv_no = f"JV-VCH-{int(time.time())}-{uuid.uuid4().hex[:4].upper()}"
+        cur.execute("""
+            INSERT INTO journal_entries (
+                id, entry_no, entry_date, description, debit_account_id, credit_account_id,
+                amount, total_amount, base_amount, currency, exchange_rate, ref_type, ref_id,
+                status, notes, created_at
+            ) VALUES (%s, %s, CURRENT_DATE, %s, %s, %s, %s, %s, %s, %s, %s, 'TailorPayout', %s, 'Posted', %s, CURRENT_TIMESTAMP);
+        """, (jv_id, jv_no, f"قيد صرف أجور قطع الخياط: {actual_emp_name} بموجب سند {pay_no}", expense_acc, credit_acc, gross, gross, base_gross, currency, rate, pay_id, pay_notes))
+        
+        cur.execute("""
+            INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base)
+            VALUES (%s, %s, %s, %s, %s, 0.0, %s, 0.0);
+        """, (generate_id("JVL"), jv_id, expense_acc, f"استحقاق أجور ({total_pieces}) قطعة للخياط {actual_emp_name}", gross, base_gross))
+        
+        if deductions > 0:
+            cur.execute("""
+                INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base)
+                VALUES (%s, %s, %s, %s, 0.0, %s, 0.0, %s);
+            """, (generate_id("JVL"), jv_id, advance_acc, f"خصم سلفة/جزاءات للخياط {actual_emp_name}", deductions, base_deductions))
+            cur.execute("UPDATE chart_of_accounts SET current_balance = current_balance - %s WHERE id = %s;", (base_deductions, advance_acc))
+            
+        cur.execute("""
+            INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base)
+            VALUES (%s, %s, %s, %s, 0.0, %s, 0.0, %s);
+        """, (generate_id("JVL"), jv_id, credit_acc, f"صرف نقدي للخياط {actual_emp_name} سند {pay_no}", net, base_net))
+        
+        cur.execute("UPDATE chart_of_accounts SET current_balance = current_balance - %s WHERE id = %s;", (base_net, credit_acc))
+        
+        cur.execute("""
+            UPDATE tailor_commissions
+            SET status = 'Paid',
+                payout_voucher_no = %s,
+                paid_at = CURRENT_TIMESTAMP
+            WHERE id = ANY(%s);
+        """, (pay_no, target_ids))
+        
+        return {
+            "success": True,
+            "message": f"تم إصدار سند الصرف {pay_no} وترحيله محاسبياً بنجاح ✅",
+            "voucher": {
+                "id": pay_id,
+                "voucher_no": pay_no,
+                "entry_no": jv_no,
+                "employee_name": actual_emp_name,
+                "employee_id": actual_emp_id,
+                "pieces_count": total_pieces,
+                "gross_amount": gross,
+                "deductions": deductions,
+                "net_amount": net,
+                "currency": currency,
+                "account_id": credit_acc,
+                "payment_method": payment_method,
+                "date": str(datetime.date.today()),
+                "created_by": created_by,
+                "pieces": [
+                    {
+                        "id": p['id'],
+                        "order_no": p.get('order_no'),
+                        "product_name": p.get('product_name'),
+                        "child_name": p.get('child_name'),
+                        "stage": p.get('stage'),
+                        "pieces_count": p.get('pieces_count') or 1,
+                        "production_type": p.get('production_type') or 'custom',
+                        "wage_amount": float(p.get('wage_amount') or 0.0)
+                    } for p in unpaid_pieces
+                ]
+            }
+        }
+
+def get_tailor_payout_vouchers(params=None):
+    """جلب سجل سندات صرف مستحقات الخياطين السابقة"""
+    with get_db_cursor(commit=False) as cur:
+        cur.execute("""
+            SELECT p.*, coa.account_name
+            FROM payments p
+            LEFT JOIN chart_of_accounts coa ON p.account_id = coa.id
+            WHERE STARTS_WITH(p.payment_no, 'PAY-VCH-') OR POSITION('صرف مستحقات' IN p.notes) > 0
+            ORDER BY p.date DESC, p.created_at DESC
+            LIMIT 50;
+        """)
+        rows = cur.fetchall()
+        res = []
+        for r in rows:
+            d = dict(r)
+            for fld in ['date', 'created_at']:
+                if d.get(fld): d[fld] = str(d[fld])
+            d['amount'] = float(d.get('amount') or 0.0)
+            d['base_amount'] = float(d.get('base_amount') or 0.0)
+            res.append(d)
         return res
 
 # ── 13. العملات وأسعار الصرف (Currencies Controller) ──
@@ -3478,7 +5417,7 @@ def reset_clean_chart_of_accounts(payload=None):
         cur.execute("DELETE FROM chart_of_accounts WHERE account_code LIKE '01.06%' OR id IN ('ACC-000027', 'ACC-957272');")
         cur.execute("""
             UPDATE chart_of_accounts SET parent_account_code = '1', parent_account_id = 'ACC-1' WHERE account_code IN ('101', '102', '103', '104', '105', '106');
-            UPDATE chart_of_accounts SET parent_account_code = '101', parent_account_id = 'ACC-101' WHERE account_code IN ('101.2', '101.3');
+            UPDATE chart_of_accounts SET parent_account_code = '101', parent_account_id = 'ACC-101' WHERE account_code IN ('101.1', '101.2', '101.3');
             UPDATE chart_of_accounts SET parent_account_code = '102', parent_account_id = 'ACC-102' WHERE account_code IN ('102.01', '102.02');
             UPDATE chart_of_accounts SET parent_account_code = '2', parent_account_id = 'ACC-2' WHERE account_code IN ('201', '202');
             UPDATE chart_of_accounts SET parent_account_code = '3', parent_account_id = 'ACC-3' WHERE account_code IN ('301', '302');
@@ -4154,6 +6093,18 @@ ACTION_HANDLERS = {
     # المعمل
     "getFactory": get_factory,
     "updateFactory": update_factory,
+    "deleteFactoryOrder": delete_factory_order,
+    "deleteProductionOrder": delete_factory_order,
+    "processStockInflow": process_stock_inflow,
+    "reverseStockInflow": reverse_stock_inflow,
+    "deliverAndSettleOrder": deliver_and_settle_order,
+    "reverseOrderDelivery": reverse_order_delivery,
+    "getFactoryAnalytics": get_factory_analytics,
+    "getTailorCommissions": get_tailor_commissions,
+    "getTailorPayoutSummary": get_tailor_payout_summary,
+    "getTailorUnpaidPieces": get_tailor_unpaid_pieces,
+    "postTailorPayoutVoucher": post_tailor_payout_voucher,
+    "getTailorPayoutVouchers": get_tailor_payout_vouchers,
     
     # العملات
     "getCurrencies": get_currencies,
