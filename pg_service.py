@@ -4117,6 +4117,173 @@ def get_production_order_for_job_card(po_id_or_no):
             
         return d
 
+def get_customer_order_tracking(order_target):
+    """جلب بيانات تتبع فستان الأميرة ومراحل الإنتاج والبروفة لبوابة العميلة track.html"""
+    if not order_target:
+        return {"error": "رقم الطلب أو الفاتورة مطلوب"}
+    target = clean_str(order_target)
+    
+    with get_db_cursor(commit=False) as cur:
+        # البحث في جدول الطلبات orders
+        cur.execute("""
+            SELECT o.*,
+                   COALESCE(c.name, '') as real_customer_name,
+                   COALESCE(c.phone, '') as customer_phone,
+                   COALESCE(c.id, o.customer_id, '') as real_customer_id,
+                   COALESCE(p.model_name, po.product_name, 'موديل راقي خاص') as real_product_name,
+                   COALESCE(p.image_url, '') as product_image,
+                   COALESCE(ch.child_name, po.child_name, 'الأميرة') as real_child_name,
+                   COALESCE(ch.age::text, '') as child_age,
+                   po.stage as factory_stage,
+                   po.progress as factory_progress,
+                   po.status as factory_status
+            FROM orders o
+            LEFT JOIN customers c ON o.customer_id = c.id
+            LEFT JOIN products p ON o.product_id = p.id
+            LEFT JOIN children ch ON o.child_id = ch.id
+            LEFT JOIN production_orders po ON po.order_id = o.id OR po.production_order_no = 'PO-' || o.order_no
+            WHERE o.id = %s OR o.order_no = %s OR o.order_no = 'ORD-' || %s OR o.id = 'ORD-' || %s
+            ORDER BY o.created_at DESC
+            LIMIT 1;
+        """, (target, target, target, target))
+        ord_row = cur.fetchone()
+
+        if not ord_row:
+            # البحث الاحتياطي في أوامر التشغيل production_orders
+            cur.execute("""
+                SELECT po.*,
+                       COALESCE(c.name, '') as real_customer_name,
+                       COALESCE(c.phone, '') as customer_phone,
+                       COALESCE(c.id, o.customer_id, '') as real_customer_id,
+                       COALESCE(p.model_name, po.product_name, 'موديل راقي خاص') as real_product_name,
+                       COALESCE(p.image_url, '') as product_image,
+                       COALESCE(po.child_name, 'الأميرة') as real_child_name,
+                       po.stage as factory_stage,
+                       po.progress as factory_progress,
+                       po.status as factory_status
+                FROM production_orders po
+                LEFT JOIN orders o ON po.order_id = o.id
+                LEFT JOIN customers c ON o.customer_id = c.id
+                LEFT JOIN products p ON COALESCE(po.product_id, o.product_id) = p.id
+                WHERE po.id = %s OR po.production_order_no = %s OR po.order_id = %s
+                LIMIT 1;
+            """, (target, target, target))
+            ord_row = cur.fetchone()
+
+        if not ord_row:
+            return {"error": f"عذراً، لم نتمكن من العثور على طلب برقم: {target}"}
+
+        d = dict(ord_row)
+        
+        # استدعاء مقاسات الأميرة
+        cust_id = d.get('real_customer_id') or d.get('customer_id')
+        child_name = d.get('real_child_name') or d.get('child_name')
+        meas = None
+        if cust_id:
+            if child_name:
+                cur.execute("""
+                    SELECT * FROM measurements 
+                    WHERE customer_id = %s AND (child_name = %s OR child_name ILIKE %s)
+                    ORDER BY created_at DESC LIMIT 1;
+                """, (cust_id, child_name, f"%{child_name}%"))
+                meas = cur.fetchone()
+            if not meas:
+                cur.execute("""
+                    SELECT * FROM measurements 
+                    WHERE customer_id = %s 
+                    ORDER BY created_at DESC LIMIT 1;
+                """, (cust_id,))
+                meas = cur.fetchone()
+        
+        meas_dict = {}
+        if meas:
+            m = dict(meas)
+            meas_dict = {
+                'dress_length': m.get('dress_len'),
+                'chest': m.get('chest_circ'),
+                'waist': m.get('waist_circ'),
+                'shoulder': m.get('shoulder_w'),
+                'sleeve_length': m.get('sleeve_len'),
+                'arm_hole': m.get('armpit_circ'),
+                'neck': m.get('neck_circ'),
+                'notes': m.get('notes')
+            }
+        d['measurements'] = meas_dict
+
+        # تطبيع المبالغ المالية
+        tot = clean_num(d.get('total') or d.get('total_amount') or 0.0)
+        pd = clean_num(d.get('paid') or d.get('paid_amount') or 0.0)
+        d['total'] = tot
+        d['paid'] = pd
+        d['remaining'] = max(0.0, tot - pd)
+        d['currency'] = d.get('currency') or 'YER'
+
+        # تحويل التواريخ لنصوص صالحة لـ JSON
+        for fld in ['order_date', 'delivery_date', 'start_date', 'due_date', 'created_at', 'updated_at']:
+            if d.get(fld):
+                d[fld] = str(d[fld])
+
+        # حساب مرحلة المعمل وترجمتها للعربية الملكية
+        raw_stage = d.get('factory_stage') or d.get('stage') or d.get('production_status') or 'القص والتحضير'
+        stage_map = {
+            'Preparation': 'القص والتحضير ✂️',
+            'Cutting': 'القص والتحضير ✂️',
+            'Sewing': 'الخياطة والتركيب 🪡',
+            'Embroidery': 'التطريز والشك الملكي ✨',
+            'Fitting': 'جاهز للبروفة 👑',
+            'Quality': 'مراقبة الجودة الملكية 🔍',
+            'Finished': 'مكتمل وجاهز للتسليم 🎀',
+            'Delivered': 'تم التسليم بنجاح 💖',
+            'Pending': 'قيد التجهيز ✂️',
+        }
+        cur_stage = stage_map.get(raw_stage, raw_stage)
+        d['current_stage'] = cur_stage
+        
+        # إذا لم يكن هناك progress محدد، نقدره من المرحلة
+        raw_prog = clean_num(d.get('factory_progress') or d.get('progress') or 0)
+        if raw_prog <= 0:
+            stage_low = cur_stage.lower()
+            if any(w in stage_low for w in ['قص', 'تحضير', 'prep', 'cut']):
+                raw_prog = 20
+            elif any(w in stage_low for w in ['خياط', 'حياك', 'تركيب', 'sew']):
+                raw_prog = 50
+            elif any(w in stage_low for w in ['تطريز', 'شك', 'embroidery']):
+                raw_prog = 75
+            elif any(w in stage_low for w in ['جود', 'فحص', 'تدقيق', 'qc', 'quality']):
+                raw_prog = 90
+            elif any(w in stage_low for w in ['بروف', 'تسليم', 'مكتمل', 'جاهز', 'fit', 'finish', 'ready']):
+                raw_prog = 100
+        d['progress'] = int(raw_prog)
+        
+        # فحص تأكيد موعد البروفة
+        notes_str = str(d.get('notes') or '')
+        d['fitting_confirmed'] = 'تم تأكيد موعد البروفة' in notes_str
+
+        return d
+
+def confirm_customer_fitting(order_target, notes=""):
+    """تأكيد حضور الأم والطفلة لموعد البروفة من خلال بوابة التتبع"""
+    target = clean_str(order_target)
+    with get_db_cursor(commit=True) as cur:
+        cur.execute("""
+            UPDATE orders
+            SET notes = COALESCE(notes, '') || ' | ✅ تم تأكيد موعد البروفة من العميلة عبر البوابة الإلكترونية',
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = %s OR order_no = %s OR order_no = 'ORD-' || %s OR id = 'ORD-' || %s
+            RETURNING *;
+        """, (target, target, target, target))
+        row = cur.fetchone()
+        if not row:
+            cur.execute("""
+                UPDATE production_orders
+                SET notes = COALESCE(notes, '') || ' | ✅ تم تأكيد موعد البروفة من العميلة عبر البوابة الإلكترونية',
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s OR production_order_no = %s OR order_id = %s
+                RETURNING *;
+            """, (target, target, target))
+            row = cur.fetchone()
+        return {"success": True, "message": "تم تأكيد موعد البروفة بنجاح! يسعدنا تشريفكم في الموعد المحدد 👑🌸"}
+
 def submit_tailor_stage_completion(payload):
     """إشعار إتمام مرحلة من قبل الفني/الخياط مع فحص الالتزام بالموعد المحدد تلقائياً"""
     data = payload.get('data') or payload
@@ -5548,17 +5715,68 @@ def add_quality_feedback(payload):
     data = payload.get('data') or payload
     fb_id = clean_str(data.get('id')) or generate_id("FB")
     rating = int(clean_num(data.get('rating') or 5))
+    if rating < 1: rating = 1
+    if rating > 5: rating = 5
     comment = clean_str(data.get('feedback_comment') or data.get('comment') or '')
     cat = clean_str(data.get('feedback_category') or 'خدمة عملاء')
+    cust_id = clean_str(data.get('customer_id')) or None
+    cust_name = clean_str(data.get('customer_name')) or None
+    order_id = clean_str(data.get('order_id') or data.get('order_no')) or None
+    prod_id = clean_str(data.get('product_id')) or None
+    channel = clean_str(data.get('channel') or 'بوابة التتبع الإلكترونية')
+
     with get_db_cursor(commit=True) as cur:
+        # فحص وتأكيد صحة المفاتيح الأجنبية لضمان عدم حدوث استثناء في قاعدة البيانات
+        valid_order_id = None
+        if order_id:
+            cur.execute("""
+                SELECT o.id, o.customer_id, o.product_id, c.name as customer_name 
+                FROM orders o 
+                LEFT JOIN customers c ON o.customer_id = c.id 
+                WHERE o.id = %s OR o.order_no = %s OR o.order_no = 'ORD-' || %s OR o.id = 'ORD-' || %s 
+                LIMIT 1;
+            """, (order_id, order_id, order_id, order_id))
+            ord_row = cur.fetchone()
+            if ord_row:
+                valid_order_id = ord_row['id']
+                if not cust_id and ord_row.get('customer_id'):
+                    cust_id = ord_row['customer_id']
+                if not cust_name and ord_row.get('customer_name'):
+                    cust_name = ord_row['customer_name']
+                if not prod_id and ord_row.get('product_id'):
+                    prod_id = ord_row['product_id']
+
+        valid_cust_id = None
+        if cust_id:
+            cur.execute("SELECT id, name FROM customers WHERE id = %s LIMIT 1;", (cust_id,))
+            c_row = cur.fetchone()
+            if c_row:
+                valid_cust_id = c_row['id']
+                if not cust_name:
+                    cust_name = c_row['name']
+
+        valid_prod_id = None
+        if prod_id:
+            cur.execute("SELECT id FROM products WHERE id = %s LIMIT 1;", (prod_id,))
+            p_row = cur.fetchone()
+            if p_row:
+                valid_prod_id = p_row['id']
+
         cur.execute("""
-            INSERT INTO quality_feedback (id, rating, feedback_comment, feedback_category, status)
-            VALUES (%s, %s, %s, %s, 'Reviewed')
-            ON CONFLICT (id) DO UPDATE SET feedback_comment = EXCLUDED.feedback_comment
+            INSERT INTO quality_feedback (
+                id, rating, feedback_comment, feedback_category,
+                customer_id, customer_name, order_id, product_id, channel, status
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'Reviewed')
+            ON CONFLICT (id) DO UPDATE SET
+                rating = EXCLUDED.rating,
+                feedback_comment = EXCLUDED.feedback_comment,
+                customer_name = COALESCE(EXCLUDED.customer_name, quality_feedback.customer_name)
             RETURNING *;
-        """, (fb_id, rating, comment, cat))
+        """, (fb_id, rating, comment, cat, valid_cust_id, cust_name, valid_order_id, valid_prod_id, channel))
         row = dict(cur.fetchone())
         if row.get('created_at'): row['created_at'] = str(row['created_at'])
+        if row.get('feedback_date'): row['feedback_date'] = str(row['feedback_date'])
         return row
 
 def get_quality_summary(params=None):
@@ -6143,6 +6361,11 @@ ACTION_HANDLERS = {
     
     # لوحة الإحصائيات
     "getDashboardStats": get_dashboard_stats,
+    
+    # تتبع طلبات الأميرات والبروفة للخياطين والعملاء
+    "getCustomerOrderTracking": lambda p: get_customer_order_tracking(p.get("order") or p.get("order_id") or p.get("id") or p.get("order_no")),
+    "confirmCustomerFitting": lambda p: confirm_customer_fitting(p.get("order") or p.get("order_id") or p.get("id") or p.get("order_no"), p.get("notes", "")),
+    "submitTailorStage": submit_tailor_stage_completion,
 }
 
 def dispatch_action(action: str, payload: dict = None) -> dict:

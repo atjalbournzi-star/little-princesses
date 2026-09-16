@@ -383,6 +383,10 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
     const imgUrl = prod?.image_url || prod?.image || order.image_url;
     const imgSection = imgUrl ? `\n🖼️ *معاينة صورة الموديل:* ${imgUrl}\n` : '';
 
+    const trackingUrl = (typeof window !== 'undefined' && window.location)
+      ? `${window.location.origin}/track.html?order=${encodeURIComponent(order.order_no || ('ORD-' + order.id))}`
+      : `http://localhost:5000/track.html?order=${encodeURIComponent(order.order_no || ('ORD-' + order.id))}`;
+
     const msg = `👑 *${brandName}* 👑\n\n` +
       `أهلاً وسهلاً بكِ عزيزتنا *${motherName}* 🌸✨\n` +
       `تم بحمد الله اعتماد وتأكيد حجز تفصيل الفستان لأميرتنا الجميلة *${chName}* بنجاح ✅\n\n` +
@@ -395,11 +399,13 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
       `  • المبلغ الموصل (العربون): ${pd.toLocaleString("en-US")} ${cur}\n` +
       `  • المبلغ المتبقي عند الاستلام: ${rem.toLocaleString("en-US")} ${cur}\n\n` +
       `📅 *موعد التسليم والبروفة:* ${deliveryDateFormatted}\n\n` +
+      `🔗 *بوابة تتبع مراحل الفستان وتأكيد البروفة للجوال:* \n${trackingUrl}\n\n` +
       `نعتني بأدق تفاصيل الخياطة الملكية واللمسات الفاخرة لتتألق أميرتك بأجمل إطلالة تليق بها! 🎀👑✨\n` +
       `نسعد دائماً بخدمتكم وتواصلكم معنا 💖`;
 
     return {
       msg,
+      trackingUrl,
       motherName,
       chName,
       phone: cust?.phone || cust?.['رقم الهاتف'] || '',
@@ -1695,6 +1701,28 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
                 </div>
               )}
             </div>
+
+            {/* Quick Preview Customer Tracking Link */}
+            {customerMessageModalData.trackingUrl && (
+              <div className="p-3 rounded-2xl bg-gradient-to-r from-pink-50/90 to-purple-50/90 dark:from-pink-950/30 dark:to-purple-950/30 border border-pink-200 dark:border-pink-900/50 flex items-center justify-between text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="text-base">👑</span>
+                  <div>
+                    <span className="text-[10px] text-[#8F2A87] dark:text-pink-300 font-bold block">رابط تتبع الفستان والبروفة للجوال:</span>
+                    <span className="font-mono text-[11px] text-gray-700 dark:text-slate-300">{customerMessageModalData.order?.order_no || customerMessageModalData.order?.id}</span>
+                  </div>
+                </div>
+                <a
+                  href={customerMessageModalData.trackingUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="py-1.5 px-3 rounded-xl bg-white dark:bg-slate-800 hover:bg-[#8F2A87] text-[#8F2A87] hover:text-white font-bold text-[11px] border border-pink-200 dark:border-slate-700 shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                >
+                  <span>فتح الرابط 📱</span>
+                  <span>↗</span>
+                </a>
+              </div>
+            )}
 
             {/* Message Preview Box */}
             <div>

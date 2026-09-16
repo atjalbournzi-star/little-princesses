@@ -1520,6 +1520,12 @@ def sync_quality_to_gas_async(action, payload):
 
 
 class UnifiedERPHandler(http.server.SimpleHTTPRequestHandler):
+    def handle(self):
+        try:
+            super().handle()
+        except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError, TimeoutError):
+            pass
+
     def _send_cors_headers(self):
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
@@ -2791,6 +2797,26 @@ class UnifiedERPHandler(http.server.SimpleHTTPRequestHandler):
             self.send_header('Content-Type', 'application/json; charset=utf-8')
             self.end_headers()
             self.wfile.write(json.dumps({'success': True, 'data': data}, ensure_ascii=False, default=str).encode('utf-8'))
+            return
+
+        # ── مسار تتبع فستان الأميرة والبروفة للعملاء (Customer Live Order Tracking) ──
+        if parsed_url.path in ('/api/customer/track', '/api/track'):
+            query_params = urllib.parse.parse_qs(parsed_url.query)
+            order_param = (query_params.get('order') or query_params.get('order_id') or query_params.get('id') or [None])[0]
+            if not order_param:
+                self.send_response(400)
+                self._send_cors_headers()
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({'success': False, 'error': 'رقم الطلب أو الفاتورة مطلوب'}, ensure_ascii=False).encode('utf-8'))
+                return
+            res = pg_service.get_customer_order_tracking(order_param)
+            status_code = 200 if 'error' not in res else 404
+            self.send_response(status_code)
+            self._send_cors_headers()
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.end_headers()
+            self.wfile.write(json.dumps({'success': 'error' not in res, 'data': res, 'error': res.get('error')}, ensure_ascii=False, default=str).encode('utf-8'))
             return
 
         # ── مسارات الموارد البشرية والرواتب (HR & Payroll GET Routes) ──
@@ -5182,6 +5208,54 @@ class UnifiedERPHandler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(json.dumps({'success': False, 'error': str(e)}).encode('utf-8'))
             return
 
+        # ── CUSTOMER PORTAL WRITE ROUTES (Fitting Confirmation & Live Feedback) ──
+        if path in ('/api/customer/confirm-fitting', '/api/confirm-fitting'):
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length) if content_length > 0 else b'{}'
+            try:
+                data = json.loads(post_data.decode('utf-8')) if post_data else {}
+                order_target = data.get('order') or data.get('order_id') or data.get('id') or data.get('order_no')
+                notes = data.get('notes', '')
+                if not order_target:
+                    self.send_response(400)
+                    self._send_cors_headers()
+                    self.send_header('Content-Type', 'application/json; charset=utf-8')
+                    self.end_headers()
+                    self.wfile.write(json.dumps({'success': False, 'error': 'رقم الطلب مطلوب لتأكيد موعد البروفة'}, ensure_ascii=False).encode('utf-8'))
+                    return
+                res = pg_service.confirm_customer_fitting(order_target, notes)
+                self.send_response(200)
+                self._send_cors_headers()
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps(res, ensure_ascii=False, default=str).encode('utf-8'))
+            except Exception as e:
+                self.send_response(500)
+                self._send_cors_headers()
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({'success': False, 'error': str(e)}).encode('utf-8'))
+            return
+
+        if path in ('/api/customer/feedback',):
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length) if content_length > 0 else b'{}'
+            try:
+                data = json.loads(post_data.decode('utf-8')) if post_data else {}
+                res = pg_service.add_quality_feedback(data)
+                self.send_response(200)
+                self._send_cors_headers()
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({'success': True, 'data': res, 'message': 'تم تسجيل تقييمكم الراقي بنجاح! شكرًا لاختياركم Little Princesses 👑🌸'}, ensure_ascii=False, default=str).encode('utf-8'))
+            except Exception as e:
+                self.send_response(500)
+                self._send_cors_headers()
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({'success': False, 'error': str(e)}).encode('utf-8'))
+            return
+
         # ── STOCK INFLOW & REVERSAL FOR BATCH PRODUCTION ──
         if path in ('/api/factory/stock-inflow', '/api/production/stock-inflow'):
             content_length = int(self.headers.get('Content-Length', 0))
@@ -5586,5 +5660,13 @@ if __name__ == '__main__':
     socketserver.ThreadingTCPServer.allow_reuse_address = True
     with socketserver.ThreadingTCPServer(("", PORT), UnifiedERPHandler) as httpd:
         print(f"🏢 ERP Master Server running at http://127.0.0.1:{PORT}")
-        httpd.serve_forever()
+        while True:
+            try:
+                httpd.serve_forever()
+            except KeyboardInterrupt:
+                print("🛑 Server stopped.")
+                break
+            except Exception as e:
+                print(f"⚠️ Server loop exception (recovering): {e}")
+                time.sleep(0.5)
 
