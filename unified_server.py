@@ -2819,6 +2819,28 @@ class UnifiedERPHandler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps({'success': 'error' not in res, 'data': res, 'error': res.get('error')}, ensure_ascii=False, default=str).encode('utf-8'))
             return
 
+        # ── مسار تذاكر تعديلات البروفة (Fitting Alteration Tickets GET) ──
+        if parsed_url.path in ('/api/alterations', '/api/factory/alterations'):
+            query_params = urllib.parse.parse_qs(parsed_url.query)
+            params = {k: v[0] for k, v in query_params.items()}
+            data = pg_service.get_fitting_alterations(params)
+            self.send_response(200)
+            self._send_cors_headers()
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.end_headers()
+            self.wfile.write(json.dumps({'success': True, 'data': data, 'count': len(data)}, ensure_ascii=False, default=str).encode('utf-8'))
+            return
+
+        # ── مركز رصد المواعيد الحرجة والبروفات (Atelier Delivery Watchdog GET) ──
+        if parsed_url.path in ('/api/atelier/watchdog', '/api/factory/watchdog'):
+            data = pg_service.get_atelier_watchdog()
+            self.send_response(200)
+            self._send_cors_headers()
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.end_headers()
+            self.wfile.write(json.dumps({'success': True, 'data': data}, ensure_ascii=False, default=str).encode('utf-8'))
+            return
+
         # ── مسارات الموارد البشرية والرواتب (HR & Payroll GET Routes) ──
         if parsed_url.path in ('/api/hr/employees', '/api/employees'):
             data = pg_service.get_employees()
@@ -5248,6 +5270,65 @@ class UnifiedERPHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_header('Content-Type', 'application/json; charset=utf-8')
                 self.end_headers()
                 self.wfile.write(json.dumps({'success': True, 'data': res, 'message': 'تم تسجيل تقييمكم الراقي بنجاح! شكرًا لاختياركم Little Princesses 👑🌸'}, ensure_ascii=False, default=str).encode('utf-8'))
+            except Exception as e:
+                self.send_response(500)
+                self._send_cors_headers()
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({'success': False, 'error': str(e)}).encode('utf-8'))
+            return
+
+        # ── FITTING ALTERATION TICKETS & SCAN-TO-DELIVER WRITE ROUTES ──
+        if path in ('/api/alterations', '/api/factory/alterations'):
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length) if content_length > 0 else b'{}'
+            try:
+                data = json.loads(post_data.decode('utf-8')) if post_data else {}
+                res = pg_service.add_fitting_alteration(data)
+                self.send_response(200)
+                self._send_cors_headers()
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps(res, ensure_ascii=False, default=str).encode('utf-8'))
+            except Exception as e:
+                self.send_response(500)
+                self._send_cors_headers()
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({'success': False, 'error': str(e)}).encode('utf-8'))
+            return
+
+        if path in ('/api/alterations/update-status', '/api/factory/alterations/update-status'):
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length) if content_length > 0 else b'{}'
+            try:
+                data = json.loads(post_data.decode('utf-8')) if post_data else {}
+                res = pg_service.update_fitting_alteration_status(data)
+                self.send_response(200)
+                self._send_cors_headers()
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps(res, ensure_ascii=False, default=str).encode('utf-8'))
+            except Exception as e:
+                self.send_response(500)
+                self._send_cors_headers()
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps({'success': False, 'error': str(e)}).encode('utf-8'))
+            return
+
+        if path in ('/api/sales/scan-to-deliver', '/api/scan-to-deliver', '/api/factory/scan-to-deliver'):
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length) if content_length > 0 else b'{}'
+            try:
+                data = json.loads(post_data.decode('utf-8')) if post_data else {}
+                res = pg_service.scan_to_deliver_order(data)
+                status_code = 200 if res.get('success') else 400
+                self.send_response(status_code)
+                self._send_cors_headers()
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(json.dumps(res, ensure_ascii=False, default=str).encode('utf-8'))
             except Exception as e:
                 self.send_response(500)
                 self._send_cors_headers()

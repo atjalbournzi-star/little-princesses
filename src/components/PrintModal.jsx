@@ -144,9 +144,9 @@ function PrintModal({ order, customer, measurements, product, products, isOpen, 
             @media print {
               @page {
                 margin: 0;
-                size: ${activeTemplate === 'thermal' ? '80mm auto' : 'auto'};
+                size: ${activeTemplate === 'thermal' ? '80mm auto' : (activeTemplate === 'hangtag' ? '70mm 125mm' : (activeTemplate === 'garment_bag' ? '105mm 155mm' : 'auto'))};
               }
-              body { padding: ${activeTemplate === 'thermal' ? '8px' : '20px'}; }
+              body { padding: ${activeTemplate === 'thermal' ? '8px' : '12px'}; }
               .no-print { display: none !important; }
             }
             
@@ -200,13 +200,29 @@ function PrintModal({ order, customer, measurements, product, products, isOpen, 
             
             /* Hangtag Label Styling */
             .hangtag-container {
-              width: 65mm;
-              height: 110mm;
+              width: 68mm;
+              min-height: 115mm;
               margin: 0 auto;
-              padding: 16px 12px;
-              border: 2px solid #B0005A;
+              padding: 14px 10px;
+              border: 2px solid #8F2A87;
               border-radius: 16px;
               text-align: center;
+              display: flex;
+              flex-direction: column;
+              justify-content: space-between;
+              background: #FFF;
+            }
+
+            /* Garment Bag Label Styling (100mm x 145mm) */
+            .garment-bag-container {
+              width: 98mm;
+              min-height: 140mm;
+              margin: 0 auto;
+              padding: 14px 12px;
+              border: 3px double #8F2A87;
+              border-radius: 16px;
+              background: #FFF;
+              color: #25232A;
               display: flex;
               flex-direction: column;
               justify-content: space-between;
@@ -265,7 +281,8 @@ function PrintModal({ order, customer, measurements, product, products, isOpen, 
           {[
             { id: 'thermal', label: '🧾 فاتورة استلام حرارية (80mm POS)', icon: '🧾' },
             { id: 'job_ticket', label: '🧵 بطاقة أمر العمل للورشة (Job Ticket)', icon: '🧵' },
-            { id: 'hangtag', label: '🏷️ كرت ملصق الفستان (Dress Tag)', icon: '🏷️' }
+            { id: 'hangtag', label: '🏷️ كرت تعليق الفستان الفاخر (Hang Tag)', icon: '🏷️' },
+            { id: 'garment_bag', label: '🛍️ ملصق كيس حفظ الفستان (Garment Bag)', icon: '🛍️' }
           ].map(t => (
             <button
               key={t.id}
@@ -273,7 +290,7 @@ function PrintModal({ order, customer, measurements, product, products, isOpen, 
               onClick={() => setActiveTemplate(t.id)}
               className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer shrink-0 ${
                 activeTemplate === t.id
-                  ? 'bg-[#B0005A] text-white shadow-xs'
+                  ? 'bg-[#8F2A87] text-white shadow-xs'
                   : 'bg-[#FAFAFB] text-[#6F6B75] hover:bg-[#F2E7F3] border border-[#E8E5EA]'
               }`}
             >
@@ -288,8 +305,8 @@ function PrintModal({ order, customer, measurements, product, products, isOpen, 
             ref={printAreaRef} 
             className="bg-white shadow-xl rounded-2xl p-6 transition-all border border-[#CCC]"
             style={{
-              width: activeTemplate === 'thermal' ? '340px' : (activeTemplate === 'hangtag' ? '280px' : '100%'),
-              maxWidth: activeTemplate === 'job_ticket' ? '700px' : 'none'
+              width: activeTemplate === 'thermal' ? '340px' : (activeTemplate === 'hangtag' ? '300px' : (activeTemplate === 'garment_bag' ? '410px' : '100%')),
+              maxWidth: activeTemplate === 'job_ticket' ? '720px' : 'none'
             }}
           >
 
@@ -616,45 +633,169 @@ function PrintModal({ order, customer, measurements, product, products, isOpen, 
 
 
             {/* ══════════════════════════════════════════════════════════════════════
-                قالب 3: كرت ملصق الفستان (Dress Hangtag / Barcode Label)
+                قالب 3: كرت تعليق الفستان الفاخر (Luxury Dress Hangtag)
             ══════════════════════════════════════════════════════════════════════ */}
             {activeTemplate === 'hangtag' && (
               <div className="hangtag-container font-sans">
                 {/* Hole punch indicator */}
-                <div className="w-3.5 h-3.5 rounded-full border-2 border-dashed border-gray-400 mx-auto mb-2"></div>
+                <div className="w-4 h-4 rounded-full border-2 border-dashed border-[#8F2A87] mx-auto mb-1.5 flex items-center justify-center text-[8px] text-[#8F2A87]">
+                  •
+                </div>
 
-                <div>
-                  <div className="flex justify-center mb-1">
-                    {brandProfile.logoUrl ? (
-                      <img src={brandProfile.logoUrl} alt="Logo" className="h-8 max-w-[80px] object-contain" />
+                {/* Brand Header */}
+                <div className="text-center">
+                  <div className="text-xl">👑</div>
+                  <h1 className="text-xs font-black text-[#8F2A87] tracking-wider">{brandProfile.shortName || brandProfile.name}</h1>
+                  <p className="text-[7.5px] font-bold text-gray-500">Haute Couture • للأزياء الراقية</p>
+                </div>
+
+                {/* Dress & Princess Info */}
+                <div className="my-2 border-t border-b border-purple-100 py-2 space-y-1 text-center bg-pink-50/50 rounded-xl p-1.5">
+                  <span className="text-[10px] text-gray-500 block">فستان الأميرة:</span>
+                  <span className="text-sm font-black text-[#B0005A] block">{childName} 👧</span>
+                  <span className="text-[10.5px] font-bold text-gray-800 block truncate">{prodName}</span>
+                  {m.dress_length && (
+                    <span className="text-[9px] text-[#8F2A87] font-bold block">الطول: {m.dress_length} سم • مقاس معتمد</span>
+                  )}
+                </div>
+
+                {/* Live Customer Tracking QR Code */}
+                <div className="text-center my-1">
+                  <div className="w-20 h-20 mx-auto p-1 bg-white border border-purple-200 rounded-xl shadow-xs">
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent((typeof window !== 'undefined' && window.location?.origin ? window.location.origin : 'http://localhost:5000') + '/track.html?order=' + orderNo)}`}
+                      alt="Customer Live Tracking QR"
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+                  <span className="text-[7.5px] text-gray-500 block mt-1">امسحي بالجوال لتتبع الفستان 📱✨</span>
+                </div>
+
+                {/* Price & Scannable Barcode */}
+                <div className="mt-auto pt-1 border-t border-gray-100">
+                  <div className="flex justify-between items-center px-1 mb-1">
+                    <span className="text-[9px] text-gray-500">السعر:</span>
+                    <span className="text-xs font-black font-mono text-black">{total.toLocaleString('en-US')} {cur}</span>
+                  </div>
+                  
+                  {/* Barcode image */}
+                  <div className="bg-white p-0.5 rounded text-center">
+                    <img 
+                      src={`https://barcodeapi.org/api/128/${encodeURIComponent(orderNo)}`} 
+                      alt="Barcode" 
+                      className="h-8 max-w-full mx-auto"
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                        if (e.target.nextElementSibling) e.target.nextElementSibling.style.display = 'block';
+                      }}
+                    />
+                    <div className="hidden font-mono text-[9px] font-bold tracking-widest">{orderNo}</div>
+                    <span className="font-mono text-[8.5px] font-bold text-gray-700 block mt-0.5">{orderNo}</span>
+                  </div>
+                  <span className="text-[7px] text-gray-400 block mt-0.5">صنع بكل حب وإتقان لأميرتنا 🌸</span>
+                </div>
+              </div>
+            )}
+
+            {/* ══════════════════════════════════════════════════════════════════════
+                قالب 4: ملصق كيس حفظ الفستان الفاخر (Garment Bag Luxury Sticker)
+            ══════════════════════════════════════════════════════════════════════ */}
+            {activeTemplate === 'garment_bag' && (
+              <div className="garment-bag-container font-sans">
+                {/* Header with Luxury Brand */}
+                <div className="flex justify-between items-center pb-2 border-b-2 border-purple-200">
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl">👑</span>
+                    <div>
+                      <h2 className="text-sm font-black text-[#8F2A87] leading-tight">{brandProfile.name}</h2>
+                      <span className="text-[9px] text-gray-500 font-bold block">ملصق تسليم كيس الفستان (Garment Bag Delivery Tag)</span>
+                    </div>
+                  </div>
+                  <div className="text-left font-mono">
+                    <span className="text-xs font-black px-2.5 py-1 bg-purple-50 text-[#8F2A87] rounded-lg border border-purple-200 block">
+                      {orderNo}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Princess & Order Box */}
+                <div className="my-2.5 p-3 rounded-xl bg-gradient-to-r from-pink-50 to-purple-50 border border-pink-200 space-y-1">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] text-gray-500">الأميرة:</span>
+                    <span className="text-sm font-black text-[#B0005A]">{childName} 👧</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] text-gray-500">والدتها الكريمة:</span>
+                    <span className="text-xs font-bold text-gray-800">{custName}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] text-gray-500">الموديل المعتمد:</span>
+                    <span className="text-xs font-black text-gray-900">{prodName} × {qty}</span>
+                  </div>
+                  {phone && phone !== '—' && (
+                    <div className="flex justify-between items-center text-[10px] text-gray-600 font-mono">
+                      <span>الهاتف:</span>
+                      <span>{phone}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Dates & Financial Status Grid */}
+                <div className="grid grid-cols-2 gap-2 my-2 text-xs">
+                  <div className="p-2 rounded-lg bg-gray-50 border border-gray-200">
+                    <span className="text-[9.5px] text-gray-500 block">موعد البروفة / التسليم:</span>
+                    <span className="font-bold text-[#8F2A87] text-xs mt-0.5 block">{deliveryDate}</span>
+                  </div>
+                  <div className={`p-2 rounded-lg border ${remaining > 0 ? 'bg-rose-50 border-rose-200' : 'bg-emerald-50 border-emerald-200'}`}>
+                    <span className="text-[9.5px] text-gray-500 block">الحساب المالي:</span>
+                    {remaining > 0 ? (
+                      <span className="font-black text-rose-700 text-xs mt-0.5 block">
+                        متبقي: {remaining.toLocaleString('en-US')} {cur}
+                      </span>
                     ) : (
-                      <div className="text-2xl">{brandProfile.systemIcon || '🏢'}</div>
+                      <span className="font-black text-emerald-700 text-xs mt-0.5 block">
+                        خالص بالكامل ✅
+                      </span>
                     )}
                   </div>
-                  <h1 className="text-xs font-black text-[#B0005A] tracking-wider mt-1">{brandProfile.shortName || brandProfile.name}</h1>
-                  <p className="text-[8px] font-bold text-gray-500">{brandProfile.tagline}</p>
                 </div>
 
-                <div className="my-2 border-t border-b border-gray-200 py-2 space-y-1 text-center">
-                  <span className="text-[11px] font-black text-black block truncate">{prodName}</span>
-                  <span className="text-[10px] font-bold text-[#8F2A87] block">للعميل / الطفلة: {childName}</span>
-                  <span className="text-[9px] font-mono text-gray-600 block">{orderNo}</span>
-                </div>
-
-                <div className="my-2">
-                  <span className="text-[10px] text-gray-500 block">السعر المعتمد</span>
-                  <span className="text-base font-black font-mono text-black">{total.toLocaleString('en-US')} {cur}</span>
-                </div>
-
-                {/* Simulated Barcode */}
-                <div className="mt-auto">
-                  <div className="flex justify-center items-end h-8 gap-0.5 my-1 px-4">
-                    {[3,1,2,4,1,3,2,1,4,2,3,1,2,4,1,3,2,1].map((w, i) => (
-                      <div key={i} className="bg-black h-full" style={{ width: `${w * 1.5}px` }}></div>
-                    ))}
+                {/* Quality Seal */}
+                <div className="p-2 rounded-lg bg-yellow-50/60 border border-yellow-200/80 flex items-center justify-between text-[10px]">
+                  <div className="flex items-center gap-1.5 text-yellow-900 font-bold">
+                    <span>✨</span>
+                    <span>مفحوص ومعتمد بجودة ليتل برنسيس الملكية</span>
                   </div>
-                  <span className="text-[8px] font-mono text-gray-600 block">{orderNo}-2026</span>
-                  <span className="text-[7.5px] text-gray-400 block mt-1">صنع بكل إتقان وعناية فائقة 🌸</span>
+                  <span className="font-mono text-emerald-700 font-bold">PASS ✅</span>
+                </div>
+
+                {/* Barcode & QR Code Footer for Scan-to-Deliver */}
+                <div className="mt-3 pt-2 border-t-2 border-dashed border-gray-200 flex items-center justify-between gap-3">
+                  <div className="text-center shrink-0">
+                    <div className="w-16 h-16 p-0.5 bg-white border border-gray-300 rounded-lg shadow-2xs">
+                      <img
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent((typeof window !== 'undefined' && window.location?.origin ? window.location.origin : 'http://localhost:5000') + '/track.html?order=' + orderNo)}`}
+                        alt="QR Scan"
+                        className="w-full h-full object-contain"
+                      />
+                    </div>
+                    <span className="text-[7.5px] text-gray-400 block mt-0.5">تتبع الفستان 📱</span>
+                  </div>
+
+                  <div className="flex-1 text-center">
+                    <img
+                      src={`https://barcodeapi.org/api/128/${encodeURIComponent(orderNo)}`}
+                      alt="Barcode"
+                      className="h-9 max-w-full mx-auto"
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                        if (e.target.nextElementSibling) e.target.nextElementSibling.style.display = 'block';
+                      }}
+                    />
+                    <div className="hidden font-mono text-[9px] font-bold">{orderNo}</div>
+                    <span className="font-mono text-[9px] font-black text-gray-800 block mt-0.5 tracking-wider">{orderNo}</span>
+                    <span className="text-[8px] text-gray-500 block">للتسليم السريع: امسحي الباركود بالمعرض 📷🏷️</span>
+                  </div>
                 </div>
               </div>
             )}

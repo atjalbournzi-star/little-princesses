@@ -4622,6 +4622,328 @@ def reject_tailor_job_and_rework(payload):
         res['message'] = f"تم توثيق العيب ({defect_type}) في سوبابيز وإرجاع الفستان للخياط للتعديل بنجاح ⚠️"
         return res
 
+# ── 15.2.1 تذاكر تعديلات البروفة، مراقبة التسليم، والتسليم بالمسح (Alterations, Watchdog & Scan-to-Deliver) ──
+
+def get_fitting_alterations(params=None):
+    """جلب تذاكر تعديلات البروفة مع إمكانية التصفية برقم الطلب أو الحالة أو الخياط"""
+    order_id = None
+    status = None
+    tailor_id = None
+    if isinstance(params, dict):
+        order_id = clean_str(params.get('order_id') or params.get('order_no') or params.get('order'))
+        status = clean_str(params.get('status'))
+        tailor_id = clean_str(params.get('tailor_id') or params.get('assigned_tailor_id'))
+
+    query = "SELECT * FROM fitting_alterations WHERE 1=1"
+    args = []
+    if order_id:
+        query += " AND (order_id = %s OR production_order_no = %s OR order_id = 'ORD-' || %s)"
+        args.extend([order_id, order_id, order_id])
+    if status:
+        query += " AND status = %s"
+        args.append(status)
+    if tailor_id:
+        query += " AND (assigned_tailor_id = %s OR tailor_name ILIKE %s)"
+        args.extend([tailor_id, f"%{tailor_id}%"])
+
+    query += " ORDER BY created_at DESC;"
+    rows = execute_query(query, tuple(args) if args else None, fetch_all=True)
+    for r in rows:
+        for fld in ['ticket_date', 'created_at', 'updated_at']:
+            if r.get(fld): r[fld] = str(r[fld])
+    return rows
+
+def add_fitting_alteration(payload):
+    """تسجيل تذكرة تعديل بروفة جديدة وتوجيهها للخياط وتحديث أمر الإنتاج"""
+    data = payload.get('data') or payload
+    alt_id = clean_str(data.get('id')) or generate_id("ALT")
+    order_target = clean_str(data.get('order_id') or data.get('order_no') or data.get('order'))
+    order_no_in = clean_str(data.get('order_no'))
+    alt_type = clean_str(data.get('alteration_reason') or data.get('alteration_type') or 'تقصير طول الفستان')
+    details = clean_str(data.get('adjustment_notes') or data.get('alteration_details') or data.get('details') or '')
+    dress_type = clean_str(data.get('dress_type') or 'فستان ملكي')
+    severity = clean_str(data.get('severity') or 'normal')
+    target_date = clean_str(data.get('target_date')) or None
+    tailor_name = clean_str(data.get('assigned_tailor') or data.get('tailor_name')) or None
+    tailor_id = clean_str(data.get('assigned_tailor_id') or data.get('tailor_id')) or None
+    is_free = bool(data.get('is_free', True))
+    charge = clean_num(data.get('charge_amount') or 0.0) if not is_free else 0.0
+    reason_cat = clean_str(data.get('reason_category') or 'طلب العميلة بالبروفة')
+
+    with get_db_cursor(commit=True) as cur:
+        valid_order_id = None
+        prod_order_no = None
+        cust_id = None
+        child_name = clean_str(data.get('child_name')) or None
+        cust_name = clean_str(data.get('customer_name')) or None
+        final_order_no = order_no_in
+
+        if order_target:
+            cur.execute("""
+                SELECT o.id, o.order_no, o.customer_id, c.name as customer_name, ch.child_name,
+                       po.production_order_no, po.assigned_tailor_id
+                FROM orders o
+                LEFT JOIN customers c ON o.customer_id = c.id
+                LEFT JOIN children ch ON o.child_id = ch.id
+                LEFT JOIN production_orders po ON po.order_id = o.id OR po.production_order_no = 'PO-' || o.order_no
+                WHERE o.id = %s OR o.order_no = %s OR o.order_no = 'ORD-' || %s OR o.id = 'ORD-' || %s
+                LIMIT 1;
+            """, (order_target, order_target, order_target, order_target))
+            ord_row = cur.fetchone()
+            if ord_row:
+                valid_order_id = ord_row['id']
+                if not final_order_no: final_order_no = ord_row.get('order_no')
+                prod_order_no = ord_row.get('production_order_no') or f"PO-{ord_row['order_no']}"
+                cust_id = ord_row.get('customer_id')
+                if not cust_name: cust_name = ord_row.get('customer_name')
+                if not child_name: child_name = ord_row.get('child_name')
+                if not tailor_id and ord_row.get('assigned_tailor_id'):
+                    tailor_id = ord_row['assigned_tailor_id']
+
+        if not valid_order_id and order_target:
+            valid_order_id = order_target
+        if not final_order_no:
+            final_order_no = f"ORD-{order_target}" if order_target else 'ORD-ALT'
+        if not child_name: child_name = 'الأميرة'
+        if not cust_name: cust_name = 'العميلة'
+
+        cur.execute("""
+            INSERT INTO fitting_alterations (
+                id, order_id, order_no, production_order_no, customer_id, child_name, customer_name,
+                dress_type, alteration_reason, alteration_type, alteration_details, adjustment_notes,
+                severity, assigned_tailor, assigned_tailor_id, tailor_name, target_date,
+                ticket_date, is_free, charge_amount, reason_category, status
+            ) VALUES (
+                %s, %s, %s, %s, %s, %s, %s,
+                %s, %s, %s, %s, %s,
+                %s, %s, %s, %s, %s,
+                CURRENT_DATE, %s, %s, %s, 'pending'
+            ) RETURNING *;
+        """, (
+            alt_id, str(valid_order_id) if valid_order_id else None, final_order_no, prod_order_no, cust_id, child_name, cust_name,
+            dress_type, alt_type, alt_type, details, details,
+            severity, tailor_name, tailor_id, tailor_name, target_date,
+            is_free, charge, reason_cat
+        ))
+        row = dict(cur.fetchone())
+
+        if valid_order_id:
+            try:
+                cur.execute("""
+                    UPDATE orders
+                    SET notes = COALESCE(notes, '') || ' | ✂️ تذكرة تعديل بروفة: ' || %s,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = %s;
+                """, (f"{alt_type} ({details})", str(valid_order_id)))
+
+                cur.execute("""
+                    UPDATE production_orders
+                    SET notes = COALESCE(notes, '') || ' | ✂️ تذكرة تعديل بروفة: ' || %s,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE order_id = %s OR production_order_no = %s;
+                """, (f"{alt_type} ({details})", str(valid_order_id), prod_order_no))
+            except Exception as update_err:
+                logger.warning(f"Could not update orders notes for alteration {alt_id}: {update_err}")
+
+        for fld in ['ticket_date', 'created_at', 'updated_at']:
+            if row.get(fld): row[fld] = str(row[fld])
+        return {
+            "success": True,
+            "data": row,
+            "message": f"تم تسجيل تذكرة تعديل البروفة بنجاح ({alt_id}) وتوجيهها لمعمل الخياطة ✂️👑"
+        }
+
+def update_fitting_alteration_status(payload):
+    """تحديث حالة تذكرة تعديل البروفة (قيد التعديل، جاهز للبروفة، مكتمل)"""
+    data = payload.get('data') or payload
+    alt_id = clean_str(data.get('id') or data.get('ticket_id'))
+    new_status = clean_str(data.get('status') or 'completed').lower()
+    notes = clean_str(data.get('notes') or data.get('completion_notes') or '')
+
+    with get_db_cursor(commit=True) as cur:
+        cur.execute("""
+            UPDATE fitting_alterations
+            SET status = %s,
+                completion_notes = COALESCE(completion_notes, '') || CASE WHEN %s != '' THEN ' | ' || %s ELSE '' END,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = %s
+            RETURNING *;
+        """, (new_status, notes, notes, alt_id))
+        row = cur.fetchone()
+        if not row:
+            return {"success": False, "error": f"لم يتم العثور على تذكرة التعديل: {alt_id}"}
+        res = dict(row)
+        for fld in ['ticket_date', 'created_at', 'updated_at']:
+            if res.get(fld): res[fld] = str(res[fld])
+        return {
+            "success": True,
+            "data": res,
+            "message": f"تم تحديث حالة تذكرة التعديل إلى ({new_status}) بنجاح ✨"
+        }
+
+def get_atelier_watchdog(params=None):
+    """مركز رصد المواعيد الحرجة والبروفات اليومية في المعمل لمنع أي تأخير"""
+    with get_db_cursor(commit=False) as cur:
+        # 1. طلبات التسليم الحرجة (خلال 48 ساعة أو متأخرة)
+        cur.execute("""
+            SELECT o.id, o.order_no, o.delivery_date, o.order_date, o.status, o.production_status,
+                   o.total_amount, o.paid_amount, o.remaining_amount, o.currency,
+                   COALESCE(c.name, '') as customer_name,
+                   COALESCE(c.phone, '') as customer_phone,
+                   COALESCE(ch.child_name, 'الأميرة') as child_name,
+                   COALESCE(p.model_name, 'موديل راقي') as product_name,
+                   po.stage as factory_stage,
+                   po.progress as factory_progress,
+                   (o.delivery_date - CURRENT_DATE) as days_remaining
+            FROM orders o
+            LEFT JOIN customers c ON o.customer_id = c.id
+            LEFT JOIN children ch ON o.child_id = ch.id
+            LEFT JOIN products p ON o.product_id = p.id
+            LEFT JOIN production_orders po ON po.order_id = o.id
+            WHERE o.delivery_date IS NOT NULL
+              AND o.delivery_date <= CURRENT_DATE + INTERVAL '2 days'
+              AND o.status NOT IN ('Completed', 'Cancelled', 'Delivered')
+              AND COALESCE(o.production_status, '') NOT IN ('Delivered', 'Completed')
+            ORDER BY o.delivery_date ASC
+            LIMIT 25;
+        """)
+        urgent_rows = cur.fetchall()
+        urgent_list = []
+        for r in urgent_rows:
+            d = dict(r)
+            for fld in ['delivery_date', 'order_date']:
+                if d.get(fld): d[fld] = str(d[fld])
+            d['is_overdue'] = (d.get('days_remaining') is not None and d['days_remaining'] < 0)
+            d['is_today'] = (d.get('days_remaining') == 0)
+            urgent_list.append(d)
+
+        # 2. بروفات اليوم أو البروفات المؤكدة قريباً
+        cur.execute("""
+            SELECT o.id, o.order_no, o.delivery_date, o.notes,
+                   COALESCE(c.name, '') as customer_name,
+                   COALESCE(c.phone, '') as customer_phone,
+                   COALESCE(ch.child_name, 'الأميرة') as child_name,
+                   COALESCE(p.model_name, 'فستان ملكي') as product_name,
+                   po.stage as factory_stage
+            FROM orders o
+            LEFT JOIN customers c ON o.customer_id = c.id
+            LEFT JOIN children ch ON o.child_id = ch.id
+            LEFT JOIN products p ON o.product_id = p.id
+            LEFT JOIN production_orders po ON po.order_id = o.id
+            WHERE (o.delivery_date = CURRENT_DATE OR o.notes LIKE '%%تم تأكيد موعد البروفة%%')
+              AND o.status NOT IN ('Completed', 'Cancelled', 'Delivered')
+            ORDER BY o.delivery_date ASC
+            LIMIT 15;
+        """)
+        fitting_rows = cur.fetchall()
+        fittings_list = []
+        for r in fitting_rows:
+            d = dict(r)
+            if d.get('delivery_date'): d['delivery_date'] = str(d['delivery_date'])
+            fittings_list.append(d)
+
+        # 3. تذاكر التعديل المعلقة
+        cur.execute("""
+            SELECT * FROM fitting_alterations
+            WHERE status IN ('Pending', 'In_Progress')
+            ORDER BY created_at DESC
+            LIMIT 10;
+        """)
+        alt_rows = cur.fetchall()
+        alt_list = []
+        for r in alt_rows:
+            d = dict(r)
+            for fld in ['ticket_date', 'created_at', 'updated_at']:
+                if d.get(fld): d[fld] = str(d[fld])
+            alt_list.append(d)
+
+    overdue_count = sum(1 for x in urgent_list if x.get('is_overdue'))
+    today_due_count = sum(1 for x in urgent_list if x.get('is_today'))
+
+    return {
+        "status": "Healthy" if overdue_count == 0 else "Critical",
+        "overdue_count": overdue_count,
+        "today_due_count": today_due_count,
+        "urgent_count": len(urgent_list),
+        "fittings_today_count": len(fittings_list),
+        "active_alterations_count": len(alt_list),
+        "urgent_deliveries": urgent_list,
+        "fittings_today": fittings_list,
+        "active_alterations": alt_list
+    }
+
+def scan_to_deliver_order(payload):
+    """تسليم الفستان فورياً عبر قراءة الباركود/QR مع تسوية المتبقي المالي وتحديث المخزون"""
+    data = payload.get('data') or payload
+    order_target = clean_str(data.get('barcode') or data.get('order_no') or data.get('order_id') or data.get('id'))
+    if not order_target:
+        return {"success": False, "error": "رمز الباركود أو رقم الطلب مطلوب"}
+
+    collect_payment = bool(data.get('collect_payment', True))
+    collected_amount = clean_num(data.get('amount_collected') or 0.0)
+
+    with get_db_cursor(commit=True) as cur:
+        cur.execute("""
+            SELECT o.*,
+                   COALESCE(c.name, '') as real_customer_name,
+                   COALESCE(c.phone, '') as customer_phone,
+                   COALESCE(ch.child_name, 'الأميرة') as real_child_name,
+                   COALESCE(p.model_name, 'فستان ملكي') as real_product_name
+            FROM orders o
+            LEFT JOIN customers c ON o.customer_id = c.id
+            LEFT JOIN children ch ON o.child_id = ch.id
+            LEFT JOIN products p ON o.product_id = p.id
+            WHERE o.id = %s OR o.order_no = %s OR o.order_no = 'ORD-' || %s OR o.id = 'ORD-' || %s
+            LIMIT 1;
+        """, (order_target, order_target, order_target, order_target))
+        ord_row = cur.fetchone()
+        if not ord_row:
+            return {"success": False, "error": f"عذراً، لم نتمكن من العثور على فستان برقم/باركود: {order_target}"}
+
+        o_id = ord_row['id']
+        tot = clean_num(ord_row.get('total_amount') or ord_row.get('total') or 0.0)
+        pd = clean_num(ord_row.get('paid_amount') or ord_row.get('paid') or 0.0)
+        rem = max(0.0, tot - pd)
+
+        final_pd = pd
+        if collect_payment and rem > 0:
+            pay_amt = collected_amount if collected_amount > 0 else rem
+            final_pd += pay_amt
+
+        cur.execute("""
+            UPDATE orders
+            SET production_status = 'Delivered',
+                status = 'Completed',
+                paid_amount = %s,
+                payment_status = CASE WHEN %s >= total_amount THEN 'Paid' ELSE 'Partial' END,
+                notes = COALESCE(notes, '') || ' | 👗 تم التسليم بالمعرض بمسح الباركود بتاريخ ' || CURRENT_DATE,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = %s
+            RETURNING *;
+        """, (final_pd, final_pd, o_id))
+        updated_ord = cur.fetchone()
+
+        cur.execute("""
+            UPDATE production_orders
+            SET stage = 'تم التسليم ✅',
+                progress = 100.0,
+                status = 'Completed',
+                notes = COALESCE(notes, '') || ' | تم تسليم الفستان للأميرة',
+                updated_at = CURRENT_TIMESTAMP
+            WHERE order_id = %s;
+        """, (o_id,))
+
+        res_ord = dict(updated_ord)
+        for fld in ['order_date', 'delivery_date', 'created_at', 'updated_at']:
+            if res_ord.get(fld): res_ord[fld] = str(res_ord[fld])
+
+        child_name = ord_row['real_child_name']
+        return {
+            "success": True,
+            "order": res_ord,
+            "message": f"ألف مبارك! تم تسليم الفستان الملكي لأميرتنا ({child_name}) بنجاح تام وتسوية الحساب 👑🌸"
+        }
+
 def get_tailor_commissions(params=None):
     """جلب سجل عمولات وأجور الفنيين ومعدلات الجودة والالتزام بالوقت"""
     emp_id = None
@@ -6366,6 +6688,13 @@ ACTION_HANDLERS = {
     "getCustomerOrderTracking": lambda p: get_customer_order_tracking(p.get("order") or p.get("order_id") or p.get("id") or p.get("order_no")),
     "confirmCustomerFitting": lambda p: confirm_customer_fitting(p.get("order") or p.get("order_id") or p.get("id") or p.get("order_no"), p.get("notes", "")),
     "submitTailorStage": submit_tailor_stage_completion,
+    
+    # تذاكر تعديلات البروفة، مركز المراقبة، والتسليم بالمسح
+    "getFittingAlterations": get_fitting_alterations,
+    "addFittingAlteration": add_fitting_alteration,
+    "updateFittingAlterationStatus": update_fitting_alteration_status,
+    "getAtelierWatchdog": get_atelier_watchdog,
+    "scanToDeliverOrder": scan_to_deliver_order,
 }
 
 def dispatch_action(action: str, payload: dict = None) -> dict:

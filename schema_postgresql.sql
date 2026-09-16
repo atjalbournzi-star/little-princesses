@@ -627,6 +627,28 @@ CREATE TABLE IF NOT EXISTS quality_feedback (
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 7.9 جدول تذاكر تعديلات البروفة (Fitting Alterations & Adjustments)
+CREATE TABLE IF NOT EXISTS fitting_alterations (
+    id VARCHAR(64) PRIMARY KEY, -- 'ALT-000001'
+    order_id VARCHAR(64) REFERENCES orders(id) ON DELETE SET NULL,
+    production_order_no VARCHAR(50),
+    customer_id VARCHAR(64) REFERENCES customers(id) ON DELETE SET NULL,
+    child_name VARCHAR(100),
+    customer_name VARCHAR(150),
+    ticket_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    alteration_type VARCHAR(50) NOT NULL, -- 'تقصير طول الفستان', 'تضييق الخصر', 'توسيع الصدر', 'تعديل الأكمام', 'إضافة تطريز/إكسسوار', 'أخرى'
+    alteration_details TEXT NOT NULL,
+    assigned_tailor_id VARCHAR(64) REFERENCES users(id) ON DELETE SET NULL,
+    tailor_name VARCHAR(150),
+    is_free BOOLEAN NOT NULL DEFAULT TRUE,
+    charge_amount NUMERIC(12, 2) DEFAULT 0.00,
+    reason_category VARCHAR(50) DEFAULT 'طلب العميلة بالبروفة', -- 'طلب العميلة بالبروفة', 'خطأ أخذ مقاس', 'خطأ تفصيل خياط', 'تغير مقاس الطفلة'
+    status VARCHAR(30) DEFAULT 'Pending', -- 'Pending', 'In_Progress', 'Ready_For_Fitting', 'Completed'
+    completion_notes TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 -- ====================================================================================
 -- القسم 8: ملف المؤسسة، الإعدادات العامة، وتعدد الفروع والمستأجرين (Tenants & Profile)
 -- ====================================================================================

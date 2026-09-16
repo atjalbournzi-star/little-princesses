@@ -41,6 +41,24 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
   const [submittingDelivery, setSubmittingDelivery] = useState(false);
   const [deliverySuccessData, setDeliverySuccessData] = useState(null);
 
+  // Scan-to-Deliver Modal State
+  const [scanDeliverModalOpen, setScanDeliverModalOpen] = useState(false);
+  const [scanCodeInput, setScanCodeInput] = useState('');
+  const [scannedOrder, setScannedOrder] = useState(null);
+  const [scanCollectRemaining, setScanCollectRemaining] = useState(true);
+  const [scanDeliveryLoading, setScanDeliveryLoading] = useState(false);
+
+  // Alteration Modal State
+  const [alterationModalOrder, setAlterationModalOrder] = useState(null);
+  const [alterationForm, setAlterationForm] = useState({
+    reason: 'مقاس غير مضبوط (ضيق/واسع)',
+    notes: '',
+    severity: 'normal',
+    target_date: TODAY_STR_ISO,
+    assigned_tailor: ''
+  });
+  const [submittingAlteration, setSubmittingAlteration] = useState(false);
+
   // ── نمط العرض: كاشير لمسي سريع أم أرشيف الطلبيات ──
   const [activeMode, setActiveMode] = useState('pos'); // 'pos' | 'archive'
 
@@ -342,6 +360,106 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
       ? `https://api.whatsapp.com/send?phone=${phone.startsWith('0') ? '967' + phone.substring(1) : (phone.startsWith('967') ? phone : '967' + phone)}&text=${encodeURIComponent(msg)}`
       : `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
     window.open(waUrl, '_blank');
+  };
+
+  // ── محرك التسليم السريع بالمسح (Scan to Deliver Engine) ──
+  const handleSearchScannedOrder = (code) => {
+    const q = (code || scanCodeInput || '').trim().toLowerCase();
+    if (!q) return;
+    const found = (orders || []).find(o => 
+      (o.order_no && o.order_no.toLowerCase() === q) ||
+      (o.id && String(o.id).toLowerCase() === q) ||
+      (o.barcode && o.barcode.toLowerCase() === q) ||
+      (o.sku && o.sku.toLowerCase() === q) ||
+      (o.tracking_number && o.tracking_number.toLowerCase() === q)
+    );
+    if (found) {
+      setScannedOrder(found);
+      showToast(`تم التعرف على الطلب: ${found.order_no || ('ORD-' + found.id)} 🎯`);
+    } else {
+      showToast(`لم يتم العثور على طلب بالرمز: ${q} ⚠️`, 'error');
+    }
+  };
+
+  const handleConfirmScanDelivery = async () => {
+    if (!scannedOrder) return;
+    setScanDeliveryLoading(true);
+    try {
+      const orderNo = scannedOrder.order_no || scannedOrder.id;
+      const rem = Math.max(0, (parseFloat(scannedOrder.total ?? scannedOrder.total_amount) || 0) - (parseFloat(scannedOrder.paid ?? scannedOrder.paid_amount) || 0));
+      const collectAmt = scanCollectRemaining ? rem : 0;
+
+      const res = await fetch('/api/sales/scan-to-deliver', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          scan_code: orderNo,
+          order_id: scannedOrder.id,
+          amount_collected: collectAmt,
+          account_id: 'ACC-101',
+          payment_method: 'نقد (كاش)',
+          notes: 'تسليم فوري بالباركود (Scan to Deliver)'
+        })
+      }).then(r => r.json());
+
+      if (res.success) {
+        showToast(res.message || 'تم تسليم الطلب وترحيله بنجاح 👑🎉', 'success');
+        setOrders && setOrders(orders.map(o => (o.id === scannedOrder.id || o.order_no === orderNo) ? {
+          ...o,
+          status: 'تم التسليم ✅',
+          production_status: 'Delivered',
+          paid: (parseFloat(o.paid || 0) + collectAmt),
+          remaining: Math.max(0, rem - collectAmt)
+        } : o));
+        window.dispatchEvent(new CustomEvent('erp:ordersChanged'));
+        setScannedOrder(null);
+        setScanCodeInput('');
+        setScanDeliverModalOpen(false);
+      } else {
+        showToast(res.error || 'فشلت عملية التسليم ❌', 'error');
+      }
+    } catch (e) {
+      showToast('خطأ أثناء التسليم: ' + e.message, 'error');
+    } finally {
+      setScanDeliveryLoading(false);
+    }
+  };
+
+  // ── حفظ تذكرة تعديل البروفة (Fitting Alteration Ticket) ──
+  const handleSaveAlteration = async (e) => {
+    if (e) e.preventDefault();
+    if (!alterationModalOrder) return;
+    setSubmittingAlteration(true);
+    try {
+      const payload = {
+        order_id: alterationModalOrder.id,
+        order_no: alterationModalOrder.order_no || `ORD-${alterationModalOrder.id}`,
+        customer_name: alterationModalOrder.customer_name || 'عميلة',
+        dress_type: alterationModalOrder.product_name || 'فستان',
+        alteration_reason: alterationForm.reason,
+        adjustment_notes: alterationForm.notes,
+        severity: alterationForm.severity,
+        target_date: alterationForm.target_date,
+        assigned_tailor: alterationForm.assigned_tailor
+      };
+      const res = await fetch('/api/alterations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }).then(r => r.json());
+
+      if (res.success) {
+        showToast(res.message || 'تم قيد تذكرة تعديل البروفة بنجاح ✂️👗', 'success');
+        window.dispatchEvent(new CustomEvent('erp:alterationChanged'));
+        setAlterationModalOrder(null);
+      } else {
+        showToast(res.error || 'فشل حفظ تذكرة التعديل ❌', 'error');
+      }
+    } catch (err) {
+      showToast('خطأ: ' + err.message, 'error');
+    } finally {
+      setSubmittingAlteration(false);
+    }
   };
 
   // ── بناء محرك صياغة الرسالة الملكية للأم عبر المنصات المتعددة ──
@@ -727,6 +845,21 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
                 </span>
               </button>
             </div>
+
+            {/* Quick Scan-to-Deliver Button */}
+            <button
+              type="button"
+              onClick={() => {
+                setScanCodeInput('');
+                setScannedOrder(null);
+                setScanDeliverModalOpen(true);
+              }}
+              className="px-3.5 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-xs flex items-center gap-1.5 transition cursor-pointer"
+              title="تسليم فوري بالمسح وقراءة الباركود (Scan to Deliver)"
+            >
+              <span>📷🏷️</span>
+              <span>تسليم بالمسح</span>
+            </button>
 
             {isEditing && (
               <button onClick={resetForm}
@@ -1431,6 +1564,22 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
                       <button onClick={() => openPrintModal(o, 'hangtag')} title="طباعة ملصق وباركود الصنف" className="w-7 h-7 rounded-lg bg-white dark:bg-slate-800 hover:bg-[#E2F5F7] dark:hover:bg-slate-700 text-[#6F6B75] dark:text-slate-300 hover:text-[#007F8C] dark:hover:text-cyan-300 border border-[#E8E5EA] dark:border-slate-700 transition-all flex items-center justify-center cursor-pointer text-xs font-bold">
                         🏷️
                       </button>
+                      <button 
+                        onClick={() => {
+                          setAlterationForm({
+                            reason: 'مقاس غير مضبوط (ضيق/واسع)',
+                            notes: '',
+                            severity: 'normal',
+                            target_date: o.delivery_date ? o.delivery_date.split('T')[0] : TODAY_STR_ISO,
+                            assigned_tailor: ''
+                          });
+                          setAlterationModalOrder(o);
+                        }} 
+                        title="طلب تعديل بروفة ومقاسات ✂️👗" 
+                        className="w-7 h-7 rounded-lg bg-white dark:bg-slate-800 hover:bg-purple-50 dark:hover:bg-purple-950/40 text-[#6F6B75] dark:text-slate-300 hover:text-[#8F2A87] dark:hover:text-purple-300 border border-[#E8E5EA] dark:border-slate-700 transition-all flex items-center justify-center cursor-pointer text-xs font-bold"
+                      >
+                        ✂️
+                      </button>
                       <button onClick={() => handleEdit(o)} title="تعديل" className="w-7 h-7 rounded-lg bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-[#6F6B75] dark:text-slate-300 hover:text-[#25232A] dark:hover:text-slate-100 border border-[#E8E5EA] dark:border-slate-700 transition-all flex items-center justify-center cursor-pointer text-xs">
                         ✏️
                       </button>
@@ -1775,6 +1924,239 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
                 إغلاق النافذة
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── نافذة التسليم السريع بالمسح (Scan to Deliver Modal) ── */}
+      {scanDeliverModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn" dir="rtl">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-[#E8E5EA] dark:border-slate-800 space-y-4 text-right">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-[#E8E5EA] dark:border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-600 text-white flex items-center justify-center text-xl shadow-xs">
+                  📷
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-[#25232A] dark:text-slate-100">تسليم فوري بالمسح وقراءة الباركود (Scan-to-Deliver)</h3>
+                  <p className="text-[11px] text-[#6F6B75] dark:text-slate-400">امسح كود التعليقة أو ملصق الكيس لتسليم الطلب بضغطة واحدة</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setScanDeliverModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-600 dark:text-slate-300 flex items-center justify-center font-bold text-sm cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Input Barcode Form */}
+            <form onSubmit={(e) => { e.preventDefault(); handleSearchScannedOrder(); }} className="space-y-2">
+              <label className={labelCls}>امسح بقارئ الباركود أو ادخل رقم الفاتورة / الكود:</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  autoFocus
+                  value={scanCodeInput}
+                  onChange={e => setScanCodeInput(e.target.value)}
+                  placeholder="مثال: ORD-1001 أو امسح الباركود..."
+                  className="flex-1 h-11 px-3.5 rounded-xl border-2 border-dashed border-emerald-500/60 bg-emerald-50/20 dark:bg-slate-950 text-xs font-mono font-bold text-[#25232A] dark:text-slate-100 outline-none focus:border-emerald-600"
+                />
+                <button
+                  type="submit"
+                  className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition cursor-pointer"
+                >
+                  تعرف 🎯
+                </button>
+              </div>
+            </form>
+
+            {/* Scanned Order Details */}
+            {scannedOrder && (
+              <div className="p-4 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 space-y-3 animate-fadeIn">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="font-mono text-xs font-black text-emerald-800 dark:text-emerald-300">#{scannedOrder.order_no || ('ORD-' + scannedOrder.id)}</span>
+                    <h4 className="font-bold text-sm text-[#25232A] dark:text-slate-100">{scannedOrder.customer_name}</h4>
+                  </div>
+                  <span className="text-xs px-2.5 py-1 rounded-full font-bold bg-white dark:bg-slate-800 border border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300">
+                    {scannedOrder.status || 'جاهز للتسليم'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-xs pt-2 border-t border-emerald-200/60 dark:border-emerald-800/60">
+                  <div>
+                    <span className="text-[#6F6B75] dark:text-slate-400 block text-[10.5px]">الموديل / الفستان:</span>
+                    <span className="font-bold text-[#25232A] dark:text-slate-200">{scannedOrder.product_name || 'فستان الأميرات'}</span>
+                  </div>
+                  <div>
+                    <span className="text-[#6F6B75] dark:text-slate-400 block text-[10.5px]">اسم الأميرة:</span>
+                    <span className="font-bold text-purple-600 dark:text-purple-300">{scannedOrder.child_name || 'الأميرة'}</span>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-emerald-200 dark:border-slate-800 flex items-center justify-between text-xs">
+                  <div>
+                    <span className="text-[10px] text-[#6F6B75] dark:text-slate-400 block">المبلغ المتبقي:</span>
+                    <span className="font-mono font-black text-sm text-[#B0005A] dark:text-rose-400">
+                      {Math.max(0, (parseFloat(scannedOrder.total ?? scannedOrder.total_amount) || 0) - (parseFloat(scannedOrder.paid ?? scannedOrder.paid_amount) || 0)).toLocaleString()} {currencyDisplay}
+                    </span>
+                  </div>
+
+                  <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-[#25232A] dark:text-slate-200">
+                    <input
+                      type="checkbox"
+                      checked={scanCollectRemaining}
+                      onChange={e => setScanCollectRemaining(e.target.checked)}
+                      className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
+                    />
+                    <span>تحصيل المتبقي نقداً الآن 💵</span>
+                  </label>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={scanDeliveryLoading}
+                  onClick={handleConfirmScanDelivery}
+                  className="w-full py-3.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-xs shadow-md transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  <span>{scanDeliveryLoading ? 'جاري التسليم...' : '✅ تأكيد التسليم الملكي الفوري بضغطة واحدة'}</span>
+                </button>
+              </div>
+            )}
+
+            {!scannedOrder && (
+              <div className="p-6 text-center text-[#6F6B75] dark:text-slate-400 text-xs border border-dashed rounded-2xl">
+                <span className="text-3xl block mb-1">🏷️</span>
+                وجه ماسح الباركود لملصق الكيس أو بطاقة الفستان للتعرف التلقائي
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── نافذة قيد تذكرة تعديل البروفة (Fitting Alteration Ticket Modal) ── */}
+      {alterationModalOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn" dir="rtl">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-[#E8E5EA] dark:border-slate-800 space-y-4 text-right">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-[#E8E5EA] dark:border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-purple-600 to-[#B0005A] text-white flex items-center justify-center text-xl shadow-xs">
+                  ✂️
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-[#25232A] dark:text-slate-100">تذكرة تعديل بروفة ومقاس (Fitting Alteration Ticket)</h3>
+                  <p className="text-[11px] text-[#6F6B75] dark:text-slate-400">
+                    طلب: {alterationModalOrder.order_no || alterationModalOrder.id} • {alterationModalOrder.customer_name}
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setAlterationModalOrder(null)}
+                className="w-8 h-8 rounded-full bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-600 dark:text-slate-300 flex items-center justify-center font-bold text-sm cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveAlteration} className="space-y-3.5">
+              {/* Dress preview */}
+              <div className="p-3 bg-purple-50/70 dark:bg-purple-950/30 rounded-xl border border-purple-200 dark:border-purple-800/50 flex items-center justify-between text-xs">
+                <div className="space-y-0.5">
+                  <span className="font-bold text-[#25232A] dark:text-slate-100">{alterationModalOrder.product_name || 'فستان'}</span>
+                  <span className="text-[10.5px] text-[#6F6B75] dark:text-slate-400 block">للأميرة: {alterationModalOrder.child_name || 'الأميرة'}</span>
+                </div>
+                <span className="font-mono text-purple-700 dark:text-purple-300 font-bold bg-white dark:bg-slate-800 px-2 py-0.5 rounded-md border border-purple-200 dark:border-purple-800">
+                  {alterationModalOrder.order_no}
+                </span>
+              </div>
+
+              {/* Cause / Reason */}
+              <div>
+                <label className={labelCls}>سبب ووجه التعديل المطلوب <span className="text-[#D64545] font-bold">*</span></label>
+                <select
+                  value={alterationForm.reason}
+                  onChange={e => setAlterationForm({ ...alterationForm, reason: e.target.value })}
+                  className={inputCls}
+                >
+                  <option value="مقاس غير مضبوط (ضيق/واسع)">مقاس غير مضبوط (ضيق / واسع)</option>
+                  <option value="طول الفستان (طويل/قصير)">طول الفستان (طويل / قصير)</option>
+                  <option value="تعديل خصر/صدر">تعديل الخصر أو الصدر</option>
+                  <option value="تعديل سحاب/أزرار">تعديل سحاب / أزرار / مشابك</option>
+                  <option value="رغبة العميل/تغيير تفاصيل">رغبة العميلة / إضافة أو إزالة تفاصيل</option>
+                  <option value="عيب خياطة/جودة">ملاحظة فحص جودة / عيب تشطيب</option>
+                </select>
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label className={labelCls}>ملاحظات التعديل الدقيقة للورشة والخياط <span className="text-[#D64545] font-bold">*</span></label>
+                <textarea
+                  required
+                  rows="3"
+                  value={alterationForm.notes}
+                  onChange={e => setAlterationForm({ ...alterationForm, notes: e.target.value })}
+                  placeholder="مثال: تقصير الذيل 2 سم وتضييق الخصر 1.5 سم من الجانبين..."
+                  className="w-full p-3 rounded-xl border border-[#E8E5EA] dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-[#25232A] dark:text-slate-100 outline-none focus:border-purple-600 resize-none"
+                ></textarea>
+              </div>
+
+              {/* Severity & Target Date */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelCls}>درجة الأهمية والسرعة</label>
+                  <select
+                    value={alterationForm.severity}
+                    onChange={e => setAlterationForm({ ...alterationForm, severity: e.target.value })}
+                    className={inputCls}
+                  >
+                    <option value="normal">عادي (جدول المشغل القياسي)</option>
+                    <option value="urgent">عاجل جداً ⚡ (بروفة سريعة)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={labelCls}>موعد التسليم بعد التعديل</label>
+                  <input
+                    type="date"
+                    value={alterationForm.target_date}
+                    onChange={e => setAlterationForm({ ...alterationForm, target_date: e.target.value })}
+                    className={inputCls}
+                  />
+                </div>
+              </div>
+
+              {/* Assigned Tailor */}
+              <div>
+                <label className={labelCls}>إسناد إلى خياط / فني معين (اختياري)</label>
+                <input
+                  type="text"
+                  value={alterationForm.assigned_tailor}
+                  onChange={e => setAlterationForm({ ...alterationForm, assigned_tailor: e.target.value })}
+                  placeholder="اسم الخياط أو مسؤول التعديل..."
+                  className={inputCls}
+                />
+              </div>
+
+              {/* Submit Buttons */}
+              <div className="pt-2 flex items-center gap-2">
+                <button
+                  type="submit"
+                  disabled={submittingAlteration}
+                  className="flex-1 py-3 px-4 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs shadow-md transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  <span>{submittingAlteration ? 'جاري الحفظ...' : '✂️ قيد التذكرة وإرسالها للمشغل'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAlterationModalOrder(null)}
+                  className="py-3 px-4 rounded-xl bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-300 font-bold text-xs transition cursor-pointer"
+                >
+                  إلغاء
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

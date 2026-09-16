@@ -21,6 +21,31 @@ function Dashboard({
   const [timeHorizon, setTimeHorizon] = useState('all'); // 'today', 'week', 'month', 'all' - Default to 'all' to show all live records immediately
   const [trendMode, setTrendMode] = useState('daily'); // 'daily', 'cumulative'
   const [hoveredPoint, setHoveredPoint] = useState(null);
+  const [watchdogData, setWatchdogData] = useState(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchWatchdog = async () => {
+      try {
+        const res = await fetch('/api/atelier/watchdog');
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.success && isMounted) {
+            setWatchdogData(data.data);
+          }
+        }
+      } catch(e) {}
+    };
+    fetchWatchdog();
+    const handleRefresh = () => fetchWatchdog();
+    window.addEventListener('erp:ordersChanged', handleRefresh);
+    window.addEventListener('erp:alterationChanged', handleRefresh);
+    return () => {
+      isMounted = false;
+      window.removeEventListener('erp:ordersChanged', handleRefresh);
+      window.removeEventListener('erp:alterationChanged', handleRefresh);
+    };
+  }, []);
 
   // Helper to convert an amount to active currency
   const toCurr = (amount, origCurr, rate) => {
@@ -472,6 +497,79 @@ function Dashboard({
           </button>
         </div>
       </div>
+
+      {/* ── 1.5. Live Atelier Dispatch & Delivery Watchdog Alert Banner ── */}
+      {watchdogData && ((watchdogData.urgent_count > 0) || (watchdogData.fittings_today_count > 0) || (watchdogData.alterations_pending_count > 0)) && (
+        <div className="rounded-2xl bg-gradient-to-r from-rose-500/10 via-amber-500/10 to-purple-500/10 border border-amber-300/80 dark:border-amber-700/60 p-4 sm:p-5 shadow-xs transition-all space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-amber-200/60 dark:border-slate-800 pb-2.5">
+            <div className="flex items-center gap-2.5">
+              <span className="text-xl animate-bounce">🔔</span>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-sm font-bold text-[#25232A] dark:text-slate-100">
+                    رادار المشغل ومواعيد البروفات والتسليم العاجلة
+                  </h2>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300 animate-pulse">
+                    مباشر ⚡
+                  </span>
+                </div>
+                <p className="text-[11px] text-[#6F6B75] dark:text-slate-400">
+                  تنبيهات فورية للمواعيد المستحقة اليوم، الفساتين الحرجة، وتذاكر تعديل المقاسات قيد الخياطة
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              {watchdogData.fittings_today_count > 0 && (
+                <span className="text-xs font-bold px-2.5 py-1 rounded-xl bg-amber-100 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-800 text-amber-800 dark:text-amber-300">
+                  👗 {watchdogData.fittings_today_count} بروفة/تسليم اليوم
+                </span>
+              )}
+              {watchdogData.urgent_count > 0 && (
+                <span className="text-xs font-bold px-2.5 py-1 rounded-xl bg-rose-100 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-800 text-rose-800 dark:text-rose-300">
+                  ⚠️ {watchdogData.urgent_count} طلب حرج/متأخر
+                </span>
+              )}
+              {watchdogData.alterations_pending_count > 0 && (
+                <span className="text-xs font-bold px-2.5 py-1 rounded-xl bg-purple-100 dark:bg-purple-950/60 border border-purple-300 dark:border-purple-800 text-purple-800 dark:text-purple-300">
+                  ✂️ {watchdogData.alterations_pending_count} تذكرة تعديل
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Quick Action Cards for Today's Appointments */}
+          {watchdogData.fittings_today?.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5 pt-1">
+              {watchdogData.fittings_today.slice(0, 3).map((item) => (
+                <div key={item.id} className="p-2.5 rounded-xl bg-white/80 dark:bg-slate-900/80 border border-amber-200 dark:border-slate-800 flex items-center justify-between gap-2 shadow-2xs">
+                  <div className="space-y-0.5 min-w-0">
+                    <div className="flex items-center gap-1.5 font-bold text-xs text-[#25232A] dark:text-slate-100 truncate">
+                      <span className="font-mono text-amber-700 dark:text-amber-400">#{item.order_no}</span>
+                      <span className="truncate">{item.customer_name || 'عميل'}</span>
+                    </div>
+                    <div className="text-[10.5px] text-[#6F6B75] dark:text-slate-400 truncate">
+                      {item.dress_type || 'فستان'} • تسليم اليوم
+                    </div>
+                  </div>
+                  {item.phone && (
+                    <a
+                      href={`https://wa.me/${String(item.phone).replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`أهلاً بكِ في مشغل الأميرات الصغيرات 👑\nنود تذكيركِ بموعد تسليم/بروفة فستانكِ الراقي (طلب #${item.order_no}) اليوم. يسعدنا تشريفكِ!`)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold flex items-center gap-1 shadow-2xs shrink-0 cursor-pointer"
+                      title="إرسال تذكير واتساب فوري"
+                    >
+                      <span>واتساب</span>
+                      <span>💬</span>
+                    </a>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── 2. 6 Executive KPI Metric Cards ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
