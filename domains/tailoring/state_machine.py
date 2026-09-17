@@ -59,7 +59,7 @@ ALLOWED_TRANSITIONS: Dict[TailoringStage, Set[TailoringStage]] = {
     TailoringStage.SEWING: {TailoringStage.FITTING, TailoringStage.FINISHING, TailoringStage.ALTERATION, TailoringStage.QUALITY_CHECK},
     TailoringStage.FITTING: {TailoringStage.ALTERATION, TailoringStage.FINISHING, TailoringStage.SEWING},
     TailoringStage.ALTERATION: {TailoringStage.SEWING, TailoringStage.FINISHING, TailoringStage.QUALITY_CHECK},
-    TailoringStage.FINISHING: {TailoringStage.QUALITY_CHECK, TailoringStage.ALTERATION},
+    TailoringStage.FINISHING: {TailoringStage.QUALITY_CHECK, TailoringStage.READY, TailoringStage.ALTERATION},
     TailoringStage.QUALITY_CHECK: {TailoringStage.READY, TailoringStage.ALTERATION, TailoringStage.SEWING},
     TailoringStage.READY: {TailoringStage.DELIVERED, TailoringStage.ALTERATION},
     TailoringStage.DELIVERED: set(),  # Terminal state

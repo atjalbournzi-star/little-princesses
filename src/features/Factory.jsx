@@ -35,6 +35,12 @@ function Factory({ factory = [], setFactory, employees = [], orders = [], setOrd
   const [alterationsList, setAlterationsList]         = useState([]);
   const [loadingAlterations, setLoadingAlterations]   = useState(false);
 
+  // ── حالات مسح باركود الفستان وترقية المرحلة لحظياً (Scan-to-Progress) ──
+  const [scanProgressModalOpen, setScanProgressModalOpen] = useState(false);
+  const [scanBarcodeQuery, setScanBarcodeQuery]           = useState('');
+  const [scannedProgressJob, setScannedProgressJob]       = useState(null);
+  const [advancingScanProgress, setAdvancingScanProgress] = useState(false);
+
   // جلب تحليلات المشغل ومؤشرات الأداء من سوبابيز
   const fetchFactoryAnalytics = useCallback(async () => {
     setLoadingAnalytics(true);
@@ -660,6 +666,71 @@ function Factory({ factory = [], setFactory, employees = [], orders = [], setOrd
     }
   };
 
+  // ── محرك مسح باركود الفستان وترقية المرحلة تلقائياً (Scan-to-Progress Engine) ──
+  const handleSearchScanJob = (queryStr) => {
+    const q = (queryStr || scanBarcodeQuery || '').trim().toLowerCase();
+    if (!q) return;
+
+    let matched = (factory || []).find(f => 
+      (f.order_no && f.order_no.toLowerCase() === q) ||
+      (f.id && String(f.id).toLowerCase() === q) ||
+      (f.barcode && f.barcode.toLowerCase() === q) ||
+      (f.sku && f.sku.toLowerCase() === q)
+    );
+
+    if (!matched) {
+      const ord = (orders || []).find(o => 
+        (o.order_no && o.order_no.toLowerCase() === q) ||
+        (o.id && String(o.id).toLowerCase() === q) ||
+        (o.barcode && o.barcode.toLowerCase() === q) ||
+        (o.sku && o.sku.toLowerCase() === q)
+      );
+      if (ord) {
+        matched = {
+          id: ord.id,
+          order_no: ord.order_no || ord.id,
+          customer: ord.customer_name,
+          customer_name: ord.customer_name,
+          child_name: ord.child_name,
+          product: ord.product_name,
+          product_name: ord.product_name,
+          stage: ord.production_status || ord.status || FACTORY_STAGES[0],
+          progress: STAGE_PROGRESS[ord.production_status || ord.status] || 20,
+          quantity: ord.qty || 1
+        };
+      }
+    }
+
+    if (matched) {
+      setScannedProgressJob(matched);
+      showToast(`تم التعرف على فستان الأميرة: ${matched.child_name || matched.customer || matched.order_no} 🎯`, 'info');
+    } else {
+      showToast(`لم يتم العثور على أمر تشغيل بالرمز: ${q} ⚠️`, 'error');
+    }
+  };
+
+  const handleAdvanceScannedJob = async () => {
+    if (!scannedProgressJob) return;
+    setAdvancingScanProgress(true);
+    try {
+      await advanceToNextStage(scannedProgressJob);
+      const curIdx = FACTORY_STAGES.indexOf(scannedProgressJob.stage);
+      if (curIdx < FACTORY_STAGES.length - 1) {
+        const nextStage = FACTORY_STAGES[curIdx + 1];
+        setScannedProgressJob(prev => ({
+          ...prev,
+          stage: nextStage,
+          progress: STAGE_PROGRESS[nextStage] || 100
+        }));
+      }
+      setScanBarcodeQuery('');
+    } catch (err) {
+      showToast('خطأ أثناء الترقية: ' + err.message, 'error');
+    } finally {
+      setAdvancingScanProgress(false);
+    }
+  };
+
   const loadIntoForm = (f) => {
     const ord = orders.find(o => o.order_no === f.order_no || o.id === f.order_no);
     const cName = f.customer_name || f.customer || ord?.customer_name || 'ام هنادي';
@@ -891,6 +962,21 @@ function Factory({ factory = [], setFactory, employees = [], orders = [], setOrd
               )}
             </button>
           </div>
+
+          {/* ── زر مسح باركود الفستان السريع (Scan-to-Progress) ── */}
+          <button
+            type="button"
+            onClick={() => {
+              setScanBarcodeQuery('');
+              setScannedProgressJob(null);
+              setScanProgressModalOpen(true);
+            }}
+            className="px-3.5 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-purple-700 via-[#8F2A87] to-pink-600 hover:opacity-95 text-white shadow-xs flex items-center gap-1.5 transition cursor-pointer self-start sm:self-auto"
+            title="مسح باركود بطاقة الفستان وترقية المرحلة لحظياً (Scan-to-Progress)"
+          >
+            <span>📷🏷️</span>
+            <span>مسح باركود الفستان (Scan-to-Progress)</span>
+          </button>
         </div>
 
         {/* ── 5 Stage Metric Strip ── */}
@@ -2632,6 +2718,141 @@ function Factory({ factory = [], setFactory, employees = [], orders = [], setOrd
                     إلغاء
                   </button>
                 </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── نافذة مسح باركود الفستان وترقية المرحلة السريعة (Scan-to-Progress Modal) ── */}
+      {scanProgressModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn" dir="rtl">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-[#E8E5EA] dark:border-slate-800 space-y-4 text-right">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-[#E8E5EA] dark:border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-purple-700 to-[#8F2A87] text-white flex items-center justify-center text-xl shadow-xs">
+                  📷
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-[#25232A] dark:text-slate-100">مسح باركود بطاقة الفستان (Scan-to-Progress)</h3>
+                  <p className="text-[11px] text-[#6F6B75] dark:text-slate-400">امسح كود التعليقة أو بطاقة الفستان لترقية المرحلة لحظياً في صالة الورشة</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setScanProgressModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-600 dark:text-slate-300 flex items-center justify-center font-bold text-sm cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Input Barcode Form */}
+            <form onSubmit={(e) => { e.preventDefault(); handleSearchScanJob(); }} className="space-y-2">
+              <label className={labelCls}>امسح بقارئ الباركود أو ادخل رقم الطلب / الكود:</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  autoFocus
+                  value={scanBarcodeQuery}
+                  onChange={e => setScanBarcodeQuery(e.target.value)}
+                  placeholder="مثال: ORD-1001 أو امسح الباركود..."
+                  className="flex-1 h-11 px-3.5 rounded-xl border-2 border-dashed border-purple-500/60 bg-purple-50/20 dark:bg-slate-950 text-xs font-mono font-bold text-[#25232A] dark:text-slate-100 outline-none focus:border-purple-600"
+                />
+                <button
+                  type="submit"
+                  className="px-4 py-2.5 bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold rounded-xl transition cursor-pointer"
+                >
+                  تعرف 🎯
+                </button>
+              </div>
+            </form>
+
+            {/* Matched Garment Card */}
+            {scannedProgressJob && (() => {
+              const curIdx = FACTORY_STAGES.indexOf(scannedProgressJob.stage);
+              const hasNext = curIdx > -1 && curIdx < FACTORY_STAGES.length - 1;
+              const nextStage = hasNext ? FACTORY_STAGES[curIdx + 1] : null;
+              const isReadyOrDone = scannedProgressJob.stage === 'جاهز للتسليم 📦' || scannedProgressJob.stage === 'جاهز للتسليم 🛍️' || scannedProgressJob.stage === 'تم التسليم ✅' || (curIdx === FACTORY_STAGES.length - 1);
+
+              return (
+                <div className="p-4 rounded-2xl bg-purple-50/70 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 space-y-3 animate-fadeIn">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="font-mono text-xs font-black text-purple-800 dark:text-purple-300">#{scannedProgressJob.order_no || ('JOB-' + scannedProgressJob.id)}</span>
+                      <h4 className="font-bold text-sm text-[#25232A] dark:text-slate-100">{scannedProgressJob.customer_name || scannedProgressJob.customer}</h4>
+                    </div>
+                    <span className="text-xs px-2.5 py-1 rounded-full font-bold bg-white dark:bg-slate-800 border border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300">
+                      {scannedProgressJob.stage || 'مرحلة الإنتاج'}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-xs pt-2 border-t border-purple-200/60 dark:border-purple-800/60">
+                    <div>
+                      <span className="text-[#6F6B75] dark:text-slate-400 block text-[10.5px]">الموديل / الفستان:</span>
+                      <span className="font-bold text-[#25232A] dark:text-slate-200">{scannedProgressJob.product || scannedProgressJob.product_name || 'فستان الأميرات'}</span>
+                    </div>
+                    <div>
+                      <span className="text-[#6F6B75] dark:text-slate-400 block text-[10.5px]">اسم الأميرة:</span>
+                      <span className="font-bold text-pink-600 dark:text-pink-400">👧 {scannedProgressJob.child_name || 'الأميرة'}</span>
+                    </div>
+                  </div>
+
+                  {/* Pipeline Stage Visual Progression */}
+                  <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-purple-100 dark:border-slate-800 space-y-1.5 text-xs">
+                    <div className="flex justify-between items-center text-[11px]">
+                      <span className="font-bold text-[#25232A] dark:text-slate-100">المرحلة الحالية: <strong>{scannedProgressJob.stage}</strong></span>
+                      <span className="font-mono font-bold text-[#8F2A87]">{scannedProgressJob.progress || STAGE_PROGRESS[scannedProgressJob.stage] || 20}%</span>
+                    </div>
+                    <div className="w-full bg-gray-100 dark:bg-slate-800 rounded-full h-2" dir="ltr">
+                      <div 
+                        className="bg-[#8F2A87] h-2 rounded-full transition-all duration-500" 
+                        style={{ width: `${scannedProgressJob.progress || STAGE_PROGRESS[scannedProgressJob.stage] || 20}%` }}
+                      />
+                    </div>
+                    {nextStage && (
+                      <div className="text-[11px] text-[#007F8C] pt-1 flex items-center gap-1">
+                        <span>المرحلة القادمة:</span>
+                        <strong className="font-bold">{nextStage}</strong>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Actions */}
+                  {hasNext && (
+                    <button
+                      type="button"
+                      disabled={advancingScanProgress}
+                      onClick={handleAdvanceScannedJob}
+                      className="w-full py-3.5 rounded-xl bg-gradient-to-r from-purple-700 via-[#8F2A87] to-pink-600 hover:opacity-95 text-white font-black text-xs shadow-md transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                    >
+                      <span>{advancingScanProgress ? 'جاري الترقية...' : `⏩ ترقية الفستان إلى [${nextStage}]`}</span>
+                    </button>
+                  )}
+
+                  {isReadyOrDone && (
+                    <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-center space-y-2">
+                      <span className="text-sm font-bold text-emerald-800 dark:text-emerald-300 block">✨ الفستان مكتمل وجاهز للتسليم!</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setScanProgressModalOpen(false);
+                          handleOpenDeliveryModal(scannedProgressJob);
+                        }}
+                        className="py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition cursor-pointer"
+                      >
+                        🛍️ تسليم للأميرة وتحصيل المتبقي الآن
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            {!scannedProgressJob && (
+              <div className="p-6 text-center text-[#6F6B75] dark:text-slate-400 text-xs border border-dashed rounded-2xl">
+                <span className="text-3xl block mb-1">🏷️</span>
+                وجه ماسح الباركود لبطاقة تعليقة الفستان للتعرف اللحظي والترقية التلقائية
               </div>
             )}
           </div>

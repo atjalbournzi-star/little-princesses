@@ -253,19 +253,36 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
 
   // ── تحديث حالة الطلب ──
   const handleUpdateStatus = async (orderId, newStatus) => {
+    const oldOrder = (orders || []).find(o => o.id === orderId);
+    const prevStatus = oldOrder ? (oldOrder.status || oldOrder.production_status) : null;
+
     setOrders && setOrders(orders.map(o => o.id === orderId ? { ...o, status: newStatus, production_status: newStatus } : o));
     try {
+      let resData = null;
       if (window.salesAPI && window.salesAPI.updateOrder) {
-        await window.salesAPI.updateOrder(orderId, { status: newStatus, production_status: newStatus });
+        resData = await window.salesAPI.updateOrder(orderId, { status: newStatus, production_status: newStatus });
       } else {
-        await fetch('/api/sales/orders/update', {
+        const res = await fetch('/api/sales/orders/update', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id: orderId, status: newStatus, production_status: newStatus })
         });
+        resData = await res.json();
       }
-      showToast("تم تحديث الحالة في سوبابيز بنجاح 🔄", "success");
-    } catch { showToast("خطأ في التحديث", "error"); }
+      if (resData && resData.success === false) {
+        if (prevStatus) {
+          setOrders && setOrders(orders.map(o => o.id === orderId ? { ...o, status: prevStatus, production_status: prevStatus } : o));
+        }
+        showToast(resData.error || "تعذر تغيير الحالة ⚠️", "error");
+        return;
+      }
+      showToast("تم تحديث حالة الفاتورة والمرحلة بنجاح 🔄", "success");
+    } catch (err) {
+      if (prevStatus) {
+        setOrders && setOrders(orders.map(o => o.id === orderId ? { ...o, status: prevStatus, production_status: prevStatus } : o));
+      }
+      showToast(err.message || "خطأ في التحديث", "error");
+    }
   };
 
   // ── حذف طلب ──
@@ -328,8 +345,8 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
         showToast(res.message || 'تم تسليم الفستان والتحصيل بنجاح 👑🎉', 'success');
         setOrders && setOrders(orders.map(o => (o.order_no === orderNo || o.id === orderNo) ? {
           ...o,
-          status: 'تم التسليم ✅',
-          production_status: 'Delivered',
+          status: 'تم التسليم للعميل ✔️',
+          production_status: 'DELIVERED',
           paid: (parseFloat(o.paid || 0) + amt),
           paid_amount: (parseFloat(o.paid_amount || 0) + amt),
           remaining: Math.max(0, (parseFloat(o.total || o.total_amount || 0) - disc) - (parseFloat(o.paid || o.paid_amount || 0) + amt))
@@ -406,8 +423,8 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
         showToast(res.message || 'تم تسليم الطلب وترحيله بنجاح 👑🎉', 'success');
         setOrders && setOrders(orders.map(o => (o.id === scannedOrder.id || o.order_no === orderNo) ? {
           ...o,
-          status: 'تم التسليم ✅',
-          production_status: 'Delivered',
+          status: 'تم التسليم للعميل ✔️',
+          production_status: 'DELIVERED',
           paid: (parseFloat(o.paid || 0) + collectAmt),
           remaining: Math.max(0, rem - collectAmt)
         } : o));
@@ -1481,12 +1498,14 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
               className="h-10 px-3 rounded-xl border border-[#E8E5EA] dark:border-slate-700 bg-[#FAFAFB] dark:bg-slate-900 text-xs font-semibold text-[#25232A] dark:text-slate-100 outline-none"
             >
               <option value="الكل">جميع الحالات</option>
-              <option value="قيد القص ✂️">قيد القص ✂️</option>
-              <option value="قيد الخياطة 🪡">قيد الخياطة 🪡</option>
-              <option value="التطريز والشك ✨">التطريز والشك ✨</option>
-              <option value="الفحص والتشطيب 🔍">الفحص والتشطيب 🔍</option>
-              <option value="جاهز للتسليم 🛍️">جاهز للتسليم 🛍️</option>
-              <option value="تم التسليم ✅">تم التسليم ✅</option>
+              {(window.ORDER_STATUSES || [
+                "مسودة 📝", "تم أخذ المقاسات 📐", "مؤكد ومحجوز 🏷️", "بانتظار توفر الأقمشة ⏳",
+                "مرحلة القص ✂️", "قيد الخياطة 🪡", "جلسة تجربة وقياس 👗", "تعديل مقاسات ورتوش 🪡",
+                "مرحلة التشطيب والشك 👑", "فحص الجودة والمطابقة 🔍", "جاهز للتسليم 🎁",
+                "تم التسليم للعميل ✔️", "ملغي ❌"
+              ]).map(st => (
+                <option key={st} value={st}>{st}</option>
+              ))}
             </select>
 
             <div className="relative flex-1 sm:w-64">
@@ -1546,17 +1565,22 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
                         value={o.status || "قيد الخياطة 🪡"}
                         onChange={e => handleUpdateStatus(o.id, e.target.value)}
                         className="bg-[#FAFAFB] dark:bg-slate-800 border border-[#E8E5EA] dark:border-slate-700 text-[#25232A] dark:text-slate-100 px-2 py-1 rounded-lg font-bold outline-none cursor-pointer text-[11px]">
-                        <option value="قيد القص ✂️">قيد القص ✂️</option>
-                        <option value="قيد الخياطة 🪡">قيد الخياطة 🪡</option>
-                        <option value="التطريز والشك ✨">التطريز والشك ✨</option>
-                        <option value="الفحص والتشطيب 🔍">الفحص والتشطيب 🔍</option>
-                        <option value="جاهز للتسليم 🛍️">جاهز للتسليم 🛍️</option>
-                        <option value="تم التسليم ✅">تم التسليم ✅</option>
+                        {(window.ORDER_STATUSES || [
+                          "مسودة 📝", "تم أخذ المقاسات 📐", "مؤكد ومحجوز 🏷️", "بانتظار توفر الأقمشة ⏳",
+                          "مرحلة القص ✂️", "قيد الخياطة 🪡", "جلسة تجربة وقياس 👗", "تعديل مقاسات ورتوش 🪡",
+                          "مرحلة التشطيب والشك 👑", "فحص الجودة والمطابقة 🔍", "جاهز للتسليم 🎁",
+                          "تم التسليم للعميل ✔️", "ملغي ❌"
+                        ]).map(st => (
+                          <option key={st} value={st}>{st}</option>
+                        ))}
+                        {o.status && !(window.ORDER_STATUSES || []).includes(o.status) && (
+                          <option value={o.status}>{o.status}</option>
+                        )}
                       </select>
                     </td>
                     <td className="px-4 py-3 flex items-center gap-1 justify-center whitespace-nowrap">
                       {/* تسليم فستان الأميرة وتحصيل المتبقي */}
-                      {(o.status === 'جاهز للتسليم 🛍️' || o.status === 'جاهز للتسليم 📦' || rem > 0) && (
+                      {(o.status === 'جاهز للتسليم 🛍️' || o.status === 'جاهز للتسليم 📦' || o.status === 'جاهز للتسليم 🎁' || o.status === 'READY' || rem > 0) && (
                         <button 
                           onClick={() => handleOpenDeliveryModal(o)} 
                           title="تسليم الفستان وتحصيل المتبقي وقيد الخزينة 🛍️" 

@@ -135,6 +135,26 @@ def handle_post(handler, path, parsed_url) -> bool:
         except Exception:
             data = {}
         try:
+            new_stage = data.get('status') or data.get('production_status')
+            oid = data.get('id') or data.get('order_id')
+            if new_stage and oid:
+                try:
+                    curr_track = pg_service.get_customer_order_tracking(oid)
+                    if curr_track and not curr_track.get('error'):
+                        curr_status = curr_track.get('status') or curr_track.get('stage')
+                        if curr_status:
+                            from domains.tailoring.state_machine import validate_transition
+                            validate_transition(curr_status, new_stage)
+                except Exception as ve:
+                    from domains.common.errors import InvalidStateTransitionError
+                    if isinstance(ve, InvalidStateTransitionError):
+                        handler.send_response(400)
+                        handler._send_cors_headers()
+                        handler.send_header('Content-Type', 'application/json; charset=utf-8')
+                        handler.end_headers()
+                        handler.wfile.write(json.dumps({'success': False, 'error': str(ve)}, ensure_ascii=False).encode('utf-8'))
+                        return True
+
             res = pg_service.update_order(data)
             handler.send_response(200)
             handler._send_cors_headers()
