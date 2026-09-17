@@ -983,7 +983,7 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
             </div>
 
             {/* تصنيفات الأصناف (Pills Filter) */}
-            <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+            <div className="flex flex-wrap items-center gap-2 pb-1.5">
               {posCategories.map(cat => {
                 const isSelected = posCategory === cat;
                 const count = cat === 'الكل' 
