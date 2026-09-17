@@ -1,5 +1,27 @@
-// dress_card.js - Little Princesses ERP Royal Garment & Fitting Card Engine
+// dress_card.js - Little Princesses ERP Royal Garment & Sizing Card Engine
 let currentDressData = null;
+
+// ── Get Dynamic Active Brand Profile ──
+function getActiveBrand(apiBrand) {
+  let profile = {};
+  try {
+    if (typeof window !== 'undefined' && window.BrandService && typeof window.BrandService.getProfile === 'function') {
+      profile = window.BrandService.getProfile() || {};
+    } else {
+      const raw = localStorage.getItem('erp_company_profile_v1');
+      if (raw) profile = JSON.parse(raw);
+    }
+  } catch (e) {}
+
+  const merged = Object.assign({}, apiBrand || {}, profile);
+  return {
+    name: merged.company_name || merged.name || 'ليتل برنسيس للأزياء الفاخرة',
+    tagline: merged.tagline || merged.tradeName || 'وثيقة حجز وتفصيل فستان ملكي للأميرات الصغيرات ✨',
+    phone: merged.phone || '776773458',
+    address: merged.address || 'اليمن - صنعاء - شارع حدة',
+    logo_url: merged.logo_url || merged.logoUrl || ''
+  };
+}
 
 // ── Fetch Dress Card Payload ──
 async function fetchDressCardData(orderId) {
@@ -16,16 +38,17 @@ async function fetchDressCardData(orderId) {
     }
   }
 
+  const brand = getActiveBrand(data.brand);
+
   // Fallback / Defaults
   return {
     order_no: data.order_no || orderId || 'ORD-2026-0042',
     order_date: data.order_date || new Date().toISOString().slice(0, 10),
-    delivery_date: data.delivery_date || 'يحدد لاحقاً',
-    fitting_date: data.fitting_date || 'قبل موعد الاستلام بيومين',
+    delivery_date: data.delivery_date || 'حسب الموعد المعتمد',
     customer_name: data.customer_name || 'أميرة القصر الكريمة',
     customer_phone: data.customer_phone || '',
-    child_name: data.child_name || 'الأميرة الصغيرة',
-    child_age: data.child_age ? `${data.child_age} سنوات` : 'مناسب للطفلة',
+    child_name: data.child_name || 'الأميرة الجميلة',
+    child_age: data.child_age ? (String(data.child_age).includes('سنوات') ? data.child_age : `${data.child_age} سنوات`) : 'مقاس معتمد',
     product_name: data.product_name || 'فستان مناسبات ملكي فاخر',
     product_image: data.product_image || '',
     fabric_type: data.fabric_type || 'أقمشة فاخرة خاصة + بطانة ناعمة',
@@ -33,26 +56,23 @@ async function fetchDressCardData(orderId) {
     status: data.status || 'حجز مؤكد',
     stage: data.stage || 'قيد التجهيز ✂️',
     notes: data.notes || 'خياطة ملكية وتطريز يدوي فاخر',
+    is_standard_age_sizing: !!data.is_standard_age_sizing,
+    sizing_summary: data.sizing_summary || '',
     measurements: data.measurements || {
-      dress_length: '75 سم',
-      chest: '58 سم',
-      waist: '54 سم',
-      shoulder: '26 سم',
-      sleeve_length: '22 سم',
+      dress_length: '—',
+      chest: '—',
+      waist: '—',
+      shoulder: '—',
+      sleeve_length: '—',
       notes: ''
     },
     financials: data.financials || {
-      total: 85000,
-      paid: 45000,
-      remaining: 40000,
+      total: 0,
+      paid: 0,
+      remaining: 0,
       currency: 'YER'
     },
-    brand: data.brand || {
-      name: 'ليتل برنسيس للأزياء الفاخرة',
-      tagline: 'وثيقة حجز وتفصيل فستان ملكي للأميرات الصغيرات ✨',
-      phone: '776773458',
-      address: 'اليمن - صنعاء - شارع حدة'
-    },
+    brand: brand,
     verify_hash: data.verify_hash || 'LP-ROYAL-74A8'
   };
 }
@@ -73,14 +93,55 @@ function updateDressCardDOM(d) {
   setT('dressColor', d.color);
   setT('orderNotes', d.notes || 'لا توجد ملاحظات إضافية');
 
-  // Measurements
+  // Dynamic Brand & Logo
+  const brand = d.brand || {};
+  setT('brandName', brand.name || 'ليتل برنسيس للأزياء الفاخرة');
+  setT('brandTagline', brand.tagline || 'وثيقة حجز وتفصيل فستان ملكي للأميرات الصغيرات ✨');
+  setT('brandPhone', brand.phone || '776773458');
+  setT('brandAddress', brand.address || 'اليمن - صنعاء - شارع حدة');
+
+  const logoImg = document.getElementById('brandLogoImg');
+  const logoFallback = document.getElementById('brandLogoFallback');
+  if (logoImg && logoFallback) {
+    if (brand.logo_url && brand.logo_url.trim()) {
+      logoImg.src = brand.logo_url;
+      logoImg.style.display = 'block';
+      logoFallback.style.display = 'none';
+    } else {
+      logoImg.style.display = 'none';
+      logoFallback.style.display = 'block';
+    }
+  }
+
+  // Sizing & Measurements
   const m = d.measurements || {};
+  const isStdAge = !!d.is_standard_age_sizing;
+  const measTableWrap = document.getElementById('measTableWrap');
+  const ageBracketBox = document.getElementById('ageBracketBox');
+  const measCardTitle = document.getElementById('measCardTitle');
+
+  if (isStdAge) {
+    if (measTableWrap) measTableWrap.style.display = 'none';
+    if (ageBracketBox) {
+      ageBracketBox.style.display = 'block';
+      const ageTitle = document.getElementById('ageBracketTitle');
+      if (ageTitle) {
+        ageTitle.textContent = d.sizing_summary || `المقاس المعتمد: تفصيل حسب الفئة العمرية (${d.child_age || 'عمر الطفلة'})`;
+      }
+    }
+    if (measCardTitle) measCardTitle.textContent = 'المقاس والمواصفات المعتمدة للأميرة ✨';
+  } else {
+    if (measTableWrap) measTableWrap.style.display = 'block';
+    if (ageBracketBox) ageBracketBox.style.display = 'none';
+    if (measCardTitle) measCardTitle.textContent = 'جدول المقاسات المعتمدة للأميرة (بالسنتيمتر سم)';
+  }
+
   setT('mLength', m.dress_length || '—');
   setT('mChest', m.chest || '—');
   setT('mWaist', m.waist || '—');
   setT('mShoulder', m.shoulder || '—');
   setT('mSleeve', m.sleeve_length || '—');
-  if (m.notes) setT('mNotes', `💡 تفضيلات المقاس: ${m.notes}`);
+  if (m.notes) setT('mNotes', `💡 تفضيلات وملاحظات المقاس: ${m.notes}`);
 
   // Financials
   const f = d.financials || {};
@@ -92,19 +153,10 @@ function updateDressCardDOM(d) {
   setT('finCurr2', cur);
   setT('finCurr3', cur);
 
-  // Dates
-  setT('fittingDate', d.fitting_date || 'يحدد بالتنسيق');
+  // Delivery Date & Verification
   setT('deliveryDate', d.delivery_date || 'حسب الموعد المعتمد');
   setT('stampDate', d.order_date || new Date().toISOString().slice(0, 10));
   setT('verifyHash', d.verify_hash || 'LP-AUTH-VALID');
-
-  // Brand
-  if (d.brand) {
-    setT('brandName', d.brand.name || 'ليتل برنسيس للأزياء الفاخرة');
-    setT('brandTagline', d.brand.tagline || 'وثيقة حجز وتفصيل فستان ملكي');
-    setT('brandPhone', d.brand.phone || '776773458');
-    setT('brandAddress', d.brand.address || 'اليمن - صنعاء');
-  }
 
   // Dress Image
   const imgEl = document.getElementById('dressPhotoImg');
@@ -249,14 +301,24 @@ function renderDressCardToCanvas() {
   ctx.strokeRect(80, 380, 1040, 80);
 
   ctx.textAlign = 'right';
-  ctx.fillStyle = '#701a75';
-  ctx.font = 'bold 13px Cairo, Tahoma';
-  ctx.fillText('📐 جدول المقاسات المعتمدة للأميرة:', 1100, 405);
+  if (d.is_standard_age_sizing) {
+    ctx.fillStyle = '#701a75';
+    ctx.font = 'bold 16px Cairo, Tahoma';
+    ctx.fillText(`👑 ${d.sizing_summary || ('المقاس المعتمد: تفصيل بحسب الفئة العمرية (' + (d.child_age || '') + ')')}`, 1100, 412);
 
-  ctx.font = 'bold 15px monospace';
-  ctx.fillStyle = '#8F2A87';
-  const measStr = `طول الفستان: ${m.dress_length || '—'}   |   الصدر: ${m.chest || '—'}   |   الخصر: ${m.waist || '—'}   |   الكتف: ${m.shoulder || '—'}   |   الكم: ${m.sleeve_length || '—'}`;
-  ctx.fillText(measStr, 1100, 435);
+    ctx.font = '13px Cairo, Tahoma';
+    ctx.fillStyle = '#86198f';
+    ctx.fillText('✨ تم اعتماد مقاسات التفصيل القياسية للفئة العمرية مع تطبيق معايير الأناقة الملكية والراحة لحركة الأميرة 🎀', 1100, 442);
+  } else {
+    ctx.fillStyle = '#701a75';
+    ctx.font = 'bold 13px Cairo, Tahoma';
+    ctx.fillText('📐 جدول المقاسات المعتمدة للأميرة (سم):', 1100, 405);
+
+    ctx.font = 'bold 15px monospace';
+    ctx.fillStyle = '#8F2A87';
+    const measStr = `طول الفستان: ${m.dress_length || '—'}   |   الصدر: ${m.chest || '—'}   |   الخصر: ${m.waist || '—'}   |   الكتف: ${m.shoulder || '—'}   |   الكم: ${m.sleeve_length || '—'}`;
+    ctx.fillText(measStr, 1100, 435);
+  }
 
   // Financial Highlight Strip
   ctx.fillStyle = '#0f172a';
@@ -280,12 +342,17 @@ function renderDressCardToCanvas() {
   ctx.fillStyle = '#fbbf24';
   ctx.fillText(`${Number(f.remaining || 0).toLocaleString()} ${cur}`, 950, 550);
 
-  // Dates & Schedule
-  ctx.textAlign = 'right';
-  ctx.fillStyle = '#0f172a';
-  ctx.font = 'bold 15px Cairo, Tahoma';
-  ctx.fillText(`🪡 موعد البروفة والقياس: ${d.fitting_date || 'يحدد لاحقاً'}`, 1100, 615);
-  ctx.fillText(`🎁 موعد التسليم النهائي: ${d.delivery_date || 'حسب الموعد'}`, 1100, 645);
+  // Delivery Schedule Strip
+  ctx.fillStyle = '#fffdfa';
+  ctx.fillRect(80, 595, 1040, 55);
+  ctx.strokeStyle = '#D4AF37';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(80, 595, 1040, 55);
+
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#8F2A87';
+  ctx.font = 'bold 17px Cairo, Tahoma';
+  ctx.fillText(`🎁 موعد التسليم والاستلام النهائي المعتمد:  ${d.delivery_date || 'حسب الموعد المعتمد'}`, 600, 630);
 
   // Verification Hash & Footer
   ctx.textAlign = 'center';
@@ -329,19 +396,23 @@ function shareDressCardWhatsApp() {
   const cardUrl = window.location.href;
   const trackingUrl = `${window.location.origin}/track.html?order=${encodeURIComponent(d.order_no)}`;
 
+  const sizeText = d.is_standard_age_sizing
+    ? `👑 *المقاس المعتمد:* ${d.sizing_summary || ('تفصيل حسب الفئة العمرية ' + (d.child_age || ''))}`
+    : `📏 *المقاسات المعتمدة:* طول ${m.dress_length || '—'} | صدر ${m.chest || '—'} | خصر ${m.waist || '—'}`;
+
   const msg = `👑 *${d.brand?.name || 'ليتل برنسيس للأزياء الفاخرة'}* 👑\n` +
     `أهلاً وسهلاً بكِ عزيزتنا *${d.customer_name || 'الأم الفاضلة'}* 🌸✨\n` +
     `تم اعتماد وتأكيد حجز تفصيل الفستان لأميرتنا الجميلة *${d.child_name || 'الأميرة'}* بنجاح ✅\n\n` +
     `👗 *الموديل:* ${d.product_name || 'موديل راقي خاص'}\n` +
     `📋 *رقم الطلب:* ${d.order_no}\n` +
-    `📏 *المقاسات المعتمدة:* طول ${m.dress_length || '—'} | صدر ${m.chest || '—'} | خصر ${m.waist || '—'}\n\n` +
+    `${sizeText}\n\n` +
     `💰 *البيان المالي:* \n` +
     `  • الإجمالي: ${Number(f.total || 0).toLocaleString()} ${cur}\n` +
     `  • الموصل (العربون): ${Number(f.paid || 0).toLocaleString()} ${cur}\n` +
     `  • المتبقي عند الاستلام: ${Number(f.remaining || 0).toLocaleString()} ${cur}\n\n` +
     `📅 *موعد التسليم النهائي:* ${d.delivery_date || 'محدد مع المشغل'}\n\n` +
     `🖼️ *معاينة كرت الفستان الفاخر والتحميل:* \n${cardUrl}\n\n` +
-    `📱 *بوابة تتبع الفستان والبروفة للجوال:* \n${trackingUrl}\n\n` +
+    `📱 *بوابة تتبع مراحل فستانكِ حياً للجوال:* \n${trackingUrl}\n\n` +
     `نسعد دائماً بخدمتكم وتألق أميرتكم بأجمل إطلالة! 🎀👑✨`;
 
   let phone = d.customer_phone ? String(d.customer_phone).replace(/\D/g, '') : '';

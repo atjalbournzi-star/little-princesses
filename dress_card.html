@@ -97,13 +97,13 @@
     .fin-item.paid p { color: #34d399; }
     .fin-item.rem p { color: #fbbf24; font-size: 21px; }
 
-    /* Timeline & Dates */
-    .dates-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
-    .date-card { background: #fffbeb; border: 1px solid #fef3c7; border-radius: 12px; padding: 12px 16px; display: flex; align-items: center; gap: 12px; }
-    .date-card.delivery { background: #fdf2f8; border-color: #fbcfe8; }
-    .date-icon { font-size: 24px; }
-    .date-text h5 { font-size: 11px; color: #64748b; font-weight: 700; }
-    .date-text p { font-size: 14px; font-weight: 900; color: #0f172a; font-family: monospace; }
+    /* Timeline & Delivery Date */
+    .dates-grid { display: grid; grid-template-columns: 1fr; gap: 12px; margin-bottom: 20px; }
+    .date-card { background: #fffbeb; border: 1px solid #fef3c7; border-radius: 12px; padding: 12px 16px; display: flex; align-items: center; gap: 14px; }
+    .date-card.delivery { background: linear-gradient(135deg, #fdf2f8, #fce7f3); border: 1.5px solid #f472b6; box-shadow: 0 4px 12px rgba(244,114,182,0.15); }
+    .date-icon { font-size: 28px; }
+    .date-text h5 { font-size: 11px; color: #831843; font-weight: 800; margin-bottom: 2px; }
+    .date-text p { font-size: 16px; font-weight: 900; color: #8F2A87; font-family: monospace; }
     
     /* Footer & Stamp & QR */
     .card-footer { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 20px; border-top: 2px solid #f1f5f9; padding-top: 18px; }
@@ -242,28 +242,40 @@
         <div class="info-card">
           <div class="card-title">
             <span>📐</span>
-            <span>جدول المقاسات المعتمدة للأميرة (بالسنتيمتر سم)</span>
+            <span id="measCardTitle">المقاسات والمواصفات المعتمدة للأميرة (سم)</span>
           </div>
-          <table class="meas-table">
-            <thead>
-              <tr>
-                <th>طول الفستان</th>
-                <th>محيط الصدر</th>
-                <th>محيط الخصر</th>
-                <th>عرض الكتف</th>
-                <th>طول الكم</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td class="val" id="mLength">75 سم</td>
-                <td class="val" id="mChest">58 سم</td>
-                <td class="val" id="mWaist">54 سم</td>
-                <td class="val" id="mShoulder">26 سم</td>
-                <td class="val" id="mSleeve">22 سم</td>
-              </tr>
-            </tbody>
-          </table>
+          <!-- Discrete Measurements Table -->
+          <div id="measTableWrap">
+            <table class="meas-table">
+              <thead>
+                <tr>
+                  <th>طول الفستان</th>
+                  <th>محيط الصدر</th>
+                  <th>محيط الخصر</th>
+                  <th>عرض الكتف</th>
+                  <th>طول الكم</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="val" id="mLength">75 سم</td>
+                  <td class="val" id="mChest">58 سم</td>
+                  <td class="val" id="mWaist">54 سم</td>
+                  <td class="val" id="mShoulder">26 سم</td>
+                  <td class="val" id="mSleeve">22 سم</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <!-- Age-Bracket Size Banner (Shown when sizing is by age bracket) -->
+          <div id="ageBracketBox" style="display:none; background: linear-gradient(135deg, #fdf4ff, #fae8ff); border: 1.5px solid #f0abfc; border-radius: 12px; padding: 14px 18px; text-align: center;">
+            <div style="font-size: 14px; font-weight: 800; color: #701A75; margin-bottom: 6px;">
+              👑 <span id="ageBracketTitle">المقاس المعتمد: تفصيل حسب الفئة العمرية (عمر 5 سنوات)</span>
+            </div>
+            <div style="font-size: 12px; color: #86198f; font-weight: 600;" id="ageBracketDesc">
+              تم اعتماد مقاسات التفصيل القياسية للفئة العمرية مع تطبيق معايير الأناقة الملكية والراحة لحركة الأميرة 🎀
+            </div>
+          </div>
           <div id="mNotes" style="font-size:11px; color:#701A75; font-weight:700; margin-top:8px; background:#fdf2f8; padding:6px 10px; border-radius:8px;">
             ✨ تم اعتماد المقاسات بدقة لمظهر ملكي متناسق ومريح لحركة الأميرة.
           </div>
@@ -289,18 +301,11 @@
 
         <!-- Timeline / Dates -->
         <div class="dates-grid">
-          <div class="date-card">
-            <div class="date-icon">🪡</div>
-            <div class="date-text">
-              <h5>جلسة البروفة والقياس:</h5>
-              <p id="fittingDate">2026-09-20</p>
-            </div>
-          </div>
           <div class="date-card delivery">
             <div class="date-icon">🎁</div>
             <div class="date-text">
-              <h5>موعد الاستلام النهائي:</h5>
-              <p id="deliveryDate" style="color:#8F2A87;">2026-09-24</p>
+              <h5>موعد التسليم والاستلام المعتمد للأميرة:</h5>
+              <p id="deliveryDate" style="color:#8F2A87; font-size:18px; font-weight:900;">2026-09-24</p>
             </div>
           </div>
         </div>
@@ -362,6 +367,7 @@
 
   </div>
 
+  <script src="src/services/brandService.js"></script>
   <script src="dress_card.js"></script>
 </body>
 </html>

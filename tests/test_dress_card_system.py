@@ -108,6 +108,20 @@ class TestDressCardSystem(unittest.TestCase):
                         lines = len(f.readlines())
                     self.assertLessEqual(lines, 250, f"File {file} exceeds 250 lines: {lines}")
 
+    def test_05_standard_age_sizing_and_brand_resolution(self):
+        """Ensure standard age sizing detection and brand settings resolution"""
+        card = get_dress_card_payload('ORD-CUST-9490891-4916')
+        if card.get('success'):
+            self.assertTrue(card.get('is_standard_age_sizing'))
+            self.assertIn('sizing_summary', card)
+            self.assertIn('brand', card)
+            self.assertIn('name', card['brand'])
+            self.assertIn('phone', card['brand'])
+            # Verify fitting date is completely absent
+            self.assertNotIn('fitting_date', card)
+            # Verify CRM delivery date resolution (not empty)
+            self.assertTrue(bool(card.get('delivery_date')))
+
 
 if __name__ == '__main__':
     unittest.main()

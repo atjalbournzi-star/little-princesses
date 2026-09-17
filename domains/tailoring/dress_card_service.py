@@ -7,6 +7,16 @@ from decimal import Decimal
 import pg_service
 
 
+def _clean_meas(v) -> str:
+    """Normalizes a measurement value, treating zero/empty/null as '—'."""
+    if v is None:
+        return '—'
+    s = str(v).strip()
+    if s in ('', '0', '0.0', '0.00', 'None', 'null', '—'):
+        return '—'
+    return f"{s} سم" if not s.endswith('سم') and not s.endswith('cm') else s
+
+
 def get_dress_card_payload(target_id: str) -> dict:
     """Retrieves and packages complete royal dress card information for an order."""
     if not target_id:
@@ -34,17 +44,67 @@ def get_dress_card_payload(target_id: str) -> dict:
     customer_name = str(d.get('real_customer_name') or d.get('customer_name') or 'عزيزتنا العميلة')
     product_name = str(d.get('real_product_name') or d.get('product_name') or 'موديل أزياء راقي خاص')
 
+    # Child age & size-bracket resolution
+    child_age = str(d.get('child_age') or d.get('age') or meas.get('estimated_age') or '').strip()
+    if child_age and not any(w in child_age for w in ['سنة', 'سنوات', 'شهور', 'عمر']):
+        child_age = f"{child_age} سنوات"
+
+    # Discrete measurements cleaning
+    d_len = _clean_meas(meas.get('dress_length') or meas.get('dress_len'))
+    chest = _clean_meas(meas.get('chest') or meas.get('chest_circ'))
+    waist = _clean_meas(meas.get('waist') or meas.get('waist_circ'))
+    shoulder = _clean_meas(meas.get('shoulder') or meas.get('shoulder_w'))
+    sleeve = _clean_meas(meas.get('sleeve_length') or meas.get('sleeve_len'))
+    arm_hole = _clean_meas(meas.get('arm_hole') or meas.get('armpit_circ'))
+
+    # Has discrete measurements if any circumference or detail was entered
+    has_discrete = any(x != '—' for x in (chest, waist, shoulder, sleeve))
+    is_standard_age_sizing = not has_discrete
+
+    # Sizing description for elegant display
+    if is_standard_age_sizing:
+        age_label = child_age if child_age else 'الفئة العمرية القياسية'
+        len_label = f" (طول الفستان: {d_len})" if d_len != '—' else ""
+        sizing_summary = f"تفصيل معتمد حسب الفئة العمرية ({age_label}){len_label}"
+    else:
+        sizing_summary = "مقاسات تفصيلية مخصصة بالسنتيمتر (سم)"
+
+    # Dynamic White-Label Brand Info from Settings
+    brand_info = {
+        'name': 'ليتل برنسيس للأزياء الفاخرة',
+        'tagline': 'دار الأزياء والتفصيل الراقي لفساتين الأميرات ✨',
+        'phone': '776773458',
+        'address': 'اليمن - صنعاء - شارع حدة',
+        'logo_url': ''
+    }
+    try:
+        settings = pg_service.get_system_settings()
+        cp = settings.get('company_profile') or {}
+        if cp:
+            if cp.get('company_name'):
+                brand_info['name'] = str(cp['company_name'])
+            if cp.get('phone'):
+                brand_info['phone'] = str(cp['phone'])
+            if cp.get('address'):
+                brand_info['address'] = str(cp['address'])
+            if cp.get('logo_url'):
+                brand_info['logo_url'] = str(cp['logo_url'])
+    except Exception:
+        pass
+
+    order_date = str(d.get('order_date') or meas.get('meas_date') or d.get('created_at') or '')[:10]
+    delivery_date = str(d.get('delivery_date') or d.get('due_date') or meas.get('event_date') or '')[:10]
+
     return {
         'success': True,
         'order_no': order_no,
         'order_id': d.get('id'),
-        'order_date': str(d.get('order_date') or d.get('created_at') or '')[:10],
-        'delivery_date': str(d.get('delivery_date') or d.get('due_date') or '')[:10],
-        'fitting_date': str(d.get('fitting_date') or d.get('start_date') or '')[:10],
+        'order_date': order_date,
+        'delivery_date': delivery_date,
         'customer_name': customer_name,
         'customer_phone': str(d.get('customer_phone') or ''),
         'child_name': child_name,
-        'child_age': str(d.get('child_age') or d.get('age') or ''),
+        'child_age': child_age or 'مقاس معتمد',
         'product_name': product_name,
         'product_image': str(d.get('product_image') or d.get('image_url') or ''),
         'fabric_type': str(d.get('fabric_type') or d.get('fabric') or 'أقمشة فاخرة خاصة'),
@@ -53,13 +113,15 @@ def get_dress_card_payload(target_id: str) -> dict:
         'stage': str(d.get('current_stage') or d.get('stage') or 'قيد التجهيز ✂️'),
         'progress': int(d.get('factory_progress') or d.get('progress') or 20),
         'notes': str(d.get('notes') or ''),
+        'is_standard_age_sizing': is_standard_age_sizing,
+        'sizing_summary': sizing_summary,
         'measurements': {
-            'dress_length': str(meas.get('dress_length') or meas.get('dress_len') or '—'),
-            'chest': str(meas.get('chest') or meas.get('chest_circ') or '—'),
-            'waist': str(meas.get('waist') or meas.get('waist_circ') or '—'),
-            'shoulder': str(meas.get('shoulder') or meas.get('shoulder_w') or '—'),
-            'sleeve_length': str(meas.get('sleeve_length') or meas.get('sleeve_len') or '—'),
-            'arm_hole': str(meas.get('arm_hole') or meas.get('armpit_circ') or '—'),
+            'dress_length': d_len,
+            'chest': chest,
+            'waist': waist,
+            'shoulder': shoulder,
+            'sleeve_length': sleeve,
+            'arm_hole': arm_hole,
             'notes': str(meas.get('notes') or '')
         },
         'financials': {
@@ -70,10 +132,5 @@ def get_dress_card_payload(target_id: str) -> dict:
             'is_fully_paid': rem <= Decimal('0')
         },
         'verify_hash': f"LP-{verify_hash}",
-        'brand': {
-            'name': 'ليتل برنسيس للأزياء الفاخرة',
-            'tagline': 'دار الأزياء والتفصيل الراقي لفساتين الأميرات',
-            'phone': '776773458',
-            'address': 'اليمن - صنعاء - شارع حدة'
-        }
+        'brand': brand_info
     }

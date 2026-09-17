@@ -505,19 +505,24 @@ def add_customer(payload):
                 ON CONFLICT (id) DO NOTHING;
             """, (chld_id, cust_id, chld_name, clean_str(m.get('notes'))))
 
+            m_event_date = clean_str(m.get('event_date') or m.get('date') or '') or None
+            m_meas_date = clean_str(m.get('meas_date') or m.get('measurement_date') or '') or None
+
             meas_id = clean_str(m.get('id')) or generate_id("MEAS")
             cur.execute("""
                 INSERT INTO measurements (
                     id, customer_id, child_id, child_name, unit,
                     total_len, dress_len, chest_len, skirt_len, sleeve_len,
                     chest_circ, waist_circ, shoulder_w, armpit_circ, neck_circ,
-                    model_name, comfort_profile, notes
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    model_name, comfort_profile, notes, date, measurement_date
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, COALESCE(%s::date, CURRENT_DATE), COALESCE(%s::date, CURRENT_DATE))
                 ON CONFLICT (id) DO UPDATE SET
                     child_name = EXCLUDED.child_name,
                     total_len = EXCLUDED.total_len,
                     dress_len = EXCLUDED.dress_len,
                     notes = EXCLUDED.notes,
+                    date = COALESCE(EXCLUDED.date, measurements.date),
+                    measurement_date = COALESCE(EXCLUDED.measurement_date, measurements.measurement_date),
                     updated_at = CURRENT_TIMESTAMP;
             """, (
                 meas_id, cust_id, chld_id, chld_name, clean_str(m.get('unit') or 'cm'),
@@ -533,7 +538,8 @@ def add_customer(payload):
                 clean_num(m.get('neck_circ')),
                 clean_str(m.get('model_name') or m.get('selected_model')),
                 clean_str(m.get('comfort_profile')),
-                clean_str(m.get('sewing_notes') or m.get('notes'))
+                clean_str(m.get('sewing_notes') or m.get('notes')),
+                m_event_date, m_meas_date
             ))
 
         # ── 1. معالجة وتثبيت المبالغ المالية والطلب (Orders & Ledger Processing) ──
@@ -599,11 +605,16 @@ def add_customer(payload):
         order_notes = clean_str(data.get('notes') or f"طلب تفصيل للطفلة {first_child_name} ({first_model_name})")
         actual_order_id = ex_order['id'] if ex_order else generate_id("ORD")
 
+        first_event_date = clean_str(first_m.get('event_date') or first_m.get('date') or '') or None
+        first_meas_date = clean_str(first_m.get('meas_date') or first_m.get('measurement_date') or '') or None
+
         if ex_order:
             cur.execute("""
                 UPDATE orders SET
                     product_id = COALESCE(%s, product_id),
                     child_id = COALESCE(%s, child_id),
+                    delivery_date = COALESCE(%s::date, delivery_date),
+                    order_date = COALESCE(%s::date, order_date),
                     subtotal = %s,
                     total_amount = %s,
                     paid_amount = %s,
@@ -615,24 +626,26 @@ def add_customer(payload):
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = %s;
             """, (
-                prod_id, first_child_id, total_sales, total_sales, deposit, total_sales,
+                prod_id, first_child_id, first_event_date, first_meas_date,
+                total_sales, total_sales, deposit, total_sales,
                 order_status, pay_method, curr, order_notes, actual_order_id
             ))
         elif total_sales > 0 or deposit > 0 or meas_list:
             cur.execute("""
                 INSERT INTO orders (
                     id, order_no, customer_id, child_id, product_id, quantity,
-                    order_date, currency, exchange_rate, subtotal, discount, tax,
+                    order_date, delivery_date, currency, exchange_rate, subtotal, discount, tax,
                     total_amount, paid_amount, base_amount,
                     payment_status, production_status, payment_method, status, notes
                 ) VALUES (
                     %s, %s, %s, %s, %s, 1.0,
-                    CURRENT_DATE, %s, 1.0, %s, 0.0, 0.0,
+                    COALESCE(%s::date, CURRENT_DATE), %s::date, %s, 1.0, %s, 0.0, 0.0,
                     %s, %s, %s,
                     %s, 'Cutting', %s, 'Active', %s
                 );
             """, (
                 actual_order_id, order_no, cust_id, first_child_id, prod_id,
+                first_meas_date, first_event_date,
                 curr, total_sales,
                 total_sales, deposit, total_sales,
                 order_status, pay_method, order_notes
@@ -4198,6 +4211,25 @@ def get_customer_order_tracking(order_target):
         meas_dict = {}
         if meas:
             m = dict(meas)
+            dress_l = clean_num(m.get('dress_len'))
+            est_age = ''
+            if dress_l > 0:
+                if dress_l <= 45: est_age = '1-2 سنوات'
+                elif dress_l <= 55: est_age = '2-3 سنوات'
+                elif dress_l <= 60: est_age = '4 سنوات'
+                elif dress_l <= 65: est_age = '5 سنوات'
+                elif dress_l <= 70: est_age = '6 سنوات'
+                elif dress_l <= 75: est_age = '7 سنوات'
+                elif dress_l <= 80: est_age = '8 سنوات'
+                elif dress_l <= 85: est_age = '9 سنوات'
+                elif dress_l <= 90: est_age = '10 سنوات'
+                elif dress_l <= 95: est_age = '11 سنة'
+                elif dress_l <= 100: est_age = '12 سنة'
+                else: est_age = 'أكثر من 12 سنة'
+
+            ev_date = str(m.get('date') or '') if m.get('date') else ''
+            ms_date = str(m.get('measurement_date') or '') if m.get('measurement_date') else ''
+
             meas_dict = {
                 'dress_length': m.get('dress_len'),
                 'chest': m.get('chest_circ'),
@@ -4206,8 +4238,17 @@ def get_customer_order_tracking(order_target):
                 'sleeve_length': m.get('sleeve_len'),
                 'arm_hole': m.get('armpit_circ'),
                 'neck': m.get('neck_circ'),
-                'notes': m.get('notes')
+                'notes': m.get('notes'),
+                'event_date': ev_date,
+                'meas_date': ms_date,
+                'estimated_age': est_age
             }
+            if not d.get('delivery_date') and ev_date:
+                d['delivery_date'] = ev_date
+            if not d.get('order_date') and ms_date:
+                d['order_date'] = ms_date
+            if not d.get('child_age') and est_age:
+                d['child_age'] = est_age
         d['measurements'] = meas_dict
 
         # تطبيع المبالغ المالية
