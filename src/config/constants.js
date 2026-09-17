@@ -106,6 +106,41 @@ const FACTORY_STAGES = [
   "مرحلة التطريز والتركيب والشك 🧵", "مرحلة الكي والتغليف 🎁", "جاهز للتسليم للعميلة ✨"
 ];
 
+// ── CANONICAL TAILORING ORDER STAGES & STATE MACHINE (Single Source of Truth) ──
+const TAILORING_STAGES = {
+  DRAFT: "DRAFT",
+  MEASURED: "MEASURED",
+  CONFIRMED: "CONFIRMED",
+  WAITING_MATERIAL: "WAITING_MATERIAL",
+  CUTTING: "CUTTING",
+  SEWING: "SEWING",
+  FITTING: "FITTING",
+  ALTERATION: "ALTERATION",
+  FINISHING: "FINISHING",
+  QUALITY_CHECK: "QUALITY_CHECK",
+  READY: "READY",
+  DELIVERED: "DELIVERED",
+  CANCELLED: "CANCELLED"
+};
+
+const STAGE_LABELS = {
+  DRAFT: "مسودة 📝",
+  MEASURED: "تم أخذ المقاسات 📐",
+  CONFIRMED: "مؤكد ومحجوز 🏷️",
+  WAITING_MATERIAL: "بانتظار توفر الأقمشة ⏳",
+  CUTTING: "مرحلة القص ✂️",
+  SEWING: "قيد الخياطة 🪡",
+  FITTING: "جلسة تجربة وقياس 👗",
+  ALTERATION: "تعديل مقاسات ورتوش 🪡",
+  FINISHING: "مرحلة التشطيب والشك 👑",
+  QUALITY_CHECK: "فحص الجودة والمطابقة 🔍",
+  READY: "جاهز للتسليم 🎁",
+  DELIVERED: "تم التسليم للعميل ✔️",
+  CANCELLED: "ملغي ❌"
+};
+
+const ORDER_STATUSES = Object.values(STAGE_LABELS);
+
 const EXPENSE_CATEGORIES = [
   "5111 - تكلفة الأقمشة والمواد المباعة",
   "5121 - أجور خياطة وتصنيع مباشرة",
@@ -208,6 +243,9 @@ window.CURRENCIES = CURRENCIES;
 window.FABRIC_CATEGORIES = FABRIC_CATEGORIES;
 window.PRODUCT_CATEGORIES = PRODUCT_CATEGORIES;
 window.FACTORY_STAGES = FACTORY_STAGES;
+window.TAILORING_STAGES = TAILORING_STAGES;
+window.STAGE_LABELS = STAGE_LABELS;
+window.ORDER_STATUSES = ORDER_STATUSES;
 window.EXPENSE_CATEGORIES = EXPENSE_CATEGORIES;
 window.ACCOUNT_TYPES = ACCOUNT_TYPES;
 window.PAY_METHODS = PAY_METHODS;

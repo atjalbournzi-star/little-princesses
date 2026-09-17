@@ -6290,6 +6290,7 @@ def get_system_settings(params=None):
                 "phone": cp.get('phone') or '776773458',
                 "address": cp.get('address') or 'اليمن - صنعاء - شارع حدة',
                 "email": cp.get('email') or 'info@littleprincesses.com',
+                "logo_url": cp.get('logo_url') or '',
                 "fiscal_date": cp.get('fiscal_date') or str(cp.get('establishment_date') or '2026-01-01'),
                 "theme_mode": cp.get('theme_mode') or 'light',
                 "base_currency": cp.get('base_currency') or 'YER'
@@ -6315,6 +6316,7 @@ def save_system_settings(payload):
     f_date = clean_str(data.get('fiscal_date') or data.get('fiscalDate') or '2026-01-01')
     theme = clean_str(data.get('theme_mode') or data.get('theme') or 'light')
     base_cur = clean_str(data.get('base_currency') or 'YER')
+    logo_u = clean_str(data.get('logo_url') or data.get('logoUrl') or '')
     rates = data.get('rates') or {}
 
     old_settings = get_system_settings()
@@ -6322,8 +6324,8 @@ def save_system_settings(payload):
     with get_db_cursor(commit=True) as cur:
         # 1. Update company_profile
         cur.execute("""
-            INSERT INTO company_profile (id, company_name, phone, address, email, fiscal_date, theme_mode, base_currency)
-            VALUES (1, %s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO company_profile (id, company_name, phone, address, email, fiscal_date, theme_mode, base_currency, logo_url)
+            VALUES (1, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (id) DO UPDATE SET
                 company_name = COALESCE(EXCLUDED.company_name, company_profile.company_name),
                 phone = COALESCE(EXCLUDED.phone, company_profile.phone),
@@ -6331,8 +6333,9 @@ def save_system_settings(payload):
                 email = COALESCE(EXCLUDED.email, company_profile.email),
                 fiscal_date = COALESCE(EXCLUDED.fiscal_date, company_profile.fiscal_date),
                 theme_mode = COALESCE(EXCLUDED.theme_mode, company_profile.theme_mode),
-                base_currency = COALESCE(EXCLUDED.base_currency, company_profile.base_currency);
-        """, (c_name, phone, address, email, f_date, theme, base_cur))
+                base_currency = COALESCE(EXCLUDED.base_currency, company_profile.base_currency),
+                logo_url = CASE WHEN EXCLUDED.logo_url IS NOT NULL AND EXCLUDED.logo_url != '' THEN EXCLUDED.logo_url ELSE company_profile.logo_url END;
+        """, (c_name, phone, address, email, f_date, theme, base_cur, logo_u))
 
         # 2. Update currency exchange rates
         if rates and isinstance(rates, dict):

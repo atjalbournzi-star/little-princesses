@@ -104,6 +104,11 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
   const [isSubmittingEdit, setIsSubmittingEdit] = useState(false);
   const [isDeletingId, setIsDeletingId] = useState(null);
 
+  // ── حالة الإلغاء بقيد عكسي (Cancel with Reversing Entry) ──
+  const [reversingVoucher, setReversingVoucher] = useState(null);
+  const [reversalReason, setReversalReason] = useState('');
+  const [isReversing, setIsReversing] = useState(false);
+
   // ── محرر قيد اليومية المركب (Compound Multi-Leg Balanced Journal) ──
   const [showCompoundModal, setShowCompoundModal] = useState(false);
   const [compoundForm, setCompoundForm] = useState({
@@ -411,10 +416,13 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
 
     const brandName = (typeof window !== 'undefined' && window.BrandService)
       ? window.BrandService.getProfile().name
-      : 'نظام الإدارة المالية الموحد';
+      : 'دار الأميرات الصغيرات للأزياء الملكية';
 
-    const message = `🏢 *${brandName}*\n\n` +
-      `📄 *إشعار ${vType} معتمد رسمياً:*\n` +
+    const hostOrigin = (typeof window !== 'undefined' && window.location && window.location.origin) ? window.location.origin : '';
+    const voucherCardUrl = `${hostOrigin}/voucher.html?id=${encodeURIComponent(vNo)}`;
+
+    const message = `👑 *${brandName}*\n\n` +
+      `📄 *إشعار ${vType} رسمي معتمد:*\n` +
       `━━━━━━━━━━━━━━━━━━\n` +
       `🔹 *رقم السند:* ${vNo}\n` +
       `🔹 *الطرف المستفيد:* ${vParty}\n` +
@@ -423,7 +431,9 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
       `🔹 *التاريخ:* ${vDate}\n` +
       `🔹 *البيان:* ${vNotes}\n` +
       `━━━━━━━━━━━━━━━━━━\n` +
-      `✨ نشكركم لتعاملكم ونسعد بخدمتكم دائماً.`;
+      `🖼️ *معاينة وتحميل بطاقة السند الرسمية المصممة (صورة/PDF):*\n` +
+      `${voucherCardUrl}\n\n` +
+      `✨ نشكركم لتعاملكم الراقي ونسعد بخدمتكم دائماً.`;
 
     const cleanPhone = targetPhone ? (targetPhone.startsWith('967') || targetPhone.startsWith('966') ? targetPhone : `967${targetPhone.replace(/^0+/, '')}`) : '';
     const waUrl = cleanPhone 
@@ -1023,60 +1033,82 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
     }
   };
 
-  const handleDeleteVoucher = async (v) => {
+  const handleOpenReverseModal = (v) => {
     if (!v) return;
     const norm = normalizeVoucher(v);
-    if (!window.confirm(`⚠️ هل أنت متأكد من حذف ${norm.v_type} رقم (${norm.v_no})؟\n\n(سيتم حذف السند وإلغاء وعكس أثره المالي فوراً من دفتر الأستاذ والقيود اليومية وشجرة الحسابات)`)) {
+    if (norm.status === 'reversed') {
+      showToast('هذا السند ملغى مسبقاً بقيد عكسي', 'info');
+      return;
+    }
+    setReversingVoucher(norm);
+    setReversalReason('');
+  };
+
+  const handleConfirmReverse = async () => {
+    if (!reversingVoucher) return;
+    const cleanReason = (reversalReason || '').trim();
+    if (!cleanReason) {
+      showToast('⚠️ يرجى كتابة سبب الإلغاء لتوثيق القيد العكسي ومطابقة الحوكمة المالية', 'warning');
       return;
     }
 
-    setIsDeletingId(norm.id);
+    setIsReversing(true);
     try {
-      // 1. Remove from vouchers state
-      if (setVouchers) {
-        setVouchers(prev => (prev || []).filter(item => {
-          const curNo = item.v_no || item.voucher_no || item.payment_no || item.id;
-          return curNo !== norm.v_no && item.id !== norm.id;
-        }));
-      }
+      const res = await fetch('/api/vouchers/reverse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: reversingVoucher.id,
+          voucher_no: reversingVoucher.v_no,
+          reason: cleanReason,
+          user_id: (typeof window !== 'undefined' && window.currentUser && window.currentUser.username) || 'admin'
+        })
+      });
+      const data = await res.json();
 
-      // 2. Remove linked journal entry from journal state
-      if (setJournal) {
-        setJournal(prev => (prev || []).filter(j => {
-          const isLinked = j.ref_id === norm.v_no || j.entry_no === 'AUTO-VCH-' + norm.v_no || j.entry_no === 'JV-PUR-' + norm.v_no || j.ref_id === norm.id;
-          return !isLinked;
-        }));
-      }
-
-      // 3. Delete from Local Backend
-      try {
-        await fetch('/api/vouchers/delete', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: norm.id, voucher_no: norm.v_no, payment_no: norm.v_no, v_no: norm.v_no })
-        });
-      } catch(beErr) {
-        console.warn("Backend voucher delete warning:", beErr);
-      }
-
-      // 4. Delete from Google Apps Script
-      try {
-        if (typeof window.callGAS === 'function') {
-          await window.callGAS('deleteVoucher', { id: norm.id, voucher_no: norm.v_no, payment_no: norm.v_no, v_no: norm.v_no });
-          await window.callGAS('deleteJournalEntry', { ref_id: norm.v_no, entry_no: 'AUTO-VCH-' + norm.v_no });
+      if (data.success) {
+        if (setVouchers) {
+          setVouchers(prev => (prev || []).map(item => {
+            const curNo = item.v_no || item.voucher_no || item.payment_no || item.id;
+            if (curNo === reversingVoucher.v_no || item.id === reversingVoucher.id) {
+              return { ...item, status: 'reversed', reversal_reason: cleanReason, reversal_entry_id: data.reversal_entry_no };
+            }
+            return item;
+          }));
         }
-      } catch(gasErr) {
-        console.warn("GAS voucher delete warning:", gasErr);
-      }
 
-      showToast('✅ تم حذف السند المالي وتحديث الأستاذ العام وشجرة الحسابات بنجاح 🗑️');
-    } catch(err) {
-      console.error("Delete voucher error:", err);
-      showToast('حدث خطأ أثناء حذف السند', 'error');
+        if (setJournal) {
+          setJournal(prev => [
+            {
+              entry_no: data.reversal_entry_no || `REV-${reversingVoucher.v_no}`,
+              date: new Date().toISOString().slice(0, 10),
+              description: `قيد عكسي لإلغاء سند ${reversingVoucher.v_no}: ${cleanReason}`,
+              amount: reversingVoucher.amount,
+              status: 'Posted',
+              ref_id: reversingVoucher.v_no
+            },
+            ...(prev || [])
+          ]);
+        }
+
+        showToast(`✅ ${data.message || 'تم إلغاء السند وتوليد القيد العكسي بنجاح ⚖️'}`);
+        setReversingVoucher(null);
+        setReversalReason('');
+      } else {
+        showToast(data.error || 'فشلت عملية الإلغاء بقيد عكسي', 'error');
+      }
+    } catch (err) {
+      console.error("Reverse voucher error:", err);
+      showToast('حدث خطأ أثناء الاتصال بالخادم لإلغاء السند', 'error');
     } finally {
-      setIsDeletingId(null);
+      setIsReversing(false);
     }
   };
+
+  const handleDeleteVoucher = async (v) => {
+    showToast('⚠️ غير مسموح بالحذف المباشر للسندات المعتمدة وفق ميثاق الحوكمة (No Hard Delete). يرجى استخدام زر الإلغاء بقيد عكسي.', 'warning');
+  };
+
 
   const inputCls = "w-full h-11 px-3.5 py-2.5 rounded-xl border border-[#E8E5EA] bg-white text-[#25232A] text-xs font-medium placeholder:text-[#6F6B75] focus:bg-white focus:border-[#009FAE] focus:ring-2 focus:ring-[#E2F5F7] transition-all outline-none";
   const labelCls = "block text-xs font-semibold text-[#25232A] mb-1.5";
@@ -1514,11 +1546,17 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
 
                   return (
                     <tr key={v.id || v.v_no} className="hover:bg-[#FAFAFB] transition-colors border-b border-[#E8E5EA]">
-                      {/* الخلية 1 (النوع): شارة نوع السند (سند صرف / قبض) فقط */}
+                      {/* الخلية 1 (النوع): شارة نوع السند (سند صرف / قبض / ملغى) */}
                       <td className="px-3 py-3 text-right align-middle whitespace-nowrap">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold border whitespace-nowrap ${v.isReceipt ? 'bg-[#E2F5F7] text-[#007F8C] border-[#C5ECF0]' : 'bg-rose-50 text-[#D64545] border-rose-200'}`}>
-                          {v.v_type}
-                        </span>
+                        {v.status === 'reversed' ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold border bg-gray-100 text-gray-500 border-gray-300">
+                            ملغى بقيد عكسي ↩️
+                          </span>
+                        ) : (
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold border whitespace-nowrap ${v.isReceipt ? 'bg-[#E2F5F7] text-[#007F8C] border-[#C5ECF0]' : 'bg-rose-50 text-[#D64545] border-rose-200'}`}>
+                            {v.v_type}
+                          </span>
+                        )}
                       </td>
 
                       {/* الخلية 2 (رقم السند): كود ورقم السند كاملاً */}
@@ -1531,9 +1569,11 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
                         {v.party || '—'}
                       </td>
 
-                      {/* الخلية 4 (المبلغ): المبلغ والعملة (محاذاة يسار text-left font-mono tabular-nums) */}
+                      {/* الخلية 4 (المبلغ): المبلغ والعملة (مع شطب خفيف إذا كان ملغياً) */}
                       <td className="px-3 py-3 text-left align-middle font-bold text-xs text-[#25232A] whitespace-nowrap dir-ltr">
-                        <span className="font-mono tabular-nums">{(parseFloat(v.amount) || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span> <span className="text-[10px] font-normal text-[#6F6B75] mr-0.5">{currSymbol}</span>
+                        <span className={`font-mono tabular-nums ${v.status === 'reversed' ? 'line-through text-gray-400' : ''}`}>
+                          {(parseFloat(v.amount) || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        </span> <span className="text-[10px] font-normal text-[#6F6B75] mr-0.5">{currSymbol}</span>
                       </td>
 
                       {/* الخلية 5 (طريقة الدفع): طريقة الدفع فقط (نص أو شارة مستقلة) */}
@@ -1553,9 +1593,18 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
                         <span className="font-mono tabular-nums">{v.date || '—'}</span>
                       </td>
 
-                      {/* الخلية 8 (إجراءات - أقصى اليسار): أزرار الإجراءات (معاينة، تعديل، حذف) */}
+                      {/* الخلية 8 (إجراءات - أقصى اليسار): أزرار الإجراءات (معاينة، واتساب، إلغاء بقيد عكسي) */}
                       <td className="px-3 py-3 text-center align-middle whitespace-nowrap">
                         <div className="flex items-center justify-center gap-1.5">
+                          <a 
+                            href={`/voucher.html?id=${encodeURIComponent(v.v_no || v.payment_no || v.id)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="عرض وتنزيل بطاقة السند المصممة كصورة 🖼️"
+                            className="p-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-lg transition cursor-pointer flex items-center justify-center font-bold"
+                          >
+                            <span className="text-xs">🖼️</span>
+                          </a>
                           <button 
                             type="button"
                             onClick={() => handleSendWhatsAppNotification(v)}
@@ -1572,23 +1621,21 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
                           >
                             <Icons.Eye className="w-3.5 h-3.5" />
                           </button>
-                          <button 
-                            type="button"
-                            onClick={() => handleOpenEditVoucher(v)} 
-                            title="تعديل السند المالي ومزامنة القيود"
-                            className="p-1.5 bg-[#E2F5F7] hover:bg-[#C5ECF0] text-[#007F8C] border border-[#C5ECF0] rounded-lg transition cursor-pointer flex items-center justify-center"
-                          >
-                            <Icons.Edit className="w-3.5 h-3.5" />
-                          </button>
-                          <button 
-                            type="button"
-                            onClick={() => handleDeleteVoucher(v)} 
-                            disabled={isDeletingId === (v.id || v.v_no)}
-                            title="حذف السند وعكس أثره المالي"
-                            className="p-1.5 bg-rose-50 hover:bg-rose-100 text-[#D64545] border border-rose-200 rounded-lg transition cursor-pointer disabled:opacity-50 flex items-center justify-center"
-                          >
-                            <Icons.Trash className="w-3.5 h-3.5" />
-                          </button>
+                          {v.status !== 'reversed' ? (
+                            <button 
+                              type="button"
+                              onClick={() => handleOpenReverseModal(v)} 
+                              title="إلغاء السند بقيد عكسي معتمد محاسبياً"
+                              className="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-[#D64545] border border-rose-200 rounded-lg transition cursor-pointer flex items-center justify-center gap-1 text-[11px] font-bold"
+                            >
+                              <span>↩️</span>
+                              <span>إلغاء بقيد عكسي</span>
+                            </button>
+                          ) : (
+                            <span className="text-[10px] font-bold text-gray-400 bg-gray-100 border border-gray-200 px-1.5 py-0.5 rounded">
+                              معكوس
+                            </span>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -1599,6 +1646,89 @@ function Vouchers({ vouchers = [], setVouchers, accounts = [], setAccounts, jour
           )}
         </div>
       </div>
+
+      {/* ── Modal إلغاء السند بقيد عكسي محاسبي موثق ── */}
+      {reversingVoucher && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-fadeIn">
+          <div className="bg-white rounded-2xl border border-rose-200 shadow-2xl max-w-lg w-full overflow-hidden text-right" dir="rtl">
+            <div className="px-6 py-4 border-b border-rose-100 flex items-center justify-between bg-gradient-to-r from-rose-50 via-white to-rose-50">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center text-lg font-bold border border-rose-200">
+                  ↩️
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold text-[#25232A]">إلغاء السند بقيد عكسي محاسبي</h2>
+                  <p className="text-[11px] text-rose-700 font-medium">سند رقم: {reversingVoucher.v_no} ({reversingVoucher.v_type})</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReversingVoucher(null)}
+                className="w-8 h-8 rounded-lg text-[#6F6B75] hover:bg-[#F3F2F5] hover:text-[#25232A] flex items-center justify-center transition-colors cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 leading-relaxed">
+                <div className="font-bold flex items-center gap-1.5 mb-1 text-amber-950">
+                  <span>⚠️</span>
+                  <span>تنبيه رقابي ومحاسبي صارم:</span>
+                </div>
+                وفق معايير الحوكمة المالية، لا يتم مسح السند أو حذفه من قاعدة البيانات، بل سيتم توليد قيد يومية عكسي متزن آلياً يعكس الأثر المالي في دفتر الأستاذ العام وذمة العميل/المورد، مع توثيق سبب الإلغاء في سجل التدقيق.
+              </div>
+
+              <div className="bg-[#FAFAFB] border border-[#E8E5EA] rounded-xl p-3.5 space-y-2 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-[#6F6B75]">الطرف:</span>
+                  <span className="font-bold text-[#25232A]">{reversingVoucher.party || '—'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#6F6B75]">المبلغ الأصلي:</span>
+                  <span className="font-bold text-[#25232A] font-mono">{reversingVoucher.amount} {reversingVoucher.currency}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#6F6B75]">تاريخ التحرير:</span>
+                  <span className="font-mono text-[#25232A]">{reversingVoucher.date}</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[#25232A] mb-1.5">
+                  سبب الإلغاء الإلزامي <span className="text-rose-500">*</span>
+                </label>
+                <textarea
+                  rows="3"
+                  className="w-full px-3 py-2 text-xs border border-[#E8E5EA] rounded-xl focus:outline-none focus:border-rose-500 focus:ring-1 focus:ring-rose-500 resize-none"
+                  placeholder="أدخل سبب الإلغاء (مثال: خطأ في الحساب، شيك مرتجع، إلغاء الطلب من العميل)..."
+                  value={reversalReason}
+                  onChange={e => setReversalReason(e.target.value)}
+                  autoFocus
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-[#E8E5EA]">
+                <button
+                  type="button"
+                  onClick={() => setReversingVoucher(null)}
+                  className="px-4 py-2 text-xs font-bold text-[#6F6B75] bg-[#F3F2F5] hover:bg-[#E8E5EA] rounded-xl transition cursor-pointer"
+                >
+                  تراجع
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmReverse}
+                  disabled={isReversing || !reversalReason.trim()}
+                  className="px-5 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 disabled:opacity-50 rounded-xl transition shadow-sm cursor-pointer flex items-center gap-1.5"
+                >
+                  {isReversing ? 'جاري القيد العكسي...' : 'تأكيد الإلغاء بالقيد العكسي ↩️'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Modal تعديل السند المالي ومزامنة القيود والأستاذ العام ── */}
       {editingVoucher && (

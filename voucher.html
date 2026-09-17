@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>سند مالي معتمد | Little Princesses ERP</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Cairo', 'Segoe UI', Tahoma, sans-serif; }
+    body { background: #0f172a; color: #1e293b; padding: 24px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
+    .actions-bar { width: 100%; max-width: 860px; display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin-bottom: 22px; }
+    .btn { padding: 11px 20px; border-radius: 10px; font-weight: 700; font-size: 14px; cursor: pointer; border: none; display: flex; align-items: center; gap: 8px; text-decoration: none; transition: all 0.2s ease; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+    .btn-download { background: linear-gradient(135deg, #d97706, #b45309); color: white; }
+    .btn-download:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(217,119,6,0.35); }
+    .btn-copy { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: white; }
+    .btn-copy:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(37,99,235,0.35); }
+    .btn-wa { background: linear-gradient(135deg, #10b981, #059669); color: white; }
+    .btn-wa:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(16,185,129,0.35); }
+    .btn-print { background: #334155; color: white; }
+    .btn-print:hover { background: #1e293b; }
+    
+    .voucher-frame { width: 100%; max-width: 860px; background: #fffdf9; border: 3px solid #b45309; outline: 5px solid #fef3c7; outline-offset: 4px; border-radius: 16px; box-shadow: 0 20px 45px rgba(0,0,0,0.3); padding: 32px 36px; position: relative; overflow: hidden; }
+    .voucher-frame::before { content: ''; position: absolute; inset: 0; background: radial-gradient(circle at 50% 50%, rgba(217,119,6,0.03) 0%, transparent 70%); pointer-events: none; }
+    
+    .header-grid { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 20px; border-bottom: 2px solid #f1f5f9; padding-bottom: 20px; margin-bottom: 20px; }
+    .logo-container { width: 90px; height: 90px; border-radius: 12px; border: 2px solid #e2e8f0; display: flex; align-items: center; justify-content: center; background: white; padding: 6px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
+    .logo-container img { max-width: 100%; max-height: 100%; object-fit: contain; }
+    .header-text { text-align: right; }
+    .brand-title { font-size: 24px; font-weight: 900; color: #0f172a; line-height: 1.2; margin-bottom: 4px; }
+    .brand-subtitle { font-size: 13px; color: #64748b; font-weight: 600; margin-bottom: 6px; }
+    .brand-meta { font-size: 12px; color: #475569; display: flex; flex-wrap: wrap; gap: 14px; }
+    .brand-meta span b { color: #0f172a; }
+    
+    .badge-box { text-align: left; }
+    .voucher-badge { display: inline-block; padding: 6px 18px; border-radius: 20px; font-weight: 800; font-size: 14px; border: 1.5px solid #059669; background: #ecfdf5; color: #059669; margin-bottom: 8px; }
+    .voucher-serial { font-size: 13px; color: #64748b; }
+    .voucher-serial b { color: #0f172a; font-size: 15px; }
+
+    .party-card { background: #f8fafc; border: 1px solid #e2e8f0; border-right: 5px solid #d97706; border-radius: 10px; padding: 14px 18px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; }
+    .party-title { font-size: 15px; font-weight: 700; color: #64748b; }
+    .party-name { font-size: 20px; font-weight: 900; color: #0f172a; }
+
+    .amount-box { background: linear-gradient(135deg, #0f172a, #1e293b); color: white; border: 2px solid #c59b27; border-radius: 12px; padding: 18px 24px; margin-bottom: 22px; text-align: center; box-shadow: 0 8px 20px rgba(15,23,42,0.15); }
+    .amount-num { font-size: 38px; font-weight: 900; color: #fbbf24; letter-spacing: 0.5px; }
+    .amount-num small { font-size: 18px; color: #fef08a; font-weight: 700; margin-right: 8px; }
+    .amount-words { font-size: 16px; font-weight: 700; color: #e2e8f0; margin-top: 6px; border-top: 1px dashed rgba(255,255,255,0.2); padding-top: 8px; }
+
+    .details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 20px; }
+    .detail-card { background: white; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px 16px; box-shadow: 0 2px 5px rgba(0,0,0,0.02); }
+    .detail-label { font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 4px; }
+    .detail-val { font-size: 15px; font-weight: 800; color: #1e293b; }
+
+    .notes-card { background: #fffbeb; border: 1px solid #fef3c7; border-radius: 10px; padding: 14px 18px; margin-bottom: 24px; }
+    .notes-label { font-size: 12px; color: #b45309; font-weight: 800; margin-bottom: 4px; }
+    .notes-val { font-size: 14px; font-weight: 700; color: #78350f; line-height: 1.5; }
+
+    .seal-footer { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 20px; border-top: 2px solid #f1f5f9; padding-top: 22px; }
+    .sig-block { text-align: center; }
+    .sig-label { font-size: 13px; font-weight: 700; color: #475569; margin-bottom: 35px; }
+    .sig-line { width: 150px; margin: 0 auto; border-bottom: 1.5px dashed #94a3b8; }
+    
+    .official-stamp { width: 125px; height: 125px; border: 3px double #991b1b; border-radius: 50%; padding: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: #991b1b; transform: rotate(-10deg); box-shadow: 0 0 10px rgba(153,27,27,0.1); background: rgba(254,242,242,0.3); }
+    .stamp-inner { width: 100%; height: 100%; border: 1.5px solid #991b1b; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 4px; }
+    .stamp-org { font-size: 9px; font-weight: 900; line-height: 1.1; max-width: 95px; }
+    .stamp-status { font-size: 13px; font-weight: 900; color: #991b1b; margin: 2px 0; letter-spacing: 1px; border-top: 1px solid #991b1b; border-bottom: 1px solid #991b1b; width: 85%; }
+    .stamp-dept { font-size: 8px; font-weight: 800; }
+
+    .qr-block { text-align: center; }
+    .qr-block canvas { border-radius: 8px; border: 1px solid #e2e8f0; }
+    .qr-hash { font-size: 10px; color: #64748b; font-weight: 800; margin-top: 4px; }
+
+    .watermark-banner { text-align: center; font-size: 11px; color: #94a3b8; font-weight: 600; margin-top: 20px; border-top: 1px dashed #e2e8f0; padding-top: 12px; }
+    @media print { .actions-bar { display: none; } body { padding: 0; background: white; } .voucher-frame { box-shadow: none; max-width: 100%; } }
+  </style>
+</head>
+<body>
+
+  <div class="actions-bar">
+    <button class="btn btn-download" onclick="downloadVoucherImage()">📥 تحميل كصورة (PNG)</button>
+    <button class="btn btn-copy" onclick="copyVoucherImage()">📋 نسخ الصورة للحافظة</button>
+    <button class="btn btn-wa" onclick="shareVoucherWhatsApp()">💬 إرسال عبر الواتساب</button>
+    <button class="btn btn-print" onclick="window.print()">🖨️ طباعة السند</button>
+  </div>
+
+  <div class="voucher-frame" id="voucherCard">
+    <div class="header-grid">
+      <div class="logo-container" id="logoWrap">
+        <img id="vLogoImg" src="" alt="شعار المؤسسة" style="display:none;" />
+        <svg id="vLogoDefault" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="1.8">
+          <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+        </svg>
+      </div>
+      <div class="header-text">
+        <h1 class="brand-title" id="vBrandName">مؤسسة الأميرات الصغيرات</h1>
+        <p class="brand-subtitle" id="vBrandSubtitle">وثيقة مالية رسمية معتمدة عبر النظام المحاسبي الموحد</p>
+        <div class="brand-meta">
+          <span>هاتف: <b id="vBrandPhone">776773458</b></span>
+          <span>العنوان: <b id="vBrandAddress">اليمن - صنعاء</b></span>
+          <span>س.ت: <b id="vBrandTax">CR-1010-009283</b></span>
+        </div>
+      </div>
+      <div class="badge-box">
+        <div class="voucher-badge" id="vTypeBadge">إشعار استلام نقدي / سند قبض</div>
+        <div class="voucher-serial">رقم السند: <b id="vNo">RV-2026-00000</b></div>
+        <div class="voucher-serial">التاريخ: <b id="vDate">2026-09-17 12:00</b></div>
+      </div>
+    </div>
+
+    <div class="party-card">
+      <span class="party-title" id="vPartyTitle">المقبوض منه / وصل من:</span>
+      <span class="party-name" id="vPartyName">عميل محترم</span>
+    </div>
+
+    <div class="amount-box">
+      <div class="amount-num"><span id="vAmount">0</span> <small id="vCurr">ريال يمني</small></div>
+      <div class="amount-words" id="vWrittenAmount">فقط صفر لا غير</div>
+    </div>
+
+    <div class="details-grid">
+      <div class="detail-card">
+        <div class="detail-label">طريقة الدفع والتحصيل</div>
+        <div class="detail-val" id="vPayMethod">نقداً بالخزينة</div>
+      </div>
+      <div class="detail-card">
+        <div class="detail-label">رقم المرجع / الحوالة / الشيك</div>
+        <div class="detail-val" id="vTransferNo">—</div>
+      </div>
+    </div>
+
+    <div class="notes-card">
+      <div class="notes-label">وذلك عن بيان:</div>
+      <div class="notes-val" id="vNotes">تسديد دفعة حساب وفق الأصول المالية</div>
+    </div>
+
+    <div class="seal-footer">
+      <div class="sig-block">
+        <div class="sig-label">توقيع المحاسب / أمين الصندوق</div>
+        <div class="sig-line"></div>
+      </div>
+      
+      <div class="official-stamp" id="officialStamp">
+        <div class="stamp-inner">
+          <div class="stamp-org" id="stampOrg">المؤسسة</div>
+          <div class="stamp-status" id="stampStatus">مُعـتـمـد</div>
+          <div class="stamp-dept">قسم الرقابة المالية</div>
+          <div style="font-size: 7px; font-weight: bold; margin-top: 1px;" id="stampDate">2026-09-17</div>
+        </div>
+      </div>
+
+      <div class="qr-block">
+        <canvas id="qrCanvas" width="80" height="80"></canvas>
+        <div class="qr-hash" id="vHash">VERIFIED</div>
+      </div>
+    </div>
+
+    <div class="watermark-banner">
+      وثيقة مالية إلكترونية معتمدة محاسبياً - مشفرة برمز أمان رقمي وغير قابلة للتعديل
+    </div>
+  </div>
+
+  <script src="/voucher_card.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      const params = new URLSearchParams(window.location.search);
+      const voucherId = params.get('id') || params.get('no') || params.get('voucher_no') || '';
+      const data = await fetchVoucherData(voucherId);
+      updateVoucherDOM(data);
+    });
+  </script>
+</body>
+</html>

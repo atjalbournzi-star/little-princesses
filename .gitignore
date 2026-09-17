@@ -22,4 +22,5 @@ chrome_dump.txt
 *.db-shm
 *.db-wal
 backups/
+scratch/
 
