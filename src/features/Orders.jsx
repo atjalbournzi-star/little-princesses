@@ -501,15 +501,20 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
     const imgUrl = prod?.image_url || prod?.image || order.image_url;
     const imgSection = imgUrl ? `\n🖼️ *معاينة صورة الموديل:* ${imgUrl}\n` : '';
 
+    const orderIdentifier = order.order_no || ('ORD-' + order.id);
     const trackingUrl = (typeof window !== 'undefined' && window.location)
-      ? `${window.location.origin}/track.html?order=${encodeURIComponent(order.order_no || ('ORD-' + order.id))}`
-      : `http://localhost:5000/track.html?order=${encodeURIComponent(order.order_no || ('ORD-' + order.id))}`;
+      ? `${window.location.origin}/track.html?order=${encodeURIComponent(orderIdentifier)}`
+      : `http://localhost:5000/track.html?order=${encodeURIComponent(orderIdentifier)}`;
+
+    const dressCardUrl = (typeof window !== 'undefined' && window.location)
+      ? `${window.location.origin}/dress_card.html?order=${encodeURIComponent(orderIdentifier)}`
+      : `http://localhost:5000/dress_card.html?order=${encodeURIComponent(orderIdentifier)}`;
 
     const msg = `👑 *${brandName}* 👑\n\n` +
       `أهلاً وسهلاً بكِ عزيزتنا *${motherName}* 🌸✨\n` +
       `تم بحمد الله اعتماد وتأكيد حجز تفصيل الفستان لأميرتنا الجميلة *${chName}* بنجاح ✅\n\n` +
       `👗 *الموديل المختار:* ${order.product_name || prod?.name || "موديل راقي خاص"}\n` +
-      `📋 *رقم الطلب:* ${order.order_no || ('ORD-' + order.id)}\n` +
+      `📋 *رقم الطلب:* ${orderIdentifier}\n` +
       imgSection +
       measSection +
       `\n💰 *البيان المالي للحجز:* \n` +
@@ -517,6 +522,7 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
       `  • المبلغ الموصل (العربون): ${pd.toLocaleString("en-US")} ${cur}\n` +
       `  • المبلغ المتبقي عند الاستلام: ${rem.toLocaleString("en-US")} ${cur}\n\n` +
       `📅 *موعد التسليم والبروفة:* ${deliveryDateFormatted}\n\n` +
+      `🖼️ *معاينة كرت الفستان الفاخر والتحميل (صورة وبطاقة معتمدة):* \n${dressCardUrl}\n\n` +
       `🔗 *بوابة تتبع مراحل الفستان وتأكيد البروفة للجوال:* \n${trackingUrl}\n\n` +
       `نعتني بأدق تفاصيل الخياطة الملكية واللمسات الفاخرة لتتألق أميرتك بأجمل إطلالة تليق بها! 🎀👑✨\n` +
       `نسعد دائماً بخدمتكم وتواصلكم معنا 💖`;
@@ -524,8 +530,15 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
     return {
       msg,
       trackingUrl,
+      dressCardUrl,
       motherName,
       chName,
+      tot,
+      pd,
+      rem,
+      cur,
+      deliveryDateFormatted,
+      imgUrl,
       phone: cust?.phone || cust?.['رقم الهاتف'] || '',
       platform: cust?.platform || cust?.social_platform || 'واتساب',
       platformAccount: cust?.account_handle || cust?.username || cust?.social_id || '',
@@ -1552,8 +1565,11 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
                           🛍️
                         </button>
                       )}
-                      <button onClick={() => sendWhatsAppInvoice(o)} title="إرسال واتساب" className="w-7 h-7 rounded-lg bg-white dark:bg-slate-800 hover:bg-[#E2F5F7] dark:hover:bg-slate-700 text-[#6F6B75] dark:text-slate-300 hover:text-[#007F8C] dark:hover:text-cyan-300 border border-[#E8E5EA] dark:border-slate-700 transition-all flex items-center justify-center cursor-pointer">
+                      <button onClick={() => sendWhatsAppInvoice(o)} title="إرسال كرت الفستان والرسالة الملكية للأم عبر واتساب" className="w-7 h-7 rounded-lg bg-white dark:bg-slate-800 hover:bg-[#E2F5F7] dark:hover:bg-slate-700 text-[#6F6B75] dark:text-slate-300 hover:text-[#007F8C] dark:hover:text-cyan-300 border border-[#E8E5EA] dark:border-slate-700 transition-all flex items-center justify-center cursor-pointer">
                         <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 00-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                      </button>
+                      <button onClick={() => sendWhatsAppInvoice(o)} title="عرض وإرسال كرت فستان الأميرة الملكي 👗✨" className="w-7 h-7 rounded-lg bg-white dark:bg-slate-800 hover:bg-[#F2E7F3] dark:hover:bg-purple-950/50 text-[#8F2A87] dark:text-purple-300 border border-[#E5CEE7] dark:border-purple-900 transition-all flex items-center justify-center cursor-pointer text-xs font-bold shadow-2xs">
+                        👗
                       </button>
                       <button onClick={() => openPrintModal(o, 'thermal')} title="طباعة الفاتورة الحرارية 80mm" className="w-7 h-7 rounded-lg bg-white dark:bg-slate-800 hover:bg-[#FCE8F2] dark:hover:bg-slate-700 text-[#6F6B75] dark:text-slate-300 hover:text-[#B0005A] dark:hover:text-rose-300 border border-[#E8E5EA] dark:border-slate-700 transition-all flex items-center justify-center cursor-pointer text-xs font-bold">
                         🧾
@@ -1810,20 +1826,20 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
         />
       )}
 
-      {/* ── Omnichannel Royal Customer Confirmation Modal ── */}
+      {/* ── Omnichannel Royal Customer Confirmation & Luxury Dress Card Modal ── */}
       {customerMessageModalData && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn" dir="rtl">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-[#E8E5EA] dark:border-slate-800 space-y-4 text-right max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-fadeIn" dir="rtl">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-xl w-full p-6 shadow-2xl border border-[#E8E5EA] dark:border-slate-800 space-y-4 text-right max-h-[92vh] overflow-y-auto">
             {/* Modal Header */}
             <div className="flex items-center justify-between pb-3 border-b border-[#E8E5EA] dark:border-slate-800">
               <div className="flex items-center gap-2.5">
                 <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-pink-500 to-[#8F2A87] text-white flex items-center justify-center text-xl shadow-xs">
-                  💌
+                  👗
                 </div>
                 <div>
-                  <h3 className="text-sm font-black text-[#25232A] dark:text-slate-100">رسالة اعتماد الطلب الملكية للأم</h3>
+                  <h3 className="text-sm font-black text-[#25232A] dark:text-slate-100">كرت فستان الأميرة الفاخر ووثيقة الحجز</h3>
                   <p className="text-[11px] text-[#6F6B75] dark:text-slate-400">
-                    للأميرة: <span className="font-bold text-[#8F2A87]">{customerMessageModalData.chName}</span> • طلب: {customerMessageModalData.order?.order_no}
+                    للأميرة: <span className="font-bold text-[#8F2A87] dark:text-pink-300">{customerMessageModalData.chName}</span> • طلب: {customerMessageModalData.order?.order_no}
                   </p>
                 </div>
               </div>
@@ -1835,51 +1851,100 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
               </button>
             </div>
 
-            {/* Platform Badge & Info */}
-            <div className="p-3 rounded-2xl bg-purple-50/70 dark:bg-purple-950/30 border border-[#E5CEE7] dark:border-purple-900/50 flex items-center justify-between text-xs">
-              <div className="flex items-center gap-2">
-                <span className="text-base">🌐</span>
+            {/* Visual Dress Card Luxury Preview Container */}
+            <div className="p-4 rounded-2xl bg-[#FFFDF9] dark:bg-slate-950 border-2 border-[#8F2A87] shadow-inner space-y-3 relative overflow-hidden">
+              {/* Card Banner */}
+              <div className="flex items-center justify-between bg-gradient-to-r from-[#8F2A87] via-[#701A75] to-[#B0005A] text-white p-3 rounded-xl">
                 <div>
-                  <span className="text-[10px] text-[#8F2A87] dark:text-purple-300 font-bold block">منصة التواصل المسجلة:</span>
-                  <span className="font-bold text-[#25232A] dark:text-slate-200">{customerMessageModalData.platform}</span>
+                  <span className="text-[10px] text-pink-200 block font-bold">الأميرة الصغيرة:</span>
+                  <span className="font-black text-sm">{customerMessageModalData.chName}</span>
+                </div>
+                <div className="text-xl">👑</div>
+                <div className="text-left">
+                  <span className="text-[10px] text-pink-200 block font-bold">والدة الأميرة:</span>
+                  <span className="font-bold text-xs">{customerMessageModalData.motherName}</span>
                 </div>
               </div>
-              {customerMessageModalData.phone && (
-                <div className="text-left font-mono font-bold text-[#007F8C]">
-                  📱 {customerMessageModalData.phone}
-                </div>
-              )}
-            </div>
 
-            {/* Quick Preview Customer Tracking Link */}
-            {customerMessageModalData.trackingUrl && (
-              <div className="p-3 rounded-2xl bg-gradient-to-r from-pink-50/90 to-purple-50/90 dark:from-pink-950/30 dark:to-purple-950/30 border border-pink-200 dark:border-pink-900/50 flex items-center justify-between text-xs">
-                <div className="flex items-center gap-2">
-                  <span className="text-base">👑</span>
-                  <div>
-                    <span className="text-[10px] text-[#8F2A87] dark:text-pink-300 font-bold block">رابط تتبع الفستان والبروفة للجوال:</span>
-                    <span className="font-mono text-[11px] text-gray-700 dark:text-slate-300">{customerMessageModalData.order?.order_no || customerMessageModalData.order?.id}</span>
+              {/* Garment Details & Image */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+                <div className="sm:col-span-2 space-y-1.5 bg-white dark:bg-slate-900 p-2.5 rounded-xl border border-pink-100 dark:border-slate-800">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500 dark:text-slate-400 text-[11px]">الموديل المعتمد:</span>
+                    <span className="font-bold text-[#8F2A87] dark:text-purple-300">{customerMessageModalData.order?.product_name || 'موديل راقي خاص'}</span>
                   </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500 dark:text-slate-400 text-[11px]">موعد التسليم:</span>
+                    <span className="font-bold text-amber-700 dark:text-amber-400 font-mono">{customerMessageModalData.deliveryDateFormatted}</span>
+                  </div>
+                  {customerMessageModalData.childMeas && (
+                    <div className="pt-1 border-t border-dashed border-gray-200 dark:border-slate-800 text-[10.5px] text-gray-700 dark:text-slate-300 font-mono flex flex-wrap gap-2">
+                      {customerMessageModalData.childMeas.dress_length && <span>طول: <b>{customerMessageModalData.childMeas.dress_length}</b></span>}
+                      {customerMessageModalData.childMeas.chest && <span>صدر: <b>{customerMessageModalData.childMeas.chest}</b></span>}
+                      {customerMessageModalData.childMeas.waist && <span>خصر: <b>{customerMessageModalData.childMeas.waist}</b></span>}
+                    </div>
+                  )}
                 </div>
+
+                {/* Photo or Crown */}
+                <div className="h-24 rounded-xl border border-[#D4AF37] bg-purple-50 dark:bg-slate-900 flex items-center justify-center overflow-hidden">
+                  {customerMessageModalData.imgUrl ? (
+                    <img src={customerMessageModalData.imgUrl} alt="فستان" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="text-center">
+                      <span className="text-3xl">👗</span>
+                      <span className="block text-[9px] text-[#8F2A87] font-bold mt-0.5">تفصيل ملكي</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Financial Highlight */}
+              <div className="grid grid-cols-3 gap-2 bg-[#0F172A] text-white p-2.5 rounded-xl text-center">
+                <div>
+                  <span className="text-[10px] text-gray-400 block">الإجمالي</span>
+                  <span className="font-mono font-bold text-xs">{customerMessageModalData.tot?.toLocaleString()} {customerMessageModalData.cur}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-emerald-400 block">الموصل (العربون)</span>
+                  <span className="font-mono font-bold text-xs text-emerald-400">{customerMessageModalData.pd?.toLocaleString()} {customerMessageModalData.cur}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-amber-400 block">المتبقي</span>
+                  <span className="font-mono font-black text-xs text-amber-300">{customerMessageModalData.rem?.toLocaleString()} {customerMessageModalData.cur}</span>
+                </div>
+              </div>
+
+              {/* Interactive Links Row */}
+              <div className="flex items-center justify-between gap-2 pt-1">
+                <a
+                  href={customerMessageModalData.dressCardUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex-1 py-1.5 px-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-bold text-[11px] shadow-xs flex items-center justify-center gap-1.5 transition"
+                >
+                  <span>🖼️ فتح كرت الفستان عالي الدقة (PNG / طباعة)</span>
+                  <span>↗</span>
+                </a>
                 <a
                   href={customerMessageModalData.trackingUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="py-1.5 px-3 rounded-xl bg-white dark:bg-slate-800 hover:bg-[#8F2A87] text-[#8F2A87] hover:text-white font-bold text-[11px] border border-pink-200 dark:border-slate-700 shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                  className="py-1.5 px-2.5 rounded-xl bg-purple-50 dark:bg-slate-800 text-[#8F2A87] dark:text-purple-300 font-bold text-[11px] border border-purple-200 dark:border-purple-800 flex items-center gap-1"
                 >
-                  <span>فتح الرابط 📱</span>
+                  <span>📱 تتبع البروفة</span>
                   <span>↗</span>
                 </a>
               </div>
-            )}
+            </div>
 
-            {/* Message Preview Box */}
-            <div>
-              <label className={labelCls}>معاينة نص الرسالة الملكية المنسقة:</label>
-              <div className="p-3.5 rounded-2xl bg-[#FAFAFB] dark:bg-slate-950 border border-[#E8E5EA] dark:border-slate-800 text-xs text-[#25232A] dark:text-slate-200 font-sans leading-relaxed whitespace-pre-wrap max-h-56 overflow-y-auto select-all selection:bg-purple-100">
+            {/* Quick Text View / Accordion */}
+            <details className="text-xs text-gray-600 dark:text-slate-400 cursor-pointer">
+              <summary className="font-bold hover:text-[#8F2A87]">عرض نص الرسالة المرفقة للواتساب 📝</summary>
+              <div className="mt-2 p-3 rounded-xl bg-gray-50 dark:bg-slate-950 border border-gray-200 dark:border-slate-800 text-[11.5px] leading-relaxed whitespace-pre-wrap max-h-36 overflow-y-auto select-all">
                 {customerMessageModalData.msg}
               </div>
-            </div>
+            </details>
 
             {/* Action Buttons */}
             <div className="pt-2 space-y-2">
@@ -1899,7 +1964,7 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
                   className="py-3 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 00-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-                  <span>إرسال فوري عبر واتساب 📲</span>
+                  <span>إرسال بالواتساب مع كرت الفستان 📲</span>
                 </button>
 
                 {/* Copy to Clipboard Button */}
@@ -1907,12 +1972,12 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
                   type="button"
                   onClick={() => {
                     navigator.clipboard.writeText(customerMessageModalData.msg);
-                    showToast('تم نسخ الرسالة الملكية بنجاح! يمكنكِ لصقها مباشرة في خاص انستغرام أو تيك توك 🌸📋', 'success');
+                    showToast('تم نسخ رابط كرت الفستان والرسالة الملكية بنجاح! 🌸📋', 'success');
                   }}
                   className="py-3 px-3 rounded-xl bg-[#8F2A87] hover:bg-[#76206f] text-white font-bold text-xs shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <span>📋</span>
-                  <span>نسخ للمنصة (انستغرام / تيك توك)</span>
+                  <span>نسخ الرابط والرسالة الملكية</span>
                 </button>
               </div>
 

@@ -40,6 +40,26 @@ def handle_get(handler, path, parsed_url) -> bool:
         handler.wfile.write(json.dumps({'success': 'error' not in res, 'data': res, 'error': res.get('error')}, ensure_ascii=False, default=str).encode('utf-8'))
         return True
 
+    if path in ('/api/orders/dress-card', '/api/tailoring/dress-card', '/api/dress-card'):
+        query_params = urllib.parse.parse_qs(parsed_url.query)
+        order_param = (query_params.get('order') or query_params.get('order_id') or query_params.get('id') or [None])[0]
+        if not order_param:
+            handler.send_response(400)
+            handler._send_cors_headers()
+            handler.send_header('Content-Type', 'application/json; charset=utf-8')
+            handler.end_headers()
+            handler.wfile.write(json.dumps({'success': False, 'error': 'رقم الطلب أو الفاتورة مطلوب'}, ensure_ascii=False).encode('utf-8'))
+            return True
+        from domains.tailoring.dress_card_service import get_dress_card_payload
+        res = get_dress_card_payload(order_param)
+        status_code = 200 if res.get('success') else 404
+        handler.send_response(status_code)
+        handler._send_cors_headers()
+        handler.send_header('Content-Type', 'application/json; charset=utf-8')
+        handler.end_headers()
+        handler.wfile.write(json.dumps(res, ensure_ascii=False, default=str).encode('utf-8'))
+        return True
+
     return False
 
 
