@@ -28,7 +28,7 @@
       <div class="flex items-center gap-2.5">
         <span class="text-2xl">👑</span>
         <div>
-          <h1 class="text-sm font-extrabold tracking-wide">ليتل برنسيس للأزياء الفاخرة</h1>
+          <h1 class="text-sm font-extrabold tracking-wide" id="jobBrandName">مؤسسة الأميرات الصغيرات</h1>
           <p class="text-[11px] text-purple-200 font-medium">بطاقة أمر التشغيل الرقمية (Digital Job Card)</p>
         </div>
       </div>
@@ -305,6 +305,7 @@
     </div>
   </main>
 
+  <script src="src/services/brandService.js"></script>
   <script>
     let currentOrderData = null;
     const urlParams = new URLSearchParams(window.location.search);
@@ -333,6 +334,13 @@
     function renderJobCard(d) {
       document.getElementById('loadingBox').classList.add('hidden');
       document.getElementById('contentContainer').classList.remove('hidden');
+
+      // Brand Title
+      if (typeof window !== 'undefined' && window.BrandService) {
+        const bp = window.BrandService.getProfile();
+        const bEl = document.getElementById('jobBrandName');
+        if (bEl && bp.name) bEl.textContent = bp.name;
+      }
 
       // Badges & Title
       document.getElementById('childName').textContent = d.child_name || 'الأميرة';

@@ -106,6 +106,10 @@ const getSmartSuggestedAccountCode = (parentVal, accountsList = []) => {
 };
 
 function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouchers = [], setVouchers, showToast, currency = { display: 'YER ﷼', symbol: '﷼', code: 'YER' } }) {
+  const activeTargetCurr = window.CurrencyService ? window.CurrencyService.normalizeCode(currency) : (typeof currency === 'string' ? currency : (currency?.code || 'YER'));
+  const isBaseCurrency = activeTargetCurr === 'YER';
+  const currDef = window.CurrencyService ? window.CurrencyService.getCurrencyDef(activeTargetCurr) : { code: 'YER', display: 'YER ﷼', symbol: '﷼', decimals: 0 };
+
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedNodes, setExpandedNodes] = useState({
     '1': true, '2': true, '3': true, '4': true, '5': true,
@@ -1098,7 +1102,10 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
 
     const isGroup = acc.is_group === 1 || children.length > 0;
     const isDebit = acc.nature === 'debit';
-    const displayBalance = isGroup ? acc.rollupBalance : acc.balance;
+    const baseBalance = isGroup ? acc.rollupBalance : acc.balance;
+    const presentationBalance = isBaseCurrency
+      ? baseBalance
+      : (window.CurrencyService ? window.CurrencyService.fromBase(baseBalance, activeTargetCurr) : baseBalance);
 
     // تحديد ما إذا كان يجب عرض الأبناء بناءً على فلتر المستوى
     const shouldRenderChildren = children.length > 0 && (
@@ -1161,15 +1168,24 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
 
           <div className="flex items-center gap-3">
             <div className="text-left font-mono tabular-nums">
-              <span className={`text-xs md:text-sm font-extrabold ${displayBalance > 0 ? 'text-[#007F8C]' : (displayBalance < 0 ? 'text-[#D64545]' : 'text-[#6F6B75]')}`}>
-                {displayBalance.toLocaleString('en-US')} <span className="text-[10px] font-medium text-[#6F6B75]">YER ﷼</span>
+              <span className={`text-xs md:text-sm font-extrabold ${presentationBalance > 0 ? 'text-[#007F8C]' : (presentationBalance < 0 ? 'text-[#D64545]' : 'text-[#6F6B75]')}`}>
+                {presentationBalance.toLocaleString('en-US', { minimumFractionDigits: isBaseCurrency ? 0 : (currDef.decimals || 2), maximumFractionDigits: (currDef.decimals !== undefined ? currDef.decimals : 2) })} <span className="text-[10px] font-medium text-[#6F6B75]">{currDef.display}</span>
               </span>
-              {acc.currency && acc.currency !== 'YER' && !isGroup && displayBalance !== 0 && (
+
+              {/* إذا تم اختيار عملة عرض أجنبية (USD أو SAR)، يتم إظهار المعادل الدفتري الأساسي بالريال اليمني كمرجع تدقيق */}
+              {!isBaseCurrency && baseBalance !== 0 && (
+                <span className="block text-[10px] font-medium text-[#6F6B75] font-mono" title="الرصيد الدفتري الأساسي بالريال اليمني">
+                  ({baseBalance.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} YER ﷼)
+                </span>
+              )}
+
+              {/* إذا كان الحساب نفسه بعملة أجنبية مخصصة مثل صندوق الريال السعودي أو الدولار */}
+              {acc.currency && acc.currency !== 'YER' && !isGroup && baseBalance !== 0 && (
                 <span 
                   className="block text-[10px] font-bold text-amber-600 font-mono"
-                  title={`الرصيد الفعلي بالعملة: ${Number(acc.foreign_balance !== undefined && acc.foreign_balance !== null ? acc.foreign_balance : (window.CurrencyService ? window.CurrencyService.fromBase(displayBalance, acc.currency) : (displayBalance / 142))).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${acc.currency}`}
+                  title={`الرصيد الفعلي بالعملة الأصلية للحساب: ${Number(acc.foreign_balance !== undefined && acc.foreign_balance !== null ? acc.foreign_balance : (window.CurrencyService ? window.CurrencyService.fromBase(baseBalance, acc.currency) : (baseBalance / 142))).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${acc.currency}`}
                 >
-                  ({acc.currency} {Number(acc.foreign_balance !== undefined && acc.foreign_balance !== null ? acc.foreign_balance : (window.CurrencyService ? window.CurrencyService.fromBase(displayBalance, acc.currency) : (displayBalance / 142))).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
+                  (الرصيد الأصلي: {Number(acc.foreign_balance !== undefined && acc.foreign_balance !== null ? acc.foreign_balance : (window.CurrencyService ? window.CurrencyService.fromBase(baseBalance, acc.currency) : (baseBalance / 142))).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {acc.currency})
                 </span>
               )}
               {isGroup && <span className="block text-[9px] text-[#6F6B75] text-center font-sans">إجمالي الفرع</span>}
@@ -1622,8 +1638,14 @@ function Accounts({ accounts = [], setAccounts, journal = [], setJournal, vouche
                 <span>{selectedDetailAcc.nature === 'debit' ? 'مدين (Debit)' : 'دائن (Credit)'}</span>
               </div>
               <div className="flex justify-between border-b border-[#E8E5EA] pb-2">
-                <span className="text-[#6F6B75] font-bold">الرصيد المحاسبي (العملة الأساسية YER):</span>
+                <span className="text-[#6F6B75] font-bold">الرصيد بالعملة المختارة ({activeTargetCurr}):</span>
                 <span className="font-bold font-mono text-[#007F8C]">
+                  {Number(isBaseCurrency ? (selectedDetailAcc.rollupBalance || selectedDetailAcc.balance || 0) : (window.CurrencyService ? window.CurrencyService.fromBase(selectedDetailAcc.rollupBalance || selectedDetailAcc.balance, activeTargetCurr) : (selectedDetailAcc.rollupBalance || selectedDetailAcc.balance || 0))).toLocaleString('en-US', { minimumFractionDigits: isBaseCurrency ? 0 : 2, maximumFractionDigits: 2 })} {currDef.display}
+                </span>
+              </div>
+              <div className="flex justify-between border-b border-[#E8E5EA] pb-2">
+                <span className="text-[#6F6B75] font-bold">الرصيد المحاسبي الأساسي (YER):</span>
+                <span className="font-bold font-mono text-[#25232A]">
                   {Number(selectedDetailAcc.rollupBalance || selectedDetailAcc.balance || 0).toLocaleString('en-US')} YER ﷼
                 </span>
               </div>

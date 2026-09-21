@@ -486,40 +486,40 @@ function PrintModal({ order, customer, measurements, product, products, isOpen, 
                 <div>
                   <h3 className="text-xs font-bold text-black mb-2 flex items-center gap-1.5">
                     <span>📐</span>
-                    <span>مصفوفة مقاسات الطفلة التفصيلية (Body Measurements):</span>
+                    <span>مصفوفة وباترون مقاسات الأميرة بالسنتيمتر (cm):</span>
                   </h3>
                   <div className="measurements-grid text-xs">
                     <div className="meas-box">
                       <span className="text-[10px] text-gray-500 block">الطول الكلي</span>
-                      <span className="font-mono font-bold text-sm">{m.total_height || m.total_length || m.total_len || '—'}</span>
+                      <span className="font-mono font-bold text-sm">{(m.total_height || m.total_length || m.total_len) ? `${m.total_height || m.total_length || m.total_len} سم` : '—'}</span>
                     </div>
                     <div className="meas-box">
                       <span className="text-[10px] text-gray-500 block">طول الفستان</span>
-                      <span className="font-mono font-bold text-sm text-[#B0005A]">{m.dress_length || m.dress_len || '—'}</span>
+                      <span className="font-mono font-bold text-sm text-[#B0005A]">{(m.dress_length || m.dress_len) ? `${m.dress_length || m.dress_len} سم` : '—'}</span>
                     </div>
                     <div className="meas-box">
                       <span className="text-[10px] text-gray-500 block">محيط الصدر</span>
-                      <span className="font-mono font-bold text-sm">{m.chest_circ || '—'}</span>
+                      <span className="font-mono font-bold text-sm">{m.chest_circ ? `${m.chest_circ} سم` : '—'}</span>
                     </div>
                     <div className="meas-box">
                       <span className="text-[10px] text-gray-500 block">محيط الخصر</span>
-                      <span className="font-mono font-bold text-sm">{m.waist_circ || '—'}</span>
+                      <span className="font-mono font-bold text-sm">{m.waist_circ ? `${m.waist_circ} سم` : '—'}</span>
                     </div>
                     <div className="meas-box">
                       <span className="text-[10px] text-gray-500 block">طول الصدر (للخصر)</span>
-                      <span className="font-mono font-bold text-sm">{m.chest_length || m.chest_len || '—'}</span>
+                      <span className="font-mono font-bold text-sm">{(m.chest_length || m.chest_len) ? `${m.chest_length || m.chest_len} سم` : '—'}</span>
                     </div>
                     <div className="meas-box">
                       <span className="text-[10px] text-gray-500 block">طول التنورة</span>
-                      <span className="font-mono font-bold text-sm">{m.skirt_length || m.skirt_len || '—'}</span>
+                      <span className="font-mono font-bold text-sm">{(m.skirt_length || m.skirt_len) ? `${m.skirt_length || m.skirt_len} سم` : '—'}</span>
                     </div>
                     <div className="meas-box">
                       <span className="text-[10px] text-gray-500 block">طول الكم</span>
-                      <span className="font-mono font-bold text-sm">{m.sleeve_length || m.sleeve_len || '—'}</span>
+                      <span className="font-mono font-bold text-sm">{(m.sleeve_length || m.sleeve_len) ? `${m.sleeve_length || m.sleeve_len} سم` : '—'}</span>
                     </div>
                     <div className="meas-box">
                       <span className="text-[10px] text-gray-500 block">عرض الكتف</span>
-                      <span className="font-mono font-bold text-sm">{m.shoulder_width || m.shoulder_w || '—'}</span>
+                      <span className="font-mono font-bold text-sm">{(m.shoulder_width || m.shoulder_w) ? `${m.shoulder_width || m.shoulder_w} سم` : '—'}</span>
                     </div>
                   </div>
                 </div>

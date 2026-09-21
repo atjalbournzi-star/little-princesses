@@ -7,35 +7,54 @@ import pg_service
 
 
 def handle_get(handler, path, parsed_url) -> bool:
-    if path in ('/api/hr/employees', '/api/employees'):
-        data = pg_service.get_employees()
-        handler.send_response(200)
-        handler._send_cors_headers()
-        handler.send_header('Content-Type', 'application/json; charset=utf-8')
-        handler.end_headers()
-        handler.wfile.write(json.dumps({'success': True, 'data': data}, ensure_ascii=False, default=str).encode('utf-8'))
-        return True
+    try:
+        if path in ('/api/hr/employees', '/api/employees'):
+            data = pg_service.get_employees()
+            handler.send_response(200)
+            handler._send_cors_headers()
+            handler.send_header('Content-Type', 'application/json; charset=utf-8')
+            handler.end_headers()
+            handler.wfile.write(json.dumps({'success': True, 'data': data}, ensure_ascii=False, default=str).encode('utf-8'))
+            return True
 
-    if path in ('/api/hr/payroll', '/api/payroll'):
-        query_params = urllib.parse.parse_qs(parsed_url.query)
-        month = query_params.get('month', [None])[0]
-        data = pg_service.get_payroll({'month': month} if month else None)
-        handler.send_response(200)
-        handler._send_cors_headers()
-        handler.send_header('Content-Type', 'application/json; charset=utf-8')
-        handler.end_headers()
-        handler.wfile.write(json.dumps({'success': True, 'data': data}, ensure_ascii=False, default=str).encode('utf-8'))
-        return True
+        if path in ('/api/hr/payroll', '/api/payroll'):
+            query_params = urllib.parse.parse_qs(parsed_url.query)
+            month = query_params.get('month', [None])[0]
+            data = pg_service.get_payroll({'month': month} if month else None)
+            handler.send_response(200)
+            handler._send_cors_headers()
+            handler.send_header('Content-Type', 'application/json; charset=utf-8')
+            handler.end_headers()
+            handler.wfile.write(json.dumps({'success': True, 'data': data}, ensure_ascii=False, default=str).encode('utf-8'))
+            return True
 
-    if path == '/api/hr/payroll/calculate':
-        query_params = urllib.parse.parse_qs(parsed_url.query)
-        month = query_params.get('month', [None])[0]
-        data = pg_service.calculate_payroll({'month': month} if month else None)
-        handler.send_response(200)
+        if path == '/api/hr/payroll/calculate':
+            query_params = urllib.parse.parse_qs(parsed_url.query)
+            month = query_params.get('month', [None])[0]
+            data = pg_service.calculate_payroll({'month': month} if month else None)
+            handler.send_response(200)
+            handler._send_cors_headers()
+            handler.send_header('Content-Type', 'application/json; charset=utf-8')
+            handler.end_headers()
+            handler.wfile.write(json.dumps({'success': True, 'data': data}, ensure_ascii=False, default=str).encode('utf-8'))
+            return True
+
+        if path in ('/api/hr/advances', '/api/advances'):
+            query_params = urllib.parse.parse_qs(parsed_url.query)
+            params = {k: v[0] for k, v in query_params.items()}
+            data = pg_service.get_advances(params)
+            handler.send_response(200)
+            handler._send_cors_headers()
+            handler.send_header('Content-Type', 'application/json; charset=utf-8')
+            handler.end_headers()
+            handler.wfile.write(json.dumps({'success': True, 'data': data}, ensure_ascii=False, default=str).encode('utf-8'))
+            return True
+    except Exception as e:
+        handler.send_response(500)
         handler._send_cors_headers()
         handler.send_header('Content-Type', 'application/json; charset=utf-8')
         handler.end_headers()
-        handler.wfile.write(json.dumps({'success': True, 'data': data}, ensure_ascii=False, default=str).encode('utf-8'))
+        handler.wfile.write(json.dumps({'success': False, 'error': str(e)}).encode('utf-8'))
         return True
 
     return False

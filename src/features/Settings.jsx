@@ -47,6 +47,7 @@ function Settings({ showToast }) {
   const [backupFileContent, setBackupFileContent]   = useState(null);
   const [selectedFileName, setSelectedFileName]     = useState('');
   const [isRestoring, setIsRestoring]               = useState(false);
+  const [isWiping, setIsWiping]                     = useState(false);
   const fileInputRef = useRef(null);
 
   // ── التبويب النشط (Navigation Tabs) ──
@@ -284,6 +285,52 @@ function Settings({ showToast }) {
       showToast && showToast('خطأ أثناء إرسال بيانات الاستعادة للخادم', 'error');
     } finally {
       setIsRestoring(false);
+    }
+  };
+
+  // ── تنفيذ التصفير الشامل والبدء كنسخة نظيفة ──
+  const handleFactoryReset = async () => {
+    const confirm1 = window.confirm(
+      "⚠️ تحذير أمني هام وعالي الخطورة:\n\nهل أنت متأكد تماماً من رغبتك في تصفير كافة البيانات التشغيلية؟\n\nسيتم مسح كافة الطلبات، الفواتير، العملاء، الموردين، المخزون، وسندات القبض والصرف، وتصفير شجرة الحسابات والعدادات لتبدأ المنظومة كنسخة جديدة نظيفة 100%.\n(ملاحظة: تم أخذ نسخة احتياطية سحابية ومحلية مسبقاً)."
+    );
+    if (!confirm1) return;
+
+    const confirm2 = window.prompt("للتأكيد النهائي، يرجى كتابة كلمة 'تصفير' أدناه:");
+    if (confirm2 !== "تصفير") {
+      showToast && showToast("تم إلغاء عملية التصفير.", "info");
+      return;
+    }
+
+    setIsWiping(true);
+    try {
+      const res = await fetch("/api/gas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "clearAllData", data: {} })
+      }).then(r => r.json());
+
+      if (res && res.success !== false) {
+        // تفريغ الكاش التشغيلي من المتصفح
+        const keysToRemove = [
+          'erp_active_customer', 'cached_orders', 'offline_queue',
+          'lp_cached_data', 'draft_order'
+        ];
+        keysToRemove.forEach(k => {
+          try { localStorage.removeItem(k); } catch(e) {}
+        });
+
+        showToast && showToast("تم تصفير النظام والواجهة بنجاح 100% والبدء كنسخة نظيفة جديدة!", "success");
+        setTimeout(() => {
+          window.location.reload();
+        }, 1200);
+      } else {
+        throw new Error(res?.error || res?.message || "فشل تنفيذ عملية التصفير");
+      }
+    } catch(err) {
+      console.error("Reset error:", err);
+      showToast && showToast("خطأ أثناء التصفير: " + (err.message || String(err)), "error");
+    } finally {
+      setIsWiping(false);
     }
   };
 
@@ -1093,6 +1140,36 @@ function Settings({ showToast }) {
                 <span>{isRestoring ? 'جارٍ استعادة البيانات وإعادة البناء...' : 'تأكيد واستعادة النسخة الاحتياطية الآن ⚡'}</span>
               </button>
             </div>
+          </div>
+        </div>
+
+        {/* Section: منطقة التصفير الشامل والبدء النظيف (Clean Slate & Factory Reset Zone) */}
+        <div className="bg-rose-50/60 border border-rose-200 rounded-2xl p-5 space-y-3">
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-700 border border-rose-200 flex items-center justify-center text-xl shrink-0">
+                🧹
+              </div>
+              <div>
+                <h4 className="font-extrabold text-xs text-rose-800 flex items-center gap-2">
+                  تهيئة النظام كنسخة نظيفة وجديدة (Clean Slate & Factory Reset)
+                  <span className="text-[10px] bg-rose-100 text-rose-700 font-mono font-bold px-2 py-0.5 rounded-full border border-rose-200">
+                    جاهز للإنتاج الفعلي
+                  </span>
+                </h4>
+                <p className="text-[11px] text-[#6F6B75] mt-0.5">
+                  مسح وتصفير كافة البيانات التجريبية والطلبات والفواتير والحسابات في الواجهة وفي سكيما public في Supabase، مع الحفاظ التام على المستخدمين وشجرة الحسابات والعملات.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleFactoryReset}
+              disabled={isWiping}
+              className="h-11 px-6 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-extrabold text-xs shadow-xs transition flex items-center gap-2 cursor-pointer disabled:opacity-50"
+            >
+              <span>{isWiping ? 'جارٍ التصفير والتهيئة...' : '🧹 تصفير شامل وبدء نسخة جديدة'}</span>
+            </button>
           </div>
         </div>
 

@@ -120,7 +120,7 @@ async function callGAS(action, payload = {}) {
 
 async function loadAllData() {
   try {
-    const [cRes, iRes, aRes, pRes, oRes, puRes, fRes, vRes, eRes, jRes, fBRes, empRes, payRes] = await Promise.allSettled([
+    const [cRes, iRes, aRes, pRes, oRes, puRes, fRes, vRes, eRes, jRes, fBRes, empRes, payRes, campRes] = await Promise.allSettled([
       fetch("/api/customers").then(r => r.json()).catch(() => callGAS("getCustomers")),
       fetch("/api/inventory").then(r => r.json()).catch(() => callGAS("getInventory")),
       fetch("/api/accounts/list").then(r => r.json()).then(d => {
@@ -149,9 +149,10 @@ async function loadAllData() {
         const list = (d && Array.isArray(d.data)) ? d.data : (Array.isArray(d) ? d : []);
         return { data: list };
       }).catch(() => ({ data: [] })),
-      callGAS("getFeedback"),
-      callGAS("getEmployees"),
-      callGAS("getPayroll")
+      fetch("/api/quality/feedback").then(r => r.json()).catch(() => callGAS("getFeedback")),
+      fetch("/api/hr/employees").then(r => r.json()).catch(() => callGAS("getEmployees")),
+      fetch("/api/hr/payroll").then(r => r.json()).catch(() => callGAS("getPayroll")),
+      fetch("/api/marketing/campaigns").then(r => r.json()).catch(() => (window.marketingAPI ? window.marketingAPI.getCampaigns() : { data: [] }))
     ]);
 
     let accountsData = [];
@@ -245,9 +246,10 @@ async function loadAllData() {
       vouchers: (vRes.status === "fulfilled" && vRes.value) ? (Array.isArray(vRes.value.data) ? vRes.value.data : (Array.isArray(vRes.value) ? vRes.value : [])) : [],
       expenses: (eRes.status === "fulfilled" && eRes.value) ? (Array.isArray(eRes.value.data) ? eRes.value.data : (Array.isArray(eRes.value) ? eRes.value : [])) : [],
       journal: (jRes.status === "fulfilled" && jRes.value) ? (Array.isArray(jRes.value.data) ? jRes.value.data : (Array.isArray(jRes.value) ? jRes.value : [])) : [],
-      feedback: (fBRes.status === "fulfilled" && fBRes.value?.data && Array.isArray(fBRes.value.data)) ? fBRes.value.data : [],
-      employees: (empRes.status === "fulfilled" && empRes.value?.data && Array.isArray(empRes.value.data)) ? empRes.value.data : [],
-      payroll: (payRes.status === "fulfilled" && payRes.value?.data && Array.isArray(payRes.value.data)) ? payRes.value.data : []
+      feedback: (fBRes.status === "fulfilled" && fBRes.value) ? (Array.isArray(fBRes.value.data) ? fBRes.value.data : (Array.isArray(fBRes.value) ? fBRes.value : [])) : [],
+      employees: (empRes.status === "fulfilled" && empRes.value) ? (Array.isArray(empRes.value.data) ? empRes.value.data : (Array.isArray(empRes.value) ? empRes.value : [])) : [],
+      payroll: (payRes.status === "fulfilled" && payRes.value) ? (Array.isArray(payRes.value.data) ? payRes.value.data : (Array.isArray(payRes.value) ? payRes.value : [])) : [],
+      campaigns: (campRes.status === "fulfilled" && campRes.value) ? (Array.isArray(campRes.value.data) ? campRes.value.data : (Array.isArray(campRes.value) ? campRes.value : [])) : []
     };
   } catch (err) {
     console.warn("loadAllData failed:", err);
@@ -295,6 +297,8 @@ window.marketingAPI = {
   getDailyBrief: () => fetch('/api/marketing/ai/daily-brief').then(r => r.json()),
   getRecommendations: () => fetch('/api/marketing/ai/recommendations').then(r => r.json()),
   askAIChat: (question) => fetch('/api/marketing/ai/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question }) }).then(r => r.json()),
+  approveRecommendation: (rec_id) => fetch('/api/marketing/ai/recommendations/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rec_id }) }).then(r => r.json()),
+  updateWeights: (weights) => fetch('/api/marketing/ai/weights', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ weights }) }).then(r => r.json()),
   // Phase 3 SaaS Executive Endpoints
   getExecutiveKPIs: (tf = '30d') => fetch(`/api/marketing/executive-kpis?timeframe=${tf}`).then(r => r.json()),
   getFunnel: () => fetch('/api/marketing/funnel').then(r => r.json()),
@@ -385,34 +389,44 @@ window.addFeedback = async function(payload) {
     }).then(r => r.json());
     return res;
   } catch (e) {
-    return await callGAS('addFeedback', payload);
+    return { success: false, error: e.message };
   }
 };
 window.updateFeedbackStatus = async function(payload) {
-  return await callGAS('updateFeedbackStatus', payload);
+  try {
+    const res = await fetch('/api/quality/feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).then(r => r.json());
+    return res;
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
 };
 
-// ── Quality Management & Intelligence API (100% Free / Self-Contained) ──
+// ── Quality Management & Intelligence API (PostgreSQL Cloud Single Source of Truth) ──
 window.qualityAPI = {
-  getDashboard: () => fetch('/api/quality/dashboard').then(r => r.json()).catch(() => ({ success: false, data: {} })),
-  getIntelligence: (dimension) => fetch(dimension ? `/api/quality/intelligence/${dimension}` : '/api/quality/intelligence').then(r => r.json()).catch(() => ({ success: false, data: {} })),
-  getEvaluations: () => fetch('/api/quality/evaluations').then(r => r.json()).catch(() => callGAS('getQualityEvaluations')),
-  addEvaluation: (data) => fetch('/api/quality/evaluations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }).then(r => r.json()).catch(() => callGAS('addQualityEvaluation', data)),
-  getInspections: () => fetch('/api/quality/inspections').then(r => r.json()).catch(() => callGAS('getQualityInspections')),
-  addInspection: (data) => fetch('/api/quality/inspections', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }).then(r => r.json()).catch(() => callGAS('addQualityInspection', data)),
-  getDefects: () => fetch('/api/quality/defects').then(r => r.json()).catch(() => callGAS('getQualityDefects')),
-  addDefect: (data) => fetch('/api/quality/defects', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }).then(r => r.json()).catch(() => callGAS('addQualityDefect', data)),
-  getFeedback: () => fetch('/api/quality/feedback').then(r => r.json()).catch(() => callGAS('getQualityFeedback')),
-  addFeedback: (data) => fetch('/api/quality/feedback', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }).then(r => r.json()).catch(() => callGAS('addQualityFeedback', data)),
-  getComplaints: () => fetch('/api/quality/complaints').then(r => r.json()).catch(() => callGAS('getQualityComplaints')),
-  addComplaint: (data) => fetch('/api/quality/complaints', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }).then(r => r.json()).catch(() => callGAS('addQualityComplaint', data)),
-  getReturns: () => fetch('/api/quality/returns').then(r => r.json()).catch(() => callGAS('getQualityReturns')),
-  addReturn: (data) => fetch('/api/quality/returns', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }).then(r => r.json()).catch(() => callGAS('addQualityReturn', data)),
-  getCorrectiveActions: () => fetch('/api/quality/corrective_actions').then(r => r.json()).catch(() => callGAS('getQualityCorrectiveActions')),
-  addCorrectiveAction: (data) => fetch('/api/quality/corrective_actions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }).then(r => r.json()).catch(() => callGAS('addQualityCorrectiveAction', data)),
-  getCheckpoints: () => fetch('/api/quality/checkpoints').then(r => r.json()).catch(() => callGAS('getQualityCheckpoints')),
-  getSettings: () => fetch('/api/quality/settings').then(r => r.json()).catch(() => callGAS('getQualitySettings')),
-  saveSettings: (data) => fetch('/api/quality/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }).then(r => r.json()).catch(() => callGAS('saveQualitySettings', data))
+  getDashboard: () => fetch('/api/quality/dashboard').then(r => r.json()).catch(err => ({ success: false, error: err.message, data: {} })),
+  getIntelligence: (dimension) => fetch(dimension ? `/api/quality/intelligence/${dimension}` : '/api/quality/intelligence').then(r => r.json()).catch(err => ({ success: false, error: err.message, data: {} })),
+  getEvaluations: () => fetch('/api/quality/evaluations').then(r => r.json()).catch(err => ({ success: false, error: err.message, data: [] })),
+  addEvaluation: (data) => fetch('/api/quality/evaluations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }).then(r => r.json()).catch(err => ({ success: false, error: err.message })),
+  getInspections: () => fetch('/api/quality/inspections').then(r => r.json()).catch(err => ({ success: false, error: err.message, data: [] })),
+  addInspection: (data) => fetch('/api/quality/inspections', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }).then(r => r.json()).catch(err => ({ success: false, error: err.message })),
+  getDefects: () => fetch('/api/quality/defects').then(r => r.json()).catch(err => ({ success: false, error: err.message, data: [] })),
+  addDefect: (data) => fetch('/api/quality/defects', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }).then(r => r.json()).catch(err => ({ success: false, error: err.message })),
+  getFeedback: () => fetch('/api/quality/feedback').then(r => r.json()).catch(err => ({ success: false, error: err.message, data: [] })),
+  addFeedback: (data) => fetch('/api/quality/feedback', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }).then(r => r.json()).catch(err => ({ success: false, error: err.message })),
+  getComplaints: () => fetch('/api/quality/complaints').then(r => r.json()).catch(err => ({ success: false, error: err.message, data: [] })),
+  addComplaint: (data) => fetch('/api/quality/complaints', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }).then(r => r.json()).catch(err => ({ success: false, error: err.message })),
+  getReturns: () => fetch('/api/quality/returns').then(r => r.json()).catch(err => ({ success: false, error: err.message, data: [] })),
+  addReturn: (data) => fetch('/api/quality/returns', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }).then(r => r.json()).catch(err => ({ success: false, error: err.message })),
+  getCorrectiveActions: () => fetch('/api/quality/corrective_actions').then(r => r.json()).catch(err => ({ success: false, error: err.message, data: [] })),
+  addCorrectiveAction: (data) => fetch('/api/quality/corrective_actions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }).then(r => r.json()).catch(err => ({ success: false, error: err.message })),
+  getCheckpoints: () => fetch('/api/quality/checkpoints').then(r => r.json()).catch(err => ({ success: false, error: err.message, data: [] })),
+  saveCheckpoint: (data) => fetch('/api/quality/checkpoints', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }).then(r => r.json()).catch(err => ({ success: false, error: err.message })),
+  getSettings: () => fetch('/api/quality/settings').then(r => r.json()).catch(err => ({ success: false, error: err.message, data: [] })),
+  saveSettings: (data) => fetch('/api/quality/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }).then(r => r.json()).catch(err => ({ success: false, error: err.message }))
 };
 
 // HR & Payroll Studio API
@@ -452,6 +466,14 @@ window.hrAPI = {
       if (e.message) throw e;
     }
     return await callGAS('addJournalEntry', data);
+  },
+  getAdvances: async (month) => {
+    try {
+      const url = month ? `/api/hr/advances?month=${month}` : '/api/hr/advances';
+      const res = await fetch(url).then(r => r.json());
+      if (res && res.success && Array.isArray(res.data)) return res.data;
+    } catch (e) {}
+    return [];
   },
   getPayroll: async (month) => {
     try {

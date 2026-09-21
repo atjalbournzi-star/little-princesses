@@ -69,6 +69,22 @@ def handle_get(handler, path, parsed_url) -> bool:
     return False
 
 def handle_post(handler, path, parsed_url) -> bool:
+    if path in ('/api/inventory/reconcile', '/api/inventory/reconcile_governance'):
+        try:
+            res = pg_service.reconcile_inventory_governance()
+            handler.send_response(200)
+            handler._send_cors_headers()
+            handler.send_header('Content-Type', 'application/json; charset=utf-8')
+            handler.end_headers()
+            handler.wfile.write(json.dumps(res, ensure_ascii=False, default=str).encode('utf-8'))
+        except Exception as e:
+            handler.send_response(400)
+            handler._send_cors_headers()
+            handler.send_header('Content-Type', 'application/json; charset=utf-8')
+            handler.end_headers()
+            handler.wfile.write(json.dumps({'success': False, 'error': str(e)}, ensure_ascii=False).encode('utf-8'))
+        return True
+
     if path == '/api/inventory/adjust':
         content_length = int(handler.headers.get('Content-Length', 0))
         post_data = handler.rfile.read(content_length)

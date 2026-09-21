@@ -1,8 +1,14 @@
-const { useState, useEffect, useMemo, useCallback, useRef } = React;
+const { useState, useMemo } = React;
 
 function Purchases({ purchases = [], setPurchases, inventory = [], setInventory, accounts = [], setAccounts, vouchers = [], setVouchers, journal = [], setJournal, showToast, currency }) {
   const UNITS = ['متر', 'وار (ياردة)', 'سم', 'حبة (قطعة)', 'رول (طاقة)'];
-  const VALID_UNITS = ['متر', 'وار (ياردة)', 'سم', 'حبة (قطعة)', 'رول (طاقة)', 'يارده', 'وار'];
+  const inputCls = "w-full h-11 px-3.5 py-2.5 rounded-xl border border-[#E8E5EA] bg-white text-[#25232A] text-xs font-medium placeholder:text-[#6F6B75] focus:bg-white focus:border-[#8F2A87] focus:ring-2 focus:ring-[#F2E7F3] transition-all outline-none";
+  const labelCls = "block text-xs font-semibold text-[#25232A] mb-1.5";
+
+  const defaultCurrency = (typeof CURRENCIES !== 'undefined' ? (typeof CURRENCIES[0] === 'object' ? CURRENCIES[0].value : CURRENCIES[0]) : (window.CURRENCIES ? window.CURRENCIES[0] : 'YER ﷼'));
+  const defaultPayType = (typeof PAY_METHODS !== 'undefined' ? PAY_METHODS[0] : (window.PAY_METHODS ? window.PAY_METHODS[0] : 'نقدي'));
+  const todayStrIso = typeof TODAY_STR_ISO !== 'undefined' ? TODAY_STR_ISO : (window.TODAY_STR_ISO || new Date().toISOString().slice(0, 10));
+
   const genBillNo = () => {
     const lastNum = (purchases || []).reduce((acc, p) => {
       const match = String(p.bill_no || p.purchase_no || p.id || '').match(/PUR-(\d+)/);
@@ -10,723 +16,78 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
     }, 1000);
     return `PUR-${lastNum + 1}`;
   };
-  const defaultCurrency = (typeof CURRENCIES !== 'undefined' ? (typeof CURRENCIES[0] === 'object' ? CURRENCIES[0].value : CURRENCIES[0]) : (window.CURRENCIES ? window.CURRENCIES[0] : 'YER ﷼'));
-  const defaultPayType = (typeof PAY_METHODS !== 'undefined' ? PAY_METHODS[0] : (window.PAY_METHODS ? window.PAY_METHODS[0] : 'نقدي'));
-  const todayStrIso = typeof TODAY_STR_ISO !== 'undefined' ? TODAY_STR_ISO : (window.TODAY_STR_ISO || new Date().toISOString().slice(0, 10));
 
-  const emptyHeader = () => ({ bill_no: '', supplier: '', supplier_phone: '', discount: '', notes: '', currency: defaultCurrency, exchange_rate: '', pay_type: defaultPayType, transfer_no: '', payment_source: '', receipt_url: '', invoice_image_url: '', date: todayStrIso, freight_cost: '', transfer_fees: '' });
+  const emptyHeader = () => ({ bill_no: '', supplier_id: '', supplier: '', supplier_phone: '', discount: '', notes: '', currency: defaultCurrency, exchange_rate: '', pay_type: defaultPayType, transfer_no: '', payment_source: '', receipt_url: '', invoice_image_url: '', date: todayStrIso, freight_cost: '', transfer_fees: '' });
   const emptyItem = () => ({ item: '', unit: 'متر', qty: '', price: '', total: '' });
 
-  const [headerData, setHeaderData] = useState(emptyHeader);
-  const [itemData, setItemData] = useState(emptyItem);
-  const [editingIndex, setEditingIndex] = useState(null);
-  const [billItems, setBillItems] = useState([]);
-  const [previewImage, setPreviewImage] = useState(null);
-  const [previewTitle, setPreviewTitle] = useState('صورة المرفق');
-  const [isSaving, setIsSaving] = useState(false);
+  const [headerData, setHeaderData] = useState(emptyHeader), [itemData, setItemData] = useState(emptyItem), [editingIndex, setEditingIndex] = useState(null);
+  const [billItems, setBillItems] = useState([]), [previewImage, setPreviewImage] = useState(null), [previewTitle, setPreviewTitle] = useState('صورة المرفق');
+  const [editRecord, setEditRecord] = useState(null), [showQuickAddSupplier, setShowQuickAddSupplier] = useState(false);
 
-  // ── جلب سجل المشتريات تلقائياً من السيرفر المحلي ──
-  useEffect(() => {
-    if ((!purchases || purchases.length === 0) && typeof setPurchases === 'function') {
-      fetch('/api/purchases')
-        .then(r => r.json())
-        .then(d => {
-          const list = (d && Array.isArray(d.data)) ? d.data : (Array.isArray(d) ? d : []);
-          if (list.length > 0) {
-            setPurchases(list);
-          }
-        })
-        .catch(err => console.warn('Purchases auto-fetch warning:', err));
-    }
-  }, [purchases, setPurchases]);
+  // Subcomponents & Hooks
+  const useData = window.usePurchasesData || (() => ({}));
+  const useActions = window.usePurchaseActions || (() => ({}));
+  const { SupplierQuickAddModal: QuickAddModal, PurchaseItemsTable: ItemsTable, PurchaseModal: ModalComponent, PurchasesFilterBar: FilterBar, PurchasesTable: DataTable } = window;
 
-  // ── نافذة تعديل سجل موجود وحالة القائمة المطوية ──
-  const [editRecord, setEditRecord] = useState(null);
-  const [editSaving, setEditSaving] = useState(false);
-  const [search, setSearch] = useState('');
-  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-  const [isPurging, setIsPurging] = useState(false);
+  const {
+    suppliers, setSuppliers, isLoadingSuppliers, supplierSearch, setSupplierSearch,
+    isSupplierDropdownOpen, setIsSupplierDropdownOpen, supplierDropdownRef, fetchSuppliers,
+    handleSelectSupplier, filteredSuppliersList, selectedSupplierObj,
+    search, setSearch, isHistoryOpen, setIsHistoryOpen, filteredPurchases
+  } = useData({ purchases, setPurchases, headerData, setHeaderData });
 
-  // ── رفع صورة السند ──
-  const handleImageUpload = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    if (file.size > 5 * 1024 * 1024) return showToast('حجم الصورة كبير جداً (أقصاه 5 ميجابايت) ⚠️', 'error');
-    const reader = new FileReader();
-    reader.onloadend = () => { setHeaderData(prev => ({ ...prev, receipt_url: reader.result })); showToast('تم إرفاق صورة السند 💳'); };
-    reader.readAsDataURL(file);
-  };
-
-  // ── رفع صورة الفاتورة ──
-  const handleInvoiceImageUpload = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    if (file.size > 5 * 1024 * 1024) return showToast('حجم الصورة كبير جداً (أقصاه 5 ميجابايت) ⚠️', 'error');
-    const reader = new FileReader();
-    reader.onloadend = () => { setHeaderData(prev => ({ ...prev, invoice_image_url: reader.result })); showToast('تم إرفاق صورة الفاتورة 🧾'); };
-    reader.readAsDataURL(file);
-  };
-
-  // ── الحاسبة التفاعلية ──
-  const handleQtyChange = (val) => { const q = parseFloat(val)||0, p = parseFloat(itemData.price)||0; setItemData(prev => ({ ...prev, qty: val, total: q>0&&p>0 ? String((q*p).toFixed(2)) : prev.total })); };
-  const handlePriceChange = (val) => { const p = parseFloat(val)||0, q = parseFloat(itemData.qty)||0; setItemData(prev => ({ ...prev, price: val, total: q>0&&p>0 ? String((q*p).toFixed(2)) : prev.total })); };
-  const handleTotalChange = (val) => { const tot = parseFloat(val)||0, q = parseFloat(itemData.qty)||0; setItemData(prev => ({ ...prev, total: val, price: q>0&&tot>0 ? String((tot/q).toFixed(2)) : prev.price })); };
-
-  // ── إضافة / تعديل صنف ──
-  const handleAddOrUpdateItem = (e) => {
-    e.preventDefault();
-    if (!itemData.item.trim()) return showToast('اسم الصنف مطلوب ⚠️', 'error');
-    const q = parseFloat(itemData.qty); if (!q || q <= 0) return showToast('الكمية مطلوبة ⚠️', 'error');
-    let p = parseFloat(itemData.price)||0, tot = parseFloat(itemData.total)||0;
-    if (tot>0&&p<=0) p=tot/q; else if (p>0&&tot<=0) tot=q*p;
-    if (p<=0&&tot<=0) return showToast('السعر أو الإجمالي مطلوب ⚠️', 'error');
-    const obj = { item: itemData.item.trim(), unit: itemData.unit||'متر', qty: q, price: parseFloat(p.toFixed(2)), total: parseFloat(tot.toFixed(2)) };
-    if (editingIndex !== null) { const u=[...billItems]; u[editingIndex]=obj; setBillItems(u); setEditingIndex(null); showToast('تم تحديث الصنف ✏️'); }
-    else { setBillItems(prev=>[...prev,obj]); showToast('تمت إضافة الصنف ➕'); }
-    setItemData(emptyItem());
-  };
-
-  const rawItemsSum = billItems.reduce((acc,curr)=>acc+(parseFloat(curr.total)||0),0) + (parseFloat(headerData.freight_cost)||0) + (parseFloat(headerData.transfer_fees)||0);
+  const rawItemsSum = billItems.reduce((acc, curr) => acc + (parseFloat(curr.total) || 0), 0) + (parseFloat(headerData.freight_cost) || 0) + (parseFloat(headerData.transfer_fees) || 0);
   const discountVal = parseFloat(headerData.discount) || 0;
   const grandTotal = Math.max(0, rawItemsSum - discountVal);
 
-  // ── حفظ الفاتورة الجديدة مع الربط الشامل بكافة الأقسام ──
-  const handleSaveFullBill = async () => {
-    if (isSaving) return;
-    if (!headerData.supplier.trim()) return showToast('اسم المورد مطلوب ⚠️', 'error');
-    if (billItems.length === 0) return showToast('الفاتورة فارغة! أضف صنفاً ⚠️', 'error');
-    setIsSaving(true);
-    const billNo = (headerData.bill_no || '').trim() || genBillNo();
-    try {
-      const payload = {
-        bill_no: billNo,
-        supplier: headerData.supplier,
-        supplier_phone: headerData.supplier_phone || '',
-        discount: discountVal,
-        notes: headerData.notes || '',
-        pay_type: headerData.pay_type || defaultPayType,
-        payment_source: headerData.payment_source || '',
-        transfer_no: headerData.transfer_no || '',
-        currency: headerData.currency || defaultCurrency,
-        date: headerData.date || todayStrIso,
-        freight_cost: parseFloat(headerData.freight_cost) || 0,
-        transfer_fees: parseFloat(headerData.transfer_fees) || 0,
-        receipt_url: headerData.receipt_url || '',
-        invoice_image_url: headerData.invoice_image_url || '',
-        items: billItems.map(itm => ({
-          item_name: itm.item,
-          unit: itm.unit || 'متر',
-          qty: parseFloat(itm.qty) || 0,
-          cost: parseFloat(itm.price) || 0
-        }))
-      };
+  const { isSaving, editSaving, handleSaveFullBill, handleSaveEditRecord, handleDeleteRecord } = useActions({
+    headerData, setHeaderData, emptyHeader, billItems, setBillItems, emptyItem, setItemData, setEditingIndex,
+    setSupplierSearch, fetchSuppliers, purchases, setPurchases, inventory, setInventory, accounts, setAccounts,
+    vouchers, setVouchers, journal, setJournal, showToast, defaultCurrency, defaultPayType, todayStrIso,
+    genBillNo, discountVal, grandTotal
+  });
 
-      // 1. الحفظ المحلي المتكامل في السيرفر (SQLite: مشتريات + مخزون + حركات + سند صرف + قيد يومية + أرصدة الحسابات)
-      try {
-        await fetch("/api/purchases", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
-        });
-      } catch (e) {
-        console.warn("Local purchases save warning:", e);
-      }
-
-      // 2. المزامنة السحابية الشاملة مع جداول بيانات Google Sheets (Strict 1-to-1 Schema)
-      const purCurrCode = window.CurrencyService ? window.CurrencyService.normalizeCode(headerData.currency || defaultCurrency) : 'YER';
-      const purRate = purCurrCode === 'YER' ? 1.0 : (parseFloat(headerData.exchange_rate) || (window.CurrencyService ? window.CurrencyService.getRate(purCurrCode) : 1.0));
-      const totalFreight = parseFloat(headerData.freight_cost) || 0;
-      const totalFees = parseFloat(headerData.transfer_fees) || 0;
-
-      for (let i = 0; i < billItems.length; i++) {
-        const itm = billItems[i];
-        const lineQty = parseFloat(itm.qty) || 0;
-        const lineUnitPrice = parseFloat(itm.price) || 0;
-        const lineOriginalAmount = parseFloat((lineQty * lineUnitPrice).toFixed(2));
-        const itemFreight = i === 0 ? totalFreight : 0;
-        const itemFees = i === 0 ? totalFees : 0;
-        const itemDiscount = i === 0 ? discountVal : 0;
-        const itemFreightYER = parseFloat((itemFreight * purRate).toFixed(2));
-        const itemFeesYER = parseFloat((itemFees * purRate).toFixed(2));
-        const itemDiscountYER = parseFloat((itemDiscount * purRate).toFixed(2));
-        const lineTotalBaseYER = parseFloat((((lineOriginalAmount * purRate) + itemFreightYER + itemFeesYER) - itemDiscountYER).toFixed(2));
-
-        try {
-          await callGAS("addPurchase", {
-            id: `PUR-${headerData.bill_no}${billItems.length > 1 ? `-${i + 1}` : ''}`,
-            invoice_no: headerData.bill_no,
-            bill_no: headerData.bill_no,
-            purchase_no: headerData.bill_no,
-            supplier_name: headerData.supplier,
-            supplier: headerData.supplier,
-            supplier_phone: headerData.supplier_phone || '',
-            supplier_number: headerData.supplier_phone || '',
-            phone: headerData.supplier_phone || '',
-            discount: itemDiscount,
-            discount_amount: itemDiscount,
-            invoice_date: headerData.date || todayStrIso,
-            date: headerData.date || todayStrIso,
-            item_name: itm.item,
-            fabric_name: itm.item,
-            item: itm.item,
-            unit: itm.unit || 'متر',
-            quantity: lineQty,
-            qty: lineQty,
-            currency: purCurrCode,
-            Original_Currency: purCurrCode,
-            exchange_rate: purRate,
-            exchangeRate: purRate,
-            unit_price: lineUnitPrice,
-            cost_per_unit: lineUnitPrice,
-            price: lineUnitPrice,
-            original_amount: lineOriginalAmount,
-            originalAmount: lineOriginalAmount,
-            amount_yer: parseFloat((lineOriginalAmount * purRate).toFixed(2)),
-            base_amount: parseFloat((lineOriginalAmount * purRate).toFixed(2)),
-            shipping_cost: itemFreight,
-            freight_cost: itemFreight,
-            transfer_fee: itemFees,
-            transfer_fees: itemFees,
-            grand_total_yer: lineTotalBaseYER,
-            total_amount_yer: lineTotalBaseYER,
-            payment_method: headerData.pay_type || defaultPayType,
-            payment_account_code: headerData.payment_source || (headerData.pay_type === 'آجل' ? '2111' : '1111'),
-            payment_source: headerData.payment_source || (headerData.pay_type === 'آجل' ? '2111' : '1111'),
-            transaction_ref: headerData.transfer_no || (`TX-${headerData.bill_no}`),
-            transaction_id: headerData.transfer_no || (`TX-${headerData.bill_no}`),
-            transfer_no: headerData.transfer_no || (`TX-${headerData.bill_no}`),
-            receipt_attachment: headerData.receipt_url || '',
-            receipt_url: headerData.receipt_url || '',
-            invoice_image_url: headerData.invoice_image_url || '',
-            bill_attachment: headerData.invoice_image_url || '',
-            receipt_status: 'تم الاستلام',
-            status: 'تم الاستلام',
-            payment_status: headerData.pay_type !== 'آجل' ? 'مدفوع' : 'غير مدفوع',
-            notes: headerData.notes || '',
-            location: 'المستودع الرئيسي'
-          });
-        } catch (gasErr) {
-          console.warn("GAS Purchase Sync Warning:", gasErr);
-        }
-      }
-
-      // 3. تحديث واجهة المشتريات (Purchases State)
-      if (setPurchases) {
-        const newPurchases = billItems.map((itm, idx) => ({
-          id: `PUR-${Date.now()}-${idx}`,
-          bill_no: headerData.bill_no,
-          purchase_no: headerData.bill_no,
-          supplier: headerData.supplier,
-          supplier_name: headerData.supplier,
-          supplier_phone: headerData.supplier_phone || '',
-          discount: idx === 0 ? discountVal : 0,
-          notes: headerData.notes || '',
-          item: itm.item,
-          item_name: itm.item,
-          fabric_name: itm.item,
-          unit: itm.unit || 'متر',
-          qty: parseFloat(itm.qty) || 0,
-          quantity: parseFloat(itm.qty) || 0,
-          price: parseFloat(itm.price) || 0,
-          cost_per_unit: parseFloat(itm.price) || 0,
-          total: (parseFloat(itm.qty) || 0) * (parseFloat(itm.price) || 0),
-          currency: headerData.currency || defaultCurrency,
-          pay_type: headerData.pay_type || defaultPayType,
-          payment_source: headerData.payment_source || '',
-          date: headerData.date || todayStrIso,
-          transfer_no: headerData.transfer_no || '',
-          freight_cost: parseFloat(headerData.freight_cost) || 0,
-          transfer_fees: parseFloat(headerData.transfer_fees) || 0,
-          receipt_url: headerData.receipt_url || '',
-          invoice_image_url: headerData.invoice_image_url || '',
-          payment_status: headerData.pay_type !== 'آجل' ? 'مدفوع' : 'غير مدفوع',
-          status: 'تم الاستلام'
-        }));
-        setPurchases(prev => [...newPurchases, ...(prev || [])]);
-      }
-
-      // 4. تحديث واجهة المخزون والمستودعات (Inventory & Warehouses State)
-      if (setInventory) {
-        setInventory(prev => {
-          let updated = [...(prev || [])];
-          for (const itm of billItems) {
-            const idx = updated.findIndex(i => (i.item_name || i.name) === itm.item);
-            const q = parseFloat(itm.qty) || 0;
-            const p = parseFloat(itm.price) || 0;
-            if (idx !== -1) {
-              const curQ = parseFloat(updated[idx].quantity_meters || updated[idx].quantity || updated[idx].qty || 0);
-              const curC = parseFloat(updated[idx].cost_per_meter || updated[idx].unit_cost || updated[idx].cost || 0);
-              const curAvail = parseFloat(updated[idx].available_qty || curQ);
-              const newQ = curQ + q;
-              const newAvail = curAvail + q;
-              const newC = newQ > 0 ? (((curQ * curC) + (q * p)) / newQ) : p;
-              const weightedCost = parseFloat(newC.toFixed(2));
-              updated[idx] = {
-                ...updated[idx],
-                quantity_meters: newQ,
-                quantity: newQ,
-                qty: newQ,
-                available_qty: newAvail,
-                cost_per_meter: weightedCost,
-                unit_cost: weightedCost,
-                cost: weightedCost,
-                total_value: parseFloat((newQ * weightedCost).toFixed(2)),
-                supplier_id: headerData.supplier,
-                location: updated[idx].location || 'المستودع الرئيسي',
-                updated_at: todayStrIso
-              };
-            } else {
-              updated.unshift({
-                id: `MAT-${Date.now()}`,
-                item_name: itm.item,
-                name: itm.item,
-                item_code: `MAT-${Math.floor(100 + Math.random() * 900)}`,
-                category: 'أقمشة وخامات',
-                type: 'خامة',
-                quantity_meters: q,
-                quantity: q,
-                qty: q,
-                available_qty: q,
-                reserved_qty: 0,
-                min_limit: 5,
-                min_alert_qty: 5,
-                cost_per_meter: p,
-                unit_cost: p,
-                cost: p,
-                total_value: parseFloat((q * p).toFixed(2)),
-                unit: itm.unit || 'متر',
-                currency: headerData.currency || defaultCurrency,
-                supplier_id: headerData.supplier,
-                location: 'المستودع الرئيسي',
-                status: 'متوفر',
-                supply_date: headerData.date || todayStrIso,
-                created_at: headerData.date || todayStrIso
-              });
-            }
-          }
-          return updated;
-        });
-      }
-
-      // 5. تحديث واجهة السندات المالية (Vouchers & Payments State)
-      const purBaseObj = window.CurrencyService ? window.CurrencyService.toBase(grandTotal, purCurrCode, purRate) : { base_amount: grandTotal, exchange_rate: purRate };
-
-      if (setVouchers && headerData.pay_type !== 'آجل') {
-        const newVoucher = {
-          id: `VOUCH-${Date.now()}`,
-          voucher_no: `PV-${headerData.bill_no}`,
-          voucher_type: 'سند صرف',
-          party_name: headerData.supplier,
-          supplier_id: headerData.supplier,
-          amount: grandTotal,
-          currency: purCurrCode,
-          exchange_rate: purRate,
-          base_amount: purBaseObj.base_amount,
-          pay_method: headerData.pay_type || defaultPayType,
-          payment_source: headerData.payment_source || '1111 - الصندوق الرئيسي',
-          transfer_no: headerData.transfer_no || '',
-          image_path: headerData.receipt_url || '',
-          receipt_url: headerData.receipt_url || '',
-          date_created: headerData.date || todayStrIso,
-          date: headerData.date || todayStrIso,
-          statement: `سند صرف مشتريات للفاتورة ${headerData.bill_no} - المورد: ${headerData.supplier}`,
-          notes: `سند صرف مشتريات للفاتورة ${headerData.bill_no} - المورد: ${headerData.supplier}`
-        };
-        setVouchers(prev => [newVoucher, ...(prev || [])]);
-      }
-
-      // 6. تحديث واجهة القيود اليومية (Journal Entries State)
-      if (setJournal) {
-        const debitAccount = '1151'; // مخزون الأقمشة والخامات
-        const creditAccount = headerData.pay_type !== 'آجل' 
-          ? (headerData.payment_source ? headerData.payment_source.split(' - ')[0] : '1111')
-          : '2111'; // ذمم الموردين ومحلات الأقمشة
-        
-        const newJournalEntry = {
-          id: Date.now() + 2,
-          transaction_id: `TX-PUR-${headerData.bill_no}`,
-          entry_no: `JV-PUR-${headerData.bill_no}`,
-          debit: debitAccount,
-          credit: creditAccount,
-          debit_account_id: debitAccount,
-          credit_account_id: creditAccount,
-          amount: grandTotal,
-          currency: purCurrCode,
-          exchange_rate: purRate,
-          base_amount: purBaseObj.base_amount,
-          ref_type: 'PURCHASE',
-          ref_id: headerData.bill_no,
-          date: headerData.date || todayStrIso,
-          notes: `قيد مشتريات الفاتورة ${headerData.bill_no} - المورد: ${headerData.supplier}`
-        };
-        setJournal(prev => [newJournalEntry, ...(prev || [])]);
-      }
-
-      // 7. تحديث أرصدة شجرة الحسابات (Accounts Balance State)
-      if (setAccounts) {
-        setAccounts(prev => {
-          return (prev || []).map(acc => {
-            const code = String(acc.acc_code || acc.code || acc.account_code || '');
-            const paySourceCode = headerData.payment_source ? headerData.payment_source.split(' - ')[0] : '101';
-            
-            // خصم من الصندوق أو البنك عند الدفع النقدي/الحوالة
-            if (headerData.pay_type !== 'آجل' && code === paySourceCode) {
-              const curBal = parseFloat(acc.balance || acc.current_balance || 0);
-              return { ...acc, balance: curBal - grandTotal, current_balance: curBal - grandTotal };
-            }
-            // زيادة التزامات الموردين عند الشراء الآجل
-            if (headerData.pay_type === 'آجل' && (code === '201' || code === '2101')) {
-              const curBal = parseFloat(acc.balance || acc.current_balance || 0);
-              return { ...acc, balance: curBal + grandTotal, current_balance: curBal + grandTotal };
-            }
-            return acc;
-          });
-        });
-      }
-
-      // تحديث فوري لسجل المشتريات من السيرفر وقاعدة البيانات الحية
-      try {
-        fetch('/api/purchases')
-          .then(r => r.json())
-          .then(d => {
-            const list = (d && Array.isArray(d.data)) ? d.data : (Array.isArray(d) ? d : []);
-            if (list.length > 0 && typeof setPurchases === 'function') {
-              setPurchases(list);
-            }
-          })
-          .catch(() => {});
-      } catch (e) {}
-
-      showToast(`✅ تم حفظ الفاتورة ${billNo} وتوريد الأصناف للمخزون وترحيل القيود وسندات الصرف بنجاح 📦✨`);
-      
-      setHeaderData(emptyHeader());
-      setBillItems([]); setItemData(emptyItem()); setEditingIndex(null);
-    } catch(err) { 
-      console.error(err); 
-      showToast('خطأ أثناء الحفظ ⚠️ يرجى المحاولة مرة أخرى', 'error'); 
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  // ── تعديل سجل موجود ──
   const handleOpenEdit = (p) => {
     const VALID_UNITS_CHECK = ['متر', 'وار (ياردة)', 'سم', 'حبة (قطعة)', 'رول (طاقة)', 'يارده', 'وار'];
-    let rawUnit=p.unit, rawQty=p.qty, rawPrice=p.price, rawTotal=p.total;
-    const unitIsNum = rawUnit!==undefined && rawUnit!=='' && !isNaN(parseFloat(rawUnit)) && !VALID_UNITS_CHECK.includes(String(rawUnit));
-    if (unitIsNum) { rawQty=parseFloat(rawUnit); rawPrice=parseFloat(p.qty)||0; rawTotal=parseFloat(p.price)||0; rawUnit='متر'; }
+    let rawUnit = p.unit, rawQty = p.qty, rawPrice = p.price, rawTotal = p.total;
+    if (rawUnit !== undefined && rawUnit !== '' && !isNaN(parseFloat(rawUnit)) && !VALID_UNITS_CHECK.includes(String(rawUnit))) {
+      rawQty = parseFloat(rawUnit); rawPrice = parseFloat(p.qty) || 0; rawTotal = parseFloat(p.price) || 0; rawUnit = 'متر';
+    }
     setEditRecord({
-      ...p,
-      item: p.item||p.item_name||'',
-      unit: rawUnit||'متر',
-      qty: rawQty||'',
-      price: rawPrice||'',
-      total: rawTotal||'',
-      supplier_phone: p.supplier_phone || p.phone || p.supplier_number || '',
-      discount: p.discount !== undefined ? p.discount : (p.discount_amount || ''),
-      notes: p.notes || '',
-      receipt_url: p.receipt_url || '',
-      invoice_image_url: p.invoice_image_url || p.invoice_url || ''
+      ...p, supplier_id: p.supplier_id || '', item: p.item || p.item_name || '', unit: rawUnit || 'متر',
+      qty: rawQty || '', price: rawPrice || '', total: rawTotal || '', supplier_phone: p.supplier_phone || p.phone || p.supplier_number || '',
+      discount: p.discount !== undefined ? p.discount : (p.discount_amount || ''), notes: p.notes || '',
+      receipt_url: p.receipt_url || '', invoice_image_url: p.invoice_image_url || p.invoice_url || ''
     });
   };
 
-  const handleEditRecordChange = (field, val) => {
-    setEditRecord(prev => {
-      const updated = { ...prev, [field]: val };
-      if (field==='qty'||field==='price') { const q=parseFloat(updated.qty)||0, p2=parseFloat(updated.price)||0; if(q>0&&p2>0) updated.total=String((q*p2).toFixed(2)); }
-      if (field==='total') { const tot=parseFloat(val)||0, q=parseFloat(updated.qty)||0; if(q>0&&tot>0) updated.price=String((tot/q).toFixed(2)); }
-      return updated;
-    });
+  const handleFileUpload = (e, field, label) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) return showToast('حجم الصورة كبير جداً (أقصاه 5 ميجابايت) ⚠️', 'error');
+    const reader = new FileReader();
+    reader.onloadend = () => { setHeaderData(prev => ({ ...prev, [field]: reader.result })); showToast(`تم إرفاق ${label}`); };
+    reader.readAsDataURL(file);
   };
-
-  const handleSaveEditRecord = async () => {
-    if (!editRecord) return;
-    if (!editRecord.item || !String(editRecord.item).trim()) return showToast('اسم الصنف مطلوب ⚠️', 'error');
-    const qty = parseFloat(editRecord.qty)||0;
-    if (qty <= 0) return showToast('الكمية مطلوبة ⚠️', 'error');
-    let price = parseFloat(editRecord.price)||0, total = parseFloat(editRecord.total)||0;
-    if (total>0&&price<=0) price=total/qty;
-    else if (price>0&&total<=0) total=qty*price;
-    setEditSaving(true);
-    try {
-      const payload = {
-        id: String(editRecord.id),
-        bill_no: editRecord.bill_no,
-        supplier: editRecord.supplier,
-        supplier_name: editRecord.supplier,
-        supplier_phone: editRecord.supplier_phone || '',
-        discount: parseFloat(editRecord.discount) || 0,
-        notes: editRecord.notes || '',
-        item: String(editRecord.item).trim(),
-        item_name: String(editRecord.item).trim(),
-        unit: editRecord.unit||'متر',
-        qty,
-        price: parseFloat(price.toFixed(2)),
-        total: parseFloat(total.toFixed(2)),
-        currency: editRecord.currency,
-        pay_type: editRecord.pay_type,
-        transfer_no: editRecord.transfer_no||'',
-        payment_source: editRecord.payment_source||'',
-        date: editRecord.date,
-        receipt_url: editRecord.receipt_url || '',
-        invoice_image_url: editRecord.invoice_image_url || ''
-      };
-
-      try {
-        await fetch('/api/purchases/update', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-      } catch(beErr) {
-        console.warn("Backend purchase update warning:", beErr);
-      }
-
-      await callGAS('updatePurchase', payload);
-      if (setPurchases) setPurchases(prev => prev.map(r => String(r.id)===String(editRecord.id) ? { ...r, ...payload } : r));
-      showToast('✅ تم تحديث السجل في Google Sheets بنجاح');
-      setEditRecord(null);
-    } catch(err) { console.error(err); showToast('خطأ أثناء التحديث ⚠️', 'error'); }
-    setEditSaving(false);
-  };
-
-  const handleDeleteRecord = async (p) => {
-    if (!window.confirm(`هل أنت متأكد من حذف الفاتورة ${p.bill_no||p.id}؟`)) return;
-    try {
-      await fetch('/api/purchases/delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: p.id, bill_no: p.bill_no })
-      }).catch(e => console.warn(e));
-
-      await callGAS('deletePurchase', { id: String(p.id) });
-      if (setPurchases) setPurchases(prev => prev.filter(r => String(r.id) !== String(p.id)));
-      showToast('🗑️ تم حذف السجل من Google Sheets');
-    } catch(err) { showToast('خطأ أثناء الحذف ⚠️', 'error'); }
-  };
-
-  // ── تصفير وحذف كافة السجلات التالفة السابقة من Google Sheets ──
-  const handlePurgeAllPurchases = async () => {
-    if (!window.confirm("⚠️ تحذير: هل أنت متأكد من رغبتك في تصفير وحذف كافة سجلات المشتريات التالفة السابقة وإعادة هيكلة الجدول وترتيب الأعمدة بدقة 100%؟")) return;
-    setIsPurging(true);
-    try {
-      try {
-        await fetch("/api/purchases/purge", { method: "POST" });
-      } catch(e) {}
-      await callGAS("purgePurchasesSheetData", {});
-      if (setPurchases) setPurchases([]);
-      showToast("✨ تم تصفير كافة السجلات التالفة السابقة وإعادة بناء جدول المشتريات بنجاح 100%");
-    } catch (err) {
-      console.error(err);
-      showToast("تعذر تصفير السجلات: " + (err.message || err), "error");
-    } finally {
-      setIsPurging(false);
-    }
-  };
-
-  const normalizePurchase = (p) => {
-    if (!p || typeof p !== 'object') return { item_name: '', qty: 0, price: 0, total: 0, unit: 'متر', date: '', transfer: '', supplier_phone: '', discount: 0, notes: '', invoice_image_url: '', receipt_url: '' };
-    
-    // Extract Item Name
-    const itemName = String(p.fabric_name || p.item_name || p.item || p.name || '').trim();
-
-    // Extract Unit
-    let rawUnit = p.unit || p.unit_name || 'متر';
-
-    // Extract Quantity
-    let rawQty = p.quantity !== undefined && p.quantity !== '' ? p.quantity : (p.qty !== undefined && p.qty !== '' ? p.qty : p.quantity_meters);
-    
-    // Extract Price
-    let rawPrice = p.unit_price !== undefined && p.unit_price !== '' ? p.unit_price : (p.price !== undefined && p.price !== '' ? p.price : (p.cost_per_unit || p.cost_per_meter));
-    
-    // Extract Total
-    let rawTotal = p.total !== undefined && p.total !== '' ? p.total : (p.total_amount_yer || p.base_amount || p.amount_yer || p.original_amount);
-
-    // Extract Date
-    let rawDate = p.date || p.invoice_date || p.created_at || p.supply_date || '';
-    if (rawDate && String(rawDate).includes('T')) rawDate = String(rawDate).split('T')[0];
-    else if (rawDate && String(rawDate).includes(' ')) rawDate = String(rawDate).split(' ')[0];
-
-    // Extract Transfer
-    let rawTransfer = p.transfer_no || p.transfer_number || '';
-    if (rawTransfer && /^\d{4}-\d{2}-\d{2}/.test(String(rawTransfer))) {
-      if (!rawDate) rawDate = String(rawTransfer).slice(0, 10);
-      rawTransfer = '';
-    }
-
-    const qty = parseFloat(rawQty || 0);
-    const price = parseFloat(rawPrice || 0);
-    let total = parseFloat(rawTotal || 0);
-    if (total <= 0 && qty > 0 && price > 0) total = qty * price;
-
-    const discount = parseFloat(p.discount !== undefined && p.discount !== '' ? p.discount : (p.discount_amount || 0)) || 0;
-    const supplier_phone = String(p.supplier_phone || p.supplier_number || p.phone || '').trim();
-    const notes = String(p.notes || p.statement || p.description || '').trim();
-    const receipt_url = String(p.receipt_attachment || p.receipt_url || p.image_path || p.receipt || '').trim();
-    const invoice_image_url = String(p.invoice_attachment || p.invoice_image_url || p.invoice_url || p.bill_attachment || '').trim();
-
-    return {
-      item_name: itemName,
-      qty,
-      price,
-      total,
-      unit: VALID_UNITS.includes(String(rawUnit)) ? rawUnit : (rawUnit || 'متر'),
-      date: String(rawDate || ''),
-      transfer: String(rawTransfer || ''),
-      supplier_phone,
-      discount,
-      notes,
-      receipt_url,
-      invoice_image_url
-    };
-  };
-
-  const filteredPurchases = useMemo(() => {
-    const list = Array.isArray(purchases) ? purchases : [];
-    const q = String(search || '').trim().toLowerCase();
-    return list.filter(p => {
-      if (!p || typeof p !== 'object') return false;
-      const itemName = String(p.fabric_name || p.item || p.item_name || '');
-      const billNo = String(p.bill_no || p.purchase_no || '');
-      const supplier = String(p.supplier || p.supplier_name || '');
-      const transferNo = String(p.transfer_no || '');
-      return !q ||
-        billNo.toLowerCase().includes(q) ||
-        supplier.toLowerCase().includes(q) ||
-        itemName.toLowerCase().includes(q) ||
-        transferNo.toLowerCase().includes(q);
-    });
-  }, [purchases, search]);
-
-  const inputCls = "w-full h-11 px-3.5 py-2.5 rounded-xl border border-[#E8E5EA] bg-white text-[#25232A] text-xs font-medium placeholder:text-[#6F6B75] focus:bg-white focus:border-[#8F2A87] focus:ring-2 focus:ring-[#F2E7F3] transition-all outline-none";
-  const labelCls = "block text-xs font-semibold text-[#25232A] mb-1.5";
 
   return (
     <div className="space-y-6 animate-fadeIn text-xs text-right" dir="rtl">
-
-      {/* نافذة معاينة الصورة */}
-      {previewImage && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4" onClick={()=>setPreviewImage(null)}>
-          <div className="relative max-w-2xl w-full bg-white p-4 rounded-2xl border border-[#E8E5EA] shadow-2xl" onClick={e=>e.stopPropagation()}>
-            <div className="flex justify-between items-center border-b border-[#E8E5EA] pb-3 mb-3">
-              <span className="font-bold text-[#25232A] text-xs">{previewTitle || '🖼️ صورة المرفق'}</span>
-              <button onClick={()=>setPreviewImage(null)} className="text-[#6F6B75] hover:text-[#25232A] font-bold px-2">✕</button>
-            </div>
-            <img src={previewImage} alt="المرفق" className="w-full max-h-[75vh] object-contain rounded-xl border border-[#E8E5EA]" />
-          </div>
-        </div>
+      {ModalComponent && (
+        <ModalComponent
+          editRecord={editRecord} setEditRecord={setEditRecord} editSaving={editSaving}
+          handleSaveEditRecord={handleSaveEditRecord} accounts={accounts} previewImage={previewImage}
+          setPreviewImage={setPreviewImage} previewTitle={previewTitle} setPreviewTitle={setPreviewTitle}
+          showToast={showToast} UNITS={UNITS} inputCls={inputCls} labelCls={labelCls}
+        />
       )}
 
-      {/* ── نافذة تعديل سجل موجود ── */}
-      {editRecord && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4" onClick={()=>setEditRecord(null)}>
-          <div className="bg-white rounded-2xl p-6 w-full max-w-xl shadow-2xl space-y-4 border border-[#E8E5EA]" onClick={e=>e.stopPropagation()}>
-            <div className="flex justify-between items-center border-b border-[#E8E5EA] pb-3">
-              <h3 className="font-bold text-[#25232A] text-sm">✏️ تعديل سجل مشتريات — {editRecord.bill_no||editRecord.id}</h3>
-              <button onClick={()=>setEditRecord(null)} className="text-[#6F6B75] hover:text-[#25232A] font-bold">✕</button>
-            </div>
-            <div className="grid grid-cols-2 gap-3.5">
-              <div className="col-span-2">
-                <label className={labelCls}>اسم الصنف / القماش *</label>
-                <input type="text" className={inputCls} placeholder="أدخل اسم الصنف" value={editRecord.item||''} onChange={e=>handleEditRecordChange('item',e.target.value)} />
-              </div>
-              <div>
-                <label className={labelCls}>وحدة القياس</label>
-                <select className={inputCls} value={editRecord.unit||'متر'} onChange={e=>handleEditRecordChange('unit',e.target.value)}>
-                  {UNITS.map(u=><option key={u} value={u}>{u}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className={labelCls}>الكمية *</label>
-                <input type="number" step="0.01" min="0" className={inputCls + " text-center font-mono font-bold"} value={editRecord.qty||''} onChange={e=>handleEditRecordChange('qty',e.target.value)} />
-              </div>
-              <div>
-                <label className={labelCls}>السعر الإفرادي</label>
-                <input type="number" step="0.01" min="0" className={inputCls + " text-center font-mono font-bold text-[#8F2A87]"} value={editRecord.price||''} onChange={e=>handleEditRecordChange('price',e.target.value)} />
-              </div>
-              <div>
-                <label className={labelCls}>الخصم والتخفيض</label>
-                <input type="number" step="0.01" min="0" className={inputCls + " text-center font-mono font-bold text-[#D64545]"} placeholder="0.00" value={editRecord.discount||''} onChange={e=>handleEditRecordChange('discount',e.target.value)} />
-              </div>
-              <div>
-                <label className={labelCls}>الإجمالي</label>
-                <input type="number" step="0.01" min="0" className={inputCls + " text-center font-mono font-bold text-[#007F8C] bg-[#FAFAFB]"} value={editRecord.total||''} onChange={e=>handleEditRecordChange('total',e.target.value)} />
-              </div>
-              <div>
-                <label className={labelCls}>اسم المورد</label>
-                <input type="text" className={inputCls} value={editRecord.supplier||''} onChange={e=>handleEditRecordChange('supplier',e.target.value)} />
-              </div>
-              <div>
-                <label className={labelCls}>رقم هاتف المورد 📱</label>
-                <input type="text" className={inputCls + " font-mono"} placeholder="" value={editRecord.supplier_phone||''} onChange={e=>handleEditRecordChange('supplier_phone',e.target.value)} />
-              </div>
-              <div>
-                <label className={labelCls}>رقم الحوالة</label>
-                <input type="text" className={inputCls} placeholder="TRF-12345" value={editRecord.transfer_no||''} onChange={e=>handleEditRecordChange('transfer_no',e.target.value)} />
-              </div>
-              <div>
-                <label className={labelCls}>حساب الدفع</label>
-                <select className={inputCls} value={editRecord.payment_source||''} onChange={e=>handleEditRecordChange('payment_source',e.target.value)}>
-                  <option value="">-- اختر --</option>
-                  {(accounts||[]).map(a=>{
-                    const c = a.acc_code || a.code || a.account_code || '';
-                    const n = a.acc_name || a.name || a.account_name || '';
-                    const label = n ? `${c} - ${n}` : String(c);
-                    return <option key={c} value={label}>{label}</option>;
-                  })}
-                </select>
-              </div>
-              <div>
-                <label className={labelCls}>التاريخ</label>
-                <input type="date" lang="en-GB" dir="ltr" className={inputCls} value={editRecord.date||''} onChange={e=>handleEditRecordChange('date',e.target.value)} />
-              </div>
-              <div>
-                <label className={labelCls}>إرفاق صورة الفاتورة 🧾</label>
-                <div className="flex gap-2">
-                  <label className="flex-1 cursor-pointer bg-white hover:bg-[#FAFAFB] border border-[#E8E5EA] text-[#25232A] font-bold p-2.5 rounded-xl text-center flex items-center justify-center h-11">
-                    🧾 اختر صورة
-                    <input type="file" accept="image/*" className="hidden" onChange={(e)=>{
-                      const file = e.target.files[0];
-                      if (!file) return;
-                      if (file.size > 5 * 1024 * 1024) return showToast('حجم الصورة كبير جداً ⚠️', 'error');
-                      const reader = new FileReader();
-                      reader.onloadend = () => { setEditRecord(prev=>({...prev, invoice_image_url: reader.result})); showToast('تم إرفاق صورة الفاتورة 🧾'); };
-                      reader.readAsDataURL(file);
-                    }} />
-                  </label>
-                  {editRecord.invoice_image_url && <button type="button" onClick={()=>{setPreviewImage(editRecord.invoice_image_url);setPreviewTitle('🧾 صورة الفاتورة');}} className="p-2 bg-[#F2E7F3] text-[#8F2A87] rounded-xl font-bold border border-[#E5CEE7] h-11 px-3">🧾</button>}
-                </div>
-              </div>
-              <div>
-                <label className={labelCls}>إرفاق صورة السند 💳</label>
-                <div className="flex gap-2">
-                  <label className="flex-1 cursor-pointer bg-white hover:bg-[#FAFAFB] border border-[#E8E5EA] text-[#25232A] font-bold p-2.5 rounded-xl text-center flex items-center justify-center h-11">
-                    📷 اختر صورة
-                    <input type="file" accept="image/*" className="hidden" onChange={(e)=>{
-                      const file = e.target.files[0];
-                      if (!file) return;
-                      if (file.size > 5 * 1024 * 1024) return showToast('حجم الصورة كبير جداً ⚠️', 'error');
-                      const reader = new FileReader();
-                      reader.onloadend = () => { setEditRecord(prev=>({...prev, receipt_url: reader.result})); showToast('تم إرفاق صورة السند 💳'); };
-                      reader.readAsDataURL(file);
-                    }} />
-                  </label>
-                  {editRecord.receipt_url && <button type="button" onClick={()=>{setPreviewImage(editRecord.receipt_url);setPreviewTitle('💳 صورة السند');}} className="p-2 bg-[#E2F5F7] text-[#007F8C] rounded-xl font-bold border border-[#C5ECF0] h-11 px-3">🖼️</button>}
-                </div>
-              </div>
-              <div className="col-span-2">
-                <label className={labelCls}>الملاحظات والبيان 📝</label>
-                <input type="text" className={inputCls} placeholder="ملاحظات وتفاصيل الفاتورة" value={editRecord.notes||''} onChange={e=>handleEditRecordChange('notes',e.target.value)} />
-              </div>
-            </div>
-            <div className="flex gap-2 pt-3 border-t border-[#E8E5EA]">
-              <button onClick={handleSaveEditRecord} disabled={editSaving} className="flex-1 py-3 bg-[#009FAE] hover:bg-[#007F8C] disabled:opacity-50 text-white font-bold rounded-xl transition cursor-pointer">
-                {editSaving ? 'جاري الحفظ...' : 'حفظ التعديلات في Google Sheets ☁️'}
-              </button>
-              <button onClick={()=>setEditRecord(null)} className="px-5 py-3 bg-[#FAFAFB] hover:bg-[#E8E5EA] text-[#25232A] font-bold rounded-xl border border-[#E8E5EA]">إلغاء</button>
-            </div>
-          </div>
-        </div>
+      {QuickAddModal && (
+        <QuickAddModal
+          show={showQuickAddSupplier} onClose={() => setShowQuickAddSupplier(false)} initialName={supplierSearch}
+          suppliers={suppliers} setSuppliers={setSuppliers} setHeaderData={setHeaderData}
+          setSupplierSearch={setSupplierSearch} setIsSupplierDropdownOpen={setIsSupplierDropdownOpen}
+          fetchSuppliers={fetchSuppliers} showToast={showToast} inputCls={inputCls} labelCls={labelCls}
+        />
       )}
 
       {/* ── بطاقة الفاتورة الجديدة ── */}
@@ -739,395 +100,106 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
               <p className="text-[11px] text-[#6F6B75]">إصدار فاتورة شراء، توريد المخزون، وتوليد القيود وسندات الصرف آلياً</p>
             </div>
           </div>
-          {headerData.bill_no ? (
-            <span className="text-[#8F2A87] font-mono font-bold text-xs bg-[#F2E7F3] px-3 py-1 rounded-xl">{headerData.bill_no}</span>
-          ) : (
-            <span className="text-[#6F6B75] font-bold text-xs bg-[#FAFAFB] border border-[#E8E5EA] px-3 py-1 rounded-xl">فاتورة جديدة</span>
-          )}
+          <span className="text-[#8F2A87] font-mono font-bold text-xs bg-[#F2E7F3] px-3 py-1 rounded-xl">
+            {headerData.bill_no ? headerData.bill_no : `تلقائي: ${genBillNo()}`}
+          </span>
         </div>
+
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-5 bg-[#FAFAFB] rounded-2xl border border-[#E8E5EA]">
-          <div><label className={labelCls}>رقم الفاتورة</label><input type="text" className={inputCls + " font-mono"} placeholder="" value={headerData.bill_no} onChange={e=>setHeaderData(p=>({...p,bill_no:e.target.value}))} /></div>
-          <div><label className={labelCls}>اسم المورد *</label><input type="text" className={inputCls} placeholder="" value={headerData.supplier} onChange={e=>setHeaderData(p=>({...p,supplier:e.target.value}))} /></div>
-          <div><label className={labelCls}>رقم هاتف المورد 📱</label><input type="text" className={inputCls + " font-mono"} placeholder="" value={headerData.supplier_phone} onChange={e=>setHeaderData(p=>({...p,supplier_phone:e.target.value}))} /></div>
+          <div><label className={labelCls}>رقم الفاتورة</label><input type="text" className={inputCls + " font-mono"} placeholder={`مثال: ${genBillNo()}`} value={headerData.bill_no} onChange={e => setHeaderData(p => ({ ...p, bill_no: e.target.value }))} /></div>
+
+          {/* اختيار المورد */}
+          <div className="relative" ref={supplierDropdownRef}>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className={labelCls}>المورد المعتمد *</label>
+              <button type="button" onClick={() => setShowQuickAddSupplier(true)} className="text-[11px] font-bold text-[#8F2A87] hover:text-[#73216C] bg-[#F2E7F3] hover:bg-[#E5CEE7] px-2 py-0.5 rounded-lg flex items-center gap-1 transition cursor-pointer">➕ مورد جديد</button>
+            </div>
+            <div className="relative flex items-center">
+              <input type="text" className={inputCls + " pl-12 pr-8 font-medium " + (headerData.supplier_id ? "border-[#8F2A87] bg-purple-50/20" : "")} placeholder="ابحث بالاسم أو الهاتف..." value={supplierSearch || headerData.supplier} onFocus={() => setIsSupplierDropdownOpen(true)} onChange={e => { setSupplierSearch(e.target.value); setHeaderData(p => ({ ...p, supplier: e.target.value, supplier_id: '' })); setIsSupplierDropdownOpen(true); }} />
+              <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#6F6B75] pointer-events-none text-xs">👤</span>
+              <div className="absolute left-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                {(headerData.supplier || supplierSearch) && <button type="button" onClick={() => { setHeaderData(p => ({ ...p, supplier_id: '', supplier: '', supplier_phone: '' })); setSupplierSearch(''); }} className="text-[#6F6B75] hover:text-[#D64545] p-1 text-xs cursor-pointer">✕</button>}
+                <button type="button" onClick={() => setIsSupplierDropdownOpen(prev => !prev)} className="text-[#6F6B75] hover:text-[#8F2A87] p-1 text-xs cursor-pointer">▼</button>
+              </div>
+            </div>
+            {isSupplierDropdownOpen && (
+              <div className="absolute top-full right-0 left-0 mt-1 bg-white rounded-xl border border-[#E8E5EA] shadow-xl z-30 max-h-60 overflow-y-auto divide-y divide-[#F2E7F3]">
+                {isLoadingSuppliers ? <div className="p-3 text-center text-[#6F6B75] text-xs">⏳ جاري جلب الموردين...</div> : (filteredSuppliersList || []).length === 0 ? (
+                  <div className="p-3 text-center space-y-2"><p className="text-[#6F6B75] text-xs">لا يوجد موردون مسجلون</p><button type="button" onClick={() => setShowQuickAddSupplier(true)} className="px-3 py-1 bg-[#8F2A87] text-white text-xs font-bold rounded-lg hover:bg-[#73216C] transition inline-flex items-center gap-1 cursor-pointer">➕ إضافة مورد جديد</button></div>
+                ) : filteredSuppliersList.map(s => (
+                  <div key={s.id} onClick={() => handleSelectSupplier(s)} className={`p-2.5 hover:bg-[#F2E7F3]/40 cursor-pointer flex items-center justify-between transition-colors ${String(headerData.supplier_id) === String(s.id) ? 'bg-[#F2E7F3] border-r-4 border-[#8F2A87]' : ''}`}>
+                    <div>
+                      <div className="font-bold text-xs text-[#25232A] flex items-center gap-1.5"><span>{s.name}</span>{s.city && <span className="text-[10px] text-[#6F6B75] bg-[#FAFAFB] px-1.5 py-0.2 rounded border border-[#E8E5EA]">{s.city}</span>}</div>
+                      {s.phone && <div className="text-[11px] font-mono text-[#6F6B75] mt-0.5 dir-ltr">📱 {s.phone}</div>}
+                    </div>
+                    <span className="text-[10px] font-bold font-mono px-1.5 py-0.5 rounded-full bg-gray-50 text-gray-700 border border-gray-200">{parseFloat(s.current_balance || s.balance || 0).toLocaleString('en-US')} ﷼</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {selectedSupplierObj && (
+              <div className="mt-1.5 flex items-center justify-between px-2.5 py-1 bg-[#F2E7F3]/40 border border-[#E5CEE7] rounded-lg text-[11px]">
+                <span className="text-[#6F6B75] font-medium truncate max-w-[120px]" title={selectedSupplierObj.name}>💼 {selectedSupplierObj.name}</span>
+                <span className="font-mono font-bold text-[11px] text-[#8F2A87]">الرصيد: {parseFloat(selectedSupplierObj.current_balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ﷼</span>
+              </div>
+            )}
+          </div>
+
+          <div><label className={labelCls}>هاتف المورد 📱</label><input type="text" className={inputCls + " font-mono"} placeholder="يُملأ آلياً" value={headerData.supplier_phone} onChange={e => setHeaderData(p => ({ ...p, supplier_phone: e.target.value }))} /></div>
           <div><label className={labelCls}>العملة</label>
-            <select className={inputCls} value={headerData.currency} onChange={e=>{
-              const newC = e.target.value;
-              const norm = window.CurrencyService ? window.CurrencyService.normalizeCode(newC) : 'YER';
-              let autoBox = headerData.payment_source;
-              if (!autoBox || autoBox.includes('الصندوق الرئيسي') || autoBox.includes('صندوق الريال اليمني') || autoBox.includes('صندوق الريال السعودي') || autoBox.includes('صندوق الدولار')) {
-                if (norm === 'SAR') autoBox = '101.2 - صندوق الريال السعودي (SAR)';
-                else if (norm === 'USD') autoBox = '101.3 - صندوق الدولار (USD)';
-                else autoBox = '101.1 - صندوق الريال اليمني (YER)';
-              }
-              setHeaderData(p=>({...p, currency: newC, payment_source: autoBox, exchange_rate: window.CurrencyService ? window.CurrencyService.getRate(newC) : ''}));
+            <select className={inputCls} value={headerData.currency} onChange={e => {
+              const newC = e.target.value, norm = window.CurrencyService ? window.CurrencyService.normalizeCode(newC) : 'YER';
+              let autoBox = norm === 'SAR' ? '101.2 - صندوق الريال السعودي (SAR)' : (norm === 'USD' ? '101.3 - صندوق الدولار (USD)' : '101.1 - صندوق الريال اليمني (YER)');
+              setHeaderData(p => ({ ...p, currency: newC, payment_source: autoBox, exchange_rate: window.CurrencyService ? window.CurrencyService.getRate(newC) : '' }));
             }}>
-              {(typeof CURRENCIES !== 'undefined' ? CURRENCIES : ['YER ﷼','SAR ﷼','USD $']).map(c=>{const v=typeof c==='object'?c.value:c,l=typeof c==='object'?c.label:c;return <option key={v} value={v}>{l}</option>;})}
+              {(typeof CURRENCIES !== 'undefined' ? CURRENCIES : ['YER ﷼','SAR ﷼','USD $']).map(c => { const v = typeof c === 'object' ? c.value : c, l = typeof c === 'object' ? c.label : c; return <option key={v} value={v}>{l}</option>; })}
             </select>
           </div>
+
           {headerData.currency && window.CurrencyService && window.CurrencyService.normalizeCode(headerData.currency) !== 'YER' && (
-            <div>
-              <label className={labelCls}>سعر الصرف (1 {window.CurrencyService.normalizeCode(headerData.currency)} = ? YER)</label>
-              <input type="number" step="0.01" className={inputCls + " font-mono font-bold text-[#8F2A87] bg-amber-50"} value={headerData.exchange_rate || (window.CurrencyService ? window.CurrencyService.getRate(headerData.currency) : 1)} onChange={e=>setHeaderData(p=>({...p, exchange_rate: e.target.value}))} />
-            </div>
+            <div><label className={labelCls}>سعر الصرف (1 {window.CurrencyService.normalizeCode(headerData.currency)} = ? YER)</label><input type="number" step="0.01" className={inputCls + " font-mono font-bold text-[#8F2A87] bg-amber-50"} value={headerData.exchange_rate || (window.CurrencyService ? window.CurrencyService.getRate(headerData.currency) : 1)} onChange={e => setHeaderData(p => ({ ...p, exchange_rate: e.target.value }))} /></div>
           )}
-          <div><label className={labelCls}>الخصم والتخفيض 💸</label><input type="number" step="0.01" min="0" className={inputCls + " font-mono font-bold text-[#D64545]"} placeholder="0.00" value={headerData.discount} onChange={e=>setHeaderData(p=>({...p,discount:e.target.value}))} /></div>
+
+          <div><label className={labelCls}>الخصم والتخفيض 💸</label><input type="number" step="0.01" min="0" className={inputCls + " font-mono font-bold text-[#D64545]"} placeholder="0.00" value={headerData.discount} onChange={e => setHeaderData(p => ({ ...p, discount: e.target.value }))} /></div>
           <div><label className={labelCls}>طريقة الدفع</label>
-            <select className={inputCls} value={headerData.pay_type} onChange={e=>{
-              const pt = e.target.value;
-              let autoBox = headerData.payment_source;
-              if (pt === 'آجل') {
-                autoBox = '201 - ذمم الموردين ومحلات الأقمشة';
-              } else if (!autoBox || autoBox.includes('ذمم الموردين')) {
-                const norm = window.CurrencyService ? window.CurrencyService.normalizeCode(headerData.currency) : 'YER';
-                if (norm === 'SAR') autoBox = '101.2 - صندوق الريال السعودي (SAR)';
-                else if (norm === 'USD') autoBox = '101.3 - صندوق الدولار (USD)';
-                else autoBox = '101.1 - صندوق الريال اليمني (YER)';
-              }
-              setHeaderData(p=>({...p, pay_type: pt, payment_source: autoBox}));
+            <select className={inputCls} value={headerData.pay_type} onChange={e => {
+              const pt = e.target.value, autoBox = pt === 'آجل' ? '201 - ذمم الموردين ومحلات الأقمشة' : (headerData.currency && String(headerData.currency).includes('SAR') ? '101.2 - صندوق الريال السعودي (SAR)' : (headerData.currency && String(headerData.currency).includes('USD') ? '101.3 - صندوق الدولار (USD)' : '101.1 - صندوق الريال اليمني (YER)'));
+              setHeaderData(p => ({ ...p, pay_type: pt, payment_source: autoBox }));
             }}>
-              {(typeof PAY_METHODS!=='undefined'?PAY_METHODS:['نقدي','حوالة بنكية','آجل']).map(pt=><option key={pt} value={pt}>{pt}</option>)}
+              {(typeof PAY_METHODS !== 'undefined' ? PAY_METHODS : ['نقدي','حوالة بنكية','آجل']).map(pt => <option key={pt} value={pt}>{pt}</option>)}
             </select>
           </div>
           <div><label className={labelCls}>حساب الدفع</label>
-            <select className={inputCls} value={headerData.payment_source} onChange={e=>setHeaderData(p=>({...p,payment_source:e.target.value}))}>
+            <select className={inputCls} value={headerData.payment_source} onChange={e => setHeaderData(p => ({ ...p, payment_source: e.target.value }))}>
               <option value="">-- اختر حساب الدفع --</option>
-              {(accounts||[]).map(a=>{
-                const c = a.acc_code || a.code || a.account_code || '';
-                const n = a.acc_name || a.name || a.account_name || '';
-                const label = n ? `${c} - ${n}` : String(c);
-                return <option key={c} value={label}>{label}</option>;
-              })}
+              {(accounts || []).map(a => { const c = a.acc_code || a.code || a.account_code || '', n = a.acc_name || a.name || a.account_name || '', label = n ? `${c} - ${n}` : String(c); return <option key={c} value={label}>{label}</option>; })}
             </select>
           </div>
-          <div><label className={labelCls}>رقم الحوالة</label><input type="text" className={inputCls + " text-[#8F2A87] font-mono"} placeholder="" value={headerData.transfer_no} onChange={e=>setHeaderData(p=>({...p,transfer_no:e.target.value}))} /></div>
-          <div><label className={labelCls}>إرفاق صورة الفاتورة 🧾</label>
-            <div className="flex gap-2">
-              <label className="flex-1 cursor-pointer bg-white hover:bg-[#FAFAFB] border border-[#E8E5EA] text-[#25232A] font-bold p-2.5 rounded-xl text-center flex items-center justify-center h-11">🧾 اختر صورة<input type="file" accept="image/*" className="hidden" onChange={handleInvoiceImageUpload} /></label>
-              {headerData.invoice_image_url && <button type="button" onClick={()=>{setPreviewImage(headerData.invoice_image_url);setPreviewTitle('🧾 صورة الفاتورة المرفقة');}} className="p-2 bg-[#F2E7F3] text-[#8F2A87] rounded-xl font-bold border border-[#E5CEE7] h-11 px-3">🧾</button>}
-            </div>
-          </div>
-          <div><label className={labelCls}>إرفاق صورة السند 💳</label>
-            <div className="flex gap-2">
-              <label className="flex-1 cursor-pointer bg-white hover:bg-[#FAFAFB] border border-[#E8E5EA] text-[#25232A] font-bold p-2.5 rounded-xl text-center flex items-center justify-center h-11">📷 اختر صورة<input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} /></label>
-              {headerData.receipt_url && <button type="button" onClick={()=>{setPreviewImage(headerData.receipt_url);setPreviewTitle('💳 صورة السند المرفق');}} className="p-2 bg-[#E2F5F7] text-[#007F8C] rounded-xl font-bold border border-[#C5ECF0] h-11 px-3">🖼️</button>}
-            </div>
-          </div>
-          <div><label className={labelCls}>تاريخ الفاتورة</label><input type="date" lang="en-GB" dir="ltr" className={inputCls} value={headerData.date} onChange={e=>setHeaderData(p=>({...p,date:e.target.value}))} /></div>
-          <div><label className={labelCls}>تكلفة النقل والتوصيل</label><input type="number" step="0.01" min="0" className={inputCls + " font-mono font-bold text-[#8F2A87]"} placeholder="0.00" value={headerData.freight_cost} onChange={e=>setHeaderData(p=>({...p,freight_cost:e.target.value}))} /></div>
-          <div><label className={labelCls}>رسوم التحويل</label><input type="number" step="0.01" min="0" className={inputCls + " font-mono font-bold text-[#D64545]"} placeholder="0.00" value={headerData.transfer_fees} onChange={e=>setHeaderData(p=>({...p,transfer_fees:e.target.value}))} /></div>
-          <div className="sm:col-span-2 lg:col-span-2"><label className={labelCls}>ملاحظات الفاتورة والبيان 📝</label><input type="text" className={inputCls} placeholder="ملاحظات وتفاصيل الفاتورة" value={headerData.notes} onChange={e=>setHeaderData(p=>({...p,notes:e.target.value}))} /></div>
+          <div><label className={labelCls}>رقم الحوالة</label><input type="text" className={inputCls + " font-mono text-[#8F2A87]"} value={headerData.transfer_no} onChange={e => setHeaderData(p => ({ ...p, transfer_no: e.target.value }))} /></div>
+          <div><label className={labelCls}>صورة الفاتورة 🧾</label><div className="flex gap-2"><label className="flex-1 cursor-pointer bg-white hover:bg-[#FAFAFB] border border-[#E8E5EA] text-[#25232A] font-bold p-2.5 rounded-xl text-center flex items-center justify-center h-11">🧾 اختر صورة<input type="file" accept="image/*" className="hidden" onChange={e => handleFileUpload(e, 'invoice_image_url', 'صورة الفاتورة 🧾')} /></label>{headerData.invoice_image_url && <button type="button" onClick={() => { setPreviewImage(headerData.invoice_image_url); setPreviewTitle('🧾 صورة الفاتورة'); }} className="p-2 bg-[#F2E7F3] text-[#8F2A87] rounded-xl font-bold border border-[#E5CEE7] h-11 px-3 cursor-pointer">🧾</button>}</div></div>
+          <div><label className={labelCls}>صورة السند 💳</label><div className="flex gap-2"><label className="flex-1 cursor-pointer bg-white hover:bg-[#FAFAFB] border border-[#E8E5EA] text-[#25232A] font-bold p-2.5 rounded-xl text-center flex items-center justify-center h-11">📷 اختر صورة<input type="file" accept="image/*" className="hidden" onChange={e => handleFileUpload(e, 'receipt_url', 'صورة السند 💳')} /></label>{headerData.receipt_url && <button type="button" onClick={() => { setPreviewImage(headerData.receipt_url); setPreviewTitle('💳 صورة السند'); }} className="p-2 bg-[#E2F5F7] text-[#007F8C] rounded-xl font-bold border border-[#C5ECF0] h-11 px-3 cursor-pointer">🖼️</button>}</div></div>
+          <div><label className={labelCls}>تاريخ الفاتورة</label><input type="date" lang="en-GB" dir="ltr" className={inputCls} value={headerData.date} onChange={e => setHeaderData(p => ({ ...p, date: e.target.value }))} /></div>
+          <div><label className={labelCls}>تكلفة النقل</label><input type="number" step="0.01" min="0" className={inputCls + " font-mono font-bold text-[#8F2A87]"} placeholder="0.00" value={headerData.freight_cost} onChange={e => setHeaderData(p => ({ ...p, freight_cost: e.target.value }))} /></div>
+          <div><label className={labelCls}>رسوم التحويل</label><input type="number" step="0.01" min="0" className={inputCls + " font-mono font-bold text-[#D64545]"} placeholder="0.00" value={headerData.transfer_fees} onChange={e => setHeaderData(p => ({ ...p, transfer_fees: e.target.value }))} /></div>
+          <div className="sm:col-span-2 lg:col-span-2"><label className={labelCls}>ملاحظات الفاتورة والبيان 📝</label><input type="text" className={inputCls} placeholder="ملاحظات وتفاصيل الفاتورة" value={headerData.notes} onChange={e => setHeaderData(p => ({ ...p, notes: e.target.value }))} /></div>
         </div>
 
-        {/* نموذج الصنف */}
-        <form onSubmit={handleAddOrUpdateItem} className="p-5 bg-[#FAFAFB] border border-[#E8E5EA] rounded-2xl space-y-3.5">
-          <div className="flex justify-between items-center border-b border-[#E8E5EA] pb-2">
-            <span className="font-bold text-[#25232A]">{editingIndex!==null?'✏️ تعديل بيانات الصنف':'➕ إضافة صنف جديد للفاتورة'}</span>
-            {editingIndex!==null&&<button type="button" onClick={()=>{setEditingIndex(null);setItemData(emptyItem());}} className="text-[#D64545] font-bold underline">إلغاء</button>}
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-6 gap-3 items-end">
-            <div className="col-span-2 sm:col-span-2"><label className={labelCls}>اسم الصنف / القماش *</label><input type="text" required className={inputCls} placeholder="" value={itemData.item} onChange={e=>setItemData(p=>({...p,item:e.target.value}))} /></div>
-            <div><label className={labelCls}>وحدة القياس</label><select className={inputCls} value={itemData.unit} onChange={e=>setItemData(p=>({...p,unit:e.target.value}))}>{UNITS.map(u=><option key={u} value={u}>{u}</option>)}</select></div>
-            <div><label className={labelCls}>الكمية</label><input type="number" step="0.01" min="0" className={inputCls + " text-center font-mono font-bold"} placeholder="" value={itemData.qty} onChange={e=>handleQtyChange(e.target.value)} /></div>
-            <div><label className={labelCls}>السعر الإفرادي</label><input type="number" step="0.01" min="0" className={inputCls + " text-center font-mono font-bold text-[#8F2A87]"} placeholder="" value={itemData.price} onChange={e=>handlePriceChange(e.target.value)} /></div>
-            <div><label className={labelCls}>الإجمالي</label><input type="number" step="0.01" min="0" className={inputCls + " text-center font-mono font-bold text-[#007F8C] bg-[#E2F5F7]"} placeholder="" value={itemData.total} onChange={e=>handleTotalChange(e.target.value)} /></div>
-          </div>
-          <button type="submit" className={`w-full py-3 font-bold text-xs rounded-xl transition shadow-xs cursor-pointer ${editingIndex!==null?'bg-[#F28A00] hover:bg-[#D97706] text-white':'bg-[#8F2A87] hover:bg-[#73216C] text-white'}`}>{editingIndex!==null?'💾 تحديث الصنف':'➕ إضافة الصنف إلى الفاتورة'}</button>
-        </form>
-
-        {/* مسودة الفاتورة */}
-        {billItems.length > 0 && (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between"><span className="font-bold text-[#25232A]">📋 أصناف الفاتورة الحالية ({billItems.length} صنف)</span><span className="font-bold text-[#8F2A87] font-mono">إجمالي الفاتورة: {grandTotal.toLocaleString('en-US')} {headerData.currency}</span></div>
-            <div className="overflow-x-auto rounded-xl border border-[#E8E5EA]">
-              <table className="w-full text-right text-xs">
-                <thead><tr className="bg-[#FAFAFB] text-[#6F6B75] font-semibold border-b border-[#E8E5EA]"><th className="p-3">#</th><th className="p-3">الصنف</th><th className="p-3 text-center">الوحدة</th><th className="p-3 text-center">الكمية</th><th className="p-3 text-center">السعر</th><th className="p-3 text-center">الإجمالي</th><th className="p-3 text-center">إجراءات</th></tr></thead>
-                <tbody className="divide-y divide-[#E8E5EA] bg-white">
-                  {billItems.map((bi,idx)=>(
-                    <tr key={idx} className={editingIndex===idx?'bg-[#FFF1DC]':'hover:bg-[#FAFAFB]'}>
-                      <td className="p-3 text-[#6F6B75]">{idx+1}</td>
-                      <td className="p-3 font-bold text-[#25232A]">{bi.item}</td>
-                      <td className="p-3 text-center"><span className="bg-[#F2E7F3] text-[#8F2A87] px-2 py-0.5 rounded-md text-[10.5px] font-semibold">{bi.unit}</span></td>
-                      <td className="p-3 text-center font-bold font-mono">{bi.qty}</td>
-                      <td className="p-3 text-center text-[#8F2A87] font-bold font-mono">{bi.price} {headerData.currency}</td>
-                      <td className="p-3 text-center font-bold font-mono text-[#007F8C]">{parseFloat(bi.total).toLocaleString('en-US')} {headerData.currency}</td>
-                      <td className="p-3 text-center space-x-1 space-x-reverse">
-                        <button type="button" onClick={()=>{setItemData({item:bi.item,unit:bi.unit||'متر',qty:String(bi.qty),price:String(bi.price),total:String(bi.total)});setEditingIndex(idx);}} className="w-7 h-7 bg-[#FAFAFB] hover:bg-[#E8E5EA] text-[#25232A] rounded-lg font-bold border border-[#E8E5EA]">✏️</button>
-                        <button type="button" onClick={()=>{setBillItems(prev=>prev.filter((_,i)=>i!==idx));if(editingIndex===idx){setEditingIndex(null);setItemData(emptyItem());}}} className="w-7 h-7 bg-rose-50 hover:bg-rose-100 text-[#D64545] rounded-lg font-bold border border-rose-200">🗑️</button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <button 
-              type="button" 
-              onClick={handleSaveFullBill} 
-              disabled={isSaving}
-              className={`w-full py-3.5 ${isSaving ? 'bg-gray-400 cursor-not-allowed' : 'bg-[#009FAE] hover:bg-[#007F8C] cursor-pointer'} text-white font-bold text-xs rounded-xl shadow-xs transition`}
-            >
-              {isSaving ? '⏳ جاري حفظ الفاتورة وتوريد الأصناف للمخزون...' : `☁️ حفظ الفاتورة وتوريد الأصناف للمخزون (${billItems.length} أصناف) — الإجمالي: ${grandTotal.toLocaleString('en-US')} ${headerData.currency}`}
-            </button>
-          </div>
+        {ItemsTable && (
+          <ItemsTable
+            itemData={itemData} setItemData={setItemData} emptyItem={emptyItem} editingIndex={editingIndex}
+            setEditingIndex={setEditingIndex} billItems={billItems} setBillItems={setBillItems} headerData={headerData}
+            grandTotal={grandTotal} isSaving={isSaving} handleSaveFullBill={handleSaveFullBill} showToast={showToast}
+            UNITS={UNITS} inputCls={inputCls} labelCls={labelCls}
+          />
         )}
       </div>
 
-      {/* ── سجل المشتريات القابل للطي (Collapsible Accordion Card) ── */}
+      {/* ── سجل المشتريات القابل للطي ── */}
       <div className="bg-white rounded-2xl border border-[#E8E5EA] shadow-[0_2px_12px_rgba(0,0,0,0.02)] overflow-hidden transition-all duration-300">
-        {/* Header Bar */}
-        <div className="p-5 flex flex-col md:flex-row items-center justify-between gap-4 bg-gradient-to-r from-gray-50 to-white border-b border-[#E8E5EA]">
-          <div className="flex items-center gap-3 w-full md:w-auto">
-            <button
-              type="button"
-              onClick={() => setIsHistoryOpen(!isHistoryOpen)}
-              className="flex items-center gap-2.5 text-right cursor-pointer group focus:outline-none"
-            >
-              <span className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-sm transition-transform duration-300 ${
-                isHistoryOpen ? 'bg-[#8F2A87] text-white rotate-180' : 'bg-[#F2E7F3] text-[#8F2A87]'
-              }`}>
-                ▼
-              </span>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="font-bold text-sm text-[#25232A] group-hover:text-[#8F2A87] transition-colors">
-                    سجل المشتريات والفواتير السحابية
-                  </h3>
-                  <span className="text-xs bg-[#F2E7F3] text-[#8F2A87] font-bold px-2.5 py-0.5 rounded-full font-mono">
-                    {filteredPurchases.length} فاتورة
-                  </span>
-                </div>
-                <p className="text-[11px] text-[#6F6B75]">
-                  {isHistoryOpen ? 'انقر لطي وإخفاء جدول السجل' : 'انقر لتوسيع واستعراض سجل الفواتير والموردين'}
-                </p>
-              </div>
-            </button>
-          </div>
-
-          <div className="flex items-center gap-2.5 w-full md:w-auto justify-end flex-wrap">
-            {/* Search Input */}
-            <div className="relative flex-1 md:w-72">
-              <input
-                value={search}
-                onChange={e => { setSearch(e.target.value); if (!isHistoryOpen) setIsHistoryOpen(true); }}
-                className="pl-3 pr-9 h-10 rounded-xl border border-[#E8E5EA] bg-white text-xs font-medium w-full focus:border-[#8F2A87] focus:ring-2 focus:ring-[#F2E7F3] outline-none shadow-2xs transition-all"
-                placeholder="بحث برقم الفاتورة، المورد، الصنف..."
-              />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6F6B75] text-xs pointer-events-none">🔍</span>
-            </div>
-
-            {/* Purge Button */}
-            <button
-              type="button"
-              onClick={handlePurgeAllPurchases}
-              disabled={isPurging}
-              title="مسح وتصفير كافة السجلات التالفة السابقة من Google Sheets"
-              className="h-10 px-3.5 bg-rose-50 hover:bg-rose-100 text-[#D64545] font-bold text-xs rounded-xl border border-rose-200 transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-2xs"
-            >
-              {isPurging ? (
-                <>
-                  <div className="w-3.5 h-3.5 border-2 border-[#D64545] border-t-transparent rounded-full animate-spin"></div>
-                  <span>جاري التصفير...</span>
-                </>
-              ) : (
-                <>
-                  <span>🗑️</span>
-                  <span className="hidden sm:inline">تصفير السجلات التالفة</span>
-                </>
-              )}
-            </button>
-
-            {/* Toggle Accordion Button */}
-            <button
-              type="button"
-              onClick={() => setIsHistoryOpen(!isHistoryOpen)}
-              className="h-10 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
-            >
-              <span>{isHistoryOpen ? 'إخفاء' : 'عرض السجل'}</span>
-              <span>{isHistoryOpen ? '▲' : '▼'}</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Collapsible Body */}
-        {isHistoryOpen && (
+        {FilterBar && <FilterBar isHistoryOpen={isHistoryOpen} setIsHistoryOpen={setIsHistoryOpen} filteredPurchasesCount={(filteredPurchases || []).length} search={search} setSearch={setSearch} />}
+        {isHistoryOpen && DataTable && (
           <div className="p-5 space-y-4 animate-fade-in">
-            {filteredPurchases.length === 0 ? (
-              <div className="text-center py-12 text-[#6F6B75] font-medium bg-[#FAFAFB] rounded-2xl border border-dashed border-[#E8E5EA]">
-                لا توجد فواتير مسجلة تطابق البحث 🛍️
-              </div>
-            ) : (
-              <div className="overflow-x-auto rounded-2xl border border-[#E8E5EA] shadow-xs">
-                <table className="w-full text-right text-xs border-collapse min-w-[900px]">
-                  <thead>
-                    <tr className="bg-[#FAFAFB] text-[#6F6B75] font-bold border-b border-[#E8E5EA]">
-                      <th className="px-4 py-3.5 text-right whitespace-nowrap sticky right-0 z-10 bg-[#FAFAFB] shadow-[-2px_0_4px_rgba(0,0,0,0.02)]">رقم الفاتورة والتاريخ</th>
-                      <th className="px-4 py-3.5 text-right whitespace-nowrap">المورد وبيانات التواصل</th>
-                      <th className="px-4 py-3.5 text-right whitespace-nowrap">الصنف / تفاصيل الكمية والسعر</th>
-                      <th className="px-4 py-3.5 text-center whitespace-nowrap">الخصم / النقل</th>
-                      <th className="px-4 py-3.5 text-center whitespace-nowrap">الصافي الإجمالي (YER)</th>
-                      <th className="px-4 py-3.5 text-right whitespace-nowrap">حساب الدفع والبيان</th>
-                      <th className="px-4 py-3.5 text-center whitespace-nowrap sticky left-0 z-10 bg-[#FAFAFB] shadow-[2px_0_4px_rgba(0,0,0,0.02)]">المرفقات والإجراءات</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#E8E5EA] bg-white">
-                    {filteredPurchases.map((p, idx) => {
-                      const n = normalizePurchase(p);
-                      const itemName = n.item_name || p.fabric_name || p.item || p.item_name || p.name || '—';
-                      const supplier = p.supplier_name || p.supplier || '—';
-                      const billNo = p.bill_no || p.purchase_no || p.invoice_no || p.id || '—';
-                      const currRaw = p.currency || p.Original_Currency || 'YER';
-                      const currCode = window.CurrencyService ? window.CurrencyService.normalizeCode(currRaw) : (String(currRaw).includes('SAR') ? 'SAR' : (String(currRaw).includes('USD') ? 'USD' : 'YER'));
-                      const isForeign = currCode !== 'YER';
-                      const rate = parseFloat(p.exchange_rate || p.exchangeRate) || (window.CurrencyService ? window.CurrencyService.getRate(currCode) : (currCode === 'SAR' ? 142 : (currCode === 'USD' ? 535 : 1)));
-                      const freight = parseFloat(p.freight_cost || p.shipping_cost) || 0;
-                      const fees = parseFloat(p.transfer_fees || p.transfer_fee) || 0;
-                      const discountAmt = parseFloat(n.discount) || 0;
-                      const origAmount = parseFloat(p.subtotal_original || p.original_amount || p.originalAmount) || (n.qty > 0 && n.price > 0 ? (n.qty * n.price) : n.total);
-                      const netOriginal = Math.max(0, origAmount - discountAmt);
-                      const grandTotalYER = parseFloat(p.grand_total_yer || p.total_amount_yer) || (isForeign ? ((netOriginal * rate) + (freight * rate) + (fees * rate)) : (netOriginal + freight + fees));
-                      const paySrc = p.payment_source || p.payment_account_code || '101 - الصندوق الرئيسي';
-                      const payType = p.pay_type || p.payment_method || 'نقدي';
-                      const dateDisplay = n.date || p.invoice_date || p.date || p.created_at || '—';
-
-                      return (
-                        <tr key={p.id||idx} className="hover:bg-[#FAFAFB] transition-colors group">
-                          {/* 1. رقم الفاتورة والتاريخ (Sticky Right) */}
-                          <td className="px-4 py-3 whitespace-nowrap sticky right-0 z-10 bg-white group-hover:bg-[#FAFAFB] shadow-[-2px_0_4px_rgba(0,0,0,0.02)]">
-                            <div className="font-mono font-bold text-xs text-[#8F2A87]">{billNo}</div>
-                            <div className="font-mono text-[11px] text-[#6F6B75] mt-0.5 flex items-center gap-1">
-                              <span>📅</span>
-                              <span>{dateDisplay}</span>
-                            </div>
-                          </td>
-
-                          {/* 2. المورد وبيانات التواصل */}
-                          <td className="px-4 py-3 whitespace-nowrap">
-                            <div className="font-bold text-[#25232A] text-xs">{supplier}</div>
-                            {n.supplier_phone ? (
-                              <div className="text-[11px] font-mono text-[#6F6B75] mt-0.5 flex items-center gap-1">
-                                <span>📱</span>
-                                <span className="dir-ltr">{n.supplier_phone}</span>
-                              </div>
-                            ) : (
-                              <span className="text-[11px] text-[#6F6B75]">—</span>
-                            )}
-                          </td>
-
-                          {/* 3. الصنف / تفاصيل الكمية والسعر */}
-                          <td className="px-4 py-3">
-                            <div className="font-bold text-[#25232A] text-xs max-w-[220px] truncate" title={itemName}>
-                              {itemName !== '—' ? itemName : <span className="text-[#D64545] font-bold text-[11px] cursor-pointer underline" onClick={()=>handleOpenEdit(p)}>⚠️ فارغ — تعديل</span>}
-                            </div>
-                            <div className="mt-1 flex items-center gap-1.5 flex-wrap">
-                              <span className="text-[11px] font-mono text-[#25232A] bg-[#FAFAFB] px-2 py-0.5 rounded-md border border-[#E8E5EA] inline-flex items-center gap-1">
-                                <span className="font-bold">{n.qty > 0 ? n.qty.toLocaleString('en-US') : 0}</span>
-                                <span className="text-[#8F2A87] font-semibold">{n.unit}</span>
-                                <span className="text-[#6F6B75]">×</span>
-                                <span className="text-[#8F2A87] font-bold">{n.price > 0 ? n.price.toLocaleString('en-US') : 0} {currCode}</span>
-                              </span>
-                            </div>
-                          </td>
-
-                          {/* 4. الخصم والنقل والرسوم */}
-                          <td className="px-4 py-3 text-center whitespace-nowrap">
-                            {discountAmt > 0 ? (
-                              <div className="inline-block bg-rose-50 text-[#D64545] font-bold font-mono px-2 py-0.5 rounded-md border border-rose-200 text-[11px]">
-                                💸 -{discountAmt.toLocaleString('en-US')} {currCode}
-                              </div>
-                            ) : null}
-                            {(freight + fees) > 0 ? (
-                              <div className={`text-[10.5px] font-mono text-[#C97300] font-bold ${discountAmt > 0 ? 'mt-1' : ''}`}>
-                                🚚 +{(freight + fees).toLocaleString('en-US')} ﷼
-                              </div>
-                            ) : null}
-                            {discountAmt <= 0 && (freight + fees) <= 0 && (
-                              <span className="text-[#6F6B75]">—</span>
-                            )}
-                          </td>
-
-                          {/* 5. الصافي الإجمالي (YER) */}
-                          <td className="px-4 py-3 text-center whitespace-nowrap bg-[#E2F5F7]/25">
-                            <div className="font-extrabold font-mono text-sm text-[#007F8C]">
-                              {grandTotalYER > 0 ? `${grandTotalYER.toLocaleString('en-US', { minimumFractionDigits: 2 })} ﷼` : '0.00 ﷼'}
-                            </div>
-                            {isForeign && origAmount > 0 && (
-                              <div className="text-[10px] font-mono text-[#8F2A87] mt-0.5 font-bold">
-                                {origAmount.toLocaleString('en-US')} {currCode} @ {rate}
-                              </div>
-                            )}
-                          </td>
-
-                          {/* 6. حساب الدفع والبيان */}
-                          <td className="px-4 py-3 max-w-[240px]">
-                            <div className="flex items-center gap-1.5">
-                              <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border shrink-0 ${
-                                payType === 'آجل' ? 'bg-[#FFF1DC] text-[#C97300] border-[#FFE4B9]' : 'bg-[#E2F5F7] text-[#007F8C] border-[#C5ECF0]'
-                              }`}>
-                                {payType}
-                              </span>
-                              <span className="text-xs text-[#25232A] font-semibold truncate" title={paySrc}>{paySrc}</span>
-                            </div>
-                            {n.notes ? (
-                              <div className="text-[11px] text-[#6F6B75] truncate mt-1 line-clamp-1" title={n.notes}>
-                                📝 {n.notes}
-                              </div>
-                            ) : null}
-                          </td>
-
-                          {/* 7. المرفقات والإجراءات (Sticky Left) */}
-                          <td className="px-4 py-3 text-center whitespace-nowrap sticky left-0 z-10 bg-white group-hover:bg-[#FAFAFB] shadow-[2px_0_4px_rgba(0,0,0,0.02)]">
-                            <div className="flex items-center justify-center gap-1.5">
-                              {/* صورة الفاتورة */}
-                              {n.invoice_image_url && (
-                                <button
-                                  type="button"
-                                  onClick={() => { setPreviewImage(n.invoice_image_url); setPreviewTitle(`🧾 فاتورة ${billNo}`); }}
-                                  title="معاينة صورة الفاتورة 🧾"
-                                  className="w-8 h-8 rounded-lg bg-[#F2E7F3] hover:bg-[#E5CEE7] text-[#8F2A87] border border-[#E5CEE7] flex items-center justify-center text-xs transition cursor-pointer shadow-2xs"
-                                >
-                                  🧾
-                                </button>
-                              )}
-
-                              {/* صورة السند */}
-                              {n.receipt_url && (
-                                <button
-                                  type="button"
-                                  onClick={() => { setPreviewImage(n.receipt_url); setPreviewTitle(`💳 سند ${billNo}`); }}
-                                  title="معاينة صورة السند 💳"
-                                  className="w-8 h-8 rounded-lg bg-[#E2F5F7] hover:bg-[#C5ECF0] text-[#007F8C] border border-[#C5ECF0] flex items-center justify-center text-xs transition cursor-pointer shadow-2xs"
-                                >
-                                  💳
-                                </button>
-                              )}
-
-                              {/* تعديل */}
-                              <button
-                                type="button"
-                                onClick={() => handleOpenEdit(p)}
-                                title="تعديل بيانات الفاتورة"
-                                className="w-8 h-8 rounded-lg bg-[#FAFAFB] hover:bg-[#E8E5EA] text-[#25232A] border border-[#E8E5EA] flex items-center justify-center text-xs transition cursor-pointer shadow-2xs"
-                              >
-                                ✏️
-                              </button>
-
-                              {/* حذف */}
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteRecord(p)}
-                                title="حذف الفاتورة"
-                                className="w-8 h-8 rounded-lg bg-rose-50 hover:bg-rose-100 text-[#D64545] border border-rose-200 flex items-center justify-center text-xs transition cursor-pointer shadow-2xs"
-                              >
-                                🗑️
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
+            <DataTable filteredPurchases={filteredPurchases} handleOpenEdit={handleOpenEdit} handleDeleteRecord={handleDeleteRecord} setPreviewImage={setPreviewImage} setPreviewTitle={setPreviewTitle} />
           </div>
         )}
       </div>

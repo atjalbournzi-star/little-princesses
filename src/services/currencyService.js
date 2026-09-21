@@ -212,13 +212,25 @@
     },
 
     // Universal conversion between any two currencies
-    convert: function(amount, fromCurr, toCurr, customRate) {
+    // Signature: convert(amount, fromCurr, toCurr, fromRate, toRate)
+    convert: function(amount, fromCurr, toCurr, fromRate, toRate) {
       var fromCode = this.normalizeCode(fromCurr);
       var toCode = this.normalizeCode(toCurr);
-      if (fromCode === toCode) return parseFloat(amount) || 0;
+      var num = parseFloat(amount) || 0;
+      if (fromCode === toCode) return num;
 
-      var baseObj = this.toBase(amount, fromCode, (fromCode !== BASE_CURRENCY_CODE ? customRate : null));
-      return this.fromBase(baseObj.base_amount, toCode, (toCode !== BASE_CURRENCY_CODE ? customRate : null));
+      // Rate of fromCurr against base (YER). If fromCurr is base, rate is always 1.0
+      var rFrom = fromCode === BASE_CURRENCY_CODE ? 1.0 : (fromRate && Number(fromRate) > 0 ? Number(fromRate) : this.getRate(fromCode));
+      var baseAmount = fromCode === BASE_CURRENCY_CODE ? num : (num * rFrom);
+
+      // Rate of toCurr against base (YER). If toCurr is base, rate is always 1.0
+      var rTo = toCode === BASE_CURRENCY_CODE ? 1.0 : (toRate && Number(toRate) > 0 ? Number(toRate) : this.getRate(toCode));
+      var converted = toCode === BASE_CURRENCY_CODE ? baseAmount : (rTo > 0 ? (baseAmount / rTo) : 0);
+
+      var def = this.getCurrencyDef(toCode);
+      var decimals = def ? def.decimals : 2;
+      var factor = Math.pow(10, decimals);
+      return Math.round(converted * factor) / factor;
     },
 
     // Calculates Exchange Gain/Loss (فروق أسعار الصرف)

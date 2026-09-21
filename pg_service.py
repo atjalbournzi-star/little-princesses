@@ -257,12 +257,8 @@ def ensure_base_system_seed():
                 ON CONFLICT (id) DO NOTHING;
             """)
 
-            # 3. المورد العام الافتراضي (Default Supplier)
-            cur.execute("""
-                INSERT INTO suppliers (id, name, address, phone, city, current_balance, is_active)
-                VALUES ('SUPP-GENERAL', 'مورد عام / مشتريات نقدية', 'المركز التجاري', '0000000000', 'صنعاء', 0.0, True)
-                ON CONFLICT (id) DO NOTHING;
-            """)
+            # 3. الموردين (Dynamic suppliers - No mock/hardcoded seeds)
+
 
             # 4. حسابات المشتريات التخصصية (مصاريف الشحن، رسوم التحويل، الخصم المكتسب)
             cur.execute("""
@@ -1040,9 +1036,17 @@ def add_or_update_inventory(payload):
     total_val = clean_num(data.get('total_value') or (qty * unit_cost))
     location = clean_str(data.get('location') or 'المستودع الرئيسي')
     supplier_id = clean_str(data.get('supplier_id') or data.get('supplier') or '')
-    curr = clean_str(data.get('currency') or 'YER')
+    curr_raw = clean_str(data.get('currency') or 'YER')
+    curr = 'YER'
+    if 'SAR' in curr_raw.upper(): curr = 'SAR'
+    elif 'USD' in curr_raw.upper(): curr = 'USD'
+    elif 'YER' in curr_raw.upper() or '﷼' in curr_raw: curr = 'YER'
+    else: curr = curr_raw.strip().upper() or 'YER'
 
     with get_db_cursor(commit=True) as cur:
+        rate = resolve_exchange_rate(cur, curr, clean_num(data.get('exchange_rate') or 1.0))
+        unit_cost_yer = round(unit_cost * rate, 2)
+
         if not inv_id:
             cur.execute("SELECT id, item_code FROM inventory WHERE name = %s OR (item_code IS NOT NULL AND item_code = %s) LIMIT 1;", (name, item_code or name))
             ex_row = cur.fetchone()
@@ -1060,7 +1064,7 @@ def add_or_update_inventory(payload):
                 id, item_code, name, type, category, unit, quantity, reserved_qty,
                 min_limit, unit_cost, currency, supplier_id, location, status, updated_at
             ) VALUES (
-                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'Available', CURRENT_TIMESTAMP
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'YER', %s, %s, 'Available', CURRENT_TIMESTAMP
             )
             ON CONFLICT (id) DO UPDATE SET
                 item_code = EXCLUDED.item_code,
@@ -1072,13 +1076,13 @@ def add_or_update_inventory(payload):
                 reserved_qty = EXCLUDED.reserved_qty,
                 min_limit = EXCLUDED.min_limit,
                 unit_cost = EXCLUDED.unit_cost,
-                currency = COALESCE(NULLIF(EXCLUDED.currency, ''), inventory.currency, 'YER'),
+                currency = 'YER',
                 supplier_id = COALESCE(NULLIF(EXCLUDED.supplier_id, ''), inventory.supplier_id),
                 location = EXCLUDED.location,
                 updated_at = CURRENT_TIMESTAMP
-            RETURNING *, name as item_name, quantity as qty, quantity as current_balance, unit_cost as avg_cost, unit_cost as cost, COALESCE(currency, 'YER') as currency;
+            RETURNING *, name as item_name, quantity as qty, quantity as current_balance, unit_cost as avg_cost, unit_cost as cost, 'YER' as currency;
         """
-        params = (inv_id, item_code, name, m_type, cat, unit, qty, res_qty, min_lim, unit_cost, curr, supplier_id, location)
+        params = (inv_id, item_code, name, m_type, cat, unit, qty, res_qty, min_lim, unit_cost_yer, supplier_id, location)
         cur.execute(query, params)
         res = dict(cur.fetchone())
         if res.get('created_at'): res['created_at'] = str(res['created_at'])
@@ -1483,6 +1487,31 @@ def add_order(payload):
                     LIMIT 1 FOR UPDATE;
                 """, (p_name_ref, f"%{p_name_ref}%"))
                 inv_row = cur.fetchone()
+
+            if not inv_row:
+                # التحقق من جدول المنتجات لربط الصنف بالمخزون وضمان حركة المخزون
+                prod_info = None
+                if p_id_ref:
+                    cur.execute("SELECT id, model_name, cost_price, base_price FROM products WHERE id = %s OR sku = %s LIMIT 1;", (p_id_ref, p_id_ref))
+                    prod_info = cur.fetchone()
+                if not prod_info and p_name_ref:
+                    cur.execute("SELECT id, model_name, cost_price, base_price FROM products WHERE model_name = %s OR model_name ILIKE %s LIMIT 1;", (p_name_ref, f"%{p_name_ref}%"))
+                    prod_info = cur.fetchone()
+
+                inv_id = generate_id("INV")
+                item_name = (prod_info['model_name'] if prod_info else p_name_ref) or 'فستان جاهز'
+                item_code = (prod_info['id'] if prod_info else p_id_ref) or inv_id
+                u_cost = clean_num(prod_info['cost_price']) if prod_info and prod_info.get('cost_price') else 0.0
+
+                cur.execute("""
+                    INSERT INTO inventory (id, item_code, name, type, category, unit, quantity, reserved_qty, min_limit, unit_cost, status, currency)
+                    VALUES (%s, %s, %s, 'Finished', 'فساتين جاهزة', 'قطعة', 0, 0, 2, %s, 'Active', 'YER')
+                    ON CONFLICT (id) DO NOTHING;
+                """, (inv_id, item_code, item_name, u_cost))
+
+                cur.execute("SELECT id, quantity, unit_cost FROM inventory WHERE id = %s OR item_code = %s LIMIT 1 FOR UPDATE;", (inv_id, item_code))
+                inv_row = cur.fetchone()
+
             if inv_row:
                 new_qty = max(0.0, float(inv_row['quantity']) - q_deduct)
                 cur.execute("UPDATE inventory SET quantity = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s;", (new_qty, inv_row['id']))
@@ -1741,8 +1770,12 @@ def update_order(payload):
 # ── 7. دوال إدارة المشتريات والموردين (Purchases & Suppliers Controller) ──
 
 def get_purchases(params=None):
-    query = """
+    params = params or {}
+    include_cancelled = params.get('include_cancelled', False)
+    where_clause = "" if include_cancelled else "WHERE (receipt_status IS NULL OR receipt_status != 'Cancelled')"
+    query = f"""
         SELECT * FROM purchases
+        {where_clause}
         ORDER BY invoice_date DESC, created_at DESC;
     """
     rows = execute_query(query, fetch_all=True)
@@ -1854,8 +1887,11 @@ def add_purchase(payload):
         header_unit = items[0]['unit']
         header_u_price = items[0]['unit_price']
     else:
-        header_item_name = f"{items[0]['item_name']} (و {len(items)-1} خامات أخرى)"
-        header_unit = items[0]['unit']
+        # عرض أسماء جميع الخامات بوضوح مفصولة بـ + بدلاً من إخفاء اسم الصنف الثاني
+        header_item_name = " + ".join([i['item_name'] for i in items if i.get('item_name')])
+        if len(header_item_name) > 250:
+            header_item_name = header_item_name[:247] + "..."
+        header_unit = items[0]['unit'] if all(i.get('unit') == items[0].get('unit') for i in items) else 'مشكل'
         header_u_price = round(orig_amt / total_qty, 2) if total_qty > 0 else 0.0
 
     discount = clean_num(data.get('discount') or data.get('discount_amount') or 0.0)
@@ -1888,33 +1924,34 @@ def add_purchase(payload):
             elif (not pay_source_raw or credit_acc in ('ACC-101', 'ACC-101-1')) and curr == 'USD':
                 credit_acc = 'ACC-101-3'
 
-        # التحقق من المورد وإنشاؤه إن لم يكن موجوداً
-        if supp_id and supp_id != 'SUPP-GENERAL':
-            cur.execute("SELECT id FROM suppliers WHERE id = %s LIMIT 1;", (supp_id,))
+        # التحقق من المورد الحقيقي في قاعدة البيانات
+        if supp_id:
+            cur.execute("SELECT id, name, phone FROM suppliers WHERE id = %s LIMIT 1;", (supp_id,))
             s_row = cur.fetchone()
-            if not s_row:
+            if s_row:
+                supp_name = s_row['name']
+                if not supp_phone and s_row.get('phone'):
+                    supp_phone = s_row['phone']
+            else:
                 supp_id = None
 
-        if not supp_id or supp_id == 'SUPP-GENERAL':
-            if supp_name and supp_name != 'مورد عام':
-                cur.execute("SELECT id FROM suppliers WHERE name = %s OR (phone IS NOT NULL AND phone != '' AND phone = %s) LIMIT 1;", 
-                            (supp_name, supp_phone or '___NONE___'))
-                s_row = cur.fetchone()
-                if s_row:
-                    supp_id = s_row['id']
-                    if supp_phone:
-                        cur.execute("UPDATE suppliers SET phone = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s AND (phone IS NULL OR phone = '' OR phone = '0000000000');", 
-                                    (supp_phone, supp_id))
-                else:
-                    new_supp_id = generate_id("SUPP")
-                    cur.execute("""
-                        INSERT INTO suppliers (id, name, phone, city, address, current_balance, is_active, created_at, updated_at)
-                        VALUES (%s, %s, %s, 'صنعاء', 'توريد خامات ومشتريات', 0.0, True, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                        ON CONFLICT (id) DO NOTHING;
-                    """, (new_supp_id, supp_name, supp_phone or '0000000000'))
-                    supp_id = new_supp_id
+        if not supp_id and supp_name:
+            cur.execute("SELECT id, name, phone FROM suppliers WHERE name = %s OR (phone IS NOT NULL AND phone != '' AND phone = %s) LIMIT 1;", 
+                        (supp_name, supp_phone or '___NONE___'))
+            s_row = cur.fetchone()
+            if s_row:
+                supp_id = s_row['id']
+                if supp_phone and not s_row.get('phone'):
+                    cur.execute("UPDATE suppliers SET phone = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s;", 
+                                (supp_phone, supp_id))
             else:
-                supp_id = 'SUPP-GENERAL'
+                new_supp_id = generate_id("SUPP")
+                cur.execute("""
+                    INSERT INTO suppliers (id, name, phone, city, address, current_balance, is_active, created_by, created_at, updated_at)
+                    VALUES (%s, %s, %s, 'صنعاء', 'توريد خامات ومشتريات', 0.0, True, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                    ON CONFLICT (id) DO NOTHING;
+                """, (new_supp_id, supp_name, supp_phone or '0000000000', clean_str(data.get('created_by') or 'admin')))
+                supp_id = new_supp_id
 
         # صياغة بيان الملاحظات التفصيلي
         cur.execute("SELECT account_name, account_code FROM chart_of_accounts WHERE id = %s LIMIT 1;", (credit_acc,))
@@ -1932,6 +1969,12 @@ def add_purchase(payload):
             note_parts.append(notes)
         full_notes = " | ".join(note_parts)
 
+        # التحقق من وجود الفاتورة مسبقاً برقم الفاتورة لمنع انتهاك المفتاح الفريد
+        cur.execute("SELECT id FROM purchases WHERE invoice_no = %s OR id = %s LIMIT 1;", (inv_no, pur_id))
+        ex_pur = cur.fetchone()
+        if ex_pur:
+            pur_id = ex_pur['id']
+
         query = """
             INSERT INTO purchases (
                 id, invoice_no, supplier_id, supplier_name, supplier_phone,
@@ -1939,14 +1982,14 @@ def add_purchase(payload):
                 currency, exchange_rate, original_amount, discount,
                 amount_yer, shipping_cost, transfer_fee, grand_total_yer,
                 payment_method, payment_account_code, transaction_ref,
-                invoice_attachment, receipt_attachment, receipt_status, payment_status, notes
+                invoice_attachment, receipt_attachment, receipt_status, payment_status, created_by, notes
             ) VALUES (
                 %s, %s, %s, %s, %s,
                 %s, %s, %s, %s, %s,
                 %s, %s, %s, %s,
                 %s, %s, %s, %s,
                 %s, %s, %s,
-                %s, %s, 'Received', %s, %s
+                %s, %s, 'Received', %s, %s, %s
             )
             ON CONFLICT (id) DO UPDATE SET
                 supplier_id = EXCLUDED.supplier_id,
@@ -1967,20 +2010,37 @@ def add_purchase(payload):
                 transaction_ref = EXCLUDED.transaction_ref,
                 invoice_attachment = COALESCE(NULLIF(EXCLUDED.invoice_attachment, ''), purchases.invoice_attachment),
                 receipt_attachment = COALESCE(NULLIF(EXCLUDED.receipt_attachment, ''), purchases.receipt_attachment),
+                created_by = COALESCE(purchases.created_by, EXCLUDED.created_by),
                 notes = EXCLUDED.notes
             RETURNING *;
         """
         pay_status = 'Unpaid' if pay_method == 'آجل' else 'Paid'
+        pur_created_by = clean_str(data.get('created_by') or 'admin')
         params = (
             pur_id, inv_no, supp_id, supp_name, supp_phone,
             inv_date, header_item_name, header_unit, total_qty, header_u_price,
             curr, rate, orig_amt, discount,
             items_amt_yer, shipping_cost, transfer_fee, grand_total_yer,
             pay_method, credit_acc, transfer_no,
-            invoice_image_url, receipt_url, pay_status, full_notes
+            invoice_image_url, receipt_url, pay_status, pur_created_by, full_notes
         )
         cur.execute(query, params)
         res = dict(cur.fetchone())
+
+        # إذا كان تعديلاً على فاتورة قائمة: خصم الكميات السابقة من المخزون لمنع تكرار أو مضاعفة الأرصدة
+        cur.execute("SELECT inventory_id, quantity FROM purchase_items WHERE purchase_id = %s;", (pur_id,))
+        prev_p_items = cur.fetchall()
+        for prev_itm in prev_p_items:
+            p_inv_id = prev_itm.get('inventory_id')
+            p_qty = float(prev_itm.get('quantity') or 0.0)
+            if p_inv_id and p_qty > 0:
+                cur.execute("""
+                    UPDATE inventory
+                    SET quantity = GREATEST(0, quantity - %s),
+                        status = CASE WHEN (quantity - %s) <= 0 THEN 'OutOfStock' ELSE status END,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = %s;
+                """, (p_qty, p_qty, p_inv_id))
 
         # حذف تفاصيل الأصناف السابقة إن وجدت لمنع التكرار عند التعديل
         cur.execute("DELETE FROM purchase_items WHERE purchase_id = %s;", (pur_id,))
@@ -1994,9 +2054,12 @@ def add_purchase(payload):
             it_price = itm['unit_price']
             it_total = itm['total_price']
 
-            # 1. زيادة رصيد المخزون وحساب متوسط التكلفة المرجح
+            # حساب تكلفة الصنف بالريال اليمني (Base Currency) لضمان مطابقة المخزون مع الأستاذ العام ACC-105
+            it_cost_yer = round(it_price * rate, 2)
+
+            # 1. زيادة رصيد المخزون وحساب متوسط التكلفة المرجح بالريال اليمني
             cur.execute("""
-                SELECT id, quantity, reserved_qty, unit_cost FROM inventory
+                SELECT id, quantity, reserved_qty, unit_cost, currency FROM inventory
                 WHERE name = %s OR item_code = %s
                 LIMIT 1 FOR UPDATE;
             """, (it_name, it_name))
@@ -2006,25 +2069,27 @@ def add_purchase(payload):
                 old_qty = float(inv_row['quantity'] or 0.0)
                 old_cost = float(inv_row['unit_cost'] or 0.0)
                 new_qty = old_qty + it_qty
-                new_cost = round(((old_qty * old_cost) + (it_qty * it_price)) / new_qty, 2) if new_qty > 0 else it_price
+                new_cost = round(((old_qty * old_cost) + (it_qty * it_cost_yer)) / new_qty, 2) if new_qty > 0 else it_cost_yer
                 cur.execute("""
                     UPDATE inventory 
-                    SET quantity = %s, unit_cost = %s, currency = COALESCE(NULLIF(%s, ''), currency, 'YER'), updated_at = CURRENT_TIMESTAMP 
+                    SET quantity = %s, unit_cost = %s,
+                        status = CASE WHEN %s > 0 THEN 'Available' ELSE 'OutOfStock' END,
+                        currency = 'YER', updated_at = CURRENT_TIMESTAMP 
                     WHERE id = %s;
-                """, (new_qty, new_cost, curr, inv_id))
+                """, (new_qty, new_cost, new_qty, inv_id))
             else:
                 inv_id = generate_id("MAT")
-                new_cost = it_price
+                new_cost = it_cost_yer
                 cur.execute("""
                     INSERT INTO inventory (id, item_code, name, type, category, unit, quantity, unit_cost, currency, supplier_id, location, status)
-                    VALUES (%s, %s, %s, 'Fabric', 'أقمشة فاخرة', %s, %s, %s, %s, %s, 'المستودع الرئيسي', 'Available');
-                """, (inv_id, inv_id, it_name, it_unit, it_qty, it_price, curr, supp_id))
+                    VALUES (%s, %s, %s, 'Fabric', 'أقمشة فاخرة', %s, %s, %s, 'YER', %s, 'المستودع الرئيسي', %s);
+                """, (inv_id, inv_id, it_name, it_unit, it_qty, it_cost_yer, supp_id, 'Available' if it_qty > 0 else 'OutOfStock'))
 
-            # 2. تسجيل حركة المخزون (دون إدخال العمود المحسوب total_cost)
+            # 2. تسجيل حركة المخزون بالريال اليمني لمطابقة القيد المحاسبي المزدوج في ACC-105
             cur.execute("""
                 INSERT INTO inventory_transactions (id, inventory_id, transaction_type, quantity, unit_cost, reference_type, reference_id, notes)
                 VALUES (%s, %s, 'PURCHASE_IN', %s, %s, 'purchases', %s, %s);
-            """, (generate_id("ITXN"), inv_id, it_qty, it_price, pur_id, f"شراء خامات فاتورة {inv_no}"))
+            """, (generate_id("ITXN"), inv_id, it_qty, it_cost_yer, pur_id, f"شراء خامات فاتورة {inv_no}"))
 
             # 3. إدراج سطر الصنف في جدول purchase_items
             p_item_id = generate_id("PITM")
@@ -2131,52 +2196,298 @@ def add_purchase(payload):
                 WHERE id = %s;
             """, (net_paid_orig, supp_id))
 
+        # 7. توثيق العملية في سجل التدقيق والمراقبة
+        log_audit_event(
+            entity_type='purchases',
+            entity_id=pur_id,
+            action='UPDATE' if ex_pur else 'CREATE',
+            old_values=dict(ex_pur) if ex_pur else None,
+            new_values={'invoice_no': inv_no, 'supplier': supp_name, 'grand_total_yer': grand_total_yer, 'items_count': len(saved_items)},
+            user_id=clean_str(data.get('created_by') or 'system')
+        )
+
         res['items'] = saved_items
         if res.get('created_at'): res['created_at'] = str(res['created_at'])
         return res
 
-def delete_purchase(payload):
+def cancel_purchase(payload):
     data = payload.get('data') or payload
-    p_id = clean_str(data.get('id') or data.get('purchase_id') or data.get('invoice_no') or data.get('bill_no'))
+    raw_id = clean_str(data.get('id') or '')
+    raw_inv = clean_str(data.get('invoice_no') or '')
+    raw_bill = clean_str(data.get('bill_no') or '')
+    raw_pur = clean_str(data.get('purchase_id') or '')
+    created_by = clean_str(data.get('created_by') or data.get('user_id') or 'admin')
+
+    raw_candidates = [x for x in [raw_id, raw_inv, raw_bill, raw_pur] if x]
+    if not raw_candidates:
+        p_id = clean_str(data.get('id') or data.get('purchase_id') or data.get('invoice_no') or data.get('bill_no'))
+        raw_candidates = [p_id] if p_id else []
+
+    candidates = list(raw_candidates)
+    for c in raw_candidates:
+        if '-' in c:
+            parts = c.rsplit('-', 1)
+            if parts[1].isdigit():
+                candidates.append(parts[0])
 
     with get_db_cursor(commit=True) as cur:
-        # البحث عن المعرف الفعلي ورقم الفاتورة لضمان الحذف التام والشامل
-        cur.execute("SELECT id, invoice_no FROM purchases WHERE id = %s OR invoice_no = %s LIMIT 1;", (p_id, p_id))
+        # 1. البحث عن المعرف الفعلي أو رقم الفاتورة
+        cur.execute("""
+            SELECT * FROM purchases 
+            WHERE id = ANY(%s) OR invoice_no = ANY(%s) 
+            ORDER BY created_at DESC 
+            LIMIT 1 FOR UPDATE;
+        """, (candidates, candidates))
         p_row = cur.fetchone()
-        actual_id = p_row['id'] if p_row else p_id
-        actual_inv = p_row['invoice_no'] if p_row else p_id
+
+        # 2. محاولة البحث عبر جدول بنود المشتريات
+        if not p_row:
+            cur.execute("SELECT purchase_id FROM purchase_items WHERE id = ANY(%s) LIMIT 1;", (candidates,))
+            pitm_row = cur.fetchone()
+            if pitm_row and pitm_row.get('purchase_id'):
+                cur.execute("SELECT * FROM purchases WHERE id = %s LIMIT 1 FOR UPDATE;", (pitm_row['purchase_id'],))
+                p_row = cur.fetchone()
+
+        # 3. إذا لم يتم العثور على الفاتورة، نتحقق مما إذا كان هناك أثر مالي أو مخزني مسجل
+        if not p_row:
+            cur.execute("SELECT id FROM payments WHERE invoice_id = ANY(%s) OR payment_no = ANY(%s) LIMIT 1;", (candidates, candidates))
+            has_pay = cur.fetchone()
+            cur.execute("SELECT id FROM journal_entries WHERE ref_id = ANY(%s) OR entry_no = ANY(%s) LIMIT 1;", (candidates, candidates))
+            has_jv = cur.fetchone()
+
+            if not has_pay and not has_jv:
+                # السجل غير مقيد في قاعدة البيانات ولا يمتلك أي أثر مالي أو محاسبي
+                return {
+                    "success": True,
+                    "cancelled": raw_id or (candidates[0] if candidates else 'UNKNOWN'),
+                    "message": f"تمت إزالة السجل {raw_id or raw_bill or 'المحدد'} بنجاح (غير مقيد في قاعدة البيانات السحابية)",
+                    "not_in_db": True
+                }
+            return {"success": False, "error": f"فاتورة المشتريات {raw_id or raw_bill or 'المحددة'} غير موجودة"}
+
+        actual_id = p_row['id']
+        actual_inv = p_row['invoice_no']
+        if p_row.get('receipt_status') == 'Cancelled':
+            return {"success": True, "message": f"الفاتورة {actual_inv} ملغاة مسبقاً", "id": actual_id}
 
         clean_ref = actual_id[4:] if str(actual_id).startswith('PUR-') else actual_id
         jv_no = f"JV-PUR-{clean_ref}"
         pay_no = f"PAY-{clean_ref}"
+        auto_rev_no = f"REV-JV-PUR-{clean_ref}"
 
-        # 1. حذف أسطر القيد وقيود اليومية التابعة للفاتورة لمنع أي بقايا أيتام
+        # 1. جلب بنود الفاتورة لعكس حركة المخزون
+        cur.execute("SELECT * FROM purchase_items WHERE purchase_id = %s;", (actual_id,))
+        p_items = cur.fetchall()
+        for itm in p_items:
+            inv_id = itm.get('inventory_id')
+            it_qty = float(itm.get('quantity') or 0.0)
+            it_price = float(itm.get('unit_price') or 0.0)
+            if inv_id and it_qty > 0:
+                cur.execute("""
+                    UPDATE inventory
+                    SET quantity = GREATEST(0, quantity - %s),
+                        status = CASE WHEN (quantity - %s) <= 0 THEN 'OutOfStock' ELSE status END,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = %s;
+                """, (it_qty, it_qty, inv_id))
+                cur.execute("""
+                    INSERT INTO inventory_transactions (id, inventory_id, transaction_type, quantity, unit_cost, reference_type, reference_id, notes)
+                    VALUES (%s, %s, 'PURCHASE_CANCEL', %s, %s, 'purchases', %s, %s);
+                """, (generate_id("ITXN"), inv_id, -it_qty, it_price, actual_id, f"إلغاء توريد فاتورة {actual_inv}"))
+
+        # 2. إنشاء وترحيل قيد عكسي متزن بالكامل لإلغاء الأثر المالي
         cur.execute("""
-            DELETE FROM journal_entry_lines
-            WHERE entry_id IN (SELECT id FROM journal_entries WHERE ref_id = %s OR ref_id = %s OR entry_no = %s OR entry_no = %s);
-        """, (actual_id, actual_inv, jv_no, f"JV-PUR-{actual_id}"))
-        cur.execute("DELETE FROM journal_entries WHERE ref_id = %s OR ref_id = %s OR entry_no = %s OR entry_no = %s;", (actual_id, actual_inv, jv_no, f"JV-PUR-{actual_id}"))
+            SELECT * FROM journal_entries 
+            WHERE entry_no = %s OR entry_no = %s OR ref_id = %s OR ref_id = %s 
+            LIMIT 1;
+        """, (jv_no, f"JV-PUR-{actual_inv}", actual_id, actual_inv))
+        orig_jv = cur.fetchone()
+        if orig_jv:
+            orig_jv_id = orig_jv['id']
+            cur.execute("SELECT * FROM journal_entry_lines WHERE entry_id = %s;", (orig_jv_id,))
+            orig_lines = cur.fetchall()
+            
+            if orig_lines:
+                cur.execute("""
+                    INSERT INTO journal_entries (
+                        id, entry_no, entry_date, description, debit_account_id,
+                        credit_account_id, amount, total_amount, base_amount, ref_type,
+                        ref_id, currency, exchange_rate, status, notes
+                    ) VALUES (
+                        %s, %s, CURRENT_DATE, %s, %s,
+                        %s, %s, %s, %s, 'Purchase_Reversal',
+                        %s, %s, %s, 'Posted', %s
+                    ) ON CONFLICT (entry_no) DO NOTHING;
+                """, (
+                    generate_id("JV"), auto_rev_no,
+                    f"قيد عكسي لإلغاء فاتورة المشتريات {actual_inv}",
+                    orig_jv.get('credit_account_id'), orig_jv.get('debit_account_id'),
+                    orig_jv.get('amount'), orig_jv.get('total_amount'), orig_jv.get('base_amount'),
+                    actual_id, orig_jv.get('currency'), orig_jv.get('exchange_rate'),
+                    f"قيد عكسي نظامي لإلغاء فاتورة المشتريات {actual_inv}"
+                ))
+                cur.execute("SELECT id FROM journal_entries WHERE entry_no = %s LIMIT 1;", (auto_rev_no,))
+                rev_jv_row = cur.fetchone()
+                if rev_jv_row:
+                    rev_jv_id = rev_jv_row['id']
+                    for ol in orig_lines:
+                        rev_debit = float(ol.get('credit') or 0.0)
+                        rev_credit = float(ol.get('debit') or 0.0)
+                        rev_debit_base = float(ol.get('credit_base') or 0.0)
+                        rev_credit_base = float(ol.get('debit_base') or 0.0)
+                        cur.execute("""
+                            INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
+                        """, (
+                            generate_id("JVL"), rev_jv_id, ol.get('account_id'),
+                            f"عكس قيد - {ol.get('line_description') or ''}",
+                            rev_debit, rev_credit, rev_debit_base, rev_credit_base
+                        ))
 
-        # 2. حذف سندات الصرف التابعة للفاتورة
-        cur.execute("DELETE FROM payments WHERE invoice_id = %s OR invoice_id = %s OR payment_no = %s;", (actual_id, actual_inv, pay_no))
+            cur.execute("UPDATE journal_entries SET status = 'Reversed', notes = COALESCE(notes, '') || ' | [تم إنشاء قيد عكسي]' WHERE id = %s;", (orig_jv_id,))
 
-        # 3. حذف حركات المخزون المرتبطة بهذه الفاتورة
-        cur.execute("DELETE FROM inventory_transactions WHERE reference_type = 'purchases' AND (reference_id = %s OR reference_id = %s);", (actual_id, actual_inv))
+        # 3. تحديث سند الصرف إلى ملغي إن وجد
+        cur.execute("""
+            UPDATE payments
+            SET status = 'Cancelled', notes = COALESCE(notes, '') || ' | [ملغى بحكم إلغاء الفاتورة]'
+            WHERE invoice_id = %s OR invoice_id = %s OR payment_no = %s OR payment_no = %s;
+        """, (actual_id, actual_inv, pay_no, f"PAY-{actual_inv}"))
 
-        # 4. حذف أصناف الفاتورة التابعة
-        cur.execute("DELETE FROM purchase_items WHERE purchase_id = %s OR purchase_id = %s;", (actual_id, actual_inv))
+        # 4. تعديل رصيد المورد إذا كانت الفاتورة بالأجل
+        supp_id = p_row.get('supplier_id')
+        orig_amount = float(p_row.get('original_amount') or 0.0)
+        discount = float(p_row.get('discount') or 0.0)
+        shipping_cost = float(p_row.get('shipping_cost') or 0.0)
+        transfer_fee = float(p_row.get('transfer_fee') or 0.0)
+        net_paid = max(0.0, (orig_amount + shipping_cost + transfer_fee) - discount)
+        if p_row.get('payment_method') == 'آجل' and supp_id and supp_id != 'SUPP-GENERAL':
+            cur.execute("""
+                UPDATE suppliers
+                SET current_balance = GREATEST(0, current_balance - %s), updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s;
+            """, (net_paid, supp_id))
 
-        # 5. حذف سجل الشراء
-        cur.execute("DELETE FROM purchases WHERE id = %s OR invoice_no = %s;", (actual_id, actual_inv))
-        return {"deleted": actual_id, "success": True}
+        # 5. التحديث المنطقي لحالة الفاتورة (حظر الحذف النهائي No Hard Delete)
+        cur.execute("""
+            UPDATE purchases
+            SET receipt_status = 'Cancelled', payment_status = 'Cancelled',
+                notes = COALESCE(notes, '') || ' | [ملغاة وموثقة في سجل التدقيق]'
+            WHERE id = %s;
+        """, (actual_id,))
+
+        # 6. توثيق العملية بالكامل في سجل التدقيق والمراقبة
+        log_audit_event(
+            entity_type='purchases',
+            entity_id=actual_id,
+            action='CANCEL',
+            old_values=dict(p_row),
+            new_values={'receipt_status': 'Cancelled', 'payment_status': 'Cancelled', 'reversal_jv': auto_rev_no},
+            user_id=created_by
+        )
+
+        return {
+            "success": True,
+            "cancelled": actual_id,
+            "invoice_no": actual_inv,
+            "reversal_jv": auto_rev_no,
+            "message": f"✅ تم إلغاء الفاتورة {actual_inv} بنجاح وترحيل القيد المحاسبي العكسي وتوثيق العملية بسجل التدقيق"
+        }
+
+def delete_purchase(payload):
+    # الحظر الصارم للحذف الفيزيائي وفق ميثاق الحوكمة وتوجيه الإجراء للإلغاء المنطقي
+    res = cancel_purchase(payload)
+    if res.get('success'):
+        try:
+            reconcile_inventory_governance()
+        except Exception as e:
+            logger.warning(f"Post-cancel inventory reconciliation warning: {e}")
+    return res
+
+def reconcile_inventory_governance(payload=None):
+    """
+    محرك تسوية ومطابقة المخزون الرقابي وفق ميثاق الحوكمة (Governance Inventory Reconciliation Engine)
+    يقوم بمطابقة رصيد كل صنف في جدول inventory مع صافي حركات المخزون المعتمدة في جدول inventory_transactions.
+    إذا وجد أي فارق أو رصيد معلق من فواتير ملغاة سابقة، يقوم بتسوية الرصيد بدقة وتوثيق العملية في سجل التدقيق والمراقبة.
+    """
+    with get_db_cursor(commit=True) as cur:
+        cur.execute("SELECT id, item_code, name, quantity, unit_cost, total_value, status FROM inventory FOR UPDATE;")
+        items = cur.fetchall()
+        
+        reconciled_count = 0
+        details = []
+
+        for item in items:
+            inv_id = item['id']
+            curr_qty = float(item.get('quantity') or 0.0)
+            u_cost = float(item.get('unit_cost') or 0.0)
+            curr_tot = float(item.get('total_value') or 0.0)
+            
+            # حساب صافي الحركات المسجلة والمعتمدة لهذا الصنف
+            cur.execute("""
+                SELECT COALESCE(SUM(quantity), 0.0) as net_qty
+                FROM inventory_transactions
+                WHERE inventory_id = %s;
+            """, (inv_id,))
+            tx_res = cur.fetchone()
+            net_tx_qty = float(tx_res.get('net_qty') or 0.0) if tx_res else 0.0
+            
+            expected_qty = max(0.0, net_tx_qty)
+            expected_tot = round(expected_qty * u_cost, 2)
+            
+            # فحص وجود تباين بين الرصيد الفعلي في الجدول وصافي الحركات
+            if abs(curr_qty - expected_qty) > 0.0001 or abs(curr_tot - expected_tot) > 0.01:
+                new_status = 'OutOfStock' if expected_qty <= 0 else ('LowStock' if expected_qty < 5.0 else 'Available')
+                
+                cur.execute("""
+                    UPDATE inventory
+                    SET quantity = %s,
+                        status = %s,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = %s;
+                """, (expected_qty, new_status, inv_id))
+                
+                # توثيق العملية في سجل التدقيق audit_logs
+                log_audit_event(
+                    entity_type='inventory',
+                    entity_id=inv_id,
+                    action='RECONCILE',
+                    old_values={'quantity': curr_qty, 'total_value': curr_tot, 'status': item.get('status')},
+                    new_values={'quantity': expected_qty, 'total_value': expected_tot, 'status': new_status, 'reason': 'مطابقة المخزون الرقابي مع صافي الحركات والفواتير'},
+                    user_id='system_governance'
+                )
+                
+                reconciled_count += 1
+                details.append({
+                    'id': inv_id,
+                    'name': item.get('name'),
+                    'old_qty': curr_qty,
+                    'reconciled_qty': expected_qty,
+                    'unit_cost': u_cost,
+                    'total_value': expected_tot,
+                    'status': new_status
+                })
+
+        return {
+            "success": True,
+            "reconciled_count": reconciled_count,
+            "items": details,
+            "message": f"تمت مطابقة وتسوية المخزون الرقابي بنجاح: {reconciled_count} أصناف تم تصحيح أرصدتها"
+        }
 
 # ── دوال إدارة الموردين (Suppliers Controller) ──
 
 def get_suppliers(params=None):
-    query = """
+    active_only = True
+    if params and isinstance(params, dict):
+        if params.get('all') in ('true', True, '1', 1):
+            active_only = False
+    
+    where_clause = "WHERE is_active = TRUE" if active_only else ""
+    query = f"""
         SELECT id, name, name as supplier_name, phone, phone_alt, email, city, address,
-               current_balance, current_balance as balance, is_active, created_at, updated_at
+               current_balance, current_balance as balance, is_active, created_by, created_at, updated_at
         FROM suppliers
+        {where_clause}
         ORDER BY name ASC;
     """
     rows = execute_query(query, fetch_all=True)
@@ -2194,37 +2505,46 @@ def add_supplier(payload):
     if not name:
         raise ValueError("اسم المورد مطلوب")
     phone = clean_str(data.get('phone') or data.get('supplier_phone') or '')
+    if not phone:
+        raise ValueError("رقم الهاتف الأساسي للمورد مطلوب للتحقق ومنع الازدواجية")
     phone_alt = clean_str(data.get('phone_alt') or '')
     email = clean_str(data.get('email') or '')
     city = clean_str(data.get('city') or 'صنعاء')
     address = clean_str(data.get('address') or '')
     init_balance = clean_num(data.get('current_balance') or data.get('balance') or 0.0)
     is_active = True if data.get('is_active') is not False else False
+    created_by = clean_str(data.get('created_by') or 'admin')
 
     with get_db_cursor(commit=True) as cur:
+        # التحقق الصارم من عدم تكرار رقم الهاتف لمنع الازدواجية المالية
         if not supp_id:
-            cur.execute("SELECT id FROM suppliers WHERE name = %s OR (phone IS NOT NULL AND phone != '' AND phone = %s) LIMIT 1;", (name, phone or '___NONE___'))
-            existing = cur.fetchone()
-            if existing:
-                supp_id = existing['id']
-            else:
-                supp_id = generate_id("SUPP")
+            cur.execute("SELECT id, name FROM suppliers WHERE phone = %s AND is_active = TRUE LIMIT 1;", (phone,))
+            dup = cur.fetchone()
+            if dup:
+                raise ValueError(f"رقم الهاتف ({phone}) مسجل بالفعل للمورد ({dup['name']})، يرجى استخدام رقم هاتف فريد لمنع الازدواجية.")
+            supp_id = generate_id("SUPP")
+        else:
+            cur.execute("SELECT id, name FROM suppliers WHERE phone = %s AND id != %s AND is_active = TRUE LIMIT 1;", (phone, supp_id))
+            dup = cur.fetchone()
+            if dup:
+                raise ValueError(f"رقم الهاتف ({phone}) مسجل بالفعل لمورد آخر ({dup['name']}).")
 
         query = """
-            INSERT INTO suppliers (id, name, phone, phone_alt, email, city, address, current_balance, is_active, updated_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+            INSERT INTO suppliers (id, name, phone, phone_alt, email, city, address, current_balance, is_active, created_by, created_at, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
             ON CONFLICT (id) DO UPDATE SET
                 name = EXCLUDED.name,
-                phone = COALESCE(NULLIF(EXCLUDED.phone, ''), suppliers.phone),
+                phone = EXCLUDED.phone,
                 phone_alt = COALESCE(NULLIF(EXCLUDED.phone_alt, ''), suppliers.phone_alt),
                 email = COALESCE(NULLIF(EXCLUDED.email, ''), suppliers.email),
                 city = EXCLUDED.city,
                 address = EXCLUDED.address,
                 is_active = EXCLUDED.is_active,
+                created_by = COALESCE(suppliers.created_by, EXCLUDED.created_by),
                 updated_at = CURRENT_TIMESTAMP
             RETURNING *;
         """
-        cur.execute(query, (supp_id, name, phone, phone_alt, email, city, address, init_balance, is_active))
+        cur.execute(query, (supp_id, name, phone, phone_alt, email, city, address, init_balance, is_active, created_by))
         res = dict(cur.fetchone())
         if res.get('created_at'): res['created_at'] = str(res['created_at'])
         if res.get('updated_at'): res['updated_at'] = str(res['updated_at'])
@@ -2237,16 +2557,20 @@ def delete_supplier(payload):
     data = payload.get('data') or payload
     supp_id = clean_str(data.get('id') or data.get('supplier_id'))
     if not supp_id or supp_id == 'SUPP-GENERAL':
-        raise ValueError("لا يمكن حذف المورد العام الأساسي")
+        raise ValueError("معرف المورد مطلوب")
     with get_db_cursor(commit=True) as cur:
-        cur.execute("SELECT COUNT(*) as cnt FROM purchases WHERE supplier_id = %s;", (supp_id,))
-        p_cnt = cur.fetchone()['cnt']
-        if p_cnt > 0:
-            cur.execute("UPDATE suppliers SET is_active = False, updated_at = CURRENT_TIMESTAMP WHERE id = %s;", (supp_id,))
-            return {"deleted": False, "deactivated": True, "success": True, "message": "تم تعطيل المورد لوجود فواتير مشتريات مرتبطة به"}
-        else:
-            cur.execute("DELETE FROM suppliers WHERE id = %s;", (supp_id,))
-            return {"deleted": True, "id": supp_id, "success": True}
+        # تطبيق مبدأ الحذف الآمن (Soft Delete) حصراً لضمان سلامة الفواتير والقيود التاريخية
+        cur.execute("UPDATE suppliers SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP WHERE id = %s RETURNING id, name;", (supp_id,))
+        row = cur.fetchone()
+        if not row:
+            raise ValueError("المورد غير موجود أو تم حذفه مسبقاً")
+        return {
+            "deleted": False,
+            "deactivated": True,
+            "id": supp_id,
+            "success": True,
+            "message": f"تم تعطيل المورد ({row['name']}) بنجاح (الحذف الآمن Soft Delete) لحماية سلامة الفواتير التاريخية وتوازن القيود المالية."
+        }
 
 
 # ── 8. السندات والمدفوعات (Payments & Vouchers) ──
@@ -5746,12 +6070,60 @@ def add_advance(payload):
     logger.info(f"💵 تم صرف وتسجيل سلفة للموظف {emp_name} بمبلغ {amount} سند {pay_no} وقيد {jv_no}")
     return {
         "success": True,
-        "message": f"تم تسجيل السلفة للموظف ({emp_name}) بمبلغ {amount} بنجاح وتقييد القيد المحاسبي والسند المالي ✅",
+        "message": f"تم تسجيل السلفة للموظف ({emp_name}) بمبلغ {amount:,.0f} {curr} بنجاح وتقييد القيد المحاسبي والسند المالي ✅",
         "payment_no": pay_no,
         "entry_no": jv_no,
         "amount": amount,
-        "employee_id": emp_id
+        "employee_id": emp_id,
+        "voucher": {
+            "id": pay_id,
+            "voucher_no": pay_no,
+            "entry_no": jv_no,
+            "employee_name": emp_name,
+            "employee_id": emp_id,
+            "amount": amount,
+            "currency": curr,
+            "account_id": credit_acc,
+            "notes": notes,
+            "date": str(datetime.date.today())
+        }
     }
+
+def get_advances(params=None):
+    """استرجاع سجلات السلف النقدية المصروفة للعاملين مع ربطها بالقيود اليومية والصناديق"""
+    emp_name = None
+    emp_id = None
+    month = None
+    if isinstance(params, dict):
+        emp_name = clean_str(params.get('employee_name') or params.get('name'))
+        emp_id = clean_str(params.get('employee_id') or params.get('emp_id'))
+        month = clean_str(params.get('month'))
+        
+    with get_db_cursor() as cur:
+        query = """
+            SELECT p.*, p.party_name as employee_name, jv.entry_no as jv_no, jv.entry_no as entry_no, coa.account_name as box_name, coa.account_name as account_name
+            FROM payments p
+            LEFT JOIN journal_entries jv ON jv.ref_id = p.id AND jv.ref_type = 'Advance'
+            LEFT JOIN chart_of_accounts coa ON p.account_id = coa.id OR p.account_id = coa.account_code
+            WHERE p.payment_type = 'Payment'
+              AND (p.payment_no LIKE %s OR p.notes ILIKE %s OR p.notes ILIKE %s)
+        """
+        args = ['PAY-ADV%', '%سلفة%', '%سلف%']
+        if emp_name:
+            query += " AND (p.party_name = %s OR p.notes ILIKE %s)"
+            args.extend([emp_name, f"%{emp_name}%"])
+        if month:
+            query += " AND to_char(p.date, 'YYYY-MM') = %s"
+            args.append(month)
+        query += " ORDER BY p.date DESC, p.created_at DESC;"
+        cur.execute(query, tuple(args))
+        rows = cur.fetchall()
+        for r in rows:
+            if r.get('created_at'): r['created_at'] = str(r['created_at'])
+            if r.get('date'): r['date'] = str(r['date'])
+            if r.get('amount'): r['amount'] = float(r['amount'])
+            if r.get('base_amount'): r['base_amount'] = float(r['base_amount'])
+        return rows
 
 def post_payroll(payload):
     data = payload.get('data') or payload
@@ -5771,14 +6143,18 @@ def post_payroll(payload):
             bonus = clean_num(r.get('bonus') or r.get('allowances'))
             deductions = clean_num(r.get('deduction') or r.get('deductions'))
             gross = base_val + bonus
-            net = clean_num(r.get('netSalary') or r.get('net_salary') or (gross - deductions))
+            if gross <= 0:
+                continue
+                
+            effective_deductions = min(deductions, gross)
+            net = clean_num(r.get('netSalary') or (gross - effective_deductions))
             if net < 0:
                 net = 0.0
                 
             curr = clean_str(r.get('currency') or 'YER')
             rate = resolve_exchange_rate(cur, curr, 1.0)
             base_gross = gross * rate
-            base_deductions = deductions * rate
+            base_deductions = effective_deductions * rate
             base_net = net * rate
             
             credit_acc = resolve_account_id(cur, data.get('account_id') or data.get('box_code') or 'ACC-101', 'ACC-101')
@@ -5795,7 +6171,7 @@ def post_payroll(payload):
                     payment_date = CURRENT_DATE,
                     notes = COALESCE(notes, '') || ' [تم الصرف]'
                 WHERE id = %s OR (employee_id = %s AND month = %s);
-            """, (base_val, base_val, bonus, deductions, p_id, emp_id, month))
+            """, (base_val, base_val, bonus, effective_deductions, p_id, emp_id, month))
             
             # 2. إنشاء سند صرف الراتب (payments) بصافي المبلغ المدفوع نقداً
             pay_id = generate_id("PAY")
@@ -5809,9 +6185,9 @@ def post_payroll(payload):
             
             # 3. إنشاء القيد المركب المتوازن (Compound Double-Entry Journal Entry)
             # مدين: مصروف الرواتب والأجور ACC-501 بمجمل الراتب (gross)
-            # دائن: استرداد السلف ACC-107 بمبلغ الخصميات (deductions) إن وجدت
+            # دائن: استرداد السلف ACC-107 بمبلغ الخصميات (effective_deductions) إن وجدت
             # دائن: الصندوق ACC-101 بصافي المبلغ المنصرف فعلياً (net)
-            # المعادلة: المدين = gross = deductions + net = الدائن (توازن تام 100%)
+            # المعادلة: المدين = gross = effective_deductions + net = الدائن (توازن تام 100%)
             jv_id = generate_id("JV")
             jv_no = f"JV-SAL-{int(time.time())}-{uuid.uuid4().hex[:4].upper()}"
             cur.execute("""
@@ -5827,25 +6203,48 @@ def post_payroll(payload):
                 INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base)
                 VALUES (%s, %s, %s, %s, %s, 0.0, %s, 0.0);
             """, (generate_id("JVL"), jv_id, expense_acc, f"استحقاق راتب شهر {month}: {emp_name}", gross, base_gross))
+            cur.execute("UPDATE chart_of_accounts SET current_balance = current_balance + %s WHERE id = %s;", (base_gross, expense_acc))
             
             # أسطر دائنة
-            if deductions > 0:
+            if effective_deductions > 0:
                 cur.execute("""
                     INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base)
                     VALUES (%s, %s, %s, %s, 0.0, %s, 0.0, %s);
-                """, (generate_id("JVL"), jv_id, advance_acc, f"استرداد وتسوية سلف موظف: {emp_name}", deductions, base_deductions))
+                """, (generate_id("JVL"), jv_id, advance_acc, f"استرداد وتسوية سلف موظف: {emp_name}", effective_deductions, base_deductions))
                 cur.execute("UPDATE chart_of_accounts SET current_balance = current_balance - %s WHERE id = %s;", (base_deductions, advance_acc))
                 
+            if net > 0:
+                cur.execute("""
+                    INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base)
+                    VALUES (%s, %s, %s, %s, 0.0, %s, 0.0, %s);
+                """, (generate_id("JVL"), jv_id, credit_acc, f"صرف صافي راتب شهر {month}: {emp_name}", net, base_net))
+                cur.execute("UPDATE chart_of_accounts SET current_balance = current_balance - %s WHERE id = %s;", (base_net, credit_acc))
+            # إقفال عمولات القطع المشمولة في هذا المسير
             cur.execute("""
-                INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base)
-                VALUES (%s, %s, %s, %s, 0.0, %s, 0.0, %s);
-            """, (generate_id("JVL"), jv_id, credit_acc, f"صرف صافي راتب شهر {month}: {emp_name}", net, base_net))
+                UPDATE tailor_commissions
+                SET paid_at = CURRENT_TIMESTAMP,
+                    payout_voucher_no = %s
+                WHERE (employee_id = %s OR employee_name = %s)
+                  AND status = 'Approved'
+                  AND paid_at IS NULL
+                  AND (completed_at IS NULL OR to_char(completed_at, 'YYYY-MM') <= %s);
+            """, (pay_no, emp_id, emp_name, month))
             
-            # تحديث رصيد مصروف الرواتب ورصيد الصندوق
-            cur.execute("UPDATE chart_of_accounts SET current_balance = current_balance + %s WHERE id = %s;", (base_gross, expense_acc))
-            cur.execute("UPDATE chart_of_accounts SET current_balance = current_balance - %s WHERE id = %s;", (base_net, credit_acc))
-            
-            processed.append({"id": p_id, "emp_name": emp_name, "net": net, "gross": gross, "payment_no": pay_no, "entry_no": jv_no})
+            processed.append({
+                "id": p_id,
+                "emp_name": emp_name,
+                "emp_id": emp_id,
+                "net": net,
+                "gross": gross,
+                "deductions": deductions,
+                "base_salary": base_val,
+                "allowances": bonus,
+                "payment_no": pay_no,
+                "entry_no": jv_no,
+                "currency": curr,
+                "date": str(datetime.date.today()),
+                "month": month
+            })
             
     logger.info(f"💸 تم صرف رواتب {len(processed)} موظف لشهر {month} بنجاح.")
     return {
@@ -5878,8 +6277,25 @@ def calculate_payroll(payload=None):
             pieces_count = 0
             pieces_stmt = ""
             total_due = base_sal
+            allowances = 0.0
             
-            if e_type == 'بالقطعة':
+            # فحص العمولات وأجور القطع المعتمدة غير المسددة من المشغل
+            cur.execute("""
+                SELECT id, order_no, product_name, stage, wage_amount, pieces_count, completed_at
+                FROM tailor_commissions
+                WHERE (employee_id = %s OR employee_name = %s)
+                  AND status = 'Approved'
+                  AND paid_at IS NULL
+                  AND (completed_at IS NULL OR to_char(completed_at, 'YYYY-MM') = %s);
+            """, (e_id, e_name, month))
+            comm_rows = cur.fetchall()
+            
+            comm_pieces = sum(int(c.get('pieces_count') or 1) for c in comm_rows)
+            comm_total = sum(float(c.get('wage_amount') or 0.0) for c in comm_rows)
+            
+            if comm_rows:
+                pieces_stmt = "\n".join([f"- أمر {c['order_no']} ({c['product_name']}): {c['stage']} [{float(c['wage_amount']):,.0f} ر.ي]" for c in comm_rows])
+            elif e_type == 'بالقطعة':
                 cur.execute("""
                     SELECT production_order_no, stage, due_date, order_id
                     FROM production_orders
@@ -5888,10 +6304,19 @@ def calculate_payroll(payload=None):
                       AND to_char(created_at, 'YYYY-MM') = %s;
                 """, (e_id, e_name, f"%{e_name}%", month))
                 po_rows = cur.fetchall()
-                pieces_count = len(po_rows)
-                total_due = pieces_count * base_sal
-                if pieces_count > 0:
+                comm_pieces = len(po_rows)
+                comm_total = comm_pieces * base_sal
+                if comm_pieces > 0:
                     pieces_stmt = "\n".join([f"- أمر معمل #{r['production_order_no']} (المرحلة: {r['stage']})" for r in po_rows])
+
+            if e_type == 'بالقطعة':
+                pieces_count = comm_pieces
+                total_due = comm_total
+                allowances = 0.0
+            else:
+                pieces_count = comm_pieces
+                total_due = base_sal
+                allowances = comm_total
             
             # فحص السلف المسجلة في هذا الشهر
             cur.execute("""
@@ -5899,11 +6324,12 @@ def calculate_payroll(payload=None):
                 FROM payments
                 WHERE (party_name = %s OR notes ILIKE %s)
                   AND payment_type IN ('Payment', 'سند_صرف')
-                  AND (notes ILIKE '%%سلفة%%' OR notes ILIKE '%%سلف%%')
+                  AND (payment_no LIKE %s OR notes ILIKE %s OR notes ILIKE %s)
                   AND to_char(date, 'YYYY-MM') = %s;
-            """, (e_name, f"%{e_name}%", month))
+            """, (e_name, f"%{e_name}%", "PAY-ADV%", "%سلفة%", "%سلف%", month))
             adv_row = cur.fetchone()
             deductions = float(adv_row['total_advances']) if adv_row else 0.0
+            net_sal = max(0.0, (total_due + allowances) - deductions)
             
             records.append({
                 "empId": e_id,
@@ -5916,12 +6342,12 @@ def calculate_payroll(payload=None):
                 "piecesCount": pieces_count,
                 "totalDue": total_due,
                 "pieceWages": total_due,
-                "bonus": 0.0,
-                "allowances": 0.0,
+                "bonus": allowances,
+                "allowances": allowances,
                 "deductions": deductions,
                 "deduction": deductions,
-                "netSalary": total_due - deductions,
-                "net_salary": total_due - deductions,
+                "netSalary": net_sal,
+                "net_salary": net_sal,
                 "month": month,
                 "status": 'معلق',
                 "piecesStatement": pieces_stmt
@@ -5932,10 +6358,7 @@ def calculate_payroll(payload=None):
 
 
 def purge_purchases(payload=None):
-    with get_db_cursor(commit=True) as cur:
-        cur.execute("DELETE FROM purchase_items;")
-        cur.execute("DELETE FROM purchases;")
-    return {"purged": True}
+    raise PermissionError("عملية التصفير ومسح السجلات محظورة قطيعاً بموجب ميثاق الحوكمة البرمجية والمالية (No Hard Delete Policy)")
 
 def reset_clean_chart_of_accounts(payload=None):
     with get_db_cursor(commit=True) as cur:
@@ -5964,122 +6387,265 @@ def clear_all_transactional_data(payload=None):
     """
     تصفير ومسح كافة البيانات التشغيلية والتجريبية، مع الحفاظ الصارم على:
     - المستخدمين (users)
-    - شجرة الحسابات (chart_of_accounts)
+    - شجرة الحسابات (chart_of_accounts) مع تصفير أرصدتها إلى 0.0000
     - العملات (currencies)
-    - أرقام التسلسل (number_sequences)
+    - أرقام التسلسل (number_sequences) مع تصفير العدادات لتبدأ من 0
     - إعدادات الشركة والنظام (company_profile, system_settings)
-    - العميل والمورد العام الافتراضي
+    - العميل والمورد العام الافتراضي بأرصدة 0.0000
     """
-    tables_to_clear = [
+    tables_to_truncate = [
         "quality_actions", "quality_returns", "quality_complaints", "quality_feedback", "quality_defects", "quality_inspections",
-        "production_orders", "order_items", "orders",
-        "purchase_items", "purchases",
-        "inventory_transactions", "inventory",
-        "journal_entry_lines", "journal_entries",
-        "payments", "expenses",
-        "measurements", "children", "payroll"
+        "fitting_alterations", "tailor_commissions", "production_orders", "order_items", "orders",
+        "attribution_records", "ai_comment_nlp", "ai_conversation_intent", "comments", "content_metrics", "content",
+        "messages", "conversations", "customer_platform_mappings", "campaigns", "raw_platform_events",
+        "ai_daily_briefs", "ai_recommendations",
+        "purchase_items", "purchases", "inventory_transactions", "inventory", "products",
+        "payroll", "employees",
+        "payments", "expenses", "journal_entry_lines", "journal_entries",
+        "measurements", "children",
+        "audit_logs", "idempotency_keys"
     ]
     with get_db_cursor(commit=True) as cur:
-        cur.execute("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';")
+        cur.execute("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE';")
         existing_tables = {r['table_name'] for r in cur.fetchall()}
-        valid_tables = [t for t in tables_to_clear if t in existing_tables]
-        if valid_tables:
-            cur.execute("; ".join([f"DELETE FROM {t}" for t in valid_tables]) + ";")
+        valid_truncates = [f'"{t}"' for t in tables_to_truncate if t in existing_tables]
+        if valid_truncates:
+            cur.execute(f"TRUNCATE TABLE {', '.join(valid_truncates)} RESTART IDENTITY CASCADE;")
         
-        cur.execute("DELETE FROM customers WHERE id != 'CUST-GENERAL'; DELETE FROM suppliers WHERE id != 'SUPP-GENERAL'; DELETE FROM products;")
+        cur.execute("DELETE FROM customers WHERE id != 'CUST-GENERAL';")
+        cur.execute("""
+            INSERT INTO customers (id, name, phone, category, city, current_balance, status, notes)
+            VALUES ('CUST-GENERAL', 'عميل عام / زائر صالة العرض', '000000000', 'عام', 'صنعاء', 0.0000, 'Active', 'الحساب العام للمبيعات النقدية المباشرة')
+            ON CONFLICT (id) DO UPDATE SET 
+                name = EXCLUDED.name,
+                current_balance = 0.0000,
+                status = 'Active';
+        """)
+        
+        cur.execute("DELETE FROM suppliers;")
+
+
+        cur.execute("UPDATE chart_of_accounts SET opening_balance = 0.0000, current_balance = 0.0000;")
+        cur.execute("UPDATE number_sequences SET current_number = 0;")
+
+    # مزامنة وتصفير قاعدة SQLite المحلية إن وجدت
+    try:
+        import clean_slate_reset
+        clean_slate_reset.step3_wipe_and_reset_sqlite()
+    except Exception as _sq_err:
+        logger.warning(f"تنبيه أثناء تصفير قاعدة البيانات المحلية SQLite: {_sq_err}")
 
     logger.info("🧹 تم مسح وتصفير كافة البيانات التشغيلية والبدء بقاعدة بيانات نظيفة من الصفر بنجاح.")
     return {
         "cleared": True,
+        "success": True,
         "message": "تم تصفير كافة البيانات التشغيلية والبدء بقاعدة بيانات نظيفة 100% مع الحفاظ على الهيكل والبيانات الأساسية.",
         "stats": get_dashboard_stats()
     }
 
 
-# ── 15.2 إدارة الجودة والمطابقة (Quality Management Controller) ──
+# ── 15.2 إدارة الجودة والمطابقة الشاملة (Quality Management & Assurance Controller) ──
 
 def get_quality_inspections(params=None):
     query = "SELECT * FROM quality_inspections ORDER BY created_at DESC;"
     rows = execute_query(query, fetch_all=True)
     for r in rows:
-        if r.get('created_at'): r['created_at'] = str(r['created_at'])
-        if r.get('inspection_date'): r['inspection_date'] = str(r['inspection_date'])
+        for k in ('created_at', 'updated_at', 'inspection_date'):
+            if r.get(k): r[k] = str(r[k])
     return rows
 
 def add_quality_inspection(payload):
     data = payload.get('data') or payload
-    q_id = clean_str(data.get('id')) or generate_id("INSP")
+    q_id = clean_str(data.get('id') or data.get('inspection_id')) or generate_id("INSP")
     i_date = clean_str(data.get('inspection_date') or data.get('date')) or today_str()
     p_id = clean_str(data.get('product_id')) or None
+    p_name = clean_str(data.get('product_name') or data.get('model_name') or '')
+    sku = clean_str(data.get('sku') or '')
+    model_id = clean_str(data.get('model_id') or '')
+    color = clean_str(data.get('color') or '')
+    size = clean_str(data.get('size') or '')
     po_id = clean_str(data.get('production_order_id') or data.get('order_id')) or None
-    stage = clean_str(data.get('production_stage') or data.get('stage') or 'Sewing')
+    stage = clean_str(data.get('production_stage') or data.get('stage') or 'الفحص النهائي')
     batch = clean_str(data.get('batch_id') or '')
     q_chk = int(clean_num(data.get('quantity_checked') or 1))
     q_pass = int(clean_num(data.get('quantity_passed') or 1))
     q_fail = int(clean_num(data.get('quantity_failed') or 0))
-    res = clean_str(data.get('inspection_result') or ('Pass' if q_fail == 0 else 'Fail'))
+    res = clean_str(data.get('inspection_result') or ('PASS' if q_fail == 0 else 'FAIL'))
+    insp_id = clean_str(data.get('inspector_id')) or None
+    insp_name = clean_str(data.get('inspector_name') or 'مفتش الجودة')
     notes = clean_str(data.get('notes') or '')
+    att_url = clean_str(data.get('attachment_url') or '')
 
     with get_db_cursor(commit=True) as cur:
+        valid_prod_id = None
+        if p_id:
+            cur.execute("SELECT id, model_name FROM products WHERE id = %s LIMIT 1;", (p_id,))
+            p_row = cur.fetchone()
+            if p_row:
+                valid_prod_id = p_row['id']
+                if not p_name: p_name = p_row.get('model_name', '')
+
+        valid_po_id = None
+        if po_id:
+            cur.execute("SELECT id FROM production_orders WHERE id = %s LIMIT 1;", (po_id,))
+            if cur.fetchone(): valid_po_id = po_id
+
+        valid_insp_id = None
+        if insp_id:
+            cur.execute("SELECT id FROM users WHERE id = %s LIMIT 1;", (insp_id,))
+            if cur.fetchone(): valid_insp_id = insp_id
+
         cur.execute("""
             INSERT INTO quality_inspections (
-                id, inspection_date, product_id, production_order_id, production_stage,
-                batch_id, quantity_checked, quantity_passed, quantity_failed, inspection_result, notes
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT (id) DO UPDATE SET inspection_result = EXCLUDED.inspection_result, notes = EXCLUDED.notes
+                id, inspection_date, product_id, product_name, sku, model_id,
+                color, size, production_order_id, production_stage, batch_id,
+                quantity_checked, quantity_passed, quantity_failed, inspection_result,
+                inspector_id, inspector_name, notes, attachment_url
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (id) DO UPDATE SET
+                quantity_checked = EXCLUDED.quantity_checked,
+                quantity_passed = EXCLUDED.quantity_passed,
+                quantity_failed = EXCLUDED.quantity_failed,
+                inspection_result = EXCLUDED.inspection_result,
+                notes = EXCLUDED.notes,
+                updated_at = CURRENT_TIMESTAMP
             RETURNING *;
-        """, (q_id, i_date, p_id, po_id, stage, batch, q_chk, q_pass, q_fail, res, notes))
+        """, (
+            q_id, i_date, valid_prod_id, p_name, sku, model_id,
+            color, size, valid_po_id, stage, batch,
+            q_chk, q_pass, q_fail, res,
+            valid_insp_id, insp_name, notes, att_url
+        ))
         row = dict(cur.fetchone())
-        if row.get('created_at'): row['created_at'] = str(row['created_at'])
+        for k in ('created_at', 'updated_at', 'inspection_date'):
+            if row.get(k): row[k] = str(row[k])
         return row
 
 def get_quality_defects(params=None):
     query = "SELECT * FROM quality_defects ORDER BY created_at DESC;"
     rows = execute_query(query, fetch_all=True)
     for r in rows:
-        if r.get('created_at'): r['created_at'] = str(r['created_at'])
-        if r.get('defect_date'): r['defect_date'] = str(r['defect_date'])
+        for k in ('created_at', 'updated_at', 'defect_date', 'due_date', 'resolved_date'):
+            if r.get(k): r[k] = str(r[k])
+        for k in ('rework_cost', 'waste_cost', 'return_cost', 'total_cost'):
+            if r.get(k) is not None: r[k] = float(r[k])
     return rows
 
 def add_quality_defect(payload):
     data = payload.get('data') or payload
-    d_id = clean_str(data.get('id')) or generate_id("DEF")
+    d_id = clean_str(data.get('id') or data.get('defect_id')) or generate_id("DEF")
     d_date = clean_str(data.get('defect_date') or data.get('date')) or today_str()
-    d_type = clean_str(data.get('defect_type') or 'خياطة')
-    d_cat = clean_str(data.get('defect_category') or 'معمل')
-    sev = clean_str(data.get('severity') or 'Minor')
+    insp_id = clean_str(data.get('inspection_id')) or None
+    p_id = clean_str(data.get('product_id')) or None
+    p_name = clean_str(data.get('product_name') or data.get('model_name') or '')
+    sku = clean_str(data.get('sku') or '')
+    model_id = clean_str(data.get('model_id') or '')
+    color = clean_str(data.get('color') or '')
+    size = clean_str(data.get('size') or '')
+    po_id = clean_str(data.get('production_order_id') or data.get('order_id')) or None
+    stage = clean_str(data.get('production_stage') or data.get('stage') or 'الخياطة')
+    d_type = clean_str(data.get('defect_type') or 'عيب خياطة')
+    d_cat = clean_str(data.get('defect_category') or 'تشغيلي')
+    sev = clean_str(data.get('severity') or 'Medium')
     aff_q = int(clean_num(data.get('affected_quantity') or 1))
     root_c = clean_str(data.get('root_cause') or '')
     corr = clean_str(data.get('corrective_action') or '')
+    prev_act = clean_str(data.get('preventive_action') or '')
+    status = clean_str(data.get('status') or 'Open')
+    assigned_to = clean_str(data.get('assigned_to')) or None
+    due_date = clean_str(data.get('due_date')) or None
+    resolved_date = clean_str(data.get('resolved_date')) or None
+    rework_cost = Decimal(str(clean_num(data.get('rework_cost') or data.get('cost') or 0.0)))
+    waste_cost = Decimal(str(clean_num(data.get('waste_cost') or 0.0)))
+    return_cost = Decimal(str(clean_num(data.get('return_cost') or 0.0)))
     notes = clean_str(data.get('notes') or '')
 
     with get_db_cursor(commit=True) as cur:
+        valid_insp_id = None
+        if insp_id:
+            cur.execute("SELECT id FROM quality_inspections WHERE id = %s LIMIT 1;", (insp_id,))
+            if cur.fetchone(): valid_insp_id = insp_id
+
+        valid_prod_id = None
+        if p_id:
+            cur.execute("SELECT id, model_name FROM products WHERE id = %s LIMIT 1;", (p_id,))
+            p_row = cur.fetchone()
+            if p_row:
+                valid_prod_id = p_row['id']
+                if not p_name: p_name = p_row.get('model_name', '')
+
+        valid_po_id = None
+        if po_id:
+            cur.execute("SELECT id FROM production_orders WHERE id = %s LIMIT 1;", (po_id,))
+            if cur.fetchone(): valid_po_id = po_id
+
+        valid_assigned = None
+        if assigned_to:
+            cur.execute("SELECT id FROM users WHERE id = %s OR username = %s LIMIT 1;", (assigned_to, assigned_to))
+            u_row = cur.fetchone()
+            if u_row: valid_assigned = u_row['id']
+
         cur.execute("""
             INSERT INTO quality_defects (
-                id, defect_date, defect_type, defect_category, severity,
-                affected_quantity, root_cause, corrective_action, notes, status
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'Open')
-            ON CONFLICT (id) DO UPDATE SET notes = EXCLUDED.notes
+                id, defect_date, inspection_id, product_id, product_name,
+                sku, model_id, color, size, production_order_id, production_stage,
+                defect_type, defect_category, severity, affected_quantity,
+                root_cause, corrective_action, preventive_action, status,
+                assigned_to, due_date, resolved_date, rework_cost, waste_cost,
+                return_cost, notes
+            ) VALUES (
+                %s, %s, %s, %s, %s,
+                %s, %s, %s, %s, %s, %s,
+                %s, %s, %s, %s,
+                %s, %s, %s, %s,
+                %s, %s, %s, %s, %s,
+                %s, %s
+            )
+            ON CONFLICT (id) DO UPDATE SET
+                defect_type = EXCLUDED.defect_type,
+                severity = EXCLUDED.severity,
+                affected_quantity = EXCLUDED.affected_quantity,
+                root_cause = EXCLUDED.root_cause,
+                corrective_action = EXCLUDED.corrective_action,
+                rework_cost = EXCLUDED.rework_cost,
+                waste_cost = EXCLUDED.waste_cost,
+                return_cost = EXCLUDED.return_cost,
+                status = EXCLUDED.status,
+                notes = EXCLUDED.notes,
+                updated_at = CURRENT_TIMESTAMP
             RETURNING *;
-        """, (d_id, d_date, d_type, d_cat, sev, aff_q, root_c, corr, notes))
+        """, (
+            d_id, d_date, valid_insp_id, valid_prod_id, p_name,
+            sku, model_id, color, size, valid_po_id, stage,
+            d_type, d_cat, sev, aff_q,
+            root_c, corr, prev_act, status,
+            valid_assigned, due_date, resolved_date, rework_cost, waste_cost,
+            return_cost, notes
+        ))
         row = dict(cur.fetchone())
-        if row.get('created_at'): row['created_at'] = str(row['created_at'])
+        for k in ('created_at', 'updated_at', 'defect_date', 'due_date', 'resolved_date'):
+            if row.get(k): row[k] = str(row[k])
+        for k in ('rework_cost', 'waste_cost', 'return_cost', 'total_cost'):
+            if row.get(k) is not None: row[k] = float(row[k])
         return row
 
 def get_quality_feedback(params=None):
     query = "SELECT * FROM quality_feedback ORDER BY created_at DESC;"
     rows = execute_query(query, fetch_all=True)
     for r in rows:
-        if r.get('created_at'): r['created_at'] = str(r['created_at'])
-        if r.get('feedback_date'): r['feedback_date'] = str(r['feedback_date'])
+        for k in ('created_at', 'feedback_date'):
+            if r.get(k): r[k] = str(r[k])
+        if r.get('csat_score') is not None: r['csat_score'] = float(r['csat_score'])
     return rows
 
 def add_quality_feedback(payload):
     data = payload.get('data') or payload
-    fb_id = clean_str(data.get('id')) or generate_id("FB")
+    fb_id = clean_str(data.get('id') or data.get('feedback_id')) or generate_id("FB")
     rating = int(clean_num(data.get('rating') or 5))
     if rating < 1: rating = 1
     if rating > 5: rating = 5
+    nps_score = int(data.get('nps_score') or (10 if rating >= 5 else 7 if rating == 4 else 4))
+    csat_score = Decimal(str(clean_num(data.get('csat_score') or rating)))
     comment = clean_str(data.get('feedback_comment') or data.get('comment') or '')
     cat = clean_str(data.get('feedback_category') or 'خدمة عملاء')
     cust_id = clean_str(data.get('customer_id')) or None
@@ -6089,7 +6655,6 @@ def add_quality_feedback(payload):
     channel = clean_str(data.get('channel') or 'بوابة التتبع الإلكترونية')
 
     with get_db_cursor(commit=True) as cur:
-        # فحص وتأكيد صحة المفاتيح الأجنبية لضمان عدم حدوث استثناء في قاعدة البيانات
         valid_order_id = None
         if order_id:
             cur.execute("""
@@ -6121,26 +6686,442 @@ def add_quality_feedback(payload):
         valid_prod_id = None
         if prod_id:
             cur.execute("SELECT id FROM products WHERE id = %s LIMIT 1;", (prod_id,))
-            p_row = cur.fetchone()
-            if p_row:
-                valid_prod_id = p_row['id']
+            if cur.fetchone():
+                valid_prod_id = prod_id
 
         cur.execute("""
             INSERT INTO quality_feedback (
-                id, rating, feedback_comment, feedback_category,
+                id, rating, csat_score, nps_score, feedback_comment, feedback_category,
                 customer_id, customer_name, order_id, product_id, channel, status
             )
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'Reviewed')
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'Reviewed')
             ON CONFLICT (id) DO UPDATE SET
                 rating = EXCLUDED.rating,
+                csat_score = EXCLUDED.csat_score,
+                nps_score = EXCLUDED.nps_score,
                 feedback_comment = EXCLUDED.feedback_comment,
                 customer_name = COALESCE(EXCLUDED.customer_name, quality_feedback.customer_name)
             RETURNING *;
-        """, (fb_id, rating, comment, cat, valid_cust_id, cust_name, valid_order_id, valid_prod_id, channel))
+        """, (fb_id, rating, csat_score, nps_score, comment, cat, valid_cust_id, cust_name, valid_order_id, valid_prod_id, channel))
+        row = dict(cur.fetchone())
+        for k in ('created_at', 'feedback_date'):
+            if row.get(k): row[k] = str(row[k])
+        if row.get('csat_score') is not None: row['csat_score'] = float(row['csat_score'])
+        return row
+
+def get_quality_complaints(params=None):
+    query = "SELECT * FROM quality_complaints ORDER BY created_at DESC;"
+    rows = execute_query(query, fetch_all=True)
+    for r in rows:
+        for k in ('created_at', 'complaint_date', 'response_date'):
+            if r.get(k): r[k] = str(r[k])
+        if r.get('compensation_cost') is not None:
+            r['compensation_cost'] = float(r['compensation_cost'])
+    return rows
+
+def add_quality_complaint(payload):
+    data = payload.get('data') or payload
+    c_id = clean_str(data.get('id') or data.get('complaint_id')) or generate_id("CMP")
+    c_date = clean_str(data.get('complaint_date') or data.get('date')) or today_str()
+    cust_id = clean_str(data.get('customer_id')) or None
+    cust_name = clean_str(data.get('customer_name') or '')
+    order_id = clean_str(data.get('order_id') or data.get('order_no')) or None
+    c_type = clean_str(data.get('complaint_type') or 'مقاس')
+    sev = clean_str(data.get('severity') or 'Medium')
+    desc = clean_str(data.get('description') or data.get('complaint_description') or 'شكوى جودة ومقاسات')
+    assigned_to = clean_str(data.get('assigned_to')) or None
+    resp_date = clean_str(data.get('response_date')) or None
+    comp_cost = Decimal(str(clean_num(data.get('compensation_cost') or data.get('cost') or 0.0)))
+    status = clean_str(data.get('status') or 'Pending')
+
+    with get_db_cursor(commit=True) as cur:
+        valid_cust_id = None
+        if cust_id:
+            cur.execute("SELECT id, name FROM customers WHERE id = %s LIMIT 1;", (cust_id,))
+            c_row = cur.fetchone()
+            if c_row:
+                valid_cust_id = c_row['id']
+                if not cust_name: cust_name = c_row.get('name', '')
+
+        valid_order_id = None
+        if order_id:
+            cur.execute("SELECT id, customer_id FROM orders WHERE id = %s OR order_no = %s LIMIT 1;", (order_id, order_id))
+            o_row = cur.fetchone()
+            if o_row:
+                valid_order_id = o_row['id']
+                if not valid_cust_id and o_row.get('customer_id'):
+                    valid_cust_id = o_row['customer_id']
+
+        valid_assigned = None
+        if assigned_to:
+            cur.execute("SELECT id FROM users WHERE id = %s OR username = %s LIMIT 1;", (assigned_to, assigned_to))
+            u_row = cur.fetchone()
+            if u_row: valid_assigned = u_row['id']
+
+        cur.execute("""
+            INSERT INTO quality_complaints (
+                id, complaint_date, customer_id, customer_name, order_id,
+                complaint_type, severity, description, assigned_to,
+                response_date, compensation_cost, status
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (id) DO UPDATE SET
+                complaint_type = EXCLUDED.complaint_type,
+                severity = EXCLUDED.severity,
+                description = EXCLUDED.description,
+                compensation_cost = EXCLUDED.compensation_cost,
+                status = EXCLUDED.status,
+                response_date = EXCLUDED.response_date
+            RETURNING *;
+        """, (
+            c_id, c_date, valid_cust_id, cust_name, valid_order_id,
+            c_type, sev, desc, valid_assigned,
+            resp_date, comp_cost, status
+        ))
+        row = dict(cur.fetchone())
+        for k in ('created_at', 'complaint_date', 'response_date'):
+            if row.get(k): row[k] = str(row[k])
+        if row.get('compensation_cost') is not None:
+            row['compensation_cost'] = float(row['compensation_cost'])
+        return row
+
+def get_quality_returns(params=None):
+    query = "SELECT * FROM quality_returns ORDER BY created_at DESC;"
+    rows = execute_query(query, fetch_all=True)
+    for r in rows:
+        for k in ('created_at', 'return_date'):
+            if r.get(k): r[k] = str(r[k])
+        for k in ('refund_amount', 'replacement_cost'):
+            if r.get(k) is not None: r[k] = float(r[k])
+    return rows
+
+def add_quality_return(payload):
+    data = payload.get('data') or payload
+    ret_id = clean_str(data.get('id') or data.get('return_id')) or generate_id("RET")
+    ret_date = clean_str(data.get('return_date') or data.get('date')) or today_str()
+    order_id = clean_str(data.get('order_id') or data.get('order_no')) or None
+    cust_id = clean_str(data.get('customer_id')) or None
+    prod_id = clean_str(data.get('product_id')) or None
+    reason = clean_str(data.get('return_reason') or data.get('reason') or 'عيب جودة')
+    cond = clean_str(data.get('condition') or 'مستلم من العميلة')
+    action = clean_str(data.get('action_taken') or 'إعادة تشغيل واستبدال')
+    refund = Decimal(str(clean_num(data.get('refund_amount') or 0.0)))
+    rep_cost = Decimal(str(clean_num(data.get('replacement_cost') or 0.0)))
+    status = clean_str(data.get('status') or 'Processing')
+
+    with get_db_cursor(commit=True) as cur:
+        valid_order_id = None
+        if order_id:
+            cur.execute("SELECT id, customer_id, product_id FROM orders WHERE id = %s OR order_no = %s LIMIT 1;", (order_id, order_id))
+            o_row = cur.fetchone()
+            if o_row:
+                valid_order_id = o_row['id']
+                if not cust_id and o_row.get('customer_id'):
+                    cust_id = o_row['customer_id']
+                if not prod_id and o_row.get('product_id'):
+                    prod_id = o_row['product_id']
+
+        valid_cust_id = None
+        if cust_id:
+            cur.execute("SELECT id FROM customers WHERE id = %s LIMIT 1;", (cust_id,))
+            if cur.fetchone(): valid_cust_id = cust_id
+
+        valid_prod_id = None
+        if prod_id:
+            cur.execute("SELECT id FROM products WHERE id = %s LIMIT 1;", (prod_id,))
+            if cur.fetchone(): valid_prod_id = prod_id
+
+        cur.execute("""
+            INSERT INTO quality_returns (
+                id, return_date, order_id, customer_id, product_id,
+                return_reason, condition, action_taken, refund_amount,
+                replacement_cost, status
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (id) DO UPDATE SET
+                return_reason = EXCLUDED.return_reason,
+                condition = EXCLUDED.condition,
+                action_taken = EXCLUDED.action_taken,
+                refund_amount = EXCLUDED.refund_amount,
+                replacement_cost = EXCLUDED.replacement_cost,
+                status = EXCLUDED.status
+            RETURNING *;
+        """, (
+            ret_id, ret_date, valid_order_id, valid_cust_id, valid_prod_id,
+            reason, cond, action, refund, rep_cost, status
+        ))
+        row = dict(cur.fetchone())
+        for k in ('created_at', 'return_date'):
+            if row.get(k): row[k] = str(row[k])
+        for k in ('refund_amount', 'replacement_cost'):
+            if row.get(k) is not None: row[k] = float(row[k])
+        return row
+
+def get_quality_actions(params=None):
+    query = "SELECT * FROM quality_actions ORDER BY created_at DESC;"
+    rows = execute_query(query, fetch_all=True)
+    for r in rows:
+        for k in ('created_at', 'due_date', 'completion_date'):
+            if r.get(k): r[k] = str(r[k])
+    return rows
+
+def add_quality_action(payload):
+    data = payload.get('data') or payload
+    act_id = clean_str(data.get('id') or data.get('action_id')) or generate_id("CAPA")
+    act_type = clean_str(data.get('action_type') or 'Corrective')
+    defect_id = clean_str(data.get('defect_id')) or None
+    complaint_id = clean_str(data.get('complaint_id')) or None
+    prob = clean_str(data.get('problem_statement') or data.get('problem') or 'مشكلة جودة تتطلب إجراء تصحيحي')
+    root = clean_str(data.get('root_cause') or '')
+    act_desc = clean_str(data.get('action_description') or data.get('action') or 'إجراء وقائي وتصحيحي')
+    resp = clean_str(data.get('responsible_person') or data.get('responsible')) or None
+    due = clean_str(data.get('due_date')) or None
+    comp = clean_str(data.get('completion_date') or data.get('completed_date')) or None
+    priority = clean_str(data.get('priority') or 'High')
+    status = clean_str(data.get('status') or 'Planned')
+
+    with get_db_cursor(commit=True) as cur:
+        valid_def_id = None
+        if defect_id:
+            cur.execute("SELECT id FROM quality_defects WHERE id = %s LIMIT 1;", (defect_id,))
+            if cur.fetchone(): valid_def_id = defect_id
+
+        valid_cmp_id = None
+        if complaint_id:
+            cur.execute("SELECT id FROM quality_complaints WHERE id = %s LIMIT 1;", (complaint_id,))
+            if cur.fetchone(): valid_cmp_id = complaint_id
+
+        valid_resp = None
+        if resp:
+            cur.execute("SELECT id FROM users WHERE id = %s OR username = %s LIMIT 1;", (resp, resp))
+            u_row = cur.fetchone()
+            if u_row: valid_resp = u_row['id']
+
+        cur.execute("""
+            INSERT INTO quality_actions (
+                id, action_type, defect_id, complaint_id, problem_statement,
+                root_cause, action_description, responsible_person, due_date,
+                completion_date, priority, status
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (id) DO UPDATE SET
+                action_type = EXCLUDED.action_type,
+                problem_statement = EXCLUDED.problem_statement,
+                root_cause = EXCLUDED.root_cause,
+                action_description = EXCLUDED.action_description,
+                priority = EXCLUDED.priority,
+                status = EXCLUDED.status,
+                completion_date = EXCLUDED.completion_date
+            RETURNING *;
+        """, (
+            act_id, act_type, valid_def_id, valid_cmp_id, prob,
+            root, act_desc, valid_resp, due, comp, priority, status
+        ))
+        row = dict(cur.fetchone())
+        for k in ('created_at', 'due_date', 'completion_date'):
+            if row.get(k): row[k] = str(row[k])
+        return row
+
+def get_quality_checkpoints(params=None):
+    query = "SELECT * FROM quality_checkpoints ORDER BY id ASC;"
+    rows = execute_query(query, fetch_all=True)
+    if not rows:
+        ensure_quality_seed_data()
+        rows = execute_query(query, fetch_all=True)
+    for r in rows:
+        if r.get('created_at'): r['created_at'] = str(r['created_at'])
+        if r.get('tolerance') is not None: r['tolerance'] = float(r['tolerance'])
+    return rows
+
+def save_quality_checkpoint(payload):
+    data = payload.get('data') or payload
+    chk_id = clean_str(data.get('id') or data.get('checkpoint_id')) or generate_id("CHK")
+    name = clean_str(data.get('checkpoint_name') or data.get('name') or 'معيار فحص')
+    stage = clean_str(data.get('production_stage') or data.get('stage') or 'الفحص النهائي')
+    desc = clean_str(data.get('description') or '')
+    req = bool(data.get('required', True))
+    crit = clean_str(data.get('criteria') or '')
+    tol = clean_num(data.get('tolerance') or 0.0)
+    act = bool(data.get('active', True))
+
+    with get_db_cursor(commit=True) as cur:
+        cur.execute("""
+            INSERT INTO quality_checkpoints (id, checkpoint_name, production_stage, description, required, criteria, tolerance, active)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (id) DO UPDATE SET
+                checkpoint_name = EXCLUDED.checkpoint_name,
+                production_stage = EXCLUDED.production_stage,
+                description = EXCLUDED.description,
+                required = EXCLUDED.required,
+                criteria = EXCLUDED.criteria,
+                tolerance = EXCLUDED.tolerance,
+                active = EXCLUDED.active
+            RETURNING *;
+        """, (chk_id, name, stage, desc, req, crit, tol, act))
         row = dict(cur.fetchone())
         if row.get('created_at'): row['created_at'] = str(row['created_at'])
-        if row.get('feedback_date'): row['feedback_date'] = str(row['feedback_date'])
+        if row.get('tolerance') is not None: row['tolerance'] = float(row['tolerance'])
         return row
+
+def get_quality_settings(params=None):
+    query = "SELECT * FROM quality_settings ORDER BY id ASC;"
+    rows = execute_query(query, fetch_all=True)
+    if not rows:
+        ensure_quality_seed_data()
+        rows = execute_query(query, fetch_all=True)
+    for r in rows:
+        if r.get('created_at'): r['created_at'] = str(r['created_at'])
+        for k in ('target', 'warning_threshold', 'critical_threshold', 'weight'):
+            if r.get(k) is not None: r[k] = float(r[k])
+    return rows
+
+def save_quality_settings(payload):
+    data = payload.get('data') or payload
+    s_id = clean_str(data.get('id')) or generate_id("QSET")
+    name = clean_str(data.get('metric_name') or data.get('name') or 'مؤشر جودة')
+    code = clean_str(data.get('metric_code') or data.get('code') or generate_id("MTR"))
+    formula = clean_str(data.get('formula') or '')
+    target = clean_num(data.get('target') or 95.0)
+    warn = clean_num(data.get('warning_threshold') or 85.0)
+    crit = clean_num(data.get('critical_threshold') or 70.0)
+    weight = clean_num(data.get('weight') or 1.0)
+    act = bool(data.get('active', True))
+
+    with get_db_cursor(commit=True) as cur:
+        cur.execute("""
+            INSERT INTO quality_settings (id, metric_name, metric_code, formula, target, warning_threshold, critical_threshold, weight, active)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (metric_code) DO UPDATE SET
+                metric_name = EXCLUDED.metric_name,
+                formula = EXCLUDED.formula,
+                target = EXCLUDED.target,
+                warning_threshold = EXCLUDED.warning_threshold,
+                critical_threshold = EXCLUDED.critical_threshold,
+                weight = EXCLUDED.weight,
+                active = EXCLUDED.active
+            RETURNING *;
+        """, (s_id, name, code, formula, target, warn, crit, weight, act))
+        row = dict(cur.fetchone())
+        if row.get('created_at'): row['created_at'] = str(row['created_at'])
+        for k in ('target', 'warning_threshold', 'critical_threshold', 'weight'):
+            if row.get(k) is not None: row[k] = float(row[k])
+        return row
+
+def ensure_quality_seed_data():
+    try:
+        from domains.quality.default_data import DEFAULT_QUALITY_CHECKPOINTS, DEFAULT_QUALITY_SETTINGS
+        with get_db_cursor(commit=True) as cur:
+            for chk in DEFAULT_QUALITY_CHECKPOINTS:
+                cid, name, stage, desc, req, crit, tol, act = chk
+                cur.execute("""
+                    INSERT INTO quality_checkpoints (id, checkpoint_name, production_stage, description, required, criteria, tolerance, active)
+                    VALUES (%s, %s, %s, %s, %s, %s, 0.0, %s)
+                    ON CONFLICT (id) DO NOTHING;
+                """, (cid, name, stage, desc, req == 'نعم', crit, act == 'Active'))
+                
+            for s in DEFAULT_QUALITY_SETTINGS:
+                name, code, formula, target, warn, crit, weight, act = s
+                sid = f"QSET-{code}"
+                cur.execute("""
+                    INSERT INTO quality_settings (id, metric_name, metric_code, formula, target, warning_threshold, critical_threshold, weight, active)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (metric_code) DO NOTHING;
+                """, (sid, name, code, formula, target, warn, crit, weight, act == 'Active'))
+    except Exception as e:
+        logger.warning(f"Quality seed check note: {e}")
+
+def get_quality_dashboard_pg(params=None):
+    """
+    حساب مؤشرات الجودة التنفيذية الحقيقية من قاعدة بيانات PostgreSQL مباشرة:
+    1. First Pass Yield (FPY): (Passed Inspections / Total Inspections) * 100
+    2. Defect Rate: (Total Defects / Total Orders or Inspections) * 100
+    3. CSAT & NPS: متسوط رضا العملاء وصافي نقاط الترويج NPS = % Promoters - % Detractors
+    4. Cost of Poor Quality (COPQ): إجمالي تكاليف العيوب والهدر والمرتجعات والتعويضات
+    5. Overall Quality Score (OQS): مؤشر الجودة المرجح الشامل
+    """
+    inspections = get_quality_inspections()
+    defects = get_quality_defects()
+    feedback = get_quality_feedback()
+    complaints = get_quality_complaints()
+    returns = get_quality_returns()
+    actions = get_quality_actions()
+    checkpoints = get_quality_checkpoints()
+    settings = get_quality_settings()
+
+    total_orders = 0
+    total_sales = 0.0
+    try:
+        with get_db_cursor(commit=False) as cur:
+            cur.execute("SELECT COUNT(*) as total_orders, COALESCE(SUM(total_amount), 0) as total_sales FROM orders;")
+            ord_stats = cur.fetchone()
+            if ord_stats:
+                total_orders = ord_stats['total_orders'] or 0
+                total_sales = float(ord_stats['total_sales'] or 0.0)
+    except Exception:
+        pass
+
+    # 1. FPY
+    total_inspections = len(inspections)
+    passed_inspections = sum(1 for i in inspections if str(i.get('inspection_result', '')).upper() in ('PASS', 'PASSED', 'ناجح'))
+    first_pass_yield = round((passed_inspections / total_inspections * 100), 1) if total_inspections > 0 else 100.0
+
+    # 2. Defect Rate
+    total_defects = len(defects)
+    base_units = max(total_inspections, total_orders, 1)
+    defect_rate = round((total_defects / base_units * 100), 1)
+
+    # 3. CSAT & NPS
+    total_fb = len(feedback)
+    if total_fb > 0:
+        ratings = [float(f.get('rating') or 5.0) for f in feedback]
+        csat = round(sum(ratings) / total_fb, 1)
+        promoters = sum(1 for r in ratings if r >= 5.0)
+        detractors = sum(1 for r in ratings if r <= 3.0)
+        nps = round(((promoters - detractors) / total_fb) * 100)
+    else:
+        csat = 5.0
+        nps = 100
+
+    # 4. COPQ (Cost of Poor Quality)
+    rework_cost = sum(float(d.get('rework_cost') or 0.0) for d in defects)
+    waste_cost = sum(float(d.get('waste_cost') or 0.0) for d in defects)
+    return_cost = sum(float(r.get('refund_amount') or 0.0) for r in returns)
+    replacement_cost = sum(float(r.get('replacement_cost') or 0.0) for r in returns)
+    comp_cost = sum(float(c.get('compensation_cost') or 0.0) for c in complaints)
+    total_copq = round(rework_cost + waste_cost + return_cost + replacement_cost + comp_cost, 2)
+    copq_pct = round((total_copq / total_sales * 100), 1) if total_sales > 0 else 0.0
+
+    # 5. OQS (Overall Quality Score)
+    prod_score = max(50.0, min(100.0, round(100.0 - (defect_rate * 3.0), 1)))
+    cust_score = max(50.0, min(100.0, round((csat / 5.0) * 100.0, 1)))
+    supp_score = 98.0
+    oqs = round((prod_score * 0.35) + (cust_score * 0.35) + (supp_score * 0.30), 1)
+
+    return {
+        'oqs': oqs,
+        'defect_rate': defect_rate,
+        'first_pass_yield': first_pass_yield,
+        'fpy': first_pass_yield,
+        'csat': csat,
+        'csat_percentage': round((csat / 5.0) * 100.0, 1),
+        'nps': nps,
+        'copq': total_copq,
+        'copq_total': total_copq,
+        'copq_percentage': copq_pct,
+        'total_inspections': total_inspections,
+        'total_defects': total_defects,
+        'total_feedback': total_fb,
+        'total_complaints': len(complaints),
+        'total_returns': len(returns),
+        'total_actions': len(actions),
+        'total_evaluations': 0,
+        'inspections': inspections,
+        'defects': defects,
+        'feedback': feedback,
+        'complaints': complaints,
+        'returns': returns,
+        'corrective_actions': actions,
+        'checkpoints': checkpoints,
+        'settings': settings,
+        'evaluations': []
+    }
 
 def get_quality_summary(params=None):
     with get_db_cursor(commit=False) as cur:
@@ -6577,8 +7558,9 @@ def restore_backup_data(payload):
 # ── 16. الموزع العام للطلبات (Master Action Dispatcher) ──
 
 ACTION_HANDLERS = {
-    # الجودة
+    # الجودة والمطابقة الشاملة
     "getQualitySummary": get_quality_summary,
+    "getQualityDashboard": get_quality_dashboard_pg,
     "getQualityInspections": get_quality_inspections,
     "addQualityInspection": add_quality_inspection,
     "getQualityDefects": get_quality_defects,
@@ -6587,6 +7569,18 @@ ACTION_HANDLERS = {
     "getQualityFeedback": get_quality_feedback,
     "addFeedback": add_quality_feedback,
     "addQualityFeedback": add_quality_feedback,
+    "getQualityComplaints": get_quality_complaints,
+    "addQualityComplaint": add_quality_complaint,
+    "getQualityReturns": get_quality_returns,
+    "addQualityReturn": add_quality_return,
+    "getQualityActions": get_quality_actions,
+    "addQualityAction": add_quality_action,
+    "getQualityCorrectiveActions": get_quality_actions,
+    "addQualityCorrectiveAction": add_quality_action,
+    "getQualityCheckpoints": get_quality_checkpoints,
+    "saveQualityCheckpoint": save_quality_checkpoint,
+    "getQualitySettings": get_quality_settings,
+    "saveQualitySettings": save_quality_settings,
     
     # المستخدمين
     "getUsers": get_users_pg,

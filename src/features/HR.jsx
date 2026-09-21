@@ -38,14 +38,22 @@ function HR({ employees = [], setEmployees, payroll = [], setPayroll, accounts =
   useEffect(() => {
     loadCommissions();
     loadTailorSummaries();
+    if (window.hrAPI && window.hrAPI.getAdvances) {
+      window.hrAPI.getAdvances().then(d => setAdvances(d || []));
+    }
   }, []);
 
   useEffect(() => {
     if (activeTab === 'commissions') {
       loadCommissions();
       loadTailorSummaries();
+    } else if (activeTab === 'advances') {
+      if (window.hrAPI && window.hrAPI.getAdvances) {
+        setLoadingAdvances(true);
+        window.hrAPI.getAdvances(payrollMonth).then(d => setAdvances(d || [])).finally(() => setLoadingAdvances(false));
+      }
     }
-  }, [activeTab]);
+  }, [activeTab, payrollMonth]);
 
   const handleOpenPiecesModal = async (tailor) => {
     setSelectedTailorForPieces(tailor);
@@ -120,6 +128,16 @@ function HR({ employees = [], setEmployees, payroll = [], setPayroll, accounts =
   const [payrollMonth, setPayrollMonth] = useState(new Date().toISOString().slice(0, 7));
   const [bonus, setBonus] = useState({});
   const [deduction, setDeduction] = useState({});
+
+  // Advances & Loans State
+  const [advances, setAdvances] = useState([]);
+  const [loadingAdvances, setLoadingAdvances] = useState(false);
+  const [advanceModalOpen, setAdvanceModalOpen] = useState(false);
+  const [advanceEmp, setAdvanceEmp] = useState('');
+  const [advanceAmount, setAdvanceAmount] = useState('');
+  const [advanceBox, setAdvanceBox] = useState('ACC-101-1');
+  const [advanceNotes, setAdvanceNotes] = useState('');
+  const [submittingAdvance, setSubmittingAdvance] = useState(false);
 
   const currencyDisplay = currency?.display || 'SAR';
 
@@ -202,6 +220,27 @@ function HR({ employees = [], setEmployees, payroll = [], setPayroll, accounts =
   
   const handleGeneratePayroll = async () => {
     if (activeEmployees.length === 0) return showToast("لا يوجد موظفين نشطين لإصدار رواتبهم ⚠️", "error");
+    
+    try {
+      if (window.hrAPI && window.hrAPI.calculatePayroll) {
+        const calculated = await window.hrAPI.calculatePayroll(payrollMonth);
+        if (calculated && calculated.length > 0) {
+          await fetch('/api/hr/payroll/batch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ records: calculated, month: payrollMonth })
+          });
+          const fresh = await window.hrAPI.getPayroll(payrollMonth);
+          setPayroll([...fresh, ...payroll.filter(p => p.month !== payrollMonth)]);
+          showToast(`تم احتساب وتحديث مسير رواتب شهر ${payrollMonth} بنجاح 📋`, "success");
+          setBonus({});
+          setDeduction({});
+          return;
+        }
+      }
+    } catch(err) {
+      console.warn("Backend calculate payroll error, falling back:", err);
+    }
     
     const existingRecords = payroll.filter(p => p.month === payrollMonth);
     if (existingRecords.length > 0) {
@@ -290,57 +329,77 @@ function HR({ employees = [], setEmployees, payroll = [], setPayroll, accounts =
     };
   }, [payroll, payrollMonth, employees]);
 
-  const handleAddAdvance = async (record) => {
-    if (!currentPayroll) return;
-    const amountStr = prompt(`أدخل مبلغ السلفة للموظف ${record.name} (سيتم خصمها من الصندوق مباشرة وتضاف لخصميات الشهر):`);
-    if (!amountStr) return;
-    const amount = parseFloat(amountStr);
-    if (isNaN(amount) || amount <= 0) return showToast("مبلغ غير صحيح ⚠️", "error");
-    
-    try {
-      if (window.hrAPI && window.hrAPI.addAdvance) {
-        const res = await window.hrAPI.addAdvance({
-          emp_id: record.empId,
-          emp_name: record.name,
-          amount: amount,
-          notes: `سلفة نقدية للموظف ${record.name} لشهر ${currentPayroll.month}`
-        });
-        
-        const newDeduction = (record.deduction || 0) + amount;
-        const newNet = (record.netSalary || 0) - amount;
-        
-        setPayroll(payroll.map(p => p.id === record.id ? { ...p, deductions: newDeduction, netSalary: newNet } : p));
-        showToast(res.message || "تم تسجيل السلفة وتقييدها باليومية ✅", "success");
-      } else {
-        const currCode = window.CurrencyService ? window.CurrencyService.normalizeCode(currencyDisplay) : 'YER';
-        const rate = window.CurrencyService ? window.CurrencyService.getRate(currCode) : 1.0;
-        const baseObj = window.CurrencyService ? window.CurrencyService.toBase(amount, currCode, rate) : { base_amount: amount, exchange_rate: rate };
+  const handleAddAdvance = (record) => {
+    setAdvanceEmp(record.empId || record.name);
+    setAdvanceAmount('');
+    setAdvanceBox('ACC-101-1');
+    setAdvanceNotes(`سلفة نقدية للموظف ${record.name} - شهر ${payrollMonth}`);
+    setAdvanceModalOpen(true);
+  };
 
-        const newEntry = {
-          id: Date.now(),
-          transaction_id: `TX-ADV-${Date.now()}`,
-          entry_no: `ADV-${Date.now().toString().slice(-4)}`,
-          debit: '1141',
-          credit: '1111',
-          amount: amount,
-          currency: currCode,
-          exchange_rate: rate,
-          base_amount: baseObj.base_amount,
-          ref_type: "سلفة نقدية",
-          date: new Date().toISOString().split('T')[0],
-          notes: `سلفة للموظف ${record.name} لشهر ${currentPayroll.month}`
-        };
-        await window.callGAS("addJournalEntry", newEntry);
-        if (setJournal) setJournal([newEntry, ...journal]);
+  const handleSubmitAdvance = async (e) => {
+    if (e) e.preventDefault();
+    const amt = parseFloat(advanceAmount);
+    if (!amt || amt <= 0) return showToast("يرجى إدخال مبلغ صحيح للسلفة ⚠️", "error");
+    if (!advanceEmp) return showToast("يرجى اختيار الموظف ⚠️", "error");
+
+    setSubmittingAdvance(true);
+    try {
+      const selectedEmpObj = employees.find(emp => emp.id === advanceEmp || emp.name === advanceEmp);
+      const empId = selectedEmpObj ? selectedEmpObj.id : advanceEmp;
+      const empName = selectedEmpObj ? selectedEmpObj.name : advanceEmp;
+
+      const payload = {
+        emp_id: empId,
+        emp_name: empName,
+        amount: amt,
+        currency: currencyDisplay || 'YER',
+        account_id: advanceBox,
+        month: payrollMonth,
+        notes: advanceNotes || `سلفة نقدية للموظف ${empName}`
+      };
+
+      const res = await window.hrAPI.addAdvance(payload);
+      if (res && res.success) {
+        showToast(res.message || "تم صرف السلفة وتقييدها باليومية بنجاح ✅", "success");
+        setAdvanceModalOpen(false);
+        setAdvanceAmount('');
+        setAdvanceNotes('');
         
-        const newDeduction = record.deduction + amount;
-        const newNet = record.netSalary - amount;
+        if (window.hrAPI.getAdvances) {
+          const freshAdv = await window.hrAPI.getAdvances(payrollMonth);
+          setAdvances(freshAdv || []);
+        }
         
-        setPayroll(payroll.map(p => p.id === record.id ? { ...p, deductions: newDeduction, netSalary: newNet } : p));
-        showToast("تم تسجيل السلفة وتقييدها باليومية ✅", "success");
+        const targetRec = currentPayroll?.records?.find(r => r.empId === empId || r.name === empName);
+        if (targetRec) {
+          const newDeduction = (targetRec.deduction || 0) + amt;
+          const newNet = (targetRec.netSalary || 0) - amt;
+          setPayroll(payroll.map(p => (p.id === targetRec.id || p.employee_id === empId) ? { ...p, deductions: newDeduction, netSalary: newNet } : p));
+        }
+        
+        if (res.voucher) {
+          setActiveVoucherForPrint({
+            voucher_no: res.voucher.voucher_no,
+            date: res.voucher.date,
+            employee_name: res.voucher.employee_name,
+            payment_method: 'نقدي (كاش)',
+            account_id: res.voucher.account_id,
+            pieces_count: 0,
+            entry_no: res.voucher.entry_no,
+            net_amount: res.voucher.amount,
+            currency: res.voucher.currency,
+            title: 'سند صرف سلفة نقدية (Advance Payment Voucher)',
+            created_by: 'أمين الصندوق'
+          });
+        }
+      } else {
+        showToast(res.error || "فشل تسجيل السلفة ⚠️", "error");
       }
-    } catch(e) {
-       showToast(e.message || "فشل تسجيل السلفة", "error");
+    } catch(err) {
+      showToast(err.message || "حدث خطأ أثناء صرف السلفة", "error");
+    } finally {
+      setSubmittingAdvance(false);
     }
   };
 
@@ -366,6 +425,22 @@ function HR({ employees = [], setEmployees, payroll = [], setPayroll, accounts =
         setBonus(newBonusState);
         
         showToast(res.message || "تم تسليم الراتب وإنشاء القيد المحاسبي المركب 💸", "success");
+        if (res.processed_records && res.processed_records[0]) {
+          const proc = res.processed_records[0];
+          setActiveVoucherForPrint({
+            voucher_no: proc.payment_no,
+            date: proc.date,
+            employee_name: proc.emp_name,
+            payment_method: 'نقدي (كاش)',
+            account_id: 'ACC-101',
+            pieces_count: record.piecesCount || 0,
+            entry_no: proc.entry_no,
+            net_amount: proc.net,
+            currency: proc.currency || 'YER',
+            title: `سند صرف راتب ومستحقات شهر ${currentPayroll.month}`,
+            created_by: 'المحاسب المالي'
+          });
+        }
       } else {
         const currCode = window.CurrencyService ? window.CurrencyService.normalizeCode(currencyDisplay) : 'YER';
         const rate = window.CurrencyService ? window.CurrencyService.getRate(currCode) : 1.0;
@@ -436,7 +511,17 @@ function HR({ employees = [], setEmployees, payroll = [], setPayroll, accounts =
               className={`px-5 py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${
                 activeTab === 'payroll' ? 'bg-[#8F2A87] text-white shadow-xs' : 'bg-[#FAFAFB] text-[#25232A] hover:bg-[#E8E5EA] border border-[#E8E5EA]'
               }`}>
-              مسير الرواتب والسلف
+              مسير الرواتب المدمج
+            </button>
+            <button onClick={() => setActiveTab('advances')}
+              className={`px-5 py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeTab === 'advances' ? 'bg-[#8F2A87] text-white shadow-xs' : 'bg-[#FAFAFB] text-[#25232A] hover:bg-[#E8E5EA] border border-[#E8E5EA]'
+              }`}>
+              <span>💸</span>
+              <span>السلف والعهد النقدية</span>
+              {advances.length > 0 && (
+                <span className="bg-white/20 px-1.5 py-0.2 rounded-full font-mono text-[10px]">{advances.length}</span>
+              )}
             </button>
             <button onClick={() => setActiveTab('commissions')}
               className={`px-5 py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer flex items-center gap-1.5 ${
@@ -701,6 +786,186 @@ function HR({ employees = [], setEmployees, payroll = [], setPayroll, accounts =
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── Advances & Loans Tab ── */}
+      {activeTab === 'advances' && (
+        <div className="space-y-5 animate-fadeIn">
+          {/* Header & Controls */}
+          <div className="bg-white p-6 rounded-2xl border border-[#E8E5EA] shadow-[0_2px_12px_rgba(0,0,0,0.02)] space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[#F2E7F3] text-[#8F2A87] flex items-center justify-center text-lg font-bold">
+                  💸
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-[#25232A]">
+                    إدارة السلف والعهد النقدية للعاملين (Advances & Loans Ledger)
+                  </h3>
+                  <p className="text-xs text-[#6F6B75]">
+                    صرف السلف مع تقييدها فوراً في حساب (ACC-107 سلف وذمم العاملين) والخصم التلقائي من مسير الرواتب
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <input
+                  type="month"
+                  lang="en-GB"
+                  dir="ltr"
+                  value={payrollMonth}
+                  onChange={e => setPayrollMonth(e.target.value)}
+                  className="h-10 px-3 border border-[#E8E5EA] rounded-xl font-bold bg-white text-[#8F2A87] text-xs outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (window.hrAPI && window.hrAPI.getAdvances) {
+                      setLoadingAdvances(true);
+                      window.hrAPI.getAdvances(payrollMonth).then(d => setAdvances(d || [])).finally(() => setLoadingAdvances(false));
+                    }
+                  }}
+                  className="h-10 px-3.5 bg-[#FAFAFB] hover:bg-[#E8E5EA] text-[#25232A] rounded-xl border border-[#E8E5EA] text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+                  title="تحديث قائمة السلف"
+                >
+                  <span>🔄</span>
+                  <span>تحديث</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAdvanceEmp('');
+                    setAdvanceAmount('');
+                    setAdvanceBox('ACC-101-1');
+                    setAdvanceNotes('');
+                    setAdvanceModalOpen(true);
+                  }}
+                  className="h-10 px-4 bg-[#8F2A87] hover:bg-[#73216C] text-white rounded-xl text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                >
+                  <span>➕</span>
+                  <span>صرف سلفة نقدية جديدة</span>
+                </button>
+              </div>
+            </div>
+
+            {/* KPI Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
+              <div className="bg-[#FAFAFB] p-4 rounded-xl border border-[#E8E5EA]">
+                <span className="text-xs text-[#6F6B75] font-semibold block">إجمالي السلف المنصرفة لشهر ({payrollMonth})</span>
+                <span className="text-xl font-black font-mono text-[#8F2A87] mt-1 block">
+                  {advances.reduce((sum, a) => sum + (parseFloat(a.amount) || 0), 0).toLocaleString('en-US')} <span className="text-xs text-[#6F6B75] font-sans">{currencyDisplay}</span>
+                </span>
+              </div>
+
+              <div className="bg-[#FAFAFB] p-4 rounded-xl border border-[#E8E5EA]">
+                <span className="text-xs text-[#6F6B75] font-semibold block">عدد سندات الصرف المعتمدة</span>
+                <span className="text-xl font-black font-mono text-[#007F8C] mt-1 block">
+                  {advances.length} <span className="text-xs font-sans text-[#6F6B75]">سند صرف</span>
+                </span>
+              </div>
+
+              <div className="bg-[#FAFAFB] p-4 rounded-xl border border-[#E8E5EA]">
+                <span className="text-xs text-[#6F6B75] font-semibold block">المستفيدون من السلف</span>
+                <span className="text-xl font-black font-mono text-emerald-700 mt-1 block">
+                  {new Set(advances.map(a => a.employee_id || a.employee_name)).size} <span className="text-xs font-sans text-[#6F6B75]">موظف</span>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Advances Table */}
+          <div className="bg-white p-6 rounded-2xl border border-[#E8E5EA] shadow-[0_2px_12px_rgba(0,0,0,0.02)] space-y-4">
+            <h4 className="font-bold text-sm text-[#25232A] flex items-center gap-2 border-b border-[#E8E5EA] pb-3">
+              <span>📋</span> كشف حركة السلف والعهد النقدية ({advances.length})
+            </h4>
+
+            {loadingAdvances ? (
+              <div className="p-12 text-center text-[#6F6B75]">جاري تحميل كشف السلف... ⏳</div>
+            ) : advances.length === 0 ? (
+              <div className="p-12 text-center text-[#6F6B75] bg-[#FAFAFB] rounded-xl border border-dashed border-[#E8E5EA]">
+                <span className="text-4xl block mb-2">💸</span>
+                <p className="text-xs font-bold text-[#25232A]">لا توجد سلف نقدية مسجلة لشهر {payrollMonth}</p>
+                <p className="text-[11px] text-[#6F6B75] mt-1">اضغط على زر "صرف سلفة نقدية جديدة" لتسجيل سلفة وترحيل القيد المحاسبي فورياً.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto rounded-xl border border-[#E8E5EA]">
+                <table className="w-full text-right text-xs">
+                  <thead className="bg-[#FAFAFB] text-[#6F6B75] font-semibold border-b border-[#E8E5EA]">
+                    <tr>
+                      <th className="p-3">تاريخ الصرف</th>
+                      <th className="p-3">اسم الموظف</th>
+                      <th className="p-3">المبلغ المنصرف</th>
+                      <th className="p-3">الصندوق / الخزينة</th>
+                      <th className="p-3">رقم السند</th>
+                      <th className="p-3">رقم القيد اليومي</th>
+                      <th className="p-3">البيان والملاحظات</th>
+                      <th className="p-3 text-center">إجراءات</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#E8E5EA] bg-white font-medium">
+                    {advances.map((adv, idx) => (
+                      <tr key={adv.id || idx} className="hover:bg-[#FAFAFB] transition-colors">
+                        <td className="p-3 font-mono text-[11px] text-[#6F6B75]">
+                          {adv.date ? adv.date.slice(0, 10) : '—'}
+                        </td>
+                        <td className="p-3">
+                          <span className="font-bold text-[#25232A] block">{adv.employee_name}</span>
+                          {adv.employee_id && (
+                            <span className="text-[10px] text-[#6F6B75] font-mono">{adv.employee_id}</span>
+                          )}
+                        </td>
+                        <td className="p-3 font-bold font-mono text-[#D64545] text-sm tabular-nums">
+                          {parseFloat(adv.amount || 0).toLocaleString('en-US')} <span className="text-[10px] font-sans font-medium text-[#6F6B75]">{adv.currency || currencyDisplay}</span>
+                        </td>
+                        <td className="p-3">
+                          <span className="text-[11px] font-bold text-[#25232A] block">
+                            {adv.account_name || adv.account_id || 'الصندوق الرئيسي'}
+                          </span>
+                          <span className="text-[10px] text-[#6F6B75] font-mono">{adv.account_id || 'ACC-101'}</span>
+                        </td>
+                        <td className="p-3 font-mono font-bold text-[#8F2A87] text-xs">
+                          {adv.payment_no || `PAY-ADV-${adv.id}`}
+                        </td>
+                        <td className="p-3 font-mono text-xs text-[#007F8C]">
+                          {adv.entry_no || 'قيد مرحل'}
+                        </td>
+                        <td className="p-3 text-[11px] text-[#6F6B75] max-w-xs">
+                          {adv.notes || 'سلفة تحت حساب الراتب'}
+                        </td>
+                        <td className="p-3 text-center">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveVoucherForPrint({
+                                voucher_no: adv.payment_no || `PAY-ADV-${adv.id}`,
+                                date: adv.date ? adv.date.slice(0, 10) : new Date().toISOString().slice(0, 10),
+                                employee_name: adv.employee_name,
+                                payment_method: 'نقدي (كاش)',
+                                account_id: adv.account_id || 'ACC-101-1',
+                                pieces_count: 0,
+                                entry_no: adv.entry_no || 'قيد مرحل',
+                                net_amount: parseFloat(adv.amount || 0),
+                                currency: adv.currency || currencyDisplay,
+                                title: 'سند صرف سلفة نقدية (Advance Payment Voucher)',
+                                notes: adv.notes || `سلفة نقدية للموظف ${adv.employee_name}`,
+                                created_by: 'أمين الصندوق'
+                              });
+                            }}
+                            className="px-2.5 py-1.5 bg-[#FAFAFB] hover:bg-[#E8E5EA] text-[#25232A] border border-[#E8E5EA] rounded-lg text-[11px] font-bold transition flex items-center justify-center gap-1 cursor-pointer mx-auto"
+                            title="طباعة سند الصرف الرسمي"
+                          >
+                            <span>🖨️</span>
+                            <span>طباعة السند</span>
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -1221,142 +1486,264 @@ function HR({ employees = [], setEmployees, payroll = [], setPayroll, accounts =
               </div>
             </div>
           )}
+        </div>
+      )}
 
-          {/* ── Modal 3: سند الصرف الملكي الرسمي القابل للطباعة ── */}
-          {activeVoucherForPrint && (
-            <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 print:p-0 print:bg-white">
-              <div className="bg-white rounded-3xl max-w-2xl w-full border border-[#E8E5EA] shadow-2xl overflow-hidden print:border-none print:shadow-none animate-scaleUp">
-                
-                {/* Print action header (hidden on print) */}
-                <div className="p-4 bg-[#FAFAFB] border-b border-[#E8E5EA] flex justify-between items-center print:hidden">
-                  <div className="flex items-center gap-2 text-xs font-bold text-emerald-800">
-                    <span>✅</span>
-                    <span>تم حفظ القيد وترحيل السند بنجاح! جاهز للطباعة والتوقيع:</span>
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => window.print()}
-                      className="px-4 py-2 bg-[#8F2A87] hover:bg-[#73216C] text-white text-xs font-bold rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <span>🖨️</span>
-                      <span>طباعة السند</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setActiveVoucherForPrint(null)}
-                      className="w-8 h-8 rounded-full bg-white border border-[#E8E5EA] flex items-center justify-center text-sm font-bold text-[#6F6B75] hover:bg-[#E8E5EA] transition cursor-pointer"
-                    >
-                      ✕
-                    </button>
+      {/* ── Modal: صرف سلفة نقدية جديدة ── */}
+      {advanceModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full border border-[#E8E5EA] shadow-2xl overflow-hidden animate-scaleUp">
+            <div className="p-5 border-b border-[#E8E5EA] flex justify-between items-center bg-gradient-to-r from-[#F2E7F3] via-white to-white">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[#8F2A87] text-white flex items-center justify-center text-lg font-bold">
+                  💸
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-[#25232A]">صرف سلفة نقدية للعاملين (Cash Advance)</h3>
+                  <p className="text-xs text-[#6F6B75]">تقييد مدين بحساب (ACC-107) وخصم من الخزينة المحددة</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAdvanceModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-white border border-[#E8E5EA] flex items-center justify-center text-sm font-bold text-[#6F6B75] hover:bg-[#E8E5EA] transition cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitAdvance} className="p-6 space-y-4">
+              <div>
+                <label className={labelCls}>الموظف المستفيد <span className="text-[#D64545]">*</span></label>
+                <select
+                  value={advanceEmp}
+                  onChange={e => setAdvanceEmp(e.target.value)}
+                  className={inputCls}
+                  required
+                >
+                  <option value="">-- اختر الموظف --</option>
+                  {employees.filter(e => e.status === 'نشط').map(emp => (
+                    <option key={emp.id} value={emp.id}>
+                      {emp.name} ({emp.role} • {emp.type || 'راتب شهري'})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelCls}>مبلغ السلفة <span className="text-[#D64545]">*</span></label>
+                  <input
+                    type="number"
+                    min="1"
+                    step="any"
+                    value={advanceAmount}
+                    onChange={e => setAdvanceAmount(e.target.value)}
+                    required
+                    placeholder="0.00"
+                    className={inputCls + " font-mono font-bold text-[#8F2A87]"}
+                  />
+                </div>
+                <div>
+                  <label className={labelCls}>الخزينة المنصرف منها <span className="text-[#D64545]">*</span></label>
+                  <select
+                    value={advanceBox}
+                    onChange={e => setAdvanceBox(e.target.value)}
+                    className={inputCls}
+                    required
+                  >
+                    <option value="ACC-101-1">الصندوق الرئيسي (ريال يمني - YER)</option>
+                    <option value="ACC-101-2">الصندوق الرئيسي (ريال سعودي - SAR)</option>
+                    <option value="ACC-101-3">الصندوق الرئيسي (دولار - USD)</option>
+                    <option value="ACC-103">حساب بنك الكريمي (YER)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className={labelCls}>البيان وسبب السلفة</label>
+                <textarea
+                  rows="2"
+                  value={advanceNotes}
+                  onChange={e => setAdvanceNotes(e.target.value)}
+                  placeholder="مثال: سلفة نقدية تحت حساب الراتب لشهر..."
+                  className={inputCls + " h-auto py-2"}
+                />
+              </div>
+
+              <div className="bg-[#FAFAFB] p-3.5 rounded-xl border border-[#E8E5EA] text-[11px] text-[#6F6B75] space-y-1">
+                <div className="flex justify-between">
+                  <span>الأثر المحاسبي:</span>
+                  <span className="font-bold text-[#25232A]">من حـ/ سلف وذمم العاملين (ACC-107)</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>إلى حـ/:</span>
+                  <span className="font-bold text-[#25232A]">الصندوق المنصرف منه ({advanceBox})</span>
+                </div>
+                <div className="text-[10px] text-emerald-700 font-semibold pt-1 border-t border-[#E8E5EA]">
+                  ✓ سيتم خصم هذه السلفة آلياً عند احتساب وإصدار مسير رواتب الشهر المحدد.
+                </div>
+              </div>
+
+              <div className="pt-2 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setAdvanceModalOpen(false)}
+                  className="flex-1 py-3 bg-[#FAFAFB] hover:bg-[#E8E5EA] text-[#25232A] font-bold text-xs rounded-xl border border-[#E8E5EA] transition cursor-pointer"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingAdvance}
+                  className="flex-2 py-3 bg-[#8F2A87] hover:bg-[#73216C] text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  <span>💸</span>
+                  <span>{submittingAdvance ? 'جاري ترحيل السند...' : 'صرف السلفة وإصدار السند'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal 3: سند الصرف الملكي الرسمي القابل للطباعة ── */}
+      {activeVoucherForPrint && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 print:p-0 print:bg-white">
+          <div className="bg-white rounded-3xl max-w-2xl w-full border border-[#E8E5EA] shadow-2xl overflow-hidden print:border-none print:shadow-none animate-scaleUp">
+            
+            {/* Print action header (hidden on print) */}
+            <div className="p-4 bg-[#FAFAFB] border-b border-[#E8E5EA] flex justify-between items-center print:hidden">
+              <div className="flex items-center gap-2 text-xs font-bold text-emerald-800">
+                <span>✅</span>
+                <span>تم حفظ القيد وترحيل السند بنجاح! جاهز للطباعة والتوقيع:</span>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-4 py-2 bg-[#8F2A87] hover:bg-[#73216C] text-white text-xs font-bold rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                >
+                  <span>🖨️</span>
+                  <span>طباعة السند</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveVoucherForPrint(null)}
+                  className="w-8 h-8 rounded-full bg-white border border-[#E8E5EA] flex items-center justify-center text-sm font-bold text-[#6F6B75] hover:bg-[#E8E5EA] transition cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {/* Printable Voucher Body */}
+            <div className="p-8 space-y-6 text-right font-sans">
+              {/* Header */}
+              <div className="flex justify-between items-start border-b-2 border-[#8F2A87] pb-4">
+                <div>
+                  <h2 className="text-xl font-black text-[#8F2A87] flex items-center gap-2">
+                    <span>👑</span>
+                    <span>معمل الأميرات الصغيرات للخياطة الراقية</span>
+                  </h2>
+                  <p className="text-[11px] text-[#6F6B75] mt-0.5">
+                    {activeVoucherForPrint.title || 'Little Princesses Atelier • سند صرف نقدي رسمي (Payment Voucher)'}
+                  </p>
+                </div>
+                <div className="text-left font-mono">
+                  <span className="text-xs text-[#6F6B75] block">رقم السند:</span>
+                  <span className="text-sm font-black text-[#25232A] block">{activeVoucherForPrint.voucher_no}</span>
+                  <span className="text-[11px] text-[#6F6B75] block mt-0.5">{activeVoucherForPrint.date}</span>
+                </div>
+              </div>
+
+              {/* Voucher Info Grid */}
+              <div className="grid grid-cols-2 gap-4 bg-[#FAFAFB] p-4 rounded-2xl border border-[#E8E5EA] text-xs">
+                <div>
+                  <span className="text-[#6F6B75] block">يصرف للأخ / الأخت:</span>
+                  <span className="font-bold text-sm text-[#25232A] mt-0.5 block">{activeVoucherForPrint.employee_name}</span>
+                </div>
+                <div>
+                  <span className="text-[#6F6B75] block">طريقة الصرف والخزينة:</span>
+                  <span className="font-bold text-xs text-[#25232A] mt-0.5 block">{activeVoucherForPrint.payment_method} ({activeVoucherForPrint.account_id})</span>
+                </div>
+                <div>
+                  <span className="text-[#6F6B75] block">إجمالي عدد القطع المشمولة:</span>
+                  <span className="font-mono font-bold text-sm text-[#8F2A87] mt-0.5 block">{activeVoucherForPrint.pieces_count || 0} قطعة</span>
+                </div>
+                <div>
+                  <span className="text-[#6F6B75] block">رقم قيد اليومية المحاسبي:</span>
+                  <span className="font-mono font-bold text-xs text-[#25232A] mt-0.5 block">{activeVoucherForPrint.entry_no}</span>
+                </div>
+              </div>
+
+              {/* Net Amount Banner */}
+              <div className="bg-[#F2E7F3] p-5 rounded-2xl border border-[#E5CEE7] flex justify-between items-center">
+                <div>
+                  <span className="text-xs font-bold text-[#8F2A87] block">المبلغ الصافي المنصرف:</span>
+                  <span className="text-xs text-[#6F6B75] mt-0.5 block">
+                    {activeVoucherForPrint.notes || 'فقط وقدره أجور ومستحقات نقدية معتمدة'}
+                  </span>
+                </div>
+                <div className="text-left font-mono font-black text-2xl text-[#8F2A87]">
+                  {parseFloat(activeVoucherForPrint.net_amount || 0).toLocaleString()} <span className="text-sm font-bold font-sans">{activeVoucherForPrint.currency}</span>
+                </div>
+              </div>
+
+              {/* Pieces Breakdown Table */}
+              {activeVoucherForPrint.pieces && activeVoucherForPrint.pieces.length > 0 && (
+                <div className="overflow-x-auto rounded-xl border border-[#E8E5EA]">
+                  <table className="w-full text-right text-[11px]">
+                    <thead className="bg-[#FAFAFB] text-[#6F6B75] font-semibold border-b border-[#E8E5EA]">
+                      <tr>
+                        <th className="p-2">رقم الأمر والموديل</th>
+                        <th className="p-2">نوع الإنتاج</th>
+                        <th className="p-2 text-center">الكمية</th>
+                        <th className="p-2">الأجر</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#E8E5EA]">
+                      {activeVoucherForPrint.pieces.map((p, i) => (
+                        <tr key={i}>
+                          <td className="p-2">
+                            <span className="font-bold text-[#25232A]">{p.product_name}</span>
+                            <span className="text-[10px] text-[#6F6B75] font-mono block">({p.order_no})</span>
+                          </td>
+                          <td className="p-2">
+                            {p.production_type === 'stock' ? '🏭 إنتاج مخزني' : `👧 ${p.child_name || 'تفصيل خاص'}`}
+                          </td>
+                          <td className="p-2 text-center font-mono font-bold">{p.pieces_count || 1}</td>
+                          <td className="p-2 font-mono font-bold text-[#8F2A87]">{parseFloat(p.wage_amount).toLocaleString()} {activeVoucherForPrint.currency}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Signatures */}
+              <div className="pt-8 border-t border-[#E8E5EA] grid grid-cols-3 gap-4 text-center text-xs">
+                <div>
+                  <span className="text-[#6F6B75] block font-bold mb-8">توقيع المستلم (الموظف)</span>
+                  <div className="border-t border-dashed border-[#6F6B75] mx-4 pt-1 font-bold text-[#25232A]">
+                    {activeVoucherForPrint.employee_name}
                   </div>
                 </div>
-
-                {/* Printable Voucher Body */}
-                <div className="p-8 space-y-6 text-right font-sans">
-                  {/* Header */}
-                  <div className="flex justify-between items-start border-b-2 border-[#8F2A87] pb-4">
-                    <div>
-                      <h2 className="text-xl font-black text-[#8F2A87] flex items-center gap-2">
-                        <span>👑</span>
-                        <span>معمل الأميرات الصغيرات للخياطة الراقية</span>
-                      </h2>
-                      <p className="text-[11px] text-[#6F6B75] mt-0.5">Little Princesses Atelier • سند صرف نقدي رسمي (Payment Voucher)</p>
-                    </div>
-                    <div className="text-left font-mono">
-                      <span className="text-xs text-[#6F6B75] block">رقم السند:</span>
-                      <span className="text-sm font-black text-[#25232A] block">{activeVoucherForPrint.voucher_no}</span>
-                      <span className="text-[11px] text-[#6F6B75] block mt-0.5">{activeVoucherForPrint.date}</span>
-                    </div>
+                <div>
+                  <span className="text-[#6F6B75] block font-bold mb-8">المحاسب المالي</span>
+                  <div className="border-t border-dashed border-[#6F6B75] mx-4 pt-1 font-bold text-[#25232A]">
+                    {activeVoucherForPrint.created_by || 'المحاسب المالي'}
                   </div>
-
-                  {/* Voucher Info Grid */}
-                  <div className="grid grid-cols-2 gap-4 bg-[#FAFAFB] p-4 rounded-2xl border border-[#E8E5EA] text-xs">
-                    <div>
-                      <span className="text-[#6F6B75] block">يصرف للأخ الفني / الخياط:</span>
-                      <span className="font-bold text-sm text-[#25232A] mt-0.5 block">{activeVoucherForPrint.employee_name}</span>
-                    </div>
-                    <div>
-                      <span className="text-[#6F6B75] block">طريقة الصرف والخزينة:</span>
-                      <span className="font-bold text-xs text-[#25232A] mt-0.5 block">{activeVoucherForPrint.payment_method} ({activeVoucherForPrint.account_id})</span>
-                    </div>
-                    <div>
-                      <span className="text-[#6F6B75] block">إجمالي عدد القطع المشمولة:</span>
-                      <span className="font-mono font-bold text-sm text-[#8F2A87] mt-0.5 block">{activeVoucherForPrint.pieces_count} قطعة</span>
-                    </div>
-                    <div>
-                      <span className="text-[#6F6B75] block">رقم قيد اليومية المحاسبي:</span>
-                      <span className="font-mono font-bold text-xs text-[#25232A] mt-0.5 block">{activeVoucherForPrint.entry_no}</span>
-                    </div>
-                  </div>
-
-                  {/* Net Amount Banner */}
-                  <div className="bg-[#F2E7F3] p-5 rounded-2xl border border-[#E5CEE7] flex justify-between items-center">
-                    <div>
-                      <span className="text-xs font-bold text-[#8F2A87] block">المبلغ الصافي المنصرف:</span>
-                      <span className="text-xs text-[#6F6B75] mt-0.5 block">فقط وقدره أجور إنجاز القطع المعتمدة بالمعمل</span>
-                    </div>
-                    <div className="text-left font-mono font-black text-2xl text-[#8F2A87]">
-                      {activeVoucherForPrint.net_amount.toLocaleString()} <span className="text-sm font-bold font-sans">{activeVoucherForPrint.currency}</span>
-                    </div>
-                  </div>
-
-                  {/* Pieces Breakdown Table */}
-                  {activeVoucherForPrint.pieces && activeVoucherForPrint.pieces.length > 0 && (
-                    <div className="overflow-x-auto rounded-xl border border-[#E8E5EA]">
-                      <table className="w-full text-right text-[11px]">
-                        <thead className="bg-[#FAFAFB] text-[#6F6B75] font-semibold border-b border-[#E8E5EA]">
-                          <tr>
-                            <th className="p-2">رقم الأمر والموديل</th>
-                            <th className="p-2">نوع الإنتاج</th>
-                            <th className="p-2 text-center">الكمية</th>
-                            <th className="p-2">الأجر</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-[#E8E5EA]">
-                          {activeVoucherForPrint.pieces.map((p, i) => (
-                            <tr key={i}>
-                              <td className="p-2">
-                                <span className="font-bold text-[#25232A]">{p.product_name}</span>
-                                <span className="text-[10px] text-[#6F6B75] font-mono block">({p.order_no})</span>
-                              </td>
-                              <td className="p-2">
-                                {p.production_type === 'stock' ? '🏭 إنتاج مخزني' : `👧 ${p.child_name || 'تفصيل خاص'}`}
-                              </td>
-                              <td className="p-2 text-center font-mono font-bold">{p.pieces_count || 1}</td>
-                              <td className="p-2 font-mono font-bold text-[#8F2A87]">{parseFloat(p.wage_amount).toLocaleString()} {activeVoucherForPrint.currency}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-
-                  {/* Signatures */}
-                  <div className="pt-8 border-t border-[#E8E5EA] grid grid-cols-3 gap-4 text-center text-xs">
-                    <div>
-                      <span className="text-[#6F6B75] block font-bold mb-8">توقيع المستلم (الخياط)</span>
-                      <div className="border-t border-dashed border-[#6F6B75] mx-4 pt-1 font-bold text-[#25232A]">
-                        {activeVoucherForPrint.employee_name}
-                      </div>
-                    </div>
-                    <div>
-                      <span className="text-[#6F6B75] block font-bold mb-8">المحاسب المالي</span>
-                      <div className="border-t border-dashed border-[#6F6B75] mx-4 pt-1 font-bold text-[#25232A]">
-                        {activeVoucherForPrint.created_by}
-                      </div>
-                    </div>
-                    <div>
-                      <span className="text-[#6F6B75] block font-bold mb-8">اعتماد المدير العام</span>
-                      <div className="border-t border-dashed border-[#6F6B75] mx-4 pt-1 font-bold text-[#25232A]">
-                        معتمد ✅
-                      </div>
-                    </div>
+                </div>
+                <div>
+                  <span className="text-[#6F6B75] block font-bold mb-8">اعتماد المدير العام</span>
+                  <div className="border-t border-dashed border-[#6F6B75] mx-4 pt-1 font-bold text-[#25232A]">
+                    معتمد ✅
                   </div>
                 </div>
               </div>
             </div>
-          )}
+          </div>
         </div>
       )}
     </div>

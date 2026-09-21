@@ -69,7 +69,7 @@ function Marketing({ campaigns = [], setCampaigns, products = [], accounts = [],
     setLoading(true);
     try {
       if (window.marketingAPI) {
-        const [pRes, mRes, cRes, cntRes, cmtRes, whRes, dRes, aiScRes, nlpRes, intRes, prodAiRes, attrRes, dbRes, recRes, kpiRes, fnRes, altRes, custRes, permRes] = await Promise.all([
+        const results = await Promise.allSettled([
           window.marketingAPI.getPlatforms(),
           window.marketingAPI.getCapabilityMatrix(),
           window.marketingAPI.getCampaigns(),
@@ -90,6 +90,7 @@ function Marketing({ campaigns = [], setCampaigns, products = [], accounts = [],
           window.marketingAPI.getCustomerIntelligence(),
           window.marketingAPI.getPermissions()
         ]);
+        const [pRes, mRes, cRes, cntRes, cmtRes, whRes, dRes, aiScRes, nlpRes, intRes, prodAiRes, attrRes, dbRes, recRes, kpiRes, fnRes, altRes, custRes, permRes] = results.map(r => r.status === 'fulfilled' ? r.value : null);
 
         if (pRes?.success) setPlatformsData(pRes.data || []);
         if (mRes?.success) setMatrixData(mRes.data || []);
@@ -980,9 +981,11 @@ function Marketing({ campaigns = [], setCampaigns, products = [], accounts = [],
                         <td className="px-4 py-3 text-slate-700 font-bold">{cnt.product_name || '—'}</td>
                         <td className="px-4 py-3 text-center">
                           {cnt.metrics_history && cnt.metrics_history.length > 0 ? (
-                            <div className="text-[11px]">
-                              <span className="font-black text-indigo-600">👁️ {cnt.metrics_history.reduce((a, b) => a + (b.reach || 0), 0).toLocaleString('en-US')}</span>
-                              <span className="mx-2 font-black text-emerald-600">👍 {cnt.metrics_history.reduce((a, b) => a + (b.likes || 0), 0).toLocaleString('en-US')}</span>
+                            <div className="text-[11px] flex items-center justify-center gap-2 flex-wrap">
+                              <span className="font-black text-indigo-600" title="الوصول">👁️ {cnt.metrics_history.reduce((a, b) => a + (b.reach || 0), 0).toLocaleString('en-US')}</span>
+                              <span className="font-black text-emerald-600" title="الإعجابات">👍 {cnt.metrics_history.reduce((a, b) => a + (b.likes || 0), 0).toLocaleString('en-US')}</span>
+                              <span className="font-black text-amber-600" title="الحفظ">🔖 {cnt.metrics_history.reduce((a, b) => a + (b.saves || 0), 0).toLocaleString('en-US')}</span>
+                              <span className="font-black text-purple-600" title="المشاركات">🔁 {cnt.metrics_history.reduce((a, b) => a + (b.shares || 0), 0).toLocaleString('en-US')}</span>
                             </div>
                           ) : (
                             <span className="text-slate-400 text-[10px]">لا توجد قراءات بعد</span>

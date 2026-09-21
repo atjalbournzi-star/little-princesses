@@ -717,11 +717,19 @@ function Dashboard({
                 <span>بنك: {fmt(targetCode === 'YER' ? baseBankBalance : bankBalance)}</span>
               </div>
 
-              {/* Foreign Currency Badge */}
+              {/* Foreign Currency Badges for Cash Boxes */}
               {foreignTreasuryDetails.length > 0 && targetCode === 'YER' && (
-                <div className="text-[10.5px] font-semibold text-[#8F2A87] dark:text-purple-300 bg-[#F2E7F3] dark:bg-purple-950/40 px-1.5 py-0.5 rounded-md inline-flex items-center gap-1 border border-[#E5CEE7] dark:border-purple-800/50">
-                  <span>🇸🇦</span>
-                  <span>SAR {fmt(foreignTreasuryDetails[0].foreign_balance)} (صندوق الريال السعودي)</span>
+                <div className="flex flex-wrap gap-1 pt-0.5">
+                  {foreignTreasuryDetails.map(f => (
+                    <div 
+                      key={f.code}
+                      className="text-[10.5px] font-semibold text-[#8F2A87] dark:text-purple-300 bg-[#F2E7F3] dark:bg-purple-950/40 px-1.5 py-0.5 rounded-md inline-flex items-center gap-1 border border-[#E5CEE7] dark:border-purple-800/50"
+                      title={`${f.name}: ما يعادله ${fmt(f.base_balance)} YER ﷼`}
+                    >
+                      <span>{f.currency === 'SAR' ? '🇸🇦' : (f.currency === 'USD' ? '🇺🇸' : '🌐')}</span>
+                      <span>{f.currency} {fmt(f.foreign_balance)} ({f.name})</span>
+                    </div>
+                  ))}
                 </div>
               )}
 

@@ -8,6 +8,14 @@ from domains.system.db_connection import get_db
 
 
 def handle_get(handler, path, parsed_url) -> bool:
+    if path in ('/api/health', '/health'):
+        handler.send_response(200)
+        handler._send_cors_headers()
+        handler.send_header('Content-Type', 'application/json; charset=utf-8')
+        handler.end_headers()
+        handler.wfile.write(json.dumps({'status': 'ok', 'service': 'Little Princesses ERP Master Server', 'version': '2.0.0'}).encode('utf-8'))
+        return True
+
     if path.startswith('/api/pricing/quick-quote'):
         handler.send_response(200)
         handler._send_cors_headers()

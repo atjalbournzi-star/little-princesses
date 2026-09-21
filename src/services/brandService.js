@@ -11,19 +11,25 @@
   var EVENT_BRAND_CHANGED = 'erp:brandProfileChanged';
 
   var DEFAULT_PROFILE = {
-    name: 'نظام الإدارة المتكامل الذكي | ERP Master',
-    shortName: 'ERP Master',
-    tradeName: 'إدارة المعامل والإنتاج الذكي',
-    tagline: 'منظومة تخطيط موارد المؤسسات وإدارة العمليات والإنتاج',
+    name: 'مؤسسة الأميرات الصغيرات',
+    shortName: 'الأميرات الصغيرات',
+    tradeName: 'دار الأميرات الصغيرات للأزياء الفاخرة',
+    tagline: 'دار الأزياء والتفصيل الراقي لفساتين الأميرات ✨',
     phone: '776773458',
-    address: 'اليمن - صنعاء',
-    email: 'info@erpmaster.com',
-    taxNumber: '',
-    commercialRegister: '',
-    logoUrl: '',
-    systemIcon: '🏢',
-    footerNote: 'نظام الإدارة المتكامل والعمليات السحابية الذكية'
+    address: 'اليمن - صنعاء - شارع حدة',
+    email: 'info@littleprincesses.com',
+    taxNumber: 'CR-1010-009283',
+    commercialRegister: 'CR-1010-009283',
+    logoUrl: 'logo.png',
+    systemIcon: '👑',
+    footerNote: 'وثيقة رسمية معتمدة عبر Little Princesses ERP'
   };
+
+  function cleanText(text, fallback) {
+    if (!text || typeof text !== 'string') return fallback || '';
+    var cleaned = text.trim();
+    return cleaned || fallback || '';
+  }
 
   function getProfile() {
     try {
@@ -36,16 +42,8 @@
 
       var profile = stored ? JSON.parse(stored) : {};
 
-      // Filter out hardcoded legacy brand names if found
       var name = profile.name || legacyName || DEFAULT_PROFILE.name;
-      if (name.indexOf('الأميرات') !== -1 || name.indexOf('Princesses') !== -1) {
-        name = DEFAULT_PROFILE.name;
-      }
-
       var email = profile.email || legacyEmail || DEFAULT_PROFILE.email;
-      if (email.indexOf('littleprincesses') !== -1) {
-        email = DEFAULT_PROFILE.email;
-      }
 
       return {
         name: name,
@@ -55,9 +53,9 @@
         phone: profile.phone || legacyPhone || DEFAULT_PROFILE.phone,
         address: profile.address || legacyAddress || DEFAULT_PROFILE.address,
         email: email,
-        taxNumber: profile.taxNumber || profile.tax_id || '',
-        commercialRegister: profile.commercialRegister || profile.cr_number || '',
-        logoUrl: profile.logoUrl || legacyLogo || '',
+        taxNumber: profile.taxNumber || profile.tax_id || DEFAULT_PROFILE.taxNumber,
+        commercialRegister: profile.commercialRegister || profile.cr_number || DEFAULT_PROFILE.commercialRegister,
+        logoUrl: profile.logoUrl || legacyLogo || DEFAULT_PROFILE.logoUrl,
         systemIcon: profile.systemIcon || DEFAULT_PROFILE.systemIcon,
         footerNote: profile.footerNote || DEFAULT_PROFILE.footerNote
       };
@@ -85,9 +83,37 @@
     }
   }
 
+  async function syncFromBackend() {
+    try {
+      var res = await fetch('/api/settings');
+      if (res.ok) {
+        var d = await res.json();
+        var comp = d.company || d.company_profile;
+        if (comp && comp.company_name) {
+          saveProfile({
+            name: comp.company_name,
+            phone: comp.phone || DEFAULT_PROFILE.phone,
+            address: comp.address || DEFAULT_PROFILE.address,
+            email: comp.email || DEFAULT_PROFILE.email,
+            logoUrl: comp.logo_url || DEFAULT_PROFILE.logoUrl,
+            taxNumber: comp.tax_id || DEFAULT_PROFILE.taxNumber,
+            commercialRegister: comp.cr_number || DEFAULT_PROFILE.commercialRegister
+          });
+        }
+      }
+    } catch(e) {}
+  }
+
+  // Auto-sync on startup in browser environment
+  if (typeof window !== 'undefined' && typeof fetch === 'function') {
+    setTimeout(syncFromBackend, 500);
+  }
+
   window.BrandService = {
     getProfile: getProfile,
     saveProfile: saveProfile,
+    cleanText: cleanText,
+    syncFromBackend: syncFromBackend,
     DEFAULT_PROFILE: DEFAULT_PROFILE,
     EVENT_BRAND_CHANGED: EVENT_BRAND_CHANGED
   };

@@ -71,15 +71,15 @@ def get_dress_card_payload(target_id: str) -> dict:
 
     # Dynamic White-Label Brand Info from Settings
     brand_info = {
-        'name': 'ليتل برنسيس للأزياء الفاخرة',
+        'name': 'مؤسسة الأميرات الصغيرات',
         'tagline': 'دار الأزياء والتفصيل الراقي لفساتين الأميرات ✨',
         'phone': '776773458',
         'address': 'اليمن - صنعاء - شارع حدة',
-        'logo_url': ''
+        'logo_url': 'logo.png'
     }
     try:
         settings = pg_service.get_system_settings()
-        cp = settings.get('company_profile') or {}
+        cp = settings.get('company') or settings.get('company_profile') or {}
         if cp:
             if cp.get('company_name'):
                 brand_info['name'] = str(cp['company_name'])
@@ -95,12 +95,46 @@ def get_dress_card_payload(target_id: str) -> dict:
     order_date = str(d.get('order_date') or meas.get('meas_date') or d.get('created_at') or '')[:10]
     delivery_date = str(d.get('delivery_date') or d.get('due_date') or meas.get('event_date') or '')[:10]
 
+    # Detection for Ready-to-Wear (RTW) / POS immediate sales
+    order_no_str = str(order_no).upper()
+    order_status_str = str(d.get('status') or d.get('production_status') or '')
+    is_pos = order_no_str.startswith('POS-') or d.get('order_type') in ('pos', 'ready_made', 'ready_to_wear')
+    is_rtw = is_pos or (any(k in order_status_str for k in ['جاهز للتسليم', 'تم التسليم', 'Delivered', 'Ready']) and not has_discrete)
+
+    if is_rtw:
+        card_type = 'ready_to_wear'
+        card_title = 'وثيقة ملكية وضمان فستان جاهز 🛍️👑'
+        card_badge = 'شراء فوري من المعرض وضمان أصلي ✔️'
+        delivery_status_label = 'تم الشراء والاستلام الفوري من المعرض بنجاح ✔️'
+        if not delivery_date or delivery_date == 'None':
+            delivery_date = order_date
+        if is_standard_age_sizing:
+            age_label = child_age if child_age else 'المقاس القياسي المعتمد'
+            sizing_summary = f"مقاس كولكشن جاهز معتمد ({age_label})"
+    else:
+        card_type = 'bespoke_tailoring'
+        card_title = 'وثيقة حجز وتفصيل فستان ملكي 👑'
+        card_badge = 'حجز مؤكد ومقاسات معتمدة 🏷️'
+        delivery_status_label = delivery_date
+
+    care_instructions = [
+        'تنظيف جاف فاخر (Dry Clean Only) للحفاظ على بريق الأقمشة والتطريز الكريستالي',
+        'كي بالبخار بدرجة حرارة خفيفة لمعالجة طبقات التول والأورجانزا',
+        'الحفظ داخل حقيبة القماش الخاصة بالأميرات بعيداً عن الرطوبة وأشعة الشمس المباشرة'
+    ]
+
     return {
         'success': True,
         'order_no': order_no,
         'order_id': d.get('id'),
         'order_date': order_date,
         'delivery_date': delivery_date,
+        'delivery_status_label': delivery_status_label,
+        'is_ready_to_wear': is_rtw,
+        'card_type': card_type,
+        'card_title': card_title,
+        'card_badge': card_badge,
+        'care_instructions': care_instructions,
         'customer_name': customer_name,
         'customer_phone': str(d.get('customer_phone') or ''),
         'child_name': child_name,

@@ -1,7 +1,10 @@
 const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
 function Inventory({ inventory = [], setInventory, purchases = [], orders = [], showToast, currency }) {
-  const currencyDisplay = currency?.display || "YER ﷼";
+  const activeTargetCurr = window.CurrencyService ? window.CurrencyService.normalizeCode(currency) : (typeof currency === 'string' ? currency : (currency?.code || 'YER'));
+  const activeCurrDef = window.CurrencyService ? window.CurrencyService.getCurrencyDef(activeTargetCurr) : { code: 'YER', display: 'YER ﷼', symbol: '﷼', decimals: 0 };
+  const currencyDisplay = activeCurrDef.display;
+  const isBaseCurrency = activeTargetCurr === 'YER';
 
   const [activeSubTab, setActiveSubTab] = useState('stock'); // 'stock' | 'purchases' | 'movements'
   const [formData, setFormData] = useState({
@@ -16,6 +19,49 @@ function Inventory({ inventory = [], setInventory, purchases = [], orders = [], 
   const [adjustQty, setAdjustQty] = useState('');
   const [adjustReason, setAdjustReason] = useState('');
   const [isSubmittingAdjust, setIsSubmittingAdjust] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // ── مزامنة المخزون السحابي فورياً ──
+  const refreshInventory = useCallback(async (notify = false) => {
+    setIsRefreshing(true);
+    try {
+      const res = await fetch('/api/inventory');
+      const data = await res.json();
+      const list = (data && Array.isArray(data.data)) ? data.data : (Array.isArray(data) ? data : []);
+      if (typeof setInventory === 'function') {
+        setInventory(list);
+      }
+      if (notify && showToast) showToast('تم تحديث ومزامنة بيانات المخزون من السحابة بنجاح 🔄');
+    } catch (e) {
+      console.warn('Refresh inventory warning:', e);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [setInventory, showToast]);
+
+  // تحديث تلقائي فوري عند فتح التبويب
+  useEffect(() => {
+    refreshInventory(false);
+  }, [refreshInventory]);
+
+  // ── تسوية حوكمة المخزون التلقائية ──
+  const handleReconcileGovernance = async () => {
+    setIsRefreshing(true);
+    try {
+      const res = await fetch('/api/inventory/reconcile', { method: 'POST' });
+      const data = await res.json();
+      if (data && data.success) {
+        await refreshInventory(false);
+        if (showToast) showToast(data.message || 'تمت مطابقة وتسوية أرصدة المخزون بالكامل وفق الحركات المعتمدة ⚖️✨');
+      } else {
+        if (showToast) showToast(data?.error || 'فشلت تسوية المخزون', 'error');
+      }
+    } catch (e) {
+      if (showToast) showToast('خطأ أثناء مطابقة المخزون ⚠️', 'error');
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   const handleQtyChange = (e) => {
     const q = e.target.value;
@@ -157,13 +203,21 @@ function Inventory({ inventory = [], setInventory, purchases = [], orders = [], 
     });
   }, [purchases, search]);
 
-  const totalInventoryValue = useMemo(() => {
+  const totalInventoryValueBase = useMemo(() => {
     return (inventory || []).reduce((acc, i) => {
       const qty = getItemQty(i);
-      const cost = getItemCost(i);
-      return acc + (parseFloat(i.total_value) || (qty * cost) || 0);
+      const rawCost = getItemCost(i);
+      const rawVal = parseFloat(i.total_value) || (qty * rawCost) || 0;
+      const iCurr = window.CurrencyService ? window.CurrencyService.normalizeCode(i.currency || 'YER') : 'YER';
+      const baseVal = iCurr === 'YER' ? rawVal : (window.CurrencyService ? window.CurrencyService.toBase(rawVal, iCurr).base_amount : rawVal);
+      return acc + baseVal;
     }, 0);
   }, [inventory]);
+
+  const totalInventoryValue = useMemo(() => {
+    if (isBaseCurrency) return totalInventoryValueBase;
+    return window.CurrencyService ? window.CurrencyService.fromBase(totalInventoryValueBase, activeTargetCurr) : totalInventoryValueBase;
+  }, [totalInventoryValueBase, isBaseCurrency, activeTargetCurr]);
 
   const totalPurchasedQty = useMemo(() => {
     return (purchases || []).reduce((acc, p) => acc + (parseFloat(p.quantity || p.qty || 0) || 0), 0);
@@ -235,8 +289,13 @@ function Inventory({ inventory = [], setInventory, purchases = [], orders = [], 
           <div className="p-4 text-center">
             <span className="text-xs font-semibold text-[#6F6B75] block">إجمالي قيمة المخزون التقديرية</span>
             <span className="text-xl font-extrabold font-mono tabular-nums text-[#8F2A87] mt-1 block">
-              {totalInventoryValue.toLocaleString('en-US')} <span className="text-xs font-medium text-[#6F6B75]">{currencyDisplay}</span>
+              {totalInventoryValue.toLocaleString('en-US', { minimumFractionDigits: isBaseCurrency ? 0 : 2, maximumFractionDigits: 2 })} <span className="text-xs font-medium text-[#6F6B75]">{currencyDisplay}</span>
             </span>
+            {!isBaseCurrency && (
+              <span className="text-[10.5px] font-mono text-[#6F6B75] block mt-0.5" title="القيمة الإجمالية المقابلة بالريال اليمني">
+                ({totalInventoryValueBase.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} YER ﷼)
+              </span>
+            )}
           </div>
           <div className="p-4 text-center">
             <span className="text-xs font-semibold text-[#6F6B75] block">فواتير الشراء الموردة</span>
@@ -318,17 +377,17 @@ function Inventory({ inventory = [], setInventory, purchases = [], orders = [], 
                 <span className="text-xs bg-[#E2F5F7] text-[#007F8C] font-bold px-2.5 py-0.5 rounded-full font-mono">{filteredInventory.length}</span>
               </div>
 
-              <div className="flex items-center gap-3 w-full sm:w-auto">
+              <div className="flex items-center gap-2 w-full sm:w-auto">
                 <select
                   value={categoryFilter}
                   onChange={e => setCategoryFilter(e.target.value)}
-                  className="h-10 px-3 rounded-xl border border-[#E8E5EA] bg-[#FAFAFB] text-xs font-semibold text-[#25232A] outline-none"
+                  className="h-10 px-3 rounded-xl border border-[#E8E5EA] bg-[#FAFAFB] text-xs font-semibold text-[#25232A] outline-none cursor-pointer"
                 >
                   <option value="الكل">جميع التصنيفات</option>
                   {(typeof FABRIC_CATEGORIES !== 'undefined' ? FABRIC_CATEGORIES : ['أقمشة','بطانات','كلف وتطريز','إكسسوارات']).map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
 
-                <div className="relative flex-1 sm:w-64">
+                <div className="relative flex-1 sm:w-52">
                   <input
                     value={search}
                     onChange={e => setSearch(e.target.value)}
@@ -337,6 +396,28 @@ function Inventory({ inventory = [], setInventory, purchases = [], orders = [], 
                   />
                   <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#6F6B75] text-xs pointer-events-none">🔍</span>
                 </div>
+
+                <button
+                  type="button"
+                  onClick={() => refreshInventory(true)}
+                  disabled={isRefreshing}
+                  title="تحديث ومزامنة المخزون من السحابة"
+                  className="h-10 px-3 bg-[#FAFAFB] hover:bg-[#E8E5EA] text-[#007F8C] border border-[#E8E5EA] rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50 shrink-0"
+                >
+                  <span className={isRefreshing ? 'animate-spin' : ''}>🔄</span>
+                  <span className="text-xs hidden sm:inline">{isRefreshing ? 'جاري التحديث...' : 'تحديث'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleReconcileGovernance}
+                  disabled={isRefreshing}
+                  title="مطابقة وتسوية أرصدة المخزون بالكامل مع الفواتير وسجل الحركات الرقابي"
+                  className="h-10 px-3 bg-[#E2F5F7] hover:bg-[#C5ECF0] text-[#007F8C] border border-[#B2E6EB] rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50 shrink-0"
+                >
+                  <span>⚖️</span>
+                  <span className="text-xs hidden sm:inline">تسوية الحوكمة</span>
+                </button>
               </div>
             </div>
 
@@ -366,13 +447,19 @@ function Inventory({ inventory = [], setInventory, purchases = [], orders = [], 
                       const name = getItemName(i);
                       const code = i.item_code || i.code || i.id || (idx + 1);
                       const qty = getItemQty(i);
-                      const cost = getItemCost(i);
-                      const totalValue = parseFloat(i.total_value) || (qty * cost) || 0;
+                      const rawCost = getItemCost(i);
+                      const iCurr = window.CurrencyService ? window.CurrencyService.normalizeCode(i.currency || 'YER') : 'YER';
+                      // تكلفة الصنف بالريال اليمني (Base Currency)
+                      const baseCost = iCurr === 'YER' ? rawCost : (window.CurrencyService ? window.CurrencyService.toBase(rawCost, iCurr).base_amount : rawCost);
+                      const baseTotalValue = (parseFloat(i.total_value) && iCurr === 'YER') ? parseFloat(i.total_value) : (qty * baseCost);
+
+                      // تحويل التكلفة والإجمالي إلى العملة المعروضة النشطة في النظام
+                      const displayCost = isBaseCurrency ? baseCost : (window.CurrencyService ? window.CurrencyService.fromBase(baseCost, activeTargetCurr) : baseCost);
+                      const displayTotal = isBaseCurrency ? baseTotalValue : (window.CurrencyService ? window.CurrencyService.fromBase(baseTotalValue, activeTargetCurr) : baseTotalValue);
                       let dateStr = i.supply_date || i.created_at || '—';
                       if (dateStr && dateStr.includes('T')) {
                         dateStr = dateStr.split('T')[0];
                       }
-                      const curr = i.currency || currencyDisplay;
                       const isLow = qty < 5;
                       const supplier = i.supplier_id || i.supplier || i.supplier_name || 'مورد عام';
                       const loc = i.location || 'المستودع الرئيسي';
@@ -387,7 +474,11 @@ function Inventory({ inventory = [], setInventory, purchases = [], orders = [], 
                           <td className="px-2.5 py-2.5 font-bold text-[#25232A] text-right align-middle truncate" title={name}>
                             <div className="flex items-center gap-1.5 truncate">
                               <span className="truncate">{name}</span>
-                              {isLow && <span className="text-[9px] bg-[#FFF1DC] text-[#C97300] border border-[#FFE4B9] px-1 py-0.2 rounded font-bold shrink-0">منخفض ⚠️</span>}
+                              {qty <= 0 ? (
+                                <span className="text-[9px] bg-rose-50 text-rose-600 border border-rose-200 px-1 py-0.2 rounded font-bold shrink-0">نفد المخزون 🚫</span>
+                              ) : isLow ? (
+                                <span className="text-[9px] bg-[#FFF1DC] text-[#C97300] border border-[#FFE4B9] px-1 py-0.2 rounded font-bold shrink-0">منخفض ⚠️</span>
+                              ) : null}
                             </div>
                           </td>
 
@@ -411,20 +502,20 @@ function Inventory({ inventory = [], setInventory, purchases = [], orders = [], 
                           {/* الخلية 5: التكلفة متوسط مرجح */}
                           <td className="px-2 py-2.5 text-left align-middle truncate">
                             <span className="font-mono text-[#6F6B75] font-semibold tabular-nums dir-ltr">
-                              {cost > 0 ? cost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
+                              {displayCost > 0 ? displayCost.toLocaleString('en-US', { minimumFractionDigits: isBaseCurrency ? 0 : 2, maximumFractionDigits: 2 }) : '0.00'}
                             </span>
                             <span className="text-[9.5px] font-normal font-sans text-[#6F6B75] mr-0.5">
-                              {curr}
+                              {activeCurrDef.code}
                             </span>
                           </td>
 
                           {/* الخلية 6: إجمالي القيمة */}
                           <td className="px-2 py-2.5 text-left align-middle truncate">
                             <span className="font-bold font-mono text-[#007F8C] tabular-nums dir-ltr">
-                              {totalValue > 0 ? totalValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
+                              {displayTotal > 0 ? displayTotal.toLocaleString('en-US', { minimumFractionDigits: isBaseCurrency ? 0 : 2, maximumFractionDigits: 2 }) : '0.00'}
                             </span>
                             <span className="text-[9.5px] font-normal font-sans text-[#007F8C] mr-0.5">
-                              {curr}
+                              {activeCurrDef.code}
                             </span>
                           </td>
 
@@ -657,7 +748,7 @@ function Inventory({ inventory = [], setInventory, purchases = [], orders = [], 
                   {filteredPurchases.map((p, idx) => {
                     const pBill = p.purchase_no || p.bill_no || `PUR-${idx+1}`;
                     const pSup = p.supplier_name || p.supplier || 'مورد عام';
-                    const pItem = p.fabric_name || p.item_name || p.item || 'صنف مشتريات';
+                    const pItem = (p.items && p.items.length > 0) ? p.items.map(it => it.item_name).join(' + ') : (p.fabric_name || p.item_name || p.item || 'صنف مشتريات');
                     const pQty = parseFloat(p.quantity || p.qty || 0);
                     const pCost = parseFloat(p.cost_per_unit || p.cost || p.price || 0);
                     const pTotal = parseFloat(p.total || (pQty * pCost));
