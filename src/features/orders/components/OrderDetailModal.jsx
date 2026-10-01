@@ -19,6 +19,8 @@ function OrderDetailModal({
   const pd = parseFloat(order.paid ?? order.paid_amount) || 0;
   const rem = Math.max(0, tot - pd);
   const dispChild = (order.child_name && String(order.child_name).trim()) ? order.child_name : (childMeas?.child_name || "الأميرة");
+  const delFee = parseFloat(order.delivery_fee || order.delivery || 0);
+  const delMode = order.delivery_payment_mode || 'DIRECT_TO_COURIER';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn" dir="rtl">
@@ -85,6 +87,17 @@ function OrderDetailModal({
                 <div className="p-1.5 bg-gray-50 dark:bg-slate-800 rounded-lg">خصر: <b>{childMeas.waist || '—'}</b></div>
                 <div className="p-1.5 bg-gray-50 dark:bg-slate-800 rounded-lg">كتف: <b>{childMeas.shoulder || '—'}</b></div>
               </div>
+            </div>
+          )}
+
+          {delFee > 0 && (
+            <div className="mt-2 pt-2 border-t border-dashed border-gray-200 dark:border-slate-800 flex justify-between items-center text-xs">
+              <span className="text-[#6F6B75] dark:text-slate-400">خدمة التوصيل:</span>
+              <span className="font-bold font-mono">
+                {delMode === 'PREPAID_VIA_ATELIER'
+                  ? `🚚 مدفوع مسبقاً للأتيليه (+${delFee.toLocaleString()} ${currencyDisplay.split(' ')[0]})`
+                  : `🛵 يُدفع مباشرة للسائق عند الاستلام (${delFee.toLocaleString()} ${currencyDisplay.split(' ')[0]})`}
+              </span>
             </div>
           )}
         </div>

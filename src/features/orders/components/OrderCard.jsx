@@ -21,6 +21,8 @@ function OrderCard({
   const dispChild = (order.child_name && String(order.child_name).trim()) ? order.child_name : (childMeas?.child_name || "الأميرة");
   const dispDate = order.delivery_date ? String(order.delivery_date).split('T')[0] : '—';
   const isPos = order.order_no?.startsWith('POS-') || order.status === 'جاهز للتسليم 🛍️';
+  const delFee = parseFloat(order.delivery_fee || order.delivery || 0);
+  const delMode = order.delivery_payment_mode || 'DIRECT_TO_COURIER';
 
   return (
     <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-[#E8E5EA] dark:border-slate-800 p-4 shadow-2xs hover:shadow-md transition-all space-y-3">
@@ -53,6 +55,16 @@ function OrderCard({
           <span className="text-[#6F6B75] dark:text-slate-400 text-[11px]">موعد التسليم:</span>
           <span className="font-mono font-bold text-amber-700 dark:text-amber-400">{dispDate}</span>
         </div>
+        {delFee > 0 && (
+          <div className="flex justify-between items-center text-[10.5px] pt-1 border-t border-gray-100 dark:border-slate-800">
+            <span className="text-[#6F6B75] dark:text-slate-400">التوصيل:</span>
+            {delMode === 'PREPAID_VIA_ATELIER' ? (
+              <span className="font-bold text-[#8F2A87] dark:text-purple-300 font-mono">🚚 مدفوع للأتيليه (+{delFee.toLocaleString()})</span>
+            ) : (
+              <span className="font-bold text-amber-700 dark:text-amber-400 font-mono">🛵 للسائق عند الاستلام ({delFee.toLocaleString()})</span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Measurements if available */}

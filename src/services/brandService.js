@@ -14,13 +14,13 @@
     name: 'مؤسسة الأميرات الصغيرات',
     shortName: 'الأميرات الصغيرات',
     tradeName: 'دار الأميرات الصغيرات للأزياء الفاخرة',
-    tagline: 'دار الأزياء والتفصيل الراقي لفساتين الأميرات ✨',
+    tagline: 'دار أزياء وتفصيل فساتين الأميرات الراقية | عراقة التصميم وأناقة الطفولة',
     phone: '776773458',
     address: 'اليمن - صنعاء - شارع حدة',
     email: 'info@littleprincesses.com',
     taxNumber: 'CR-1010-009283',
     commercialRegister: 'CR-1010-009283',
-    logoUrl: 'logo.png',
+    logoUrl: 'logo.svg',
     systemIcon: '👑',
     footerNote: 'وثيقة رسمية معتمدة عبر Little Princesses ERP'
   };
@@ -44,6 +44,8 @@
 
       var name = profile.name || legacyName || DEFAULT_PROFILE.name;
       var email = profile.email || legacyEmail || DEFAULT_PROFILE.email;
+      var rawLogo = profile.logoUrl || legacyLogo || DEFAULT_PROFILE.logoUrl;
+      var safeLogo = (!rawLogo || rawLogo === 'logo.png') ? 'logo.svg' : rawLogo;
 
       return {
         name: name,
@@ -55,7 +57,7 @@
         email: email,
         taxNumber: profile.taxNumber || profile.tax_id || DEFAULT_PROFILE.taxNumber,
         commercialRegister: profile.commercialRegister || profile.cr_number || DEFAULT_PROFILE.commercialRegister,
-        logoUrl: profile.logoUrl || legacyLogo || DEFAULT_PROFILE.logoUrl,
+        logoUrl: safeLogo,
         systemIcon: profile.systemIcon || DEFAULT_PROFILE.systemIcon,
         footerNote: profile.footerNote || DEFAULT_PROFILE.footerNote
       };

@@ -1,14 +1,24 @@
+/**
+ * ============================================================================
+ * App.jsx — Central Application Orchestrator & Root Layout
+ * Architecture: Layout Coordinator Pattern | Little Princesses ERP
+ * ============================================================================
+ */
+
 function App() {
-  const { useState, useEffect, useCallback, useMemo } = React;
-  const PurchasesComponent = typeof Purchases !== 'undefined' ? Purchases : (typeof window !== 'undefined' ? window.Purchases : null);
-  const VouchersComponent = typeof Vouchers !== 'undefined' ? Vouchers : (typeof window !== 'undefined' ? window.Vouchers : null);
-  const ReportsComponent = typeof Reports !== 'undefined' ? Reports : (typeof window !== 'undefined' ? window.Reports : null);
-  
+  const { useState, useEffect, useCallback } = React;
+
+  const RouterComp = window.AppRouter || (() => null);
+  const ModalsComp = window.AppModals || (() => null);
+  const useData = window.useAppData || (() => ({}));
+  const appData = useData();
+
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [toast, setToast] = useState(null);
+  const [loginModalOpen, setLoginModalOpen] = useState(false);
+  const [usersModalOpen, setUsersModalOpen] = useState(false);
 
-  // ── إدارة المستخدم النشط والصلاحيات (RBAC State) ──
   const [currentUser, setCurrentUser] = useState(() => {
     try {
       const stored = localStorage.getItem('erp_active_user');
@@ -17,10 +27,6 @@ function App() {
     return { id: 1, username: 'admin', full_name: 'المدير العام', role: 'admin', role_label: 'المدير العام', is_active: 1 };
   });
 
-  const [loginModalOpen, setLoginModalOpen] = useState(false);
-  const [usersModalOpen, setUsersModalOpen] = useState(false);
-
-  // ── العملة الافتراضية — تُحمَّل من localStorage عند أول تشغيل ──
   const [systemCurrency, setSystemCurrency] = useState(() => {
     try {
       const stored = localStorage.getItem('erp_system_currency');
@@ -33,31 +39,12 @@ function App() {
     } catch(e) { return { code: 'YER', symbol: '﷼', label: 'ريال يمني', display: 'YER ﷼', is_base: true }; }
   });
 
-  const [customers, setCustomers] = useState([]);
-  const [inventory, setInventory] = useState([]);
-  const [accounts, setAccounts] = useState(typeof INITIAL_ACCOUNTS !== 'undefined' ? INITIAL_ACCOUNTS : []);
-  const [products, setProducts] = useState([]);
-  const [orders, setOrders] = useState([]);
-  const [purchases, setPurchases] = useState([]);
-  const [factory, setFactory] = useState([]);
-  const [vouchers, setVouchers] = useState([]);
-  const [expenses, setExpenses] = useState([]);
-  const [journal, setJournal] = useState([]);
-  const [feedback, setFeedback] = useState([]);
-  const [campaigns, setCampaigns] = useState([]);
-  
-  // Local states for new modules
-  const [employees, setEmployees] = useState([]);
-  const [payroll, setPayroll] = useState([]);
-  const [targetProductionJob, setTargetProductionJob] = useState(null);
-
   const showToast = useCallback((msg, type = 'success') => {
     const text = typeof msg === 'object' ? (msg.message || String(msg)) : String(msg);
     setToast(text);
     setTimeout(() => setToast(null), 3500);
   }, []);
 
-  // ── حراسة التبويبات حسب الصلاحيات (Role-Based Tab Guard) ──
   useEffect(() => {
     const role = currentUser?.role || 'admin';
     let allowed = [];
@@ -70,55 +57,14 @@ function App() {
     } else {
       allowed = ['dashboard', 'customers', 'products', 'orders', 'factory', 'inventory', 'purchases', 'accounts', 'vouchers', 'expenses', 'journal', 'reports', 'marketing', 'hr', 'feedback', 'settings'];
     }
-
-    if (!allowed.includes(activeTab)) {
-      setActiveTab(allowed[0] || 'dashboard');
-    }
+    if (!allowed.includes(activeTab)) setActiveTab(allowed[0] || 'dashboard');
   }, [currentUser, activeTab]);
 
   useEffect(() => {
-    // ── جلب فوري وسريع لشجرة الحسابات الحية من الخادم المحلي فور الإقلاع ──
-    fetch('/api/accounts/list')
-      .then(r => r.json())
-      .then(d => {
-        const list = (d && Array.isArray(d.data)) ? d.data : (Array.isArray(d) ? d : []);
-        if (list.length > 0) setAccounts(list);
-      })
-      .catch(() => {});
+    if (window.authAPI && typeof window.authAPI.getCurrentUser === 'function') {
+      window.authAPI.getCurrentUser().then(u => { if (u) setCurrentUser(u); }).catch(() => {});
+    }
 
-    const initData = async () => {
-      try {
-        if (window.authAPI && typeof window.authAPI.getCurrentUser === 'function') {
-          const u = await window.authAPI.getCurrentUser();
-          if (u) setCurrentUser(u);
-        }
-
-        if (typeof window.loadAllData === 'function') {
-          const data = await window.loadAllData();
-          if (data) {
-            setCustomers(data.customers || []);
-            setInventory(data.inventory || []);
-            setAccounts(data.accounts || []);
-            setProducts(data.products || []);
-            setOrders(data.orders || []);
-            setPurchases(data.purchases || []);
-            setFactory(data.factory || []);
-            setVouchers(data.vouchers || []);
-            setExpenses(data.expenses || []);
-            setJournal(data.journal || []);
-            setFeedback(data.feedback || []);
-            setCampaigns(data.campaigns || data.marketing_campaigns || []);
-            setEmployees(data.employees || []);
-            setPayroll(data.payroll || []);
-          }
-        }
-      } catch (e) {
-        console.error('Failed to load initial data', e);
-      }
-    };
-    initData();
-
-    // ── الاستماع لتغيير العملة من شاشة الإعدادات ──
     const handleCurrencyChange = (e) => {
       const opts = [
         { code: 'YER', symbol: '﷼', label: 'ريال يمني',    display: 'YER ﷼', is_base: true },
@@ -130,7 +76,6 @@ function App() {
     };
     window.addEventListener('erp:currencyChanged', handleCurrencyChange);
 
-    // ── توحيد الأرقام باللغة الإنجليزية (English Numerals Standardizer) ──
     const handleInput = (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
         const val = e.target.value;
@@ -155,157 +100,79 @@ function App() {
     setLoginModalOpen(true);
   }, [showToast]);
 
-  const allTabs = [
-    { id: 'dashboard', label: 'الرئيسية', icon: Icons.Dashboard },
-    { id: 'customers', label: 'العملاء و CRM', icon: Icons.Users },
-    { id: 'products', label: 'المنتجات والتصاميم', icon: Icons.Calculator },
-    { id: 'orders', label: 'المبيعات والطلبات', icon: Icons.ShoppingBag },
-    { id: 'factory', label: 'المعمل والإنتاج', icon: Icons.Factory },
-    { id: 'inventory', label: 'المخزون والمستودعات', icon: Icons.Scissors },
-    { id: 'purchases', label: 'المشتريات والموردون', icon: Icons.Purchases },
-    { id: 'accounts', label: 'شجرة الحسابات', icon: Icons.Accounts },
-    { id: 'vouchers', label: 'السندات المالية', icon: Icons.Vouchers },
-    { id: 'expenses', label: 'المصاريف التشغيلية', icon: Icons.Expenses },
-    { id: 'journal', label: 'القيود اليومية', icon: Icons.Journal },
-    { id: 'reports', label: 'التقارير المالية', icon: Icons.Reports },
-    { id: 'marketing', label: 'التسويق والعروض', icon: Icons.Marketing },
-    { id: 'hr', label: 'الموظفون والرواتب', icon: Icons.HR },
-    { id: 'feedback', label: 'الجودة والتقييمات', icon: Icons.Star },
-    { id: 'settings', label: 'الإعدادات', icon: Icons.Settings }
-  ];
+  const allTabs = window.ALL_TABS || [];
+
+  const AppLayoutComp = window.AppLayout || window.MainLayout;
 
   return (
-    <div className="min-h-screen bg-[#FAFAFB] text-[#25232A] flex flex-row w-full overflow-x-hidden font-sans" dir="rtl">
-      {typeof Toast !== 'undefined' && <Toast toast={toast} onClose={() => setToast(null)} />}
-      
-      {/* 1. Right-side Collapsible RTL Sidebar */}
-      {typeof Sidebar !== 'undefined' && (
-        <Sidebar
+    <React.Fragment>
+      {AppLayoutComp ? (
+        <AppLayoutComp
           activeTab={activeTab}
           setActiveTab={setActiveTab}
-          isCollapsed={isSidebarCollapsed}
-          setIsCollapsed={setIsSidebarCollapsed}
           currentUser={currentUser}
+          systemCurrency={systemCurrency}
+          setSystemCurrency={setSystemCurrency}
+          isSidebarCollapsed={isSidebarCollapsed}
+          setIsSidebarCollapsed={setIsSidebarCollapsed}
+          onOpenLogin={() => setLoginModalOpen(true)}
           onOpenUsersModal={() => setUsersModalOpen(true)}
           onLogout={handleLogout}
-        />
-      )}
-
-      {/* 2. Main Workspace Layout */}
-      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-y-auto">
-        {typeof Header !== 'undefined' && (
-          <Header 
-            activeTab={activeTab} 
-            setActiveTab={setActiveTab} 
-            allTabs={allTabs} 
-            currentUser={currentUser}
-            onOpenLogin={() => setLoginModalOpen(true)}
-            onOpenUsersModal={() => setUsersModalOpen(true)}
-            onLogout={handleLogout}
-            onToggleSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-            isSidebarCollapsed={isSidebarCollapsed}
-            currency={systemCurrency}
+        >
+          <RouterComp
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            systemCurrency={systemCurrency}
+            showToast={showToast}
+            {...appData}
           />
-        )}
-        
-        <main className="flex-1 px-4 md:px-6 lg:px-8 py-6 max-w-[1600px] w-full mx-auto pb-20">
-          {activeTab === "dashboard"  && typeof Dashboard !== 'undefined' && <Dashboard setActiveTab={setActiveTab} orders={orders} accounts={accounts} journal={journal} vouchers={vouchers} purchases={purchases} expenses={expenses} factory={factory} customers={customers} currency={systemCurrency} />}
-          {activeTab === "customers"  && typeof Customers !== 'undefined' && <Customers customers={customers} setCustomers={setCustomers} products={products} orders={orders} showToast={showToast} currency={systemCurrency} onSendToFactory={(jobData) => { setTargetProductionJob(jobData); setActiveTab('factory'); }} />}
-          {activeTab === "products"   && typeof Products !== 'undefined'  && <Products products={products} setProducts={setProducts} inventory={inventory} showToast={showToast} currency={systemCurrency} />}
-          {activeTab === "orders"     && typeof Orders !== 'undefined'    && <Orders orders={orders} setOrders={setOrders} customers={customers} products={products} campaigns={campaigns} showToast={showToast} currency={systemCurrency} />}
-          {activeTab === "purchases"  && PurchasesComponent && <PurchasesComponent purchases={purchases} setPurchases={setPurchases} inventory={inventory} setInventory={setInventory} accounts={accounts} setAccounts={setAccounts} vouchers={vouchers} setVouchers={setVouchers} journal={journal} setJournal={setJournal} showToast={showToast} currency={systemCurrency} />}
-          {activeTab === "inventory"  && typeof Inventory !== 'undefined'  && <Inventory inventory={inventory} setInventory={setInventory} purchases={purchases} orders={orders} showToast={showToast} currency={systemCurrency} />}
-          {activeTab === "accounts"   && typeof Accounts !== 'undefined'   && <Accounts accounts={accounts} setAccounts={setAccounts} journal={journal} setJournal={setJournal} vouchers={vouchers} setVouchers={setVouchers} showToast={showToast} currency={systemCurrency} />}
-          {activeTab === "factory"    && typeof Factory !== 'undefined'    && <Factory factory={factory} setFactory={setFactory} employees={employees} orders={orders} setOrders={setOrders} products={products} setProducts={setProducts} inventory={inventory} setInventory={setInventory} customers={customers} setCustomers={setCustomers} accounts={accounts} showToast={showToast} targetJob={targetProductionJob} onClearTargetJob={() => setTargetProductionJob(null)} />}
-          {activeTab === "vouchers"   && VouchersComponent && <VouchersComponent vouchers={vouchers} setVouchers={setVouchers} accounts={accounts} setAccounts={setAccounts} journal={journal} setJournal={setJournal} showToast={showToast} currency={systemCurrency} customers={customers} setCustomers={setCustomers} orders={orders} setOrders={setOrders} expenses={expenses} setExpenses={setExpenses} purchases={purchases} employees={employees} />}
-          {activeTab === "expenses"   && typeof Expenses !== 'undefined'   && <Expenses expenses={expenses} setExpenses={setExpenses} accounts={accounts} setAccounts={setAccounts} vouchers={vouchers} setVouchers={setVouchers} journal={journal} setJournal={setJournal} showToast={showToast} currency={systemCurrency} />}
-          {activeTab === "journal"    && typeof Journal !== 'undefined'    && <Journal journal={journal} setJournal={setJournal} accounts={accounts} setAccounts={setAccounts} vouchers={vouchers} setVouchers={setVouchers} showToast={showToast} currency={systemCurrency} customers={customers} purchases={purchases} employees={employees} />}
-          {activeTab === "reports"    && ReportsComponent && <ReportsComponent orders={orders} expenses={expenses} vouchers={vouchers} journal={journal} accounts={accounts} purchases={purchases} customers={customers} inventory={inventory} products={products} showToast={showToast} currency={systemCurrency} />}
-          {activeTab === "marketing"  && typeof Marketing !== 'undefined'  && <Marketing campaigns={campaigns} setCampaigns={setCampaigns} products={products} accounts={accounts} showToast={showToast} currency={systemCurrency} />}
-          {activeTab === "hr"         && typeof HR !== 'undefined'         && <HR employees={employees} setEmployees={setEmployees} payroll={payroll} setPayroll={setPayroll} accounts={accounts} journal={journal} setJournal={setJournal} factory={factory} showToast={showToast} currency={systemCurrency} />}
-          {activeTab === "feedback"   && typeof Feedback !== 'undefined'   && <Feedback feedback={feedback} setFeedback={setFeedback} customers={customers} setCustomers={setCustomers} products={products} orders={orders} setOrders={setOrders} factory={factory} setFactory={setFactory} inventory={inventory} purchases={purchases} expenses={expenses} setExpenses={setExpenses} journal={journal} setJournal={setJournal} employees={employees} campaigns={campaigns} showToast={showToast} currency={systemCurrency} />}
-          {activeTab === "settings"   && typeof Settings !== 'undefined'   && <Settings showToast={showToast} currency={systemCurrency} />}
-        </main>
-
-        <footer className="bg-white border-t border-[#E8E5EA] py-3.5 px-6 text-xs text-[#6F6B75] flex flex-col sm:flex-row items-center justify-between gap-2 shrink-0">
-          <div className="flex items-center gap-2">
-            <span className="font-bold text-[#B0005A]">{(typeof window !== 'undefined' && window.BrandService) ? window.BrandService.getProfile().name : 'نظام الإدارة المتكامل الذكي'}</span>
-            <span>-</span>
-            <span>{(typeof window !== 'undefined' && window.BrandService) ? window.BrandService.getProfile().tagline : 'نظام تخطيط وإدارة موارد المؤسسات الموحد'}</span>
-          </div>
-          <span className="text-[11px] font-semibold text-[#8F2A87] bg-[#F2E7F3] px-2.5 py-0.5 rounded-full border border-[#E5CEE7]">
-            Enterprise SaaS Edition
-          </span>
-        </footer>
-      </div>
-
-      {/* ── Modals ── */}
-      {typeof LoginModal !== 'undefined' && (
-        <LoginModal 
-          isOpen={loginModalOpen} 
-          onClose={() => setLoginModalOpen(false)} 
-          onLoginSuccess={(user) => {
-            setCurrentUser(user);
-            showToast(`مرحباً بك ${user.full_name || user.username} 👤`);
-          }} 
-          showToast={showToast} 
-        />
+          <footer className="py-1 px-4 text-[10px] text-slate-500 dark:text-slate-400 border-t border-slate-200/60 dark:border-slate-800/60 flex items-center justify-between shrink-0 select-none">
+            <div className="flex items-center gap-1.5 truncate">
+              <span className="font-bold text-[#B0005A]">{(typeof window !== 'undefined' && window.BrandService) ? window.BrandService.getProfile().name : 'نظام الإدارة المتكامل الذكي'}</span>
+              <span>•</span>
+              <span className="truncate">{(typeof window !== 'undefined' && window.BrandService) ? window.BrandService.getProfile().tagline : 'نظام تخطيط وإدارة موارد المؤسسات الموحد'}</span>
+            </div>
+            <span className="text-[9.5px] font-mono font-semibold text-slate-400 shrink-0">
+              Enterprise SaaS Edition
+            </span>
+          </footer>
+        </AppLayoutComp>
+      ) : (
+        <div className="flex h-screen w-screen overflow-hidden bg-slate-50 dark:bg-[#0B132B] text-slate-900 dark:text-slate-100" dir="rtl">
+          <main className="flex-1 overflow-y-auto p-6">
+            <RouterComp
+              activeTab={activeTab}
+              setActiveTab={setActiveTab}
+              systemCurrency={systemCurrency}
+              showToast={showToast}
+              {...appData}
+            />
+          </main>
+        </div>
       )}
 
-      {typeof UsersModal !== 'undefined' && (
-        <UsersModal 
-          isOpen={usersModalOpen} 
-          onClose={() => setUsersModalOpen(false)} 
-          showToast={showToast} 
-          currentRole={currentUser?.role} 
-        />
-      )}
-    </div>
+      <ModalsComp
+        toast={toast}
+        setToast={setToast}
+        loginModalOpen={loginModalOpen}
+        setLoginModalOpen={setLoginModalOpen}
+        usersModalOpen={usersModalOpen}
+        setUsersModalOpen={setUsersModalOpen}
+        currentUser={currentUser}
+        setCurrentUser={setCurrentUser}
+        showToast={showToast}
+      />
+    </React.Fragment>
   );
 }
 
-class ErrorBoundary extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
-  static getDerivedStateFromError(error) {
-    return { hasError: true, error: error };
-  }
-  componentDidCatch(error, errorInfo) {
-    console.error("ErrorBoundary caught an error:", error, errorInfo);
-  }
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-center p-6 text-center" dir="rtl">
-          <div className="w-16 h-16 rounded-2xl bg-pink-600/20 text-[#D81B60] flex items-center justify-center text-3xl mb-4 border border-pink-500/30">
-            🏢
-          </div>
-          <h2 className="text-lg font-bold mb-2">نظام الإدارة المتكامل الذكي — ERP Master</h2>
-          <p className="text-xs text-slate-400 max-w-md mb-3">
-            حدث تنبيه مؤقت في تحميل الواجهة:
-          </p>
-          <div className="bg-slate-800/90 border border-slate-700 p-3.5 rounded-xl text-rose-300 text-xs font-mono max-w-2xl overflow-x-auto text-left mb-6 whitespace-pre-wrap select-all" dir="ltr">
-            {String(this.state.error?.stack || this.state.error?.message || this.state.error)}
-          </div>
-          <button 
-            onClick={() => window.location.reload()}
-            className="px-6 py-2.5 bg-gradient-to-r from-[#D81B60] to-[#AD1457] text-white rounded-xl text-xs font-bold shadow-md hover:opacity-90 transition cursor-pointer"
-          >
-            🔄 إعادة تنشيط الصفحة
-          </button>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
-}
+window.App = App;
 
 if (typeof ReactDOM !== 'undefined') {
+  const RootBoundary = window.ErrorBoundary || React.Fragment;
   ReactDOM.createRoot(document.getElementById("root")).render(
-    <ErrorBoundary>
+    <RootBoundary>
       <App />
-    </ErrorBoundary>
+    </RootBoundary>
   );
 }

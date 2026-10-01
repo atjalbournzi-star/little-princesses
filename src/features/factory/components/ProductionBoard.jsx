@@ -1,3 +1,8 @@
+/**
+ * ProductionBoard.jsx - جدول ومسار أوامر التشغيل وخطوط التصنيع
+ * Little Princesses ERP - Production Floor Architecture
+ */
+
 function ProductionBoard({
   filteredFactory = [],
   stockInflowLoading = {},
@@ -8,6 +13,8 @@ function ProductionBoard({
   handleOpenDeliveryModal,
   handleReverseDelivery,
   handleOpenPrintModal,
+  handleOpenJobTicket,
+  setModelPreviewData,
   loadIntoForm,
   handleDeleteOrder
 }) {
@@ -18,7 +25,7 @@ function ProductionBoard({
       <table className="w-full text-xs">
         <thead>
           <tr className="bg-[#FAFAFB] text-[#6F6B75] font-semibold border-b border-[#E8E5EA]">
-            <th className="px-4 py-3.5 text-right whitespace-nowrap">الطلب والعميلة</th>
+            <th className="px-4 py-3.5 text-right whitespace-nowrap">الطلب ونوع الإنتاج</th>
             <th className="px-4 py-3.5 text-right whitespace-nowrap">الموديل والتفاصيل</th>
             <th className="px-4 py-3.5 text-right whitespace-nowrap">فريق العمل والمراحل</th>
             <th className="px-4 py-3.5 text-right w-1/4 whitespace-nowrap">مرحلة ونسبة الإنجاز</th>
@@ -49,6 +56,8 @@ function ProductionBoard({
                 handleOpenDeliveryModal={handleOpenDeliveryModal}
                 handleReverseDelivery={handleReverseDelivery}
                 handleOpenPrintModal={handleOpenPrintModal}
+                handleOpenJobTicket={handleOpenJobTicket}
+                setModelPreviewData={setModelPreviewData}
                 loadIntoForm={loadIntoForm}
                 handleDeleteOrder={handleDeleteOrder}
               />

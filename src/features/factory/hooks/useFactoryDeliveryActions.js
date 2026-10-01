@@ -57,14 +57,17 @@ function useFactoryDeliveryActions(props) {
     const orderLabel = f.order_no || f.id;
     const ord = (orders || []).find(o => o.order_no === orderLabel || o.id === orderLabel) || {
       order_no: orderLabel, customer_name: f.customer || f.customer_name, child_name: f.child_name,
-      product_name: f.product || f.product_name, total_amount: f.total_amount || 0, total: f.total || 0,
+      product_name: f.product || f.product_name, total_amount: f.total_amount || f.total_price || 0, total: f.total || f.total_price || 0,
       paid_amount: f.paid_amount || 0, paid: f.paid || 0, qty: f.quantity || 1
     };
-    const tot = parseFloat(ord.total_amount ?? ord.total ?? 0), pd = parseFloat(ord.paid_amount ?? ord.paid ?? 0);
+    const tot = parseFloat(f.total_price ?? f.total_amount ?? ord.total_price ?? ord.total_amount ?? ord.total ?? 0);
+    const pd = parseFloat(f.paid_amount ?? ord.paid_amount ?? ord.paid ?? ord.deposit ?? 0);
     const rem = Math.max(0, tot - pd);
+    const delFee = parseFloat(f.delivery_fee ?? ord.delivery_fee ?? ord.delivery ?? 0);
+    const delMode = f.delivery_payment_mode || ord.delivery_payment_mode || 'DIRECT_TO_COURIER';
     setDeliveryForm({ amount_collected: String(rem), discount: '0', account_id: 'ACC-101', payment_method: 'نقد (كاش)', notes: '' });
     setDeliveredSuccessData(null);
-    setDeliveryModalData({ ...f, order: ord, resolvedTotal: tot, resolvedPaid: pd, resolvedRemaining: rem });
+    setDeliveryModalData({ ...f, order: ord, resolvedTotal: tot, resolvedPaid: pd, resolvedRemaining: rem, delivery_fee: delFee, delivery_payment_mode: delMode });
   };
 
   const handleConfirmDelivery = async () => {

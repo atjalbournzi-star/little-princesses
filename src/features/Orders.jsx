@@ -109,15 +109,40 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
   };
 
   return (
-    <div className="space-y-6 animate-fadeIn text-right" dir="rtl">
-      {HeaderComp && <HeaderComp activeMode={activeMode} setActiveMode={setActiveMode} cartCount={cart.reduce((s, i) => s + (i.qty || 1), 0)} ordersCount={orders.length} onOpenScanDeliver={() => setScanDeliverModalOpen(true)} isEditing={isEditing} onCancelEdit={handleCancelEdit} onOpenNewOrder={() => { handleCancelEdit(); setShowFormModal(true); }} stats={stats} />}
-
+    <div className={`animate-fadeIn text-right ${activeMode === 'pos' ? 'h-full flex flex-col overflow-hidden' : 'h-full flex flex-col p-4 space-y-4 overflow-y-auto custom-scrollbar'}`} dir="rtl">
       {activeMode === 'pos' && PosStudioComp && (
-        <PosStudioComp products={products} customers={customers} currencyDisplay={currencyDisplay} cart={cart} setCart={setCart} onCheckout={handlePOSCheckout} isSubmittingPOS={isSubmittingPOS} showToast={showToast} />
+        <PosStudioComp
+          products={products}
+          customers={customers}
+          currencyDisplay={currencyDisplay}
+          cart={cart}
+          setCart={setCart}
+          onCheckout={handlePOSCheckout}
+          isSubmittingPOS={isSubmittingPOS}
+          showToast={showToast}
+          activeMode={activeMode}
+          setActiveMode={setActiveMode}
+          ordersCount={orders.length}
+          onOpenScanDeliver={() => setScanDeliverModalOpen(true)}
+          stats={stats}
+        />
       )}
 
       {activeMode === 'archive' && (
         <div className="space-y-6">
+          {HeaderComp && (
+            <HeaderComp
+              activeMode={activeMode}
+              setActiveMode={setActiveMode}
+              cartCount={cart.reduce((s, i) => s + (i.qty || 1), 0)}
+              ordersCount={orders.length}
+              onOpenScanDeliver={() => setScanDeliverModalOpen(true)}
+              isEditing={isEditing}
+              onCancelEdit={handleCancelEdit}
+              onOpenNewOrder={() => { handleCancelEdit(); setShowFormModal(true); }}
+              stats={stats}
+            />
+          )}
           {(showFormModal || isEditing) && FormModalComp && (
             <FormModalComp isOpen={showFormModal || isEditing} onClose={handleCancelEdit} isEditing={isEditing} editingOrderId={editingOrderId} editingOrder={editingOrder} customers={customers} products={products} campaigns={campaigns} currencyDisplay={currencyDisplay} onSaveInvoice={handleSaveInvoice} onOpenQuote={handleOpenQuote} />
           )}

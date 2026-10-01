@@ -1,7 +1,17 @@
+/**
+ * ============================================================================
+ * UsersModal.jsx — Users & Permissions (RBAC) Orchestrator
+ * Architecture: Modular Component Pattern | Little Princesses ERP
+ * ============================================================================
+ */
+
 const { useState, useEffect, useMemo, useCallback } = React;
 
 function UsersModal({ isOpen, onClose, showToast, currentRole }) {
   if (!isOpen) return null;
+
+  const FormComp = window.UserFormModal || (() => null);
+  const TableComp = window.UserPermissionsTable || (() => null);
 
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -39,21 +49,12 @@ function UsersModal({ isOpen, onClose, showToast, currentRole }) {
   }, [showToast]);
 
   useEffect(() => {
-    if (isOpen) {
-      fetchUsers();
-    }
+    if (isOpen) fetchUsers();
   }, [isOpen, fetchUsers]);
 
   const handleOpenAdd = () => {
     setEditingUser(null);
-    setFormData({
-      id: null,
-      username: '',
-      full_name: '',
-      password: '',
-      role: 'data_entry',
-      is_active: 1
-    });
+    setFormData({ id: null, username: '', full_name: '', password: '', role: 'data_entry', is_active: 1 });
     setShowAddForm(true);
   };
 
@@ -145,7 +146,6 @@ function UsersModal({ isOpen, onClose, showToast, currentRole }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md animate-fadeIn" dir="rtl">
       <div className="relative w-full max-w-4xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden max-h-[90vh] flex flex-col">
-        
         {/* Header */}
         <div className="bg-[#0F172A] border-b-2 border-[#D81B60] px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -173,7 +173,6 @@ function UsersModal({ isOpen, onClose, showToast, currentRole }) {
               <span>☁️</span>
               <span className="hidden sm:inline">مزامنة سحابية</span>
             </button>
-
             <button
               type="button"
               onClick={onClose}
@@ -186,7 +185,6 @@ function UsersModal({ isOpen, onClose, showToast, currentRole }) {
 
         {/* Content Body */}
         <div className="p-6 overflow-y-auto flex-1 space-y-5">
-          
           {/* Top Action Bar */}
           <div className="flex items-center justify-between flex-wrap gap-3">
             <div className="relative flex-1 min-w-[240px]">
@@ -211,172 +209,24 @@ function UsersModal({ isOpen, onClose, showToast, currentRole }) {
           </div>
 
           {/* Add / Edit Form Card */}
-          {showAddForm && (
-            <form onSubmit={handleSave} className="p-5 rounded-2xl bg-gradient-to-r from-slate-50 via-pink-50/20 to-slate-50 border border-slate-200 space-y-4 animate-fadeIn">
-              <div className="flex items-center justify-between border-b border-slate-200/80 pb-3">
-                <h3 className="font-bold text-xs text-slate-900 flex items-center gap-2">
-                  <span>{editingUser ? '✏️ تعديل بيانات المستخدم' : '👤 إضافة مستخدم جديد للنظام'}</span>
-                </h3>
-                <button
-                  type="button"
-                  onClick={() => setShowAddForm(false)}
-                  className="text-xs text-slate-500 hover:text-slate-700 font-bold"
-                >
-                  إلغاء ✕
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">اسم المستخدم (Username) *</label>
-                  <input
-                    type="text"
-                    required
-                    className="w-full h-10 px-3 rounded-xl border border-slate-200 bg-white text-xs font-mono font-bold focus:border-[#00ACC1] focus:ring-2 focus:ring-cyan-100 outline-none"
-                    placeholder=""
-                    value={formData.username}
-                    onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">الاسم الكامل (Full Name)</label>
-                  <input
-                    type="text"
-                    className="w-full h-10 px-3 rounded-xl border border-slate-200 bg-white text-xs font-bold focus:border-[#00ACC1] focus:ring-2 focus:ring-cyan-100 outline-none"
-                    placeholder=""
-                    value={formData.full_name}
-                    onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    {editingUser ? 'كلمة المرور (اتركه فارغاً للإبقاء عليها)' : 'كلمة المرور *'}
-                  </label>
-                  <input
-                    type="password"
-                    required={!editingUser}
-                    className="w-full h-10 px-3 rounded-xl border border-slate-200 bg-white text-xs font-mono font-bold focus:border-[#00ACC1] focus:ring-2 focus:ring-cyan-100 outline-none"
-                    placeholder={editingUser ? '••••••••' : 'كلمة المرور'}
-                    value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">الدور الوظيفي والصلاحيات *</label>
-                  <select
-                    className="w-full h-10 px-3 rounded-xl border border-slate-200 bg-white text-xs font-bold focus:border-[#00ACC1] focus:ring-2 focus:ring-cyan-100 outline-none"
-                    value={formData.role}
-                    onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                  >
-                    {rolesList.map(r => (
-                      <option key={r.value} value={r.value}>{r.label}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between pt-2">
-                <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={formData.is_active === 1}
-                    onChange={(e) => setFormData({ ...formData, is_active: e.target.checked ? 1 : 0 })}
-                    className="w-4 h-4 rounded text-[#D81B60] focus:ring-[#00ACC1]"
-                  />
-                  <span>الحساب نشط ومفعّل لتسجيل الدخول</span>
-                </label>
-
-                <button
-                  type="submit"
-                  className="h-9 px-6 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 shadow-sm transition flex items-center gap-1.5 cursor-pointer"
-                >
-                  <span>💾</span>
-                  <span>{editingUser ? 'تحديث المستخدم' : 'حفظ المستخدم الجديد'}</span>
-                </button>
-              </div>
-            </form>
-          )}
+          <FormComp
+            showAddForm={showAddForm}
+            setShowAddForm={setShowAddForm}
+            editingUser={editingUser}
+            formData={formData}
+            setFormData={setFormData}
+            handleSave={handleSave}
+            rolesList={rolesList}
+          />
 
           {/* Users Table */}
-          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
-            <table className="w-full text-right text-xs">
-              <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold">
-                <tr>
-                  <th className="p-3.5">#</th>
-                  <th className="p-3.5">المستخدم والاسم</th>
-                  <th className="p-3.5">اسم الدخول</th>
-                  <th className="p-3.5">الدور الوظيفي</th>
-                  <th className="p-3.5 text-center">الحالة</th>
-                  <th className="p-3.5 text-center">الإجراءات</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 font-medium">
-                {loading ? (
-                  <tr>
-                    <td colSpan={6} className="p-8 text-center text-slate-400 font-bold">
-                      جاري تحميل المستخدمين... ⏳
-                    </td>
-                  </tr>
-                ) : filteredUsers.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="p-8 text-center text-slate-400 font-bold">
-                      لا يوجد مستخدمين مطابقين للبحث
-                    </td>
-                  </tr>
-                ) : (
-                  filteredUsers.map((u, idx) => (
-                    <tr key={u.id || idx} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="p-3.5 font-mono text-slate-400 font-bold">{u.id}</td>
-                      <td className="p-3.5 font-bold text-slate-900 flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-lg bg-slate-100 border border-slate-200 text-slate-700 flex items-center justify-center text-xs font-bold">
-                          {u.username ? u.username.slice(0, 2).toUpperCase() : 'U'}
-                        </div>
-                        <span>{u.full_name || u.username}</span>
-                      </td>
-                      <td className="p-3.5 font-mono text-slate-600 font-bold">@{u.username}</td>
-                      <td className="p-3.5">{getRoleBadge(u.role)}</td>
-                      <td className="p-3.5 text-center">
-                        {u.is_active ? (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                            نشط ✅
-                          </span>
-                        ) : (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
-                            معطّل ⛔
-                          </span>
-                        )}
-                      </td>
-                      <td className="p-3.5 text-center">
-                        <div className="flex items-center justify-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => handleEdit(u)}
-                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-cyan-50 hover:text-cyan-700 text-slate-600 border border-slate-200 transition cursor-pointer"
-                            title="تعديل"
-                          >
-                            ✏️
-                          </button>
-                          {u.username !== 'admin' && (
-                            <button
-                              type="button"
-                              onClick={() => handleDelete(u)}
-                              className="p-1.5 rounded-lg bg-slate-100 hover:bg-rose-50 hover:text-rose-700 text-slate-600 border border-slate-200 transition cursor-pointer"
-                              title="حذف"
-                            >
-                              🗑️
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+          <TableComp
+            loading={loading}
+            filteredUsers={filteredUsers}
+            getRoleBadge={getRoleBadge}
+            handleEdit={handleEdit}
+            handleDelete={handleDelete}
+          />
         </div>
       </div>
     </div>

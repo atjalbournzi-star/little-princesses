@@ -36,8 +36,10 @@ export const apiService = {
   createOrder: (d) => apiService.request("addOrder", d),
 
   // Inventory
-  getInventory: () => apiService.request("getInventory"),
+  getInventory: (d) => apiService.request("getInventory", d),
   addInventory: (d) => apiService.request("addInventory", d),
+  getWarehouses: () => apiService.request("getWarehouses"),
+  transferStock: (d) => apiService.request("transferStock", d),
 
   // Accounts
   getAccounts: () => apiService.request("getAccounts"),

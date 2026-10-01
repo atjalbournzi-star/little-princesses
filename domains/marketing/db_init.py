@@ -33,23 +33,23 @@ def init_marketing_db(conn=None):
     ''')
 
     platforms_seed = [
-        ('inst_01', 'Instagram', 'social', '', '', 'disconnected', '', '', '', '["posts","reels","stories","comments","messages","insights"]', '', 'inactive'),
-        ('fb_01', 'Facebook', 'social', '', '', 'disconnected', '', '', '', '["posts","stories","comments","messages","insights","ads"]', '', 'inactive'),
-        ('wa_01', 'WhatsApp Business', 'messaging', '', '', 'disconnected', '', '', '', '["messages","webhooks"]', '', 'inactive'),
-        ('tt_01', 'TikTok', 'social', '', '', 'disconnected', '', '', '', '["videos","comments","insights","ads"]', '', 'inactive'),
-        ('yt_01', 'YouTube', 'social', '', '', 'disconnected', '', '', '', '["videos","insights"]', '', 'inactive'),
-        ('ga_01', 'Google Ads', 'ads', '', '', 'disconnected', '', '', '', '["ads","insights","audience"]', '', 'inactive'),
-        ('sc_01', 'Snapchat', 'social', '', '', 'disconnected', '', '', '', '["stories","ads"]', '', 'inactive'),
-        ('pin_01', 'Pinterest', 'social', '', '', 'disconnected', '', '', '', '["posts","insights"]', '', 'inactive')
+        ('inst_01','Instagram','social','','','disconnected','','','','["posts","reels","stories","comments","messages","insights"]','','inactive'),
+        ('fb_01','Facebook','social','','','disconnected','','','','["posts","stories","comments","messages","insights","ads"]','','inactive'),
+        ('wa_01','WhatsApp Business','messaging','','','disconnected','','','','["messages","webhooks"]','','inactive'),
+        ('tt_01','TikTok','social','','','disconnected','','','','["videos","comments","insights","ads"]','','inactive'),
+        ('yt_01','YouTube','social','','','disconnected','','','','["videos","insights"]','','inactive'),
+        ('ga_01','Google Ads','ads','','','disconnected','','','','["ads","insights","audience"]','','inactive'),
+        ('sc_01','Snapchat','social','','','disconnected','','','','["stories","ads"]','','inactive'),
+        ('pin_01','Pinterest','social','','','disconnected','','','','["posts","insights"]','','inactive'),
     ]
-    for pid, pname, ptype, accname, accid, pstatus, actok, reftok, exp, perms, lsync, whstat in platforms_seed:
+    for pid,pname,ptype,accname,accid,pstatus,actok,reftok,exp,perms,lsync,whstat in platforms_seed:
         c.execute('''
             INSERT OR IGNORE INTO marketing_platforms (
                 platform_id, platform_name, platform_type, account_name, account_id,
                 status, access_token_reference, refresh_token_reference, token_expiry,
                 permissions, last_sync, webhook_status
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (pid, pname, ptype, accname, accid, pstatus, actok, reftok, exp, perms, lsync, whstat))
+        ''', (pid,pname,ptype,accname,accid,pstatus,actok,reftok,exp,perms,lsync,whstat))
 
     # 2. capability_matrix
     c.execute('''

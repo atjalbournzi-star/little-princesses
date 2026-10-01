@@ -1,7 +1,7 @@
 const { useState, useEffect, useMemo, useCallback } = React;
 
 function useFactoryData({
-  factory = [], setFactory, employees = [], orders = [], setOrders,
+  factory = [], setFactory, employees = [], setEmployees, orders = [], setOrders,
   products = [], setProducts, inventory = [], setInventory,
   customers = [], setCustomers, accounts = [], showToast,
   targetJob, onClearTargetJob
@@ -32,6 +32,8 @@ function useFactoryData({
   const [advancingScanProgress, setAdvancingScanProgress] = useState(false);
   const [selectedJobCustomer, setSelectedJobCustomer] = useState(null);
   const [printModalData, setPrintModalData] = useState(null);
+  const [jobTicketData, setJobTicketData] = useState(null);
+  const [modelPreviewData, setModelPreviewData] = useState(null);
   const [qcModalData, setQcModalData] = useState(null);
   const [stageFilter, setStageFilter] = useState('الكل');
   const [search, setSearch] = useState('');
@@ -39,9 +41,10 @@ function useFactoryData({
   const [form, setForm] = useState({
     order_no: '', customer: '', child_name: '', product: '', product_id: '', quantity: 1, tailor: '', stage: stages[0], progress: '20',
     start_date: todayStrIso, due_date: '', cutting_due_date: '', sewing_due_date: '', embroidery_due_date: '', finishing_due_date: '',
-    cutter_name: '', cutter_wage: '2000', tailor_name: '', tailor_wage: '5000',
-    embroiderer_name: '', embroiderer_wage: '3000', finisher_name: '', finisher_wage: '1500',
-    fabric_name: '', cut_meters: '', cut_unit: 'متر', deduct_inventory: true
+    cutter_name: '', cutter_wage: '200', tailor_name: '', tailor_wage: '500',
+    embroiderer_name: '', embroiderer_wage: '200', finisher_name: '', finisher_wage: '100',
+    fabric_name: '', cut_meters: '', cut_unit: 'متر', deduct_inventory: true,
+    production_type: 'bespoke', target_segment: 'kids', size_code: '6-9Y', measurements_spec: {}
   });
 
   const fabricInventory = useMemo(() => {
@@ -106,10 +109,16 @@ function useFactoryData({
         product: targetJob.product || targetJob.product_name || '',
         product_id: targetJob.product_id || '',
         quantity: targetJob.quantity || 1,
-        tailor: prev.tailor || (employees?.find(emp => emp.status === 'نشط')?.name || 'المعلم سليم (خياط أول)'),
+        tailor: prev.tailor || (employees?.find(emp => emp.status === 'نشط' && emp.role === 'خياط')?.name || employees?.find(emp => emp.status === 'نشط')?.name || ''),
         stage: stages[0], progress: '20', start_date: todayStrIso,
         due_date: utils.addDays ? utils.addDays(todayStrIso, 4) : '',
-        fabric_name: autoCalc.fabric, cut_meters: String(autoCalc.meters), deduct_inventory: true
+        fabric_name: autoCalc.fabric, cut_meters: String(autoCalc.meters), deduct_inventory: true,
+        production_type: 'bespoke',
+        measurements_spec: targetJob.measurements || prev.measurements_spec || {},
+        total_amount: parseFloat(targetJob.total_amount || 0),
+        paid_amount: parseFloat(targetJob.paid_amount || 0),
+        remaining_amount: parseFloat(targetJob.remaining_amount || 0),
+        currency: targetJob.currency || 'YER'
       }));
       if (typeof onClearTargetJob === 'function') onClearTargetJob();
     }
@@ -127,6 +136,32 @@ function useFactoryData({
     });
   }, [factory, search, stageFilter]);
 
+  // مزامنة تلقائية لطلبات المبيعات وسجل العملاء والموظفين إذا كانت القائمة فارغة
+  useEffect(() => {
+    if ((!orders || orders.length === 0) && typeof setOrders === 'function') {
+      fetch('/api/sales/orders').then(r => r.json()).then(d => {
+        const list = (d && Array.isArray(d.data)) ? d.data : (Array.isArray(d) ? d : []);
+        if (list.length > 0) setOrders(list);
+      }).catch(() => {});
+    }
+    if ((!customers || customers.length === 0) && typeof setCustomers === 'function') {
+      fetch('/api/customers').then(r => r.json()).then(d => {
+        const list = (d && Array.isArray(d.data)) ? d.data : (Array.isArray(d) ? d : []);
+        if (list.length > 0) setCustomers(list);
+      }).catch(() => {});
+    }
+    if ((!employees || employees.length === 0) && typeof setEmployees === 'function') {
+      fetch('/api/hr/employees').then(r => r.json()).then(d => {
+        const list = (d && Array.isArray(d.data)) ? d.data : (Array.isArray(d) ? d : []);
+        if (list.length > 0) setEmployees(list);
+      }).catch(() => {});
+    }
+  }, [orders, customers, employees, setOrders, setCustomers, setEmployees]);
+
+  const bespokeOrders = useMemo(() => {
+    return utils.getBespokeOrdersList ? utils.getBespokeOrdersList(orders, customers, products) : (orders || []);
+  }, [orders, customers, products, utils]);
+
   return {
     stages, todayStrIso, activeMainTab, setActiveMainTab, analyticsData, setAnalyticsData,
     loadingAnalytics, setLoadingAnalytics, stockInflowLoading, setStockInflowLoading,
@@ -136,8 +171,10 @@ function useFactoryData({
     scanProgressModalOpen, setScanProgressModalOpen, scanBarcodeQuery, setScanBarcodeQuery,
     scannedProgressJob, setScannedProgressJob, advancingScanProgress, setAdvancingScanProgress,
     selectedJobCustomer, setSelectedJobCustomer, printModalData, setPrintModalData,
+    jobTicketData, setJobTicketData, modelPreviewData, setModelPreviewData,
     qcModalData, setQcModalData, stageFilter, setStageFilter, search, setSearch,
-    form, setForm, fabricInventory, fetchFactoryAnalytics, fetchAlterations, filteredFactory
+    form, setForm, fabricInventory, fetchFactoryAnalytics, fetchAlterations, filteredFactory,
+    bespokeOrders
   };
 }
 

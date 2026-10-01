@@ -15,14 +15,16 @@ function usePurchaseActions({ headerData, setHeaderData, emptyHeader, billItems,
     const purRate = purCurrCode === 'YER' ? 1.0 : (parseFloat(headerData.exchange_rate) || (window.CurrencyService ? window.CurrencyService.getRate(purCurrCode) : 1.0));
 
     try {
+      const targetWh = headerData.warehouse_id || 'WH-MAIN';
       const payload = {
         bill_no: billNo, supplier_id: headerData.supplier_id || '', supplier: headerData.supplier,
         supplier_phone: headerData.supplier_phone || '', created_by: 'admin', discount: discountVal,
         notes: headerData.notes || '', pay_type: headerData.pay_type || defaultPayType,
         payment_source: headerData.payment_source || '', transfer_no: headerData.transfer_no || '',
         currency: headerData.currency || defaultCurrency, date: headerData.date || todayStrIso,
-        freight_cost: parseFloat(headerData.freight_cost) || 0, transfer_fees: parseFloat(headerData.transfer_fees) || 0,
-        receipt_url: headerData.receipt_url || '', invoice_image_url: headerData.invoice_image_url || '',
+        warehouse_id: targetWh, freight_cost: parseFloat(headerData.freight_cost) || 0,
+        transfer_fees: parseFloat(headerData.transfer_fees) || 0, receipt_url: headerData.receipt_url || '',
+        invoice_image_url: headerData.invoice_image_url || '',
         items: billItems.map(itm => ({ item_name: itm.item, unit: itm.unit || 'متر', qty: parseFloat(itm.qty) || 0, cost: parseFloat(itm.price) || 0 }))
       };
 
@@ -38,7 +40,7 @@ function usePurchaseActions({ headerData, setHeaderData, emptyHeader, billItems,
           id: savedPur.id || `PUR-${Date.now()}`, bill_no: billNo, purchase_no: billNo,
           supplier_id: headerData.supplier_id || '', supplier: headerData.supplier, supplier_name: headerData.supplier,
           supplier_phone: headerData.supplier_phone || '', discount: discountVal, notes: headerData.notes || '',
-          item_name: billItems.map(i => i.item).join(' + '), unit: billItems[0].unit || 'متر',
+          warehouse_id: targetWh, item_name: billItems.map(i => i.item).join(' + '), unit: billItems[0].unit || 'متر',
           qty: billItems.reduce((acc, c) => acc + (parseFloat(c.qty) || 0), 0),
           price: billItems.length === 1 ? (parseFloat(billItems[0].price) || 0) : Math.round((grandTotal / (billItems.reduce((acc, c) => acc + (parseFloat(c.qty) || 0), 0) || 1)) * 100) / 100,
           total: grandTotal, grand_total_yer: grandTotal * purRate, currency: headerData.currency || defaultCurrency,
@@ -47,7 +49,7 @@ function usePurchaseActions({ headerData, setHeaderData, emptyHeader, billItems,
           freight_cost: parseFloat(headerData.freight_cost) || 0, transfer_fees: parseFloat(headerData.transfer_fees) || 0,
           receipt_url: headerData.receipt_url || '', invoice_image_url: headerData.invoice_image_url || '',
           payment_status: headerData.pay_type !== 'آجل' ? 'مدفوع' : 'غير مدفوع', status: 'تم الاستلام',
-          items: billItems.map((itm, idx) => ({ id: `PITM-${Date.now()}-${idx}`, item_name: itm.item, unit: itm.unit || 'متر', qty: parseFloat(itm.qty) || 0, cost: parseFloat(itm.price) || 0, total: (parseFloat(itm.qty) || 0) * (parseFloat(itm.price) || 0) }))
+          items: billItems.map((itm, idx) => ({ id: `PITM-${Date.now()}-${idx}`, item_name: itm.item, unit: itm.unit || 'متر', qty: parseFloat(itm.qty) || 0, cost: parseFloat(itm.price) || 0, total: (parseFloat(itm.qty) || 0) * (parseFloat(itm.price) || 0), warehouse_id: targetWh }))
         };
         setPurchases(prev => [newPur, ...(prev || []).filter(p => (p.bill_no || p.invoice_no) !== billNo)]);
       }
@@ -62,9 +64,9 @@ function usePurchaseActions({ headerData, setHeaderData, emptyHeader, billItems,
               const curQ = parseFloat(updated[idx].quantity || updated[idx].quantity_meters || 0);
               const curC = parseFloat(updated[idx].unit_cost || updated[idx].cost_per_meter || 0);
               const newQ = curQ + q, newC = newQ > 0 ? (((curQ * curC) + (q * pYer)) / newQ) : pYer, weightedCost = parseFloat(newC.toFixed(2));
-              updated[idx] = { ...updated[idx], quantity: newQ, quantity_meters: newQ, available_qty: (parseFloat(updated[idx].available_qty || curQ) + q), unit_cost: weightedCost, cost_per_meter: weightedCost, total_value: parseFloat((newQ * weightedCost).toFixed(2)), currency: 'YER', updated_at: todayStrIso };
+              updated[idx] = { ...updated[idx], quantity: newQ, quantity_meters: newQ, available_qty: (parseFloat(updated[idx].available_qty || curQ) + q), unit_cost: weightedCost, cost_per_meter: weightedCost, total_value: parseFloat((newQ * weightedCost).toFixed(2)), currency: 'YER', location: targetWh, updated_at: todayStrIso };
             } else {
-              updated.unshift({ id: `MAT-${Date.now()}`, item_name: itm.item, name: itm.item, item_code: `MAT-${Math.floor(100 + Math.random() * 900)}`, category: 'أقمشة وخامات', type: 'خامة', quantity: q, quantity_meters: q, available_qty: q, unit_cost: pYer, cost_per_meter: pYer, total_value: parseFloat((q * pYer).toFixed(2)), unit: itm.unit || 'متر', currency: 'YER', supplier_id: headerData.supplier, location: 'المستودع الرئيسي', status: 'Available', created_at: todayStrIso });
+              updated.unshift({ id: `MAT-${Date.now()}`, item_name: itm.item, name: itm.item, item_code: `MAT-${Math.floor(100 + Math.random() * 900)}`, category: 'أقمشة وخامات', type: 'خامة', quantity: q, quantity_meters: q, available_qty: q, unit_cost: pYer, cost_per_meter: pYer, total_value: parseFloat((q * pYer).toFixed(2)), unit: itm.unit || 'متر', currency: 'YER', supplier_id: headerData.supplier, location: targetWh, status: 'Available', created_at: todayStrIso });
             }
           }
           return updated;

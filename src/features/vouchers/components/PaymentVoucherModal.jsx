@@ -12,16 +12,16 @@ function PaymentVoucherModal({
   const [currency, setCurrency] = useState(editData?.currency || 'YER ﷼');
   const [exchangeRate, setExchangeRate] = useState(String(editData?.exchange_rate || '1.0'));
   const [targetAcc, setTargetAcc] = useState(editData?.target_acc || '201');
-  const [cashAcc, setCashAcc] = useState(editData?.acc_code || '101.1');
+  const getCashCode = (c) => c === 'SAR' ? '101.2' : (c === 'USD' ? '101.3' : '101.1');
+  const currCode = window.CurrencyService ? window.CurrencyService.normalizeCode(currency) : 'YER';
+  const [cashAcc, setCashAcc] = useState(editData?.acc_code || getCashCode(currCode));
   const [amount, setAmount] = useState(editData?.amount ? String(editData.amount) : '');
   const [payMethod, setPayMethod] = useState(editData?.pay_method || 'نقدي');
   const [notes, setNotes] = useState(editData?.notes || '');
 
-  const currCode = window.CurrencyService ? window.CurrencyService.normalizeCode(currency) : 'YER';
   useEffect(() => {
-    if (window.CurrencyService && !isEdit) {
-      setExchangeRate(String(window.CurrencyService.getRate(currCode)));
-    }
+    if (window.CurrencyService && !isEdit) setExchangeRate(String(window.CurrencyService.getRate(currCode)));
+    if (!isEdit && ['101.1', '101.2', '101.3'].includes(cashAcc)) setCashAcc(getCashCode(currCode));
   }, [currency, currCode, isEdit]);
 
   const numAmount = parseFloat(amount) || 0;
@@ -129,7 +129,12 @@ function PaymentVoucherModal({
             </div>
             <div>
               <label className="block text-[11px] font-bold text-gray-300 mb-1">العملة</label>
-              <select value={currency} onChange={e => setCurrency(e.target.value)} className="w-full h-10 px-3 rounded-xl border border-[#374151] bg-[#111827] text-white text-xs font-bold outline-none">
+              <select value={currency} onChange={e => {
+                const nextC = e.target.value;
+                setCurrency(nextC);
+                const nextCode = window.CurrencyService ? window.CurrencyService.normalizeCode(nextC) : 'YER';
+                if (['101.1', '101.2', '101.3'].includes(cashAcc)) setCashAcc(getCashCode(nextCode));
+              }} className="w-full h-10 px-3 rounded-xl border border-[#374151] bg-[#111827] text-white text-xs font-bold outline-none">
                 {["YER ﷼", "SAR ﷼", "USD $"].map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>

@@ -1,137 +1,171 @@
+/**
+ * WorkerAssignModal.jsx - نافذة تعيين أوامر التشغيل والإنتاج الذكي (Dual Mode Orchestrator)
+ * Little Princesses ERP - Production Floor Architecture
+ */
+
 function WorkerAssignModal({
   form,
   setForm,
   orders = [],
   employees = [],
   customers = [],
+  products = [],
   fabricInventory = [],
   stages = [],
   handleOrderSelect,
   handleStageEmpChange,
   handleStageChange,
+  handleProductionTypeChange,
+  handleProductChange,
+  handleSizeChange,
   selectLatestCustomer,
   handleSubmit,
+  setModelPreviewData,
   showToast
 }) {
-  const inputCls = "w-full h-11 px-3.5 py-2.5 rounded-xl border border-[#E8E5EA] bg-white text-[#25232A] text-xs font-medium placeholder:text-[#6F6B75] focus:bg-white focus:border-[#8F2A87] focus:ring-2 focus:ring-[#F2E7F3] transition-all outline-none";
-  const labelCls = "block text-xs font-semibold text-[#25232A] mb-1.5";
+  const isReadyToWear = form.production_type === 'ready_to_wear';
 
+  const FormFieldsComponent = window.JobOrderFormFields;
   const WagesMatrixComponent = window.StageWagesMatrix;
   const FabricCardComponent = window.FabricDeductionCard;
 
   return (
     <div className="bg-white rounded-2xl border border-[#E8E5EA] shadow-[0_2px_12px_rgba(0,0,0,0.02)] overflow-hidden">
-      <div className="px-6 py-4 border-b border-[#E8E5EA] flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gradient-to-r from-white via-[#FAFAFB] to-white">
-        <div className="flex items-center gap-2">
-          <span className="text-[#8F2A87]">🧵</span>
-          <h2 className="text-sm font-bold text-[#25232A]">تحديث وتعيين أوامر التشغيل والإنتاج</h2>
+      {/* Header with Dual Mode Toggle */}
+      <div className="px-6 py-4 border-b border-[#E8E5EA] flex flex-col md:flex-row md:items-center justify-between gap-3 bg-gradient-to-r from-white via-[#FAFAFB] to-white">
+        <div className="flex items-center gap-3">
+          <span className="text-[#8F2A87] text-lg">🧵</span>
+          <div>
+            <h2 className="text-sm font-bold text-[#25232A]">أوامر التشغيل والإنتاج (Production Floor)</h2>
+            <p className="text-[11px] text-[#6F6B75]">التمييز الذكي بين التفصيل المخصص والإنتاج العام الجاهز 👑</p>
+          </div>
         </div>
-        
-        <div className="flex items-center gap-2.5 flex-wrap">
-          <button
-            type="button"
-            onClick={selectLatestCustomer}
-            className="px-3.5 py-1.5 rounded-xl bg-[#F2E7F3] hover:bg-[#E5CEE7] text-[#8F2A87] font-bold text-xs border border-[#E5CEE7] transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
-          >
-            <span>⚡</span>
-            <span>اختيار آخر زبون مسجل</span>
-          </button>
-          <span className="text-xs text-[#6F6B75]">
-            <span className="text-[#D64545] font-bold">*</span> الحقول الإلزامية
-          </span>
+
+        {/* Dual Mode Switcher */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center bg-[#F2E7F3] p-1 rounded-xl border border-[#E5CEE7] text-xs font-bold">
+            <button
+              type="button"
+              onClick={() => handleProductionTypeChange ? handleProductionTypeChange('bespoke') : setForm(p => ({ ...p, production_type: 'bespoke' }))}
+              className={`px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1.5 ${!isReadyToWear ? 'bg-[#8F2A87] text-white shadow-2xs' : 'text-[#6F6B75] hover:text-[#8F2A87]'}`}
+            >
+              <span>👑</span>
+              <span>تفصيل خاص لعميل (Bespoke)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleProductionTypeChange ? handleProductionTypeChange('ready_to_wear') : setForm(p => ({ ...p, production_type: 'ready_to_wear' }))}
+              className={`px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1.5 ${isReadyToWear ? 'bg-[#007F8C] text-white shadow-2xs' : 'text-[#6F6B75] hover:text-[#007F8C]'}`}
+            >
+              <span>🏭</span>
+              <span>إنتاج عام للمخزن (Ready-to-Wear)</span>
+            </button>
+          </div>
+
+          {!isReadyToWear && (
+            <button
+              type="button"
+              onClick={selectLatestCustomer}
+              className="px-3.5 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-[#8F2A87] font-bold text-xs border border-[#E5CEE7] transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+            >
+              <span>⚡</span>
+              <span>آخر زبون</span>
+            </button>
+          )}
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="p-6 space-y-5">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
-          <div className="lg:col-span-2">
-            <div className="flex justify-between items-center mb-1.5">
-              <label className={labelCls + " mb-0"}>رقم الطلب والفاتورة <span className="text-[#D64545] font-bold">*</span></label>
-              <span className="text-[10.5px] text-[#6F6B75]">({orders.length} طلبات متاحة)</span>
-            </div>
-            <select className={inputCls} value={form.order_no} onChange={handleOrderSelect}>
-              <option value="">-- اختر الطلب المعمد أو أدخل مخصصاً --</option>
-              {orders.map(o => (
-                <option key={o.order_no || o.id} value={o.order_no || o.id}>
-                  {o.order_no || o.id} - {o.customer_name || ''} {o.child_name ? `(الطفلة: ${o.child_name})` : ''} {o.product_name ? `[${o.product_name}]` : ''} {o.paid > 0 ? '🟢 مسدد العربون' : ''}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className={labelCls}>اسم العميلة (الأم)</label>
-            <input type="text" className={inputCls + " font-bold text-[#25232A]"} value={form.customer} onChange={e => setForm({...form, customer: e.target.value})} placeholder="اسم العميلة" />
-          </div>
-          <div>
-            <label className={labelCls + " text-[#8F2A87]"}>اسم الطفلة (الأميرة)</label>
-            <input type="text" className={inputCls + " bg-[#FDF8FE] font-bold text-[#8F2A87] border-[#E5CEE7]"} value={form.child_name} onChange={e => setForm({...form, child_name: e.target.value})} placeholder="اسم الطفلة" />
-          </div>
-          <div>
-            <label className={labelCls}>المنتج / الموديل</label>
-            <input type="text" className={inputCls + " font-bold text-[#25232A]"} value={form.product} onChange={e => setForm({...form, product: e.target.value})} placeholder="اسم الموديل والتصميم" />
-          </div>
-          <div>
-            <label className={labelCls}>عدد الفساتين (الكمية)</label>
-            <input 
-              type="number" min="1" className={inputCls + " font-bold text-[#007F8C] font-mono text-center"} 
-              value={form.quantity} 
-              onChange={e => {
-                const q = parseFloat(e.target.value) || 1;
-                setForm(prev => ({
-                  ...prev, quantity: q,
-                  cut_meters: prev.cut_meters ? String((parseFloat(prev.cut_meters) / (prev.quantity || 1) * q).toFixed(1)) : prev.cut_meters
-                }));
-              }} 
-            />
-          </div>
-          
-          <div className="lg:col-span-2">
-            <label className={labelCls}>الخياط / الفني المسند إليه <span className="text-[#D64545] font-bold">*</span></label>
-            <select className={inputCls} value={form.tailor} onChange={e => setForm({...form, tailor: e.target.value})}>
-              <option value="">-- اختر الفني المسؤول --</option>
-              {employees?.filter(e => e.status === 'نشط' || !e.status).map(emp => (
-                <option key={emp.id || emp.name} value={emp.name}>{emp.name} ({emp.job_title || emp.role || emp.type || 'فني مشغل'})</option>
-              ))}
-            </select>
-          </div>
-          <div className="lg:col-span-2">
-            <label className={labelCls}>مرحلة الإنتاج الحالية</label>
-            <select className={inputCls + " bg-[#F2E7F3] text-[#8F2A87] font-bold border-[#E5CEE7]"} value={form.stage} onChange={handleStageChange}>
-              {stages.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className={labelCls}>تاريخ البدء</label>
-            <input type="date" lang="en-GB" dir="ltr" className={inputCls} value={form.start_date} onChange={e => setForm({...form, start_date: e.target.value})} />
-          </div>
-          <div>
-            <label className={labelCls}>موعد التسليم المتوقع</label>
-            <input type="date" lang="en-GB" dir="ltr" className={inputCls + " font-mono"} value={form.due_date} onChange={e => setForm({...form, due_date: e.target.value})} />
-          </div>
-        </div>
-
-        {/* مصفوفة مواعيد وأجور مراحل الإنتاج */}
-        {WagesMatrixComponent && (
-          <WagesMatrixComponent
-            form={form}
-            setForm={setForm}
-            employees={employees}
-            handleStageEmpChange={handleStageEmpChange}
-            showToast={showToast}
+      <form
+        onSubmit={e => {
+          if (e && e.preventDefault) e.preventDefault();
+          if (typeof handleSubmit === 'function') handleSubmit(e);
+        }}
+        className="p-6 space-y-5"
+      >
+        {/* Form Fields Component */}
+        {FormFieldsComponent && (
+          <FormFieldsComponent
+            form={form} setForm={setForm} orders={orders} employees={employees}
+            products={products} stages={stages} customers={customers} fabricInventory={fabricInventory}
+            handleOrderSelect={handleOrderSelect} handleStageEmpChange={handleStageEmpChange}
+            handleStageChange={handleStageChange} handleProductChange={handleProductChange}
+            handleSizeChange={handleSizeChange} setModelPreviewData={setModelPreviewData}
           />
         )}
 
-        {/* خامة القماش واقتطاع الأمتار من المخزون */}
+        {/* Financial Summary Card (Bespoke Mode Only - Internal Admin View) */}
+        {!isReadyToWear && Boolean(form.order_no || form.customer || (form.total_amount && form.total_amount > 0)) && (() => {
+          const selectedOrder = (orders || []).find(o => String(o.order_no || o.id) === String(form.order_no || form.id));
+          const order = selectedOrder || form || {};
+          const tot = Number(order.total_amount ?? order.base_amount ?? 0);
+          const pd = Number(order.paid_amount ?? order.advance_paid ?? 0);
+          const rem = Number(order.remaining_balance ?? order.remaining_amount ?? order.remaining ?? 0);
+          const isPaid = rem <= 0 && tot > 0, isPartial = pd > 0 && rem > 0;
+          const pct = tot > 0 ? Math.min(100, Math.round((pd / tot) * 100)) : 0;
+          const curr = order.currency || form.currency || 'YER';
+          const currLabel = (curr === 'YER' || curr === 'ريال') ? 'ر.ي' : (curr === 'SAR' ? 'ر.س' : (curr === 'USD' ? '$' : curr));
+          const delFee = Number(order.delivery_fee || 0);
+          const subtotal = Number(order.subtotal ?? (tot - delFee));
+
+          return (
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-50/70 via-white to-pink-50/70 border border-[#E5CEE7] space-y-3 shadow-2xs animate-fadeIn">
+              <div className="flex items-center justify-between pb-2 border-b border-[#F2E7F3] flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-base">💳</span>
+                  <span className="text-xs font-bold text-[#25232A]">الملخص المالي وموقف سداد الفستان (خاص بالإدارة)</span>
+                  <span className="text-[10px] font-bold text-[#8F2A87] bg-[#F2E7F3] px-2 py-0.5 rounded-full border border-[#E5CEE7]">سري 🔒</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-bold text-[#6F6B75]">نسبة السداد: <strong className="font-mono text-[#007F8C]">{pct}%</strong></span>
+                  <span className={`text-[10.5px] font-bold px-2.5 py-0.5 rounded-full border ${isPaid ? 'bg-emerald-50 text-emerald-700 border-emerald-300' : (isPartial ? 'bg-amber-50 text-amber-800 border-amber-300' : (tot === 0 ? 'bg-gray-50 text-gray-700 border-gray-200' : 'bg-rose-50 text-rose-700 border-rose-200'))}`}>
+                    {isPaid ? '✅ مسدد بالكامل (خالص)' : (isPartial ? '⏳ مسدد جزئياً (عربون)' : (tot === 0 ? '📝 بانتظار التسعير' : '⚠️ غير مسدد'))}
+                  </span>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+                <div className="p-3 bg-white rounded-xl border border-[#E8E5EA] shadow-2xs">
+                  <span className="text-[10.5px] font-semibold text-[#6F6B75] block mb-1">👗 سعر الفستان / الإجمالي</span>
+                  <span className="font-mono font-black text-sm text-[#25232A] block">{tot.toLocaleString()} <span className="text-[10px] font-normal text-[#6F6B75]">{currLabel}</span></span>
+                  {delFee > 0 && (
+                    <div className="text-[9.5px] text-[#8F2A87] bg-purple-50 px-2 py-0.5 rounded-md mt-1 border border-purple-200 inline-block font-medium">
+                      {subtotal.toLocaleString()} فستان + {delFee.toLocaleString()} توصيل
+                    </div>
+                  )}
+                </div>
+                <div className="p-3 bg-white rounded-xl border border-[#E8E5EA] shadow-2xs">
+                  <span className="text-[10.5px] font-semibold text-[#6F6B75] block mb-1">💵 المبلغ الواصل (العربون)</span>
+                  <span className="font-mono font-black text-sm text-[#007F8C] block">{pd.toLocaleString()} <span className="text-[10px] font-normal text-[#6F6B75]">{currLabel}</span></span>
+                </div>
+                <div className={`p-3 rounded-xl border shadow-2xs ${rem > 0 ? 'bg-amber-50/70 border-amber-200' : 'bg-white border-[#E8E5EA]'}`}>
+                  <span className={`text-[10.5px] font-semibold block mb-1 ${rem > 0 ? 'text-amber-900 font-bold' : 'text-[#6F6B75]'}`}>💰 المبلغ المتبقي للتحصيل</span>
+                  <span className={`font-mono font-black text-sm block ${rem > 0 ? 'text-[#B0005A]' : 'text-emerald-700'}`}>{rem.toLocaleString()} <span className="text-[10px] font-normal text-[#6F6B75]">{currLabel}</span></span>
+                </div>
+                <div className="p-3 bg-white rounded-xl border border-[#E8E5EA] shadow-2xs flex flex-col justify-center">
+                  <span className="text-[10.5px] font-semibold text-[#6F6B75] block mb-0.5">🏷️ مؤشر حالة السداد</span>
+                  <div className="font-bold text-xs mt-0.5">{isPaid ? <span className="text-emerald-600">جاهز للتسليم المباشر</span> : (tot === 0 ? <span className="text-gray-500">غير مسعر</span> : <span className="text-amber-800">تحصيل عند التسليم</span>)}</div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Stage Wages Matrix Component */}
+        {WagesMatrixComponent && (
+          <WagesMatrixComponent
+            form={form} setForm={setForm} employees={employees}
+            handleStageEmpChange={handleStageEmpChange} showToast={showToast}
+          />
+        )}
+
+        {/* Fabric Deduction & Specs Component */}
         {FabricCardComponent && (
           <FabricCardComponent
-            form={form}
-            setForm={setForm}
-            fabricInventory={fabricInventory}
+            form={form} setForm={setForm} fabricInventory={fabricInventory}
             customers={customers}
           />
         )}
 
-        {/* شريط نسبة الإنجاز وزر الحفظ */}
+        {/* Progress & Submit Strip */}
         <div className="pt-4 border-t border-[#E8E5EA] flex flex-col sm:flex-row justify-between items-center gap-4">
           <div className="w-full sm:flex-1">
             <div className="flex justify-between text-xs mb-1.5 font-bold text-[#25232A]">
@@ -139,12 +173,19 @@ function WorkerAssignModal({
               <span className="text-[#8F2A87] font-mono">{form.progress}%</span>
             </div>
             <div className="w-full bg-[#FAFAFB] rounded-full h-2.5 border border-[#E8E5EA]" dir="ltr">
-              <div className="bg-[#8F2A87] h-2.5 rounded-full transition-all duration-500" style={{width: `${form.progress}%`}}></div>
+              <div className="bg-[#8F2A87] h-2.5 rounded-full transition-all duration-500" style={{ width: `${form.progress}%` }}></div>
             </div>
           </div>
-          <button type="submit" className="w-full sm:w-auto px-8 py-3 rounded-xl font-bold text-xs text-white bg-[#8F2A87] hover:bg-[#73216C] transition shadow-xs flex items-center justify-center gap-2 cursor-pointer">
+          <button
+            type="button"
+            onClick={e => {
+              if (e && e.preventDefault) e.preventDefault();
+              if (typeof handleSubmit === 'function') handleSubmit(e);
+            }}
+            className="w-full sm:w-auto px-8 py-3 rounded-xl font-bold text-xs text-white bg-[#8F2A87] hover:bg-[#73216C] transition shadow-xs flex items-center justify-center gap-2 cursor-pointer"
+          >
             {window.Icons && window.Icons.Check ? <window.Icons.Check className="w-4 h-4" /> : <span>✓</span>}
-            <span>تحديث وحفظ حالة أمر الإنتاج واقتطاع القماش 🚀</span>
+            <span>حفظ واعتماد أمر التشغيل واقتطاع القماش 🚀</span>
           </button>
         </div>
       </form>

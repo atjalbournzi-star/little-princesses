@@ -7,14 +7,23 @@ from decimal import Decimal
 import pg_service
 
 
-def _clean_meas(v) -> str:
-    """Normalizes a measurement value, treating zero/empty/null as '—'."""
+def _clean_meas(v, unit: str = 'سم') -> str:
+    """Normalizes a measurement value with unit awareness (Inches/CM)."""
     if v is None:
         return '—'
     s = str(v).strip()
     if s in ('', '0', '0.0', '0.00', 'None', 'null', '—'):
         return '—'
-    return f"{s} سم" if not s.endswith('سم') and not s.endswith('cm') else s
+    is_inch = unit in ('إنش', 'inch', 'in', 'Inches')
+    try:
+        val = float(s.replace('سم', '').replace('cm', '').replace('إنش', '').strip())
+        if is_inch:
+            val_str = int(val) if val == int(val) else val
+            return f"{val_str} إنش"
+        val_str = int(val) if val == int(val) else val
+        return f"{val_str} سم"
+    except Exception:
+        return f"{s} إنش" if is_inch else f"{s} سم"
 
 
 def get_dress_card_payload(target_id: str) -> dict:
@@ -44,18 +53,36 @@ def get_dress_card_payload(target_id: str) -> dict:
     customer_name = str(d.get('real_customer_name') or d.get('customer_name') or 'عزيزتنا العميلة')
     product_name = str(d.get('real_product_name') or d.get('product_name') or 'موديل أزياء راقي خاص')
 
+    meas_unit = str(meas.get('unit') or 'سم').strip()
+    is_inch = meas_unit in ('إنش', 'inch', 'in', 'Inches')
+
+    # Comfort profile badges resolution
+    raw_comfort = meas.get('comfort_profile') or []
+    comfort_badges = []
+    if isinstance(raw_comfort, str):
+        if raw_comfort.startswith('[') and raw_comfort.endswith(']'):
+            import ast
+            try:
+                raw_comfort = ast.literal_eval(raw_comfort)
+            except Exception:
+                raw_comfort = [raw_comfort.strip("[]'\" ")]
+        elif raw_comfort.strip():
+            raw_comfort = [c.strip() for c in raw_comfort.split(',') if c.strip()]
+    if isinstance(raw_comfort, list):
+        comfort_badges = [str(b).strip() for b in raw_comfort if str(b).strip()]
+
     # Child age & size-bracket resolution
     child_age = str(d.get('child_age') or d.get('age') or meas.get('estimated_age') or '').strip()
     if child_age and not any(w in child_age for w in ['سنة', 'سنوات', 'شهور', 'عمر']):
         child_age = f"{child_age} سنوات"
 
-    # Discrete measurements cleaning
-    d_len = _clean_meas(meas.get('dress_length') or meas.get('dress_len'))
-    chest = _clean_meas(meas.get('chest') or meas.get('chest_circ'))
-    waist = _clean_meas(meas.get('waist') or meas.get('waist_circ'))
-    shoulder = _clean_meas(meas.get('shoulder') or meas.get('shoulder_w'))
-    sleeve = _clean_meas(meas.get('sleeve_length') or meas.get('sleeve_len'))
-    arm_hole = _clean_meas(meas.get('arm_hole') or meas.get('armpit_circ'))
+    # Discrete measurements cleaning with unit integrity
+    d_len = _clean_meas(meas.get('dress_length') or meas.get('dress_len'), meas_unit)
+    chest = _clean_meas(meas.get('chest') or meas.get('chest_circ'), meas_unit)
+    waist = _clean_meas(meas.get('waist') or meas.get('waist_circ'), meas_unit)
+    shoulder = _clean_meas(meas.get('shoulder') or meas.get('shoulder_w'), meas_unit)
+    sleeve = _clean_meas(meas.get('sleeve_length') or meas.get('sleeve_len'), meas_unit)
+    arm_hole = _clean_meas(meas.get('arm_hole') or meas.get('armpit_circ'), meas_unit)
 
     # Has discrete measurements if any circumference or detail was entered
     has_discrete = any(x != '—' for x in (chest, waist, shoulder, sleeve))
@@ -67,15 +94,15 @@ def get_dress_card_payload(target_id: str) -> dict:
         len_label = f" (طول الفستان: {d_len})" if d_len != '—' else ""
         sizing_summary = f"تفصيل معتمد حسب الفئة العمرية ({age_label}){len_label}"
     else:
-        sizing_summary = "مقاسات تفصيلية مخصصة بالسنتيمتر (سم)"
+        sizing_summary = "مقاسات تفصيلية مخصصة بالإنش" if is_inch else "مقاسات تفصيلية مخصصة بالسنتيمتر"
 
     # Dynamic White-Label Brand Info from Settings
     brand_info = {
         'name': 'مؤسسة الأميرات الصغيرات',
-        'tagline': 'دار الأزياء والتفصيل الراقي لفساتين الأميرات ✨',
+        'tagline': 'دار أزياء وتفصيل فساتين الأميرات الراقية | عراقة التصميم وأناقة الطفولة',
         'phone': '776773458',
         'address': 'اليمن - صنعاء - شارع حدة',
-        'logo_url': 'logo.png'
+        'logo_url': 'logo.svg'
     }
     try:
         settings = pg_service.get_system_settings()
@@ -87,7 +114,7 @@ def get_dress_card_payload(target_id: str) -> dict:
                 brand_info['phone'] = str(cp['phone'])
             if cp.get('address'):
                 brand_info['address'] = str(cp['address'])
-            if cp.get('logo_url'):
+            if cp.get('logo_url') and cp.get('logo_url') != 'logo.png':
                 brand_info['logo_url'] = str(cp['logo_url'])
     except Exception:
         pass
@@ -162,9 +189,13 @@ def get_dress_card_payload(target_id: str) -> dict:
             'total': float(tot),
             'paid': float(pd),
             'remaining': float(rem),
+            'delivery_fee': float(d.get('delivery_fee') or 0.0),
+            'delivery_payment_mode': str(d.get('delivery_payment_mode') or 'DIRECT_TO_COURIER'),
             'currency': cur,
             'is_fully_paid': rem <= Decimal('0')
         },
         'verify_hash': f"LP-{verify_hash}",
+        'comfort_profile': comfort_badges,
+        'unit': meas_unit,
         'brand': brand_info
     }

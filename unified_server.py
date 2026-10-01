@@ -69,39 +69,23 @@ from domains.marketing.db_ai_init import init_marketing_ai_db
 from domains.auth import routes as auth_routes, routes_users
 from domains.customers import routes as customer_routes
 from domains.tailoring import (
-    routes_orders,
-    routes_delivery,
-    routes_factory,
-    routes_factory_actions,
+    routes_orders, routes_delivery, routes_factory, routes_factory_actions
 )
 from domains.inventory import (
-    routes_inventory,
-    routes_purchases,
-    routes_purchases_manage,
+    routes_inventory, routes_warehouses, routes_purchases, routes_purchases_manage
 )
 from domains.accounting import (
-    routes_vouchers,
-    routes_expenses,
-    routes_journal,
-    routes_accounts,
+    routes_vouchers, routes_expenses, routes_journal, routes_accounts
 )
 from domains.quality import (
-    routes_dashboard,
-    routes_actions as quality_actions,
-    routes_feedback,
+    routes_dashboard, routes_actions as quality_actions, routes_feedback
 )
 from domains.marketing import (
-    routes_core,
-    routes_webhooks,
-    routes_ai_analysis,
-    routes_ai_insights,
-    routes_ai_actions,
+    routes_core, routes_webhooks, routes_ai_analysis, routes_ai_insights, routes_ai_actions
 )
 from domains.hr import routes as hr_routes
 from domains.system import (
-    routes as system_routes,
-    routes_backup,
-    routes_sync,
+    routes as system_routes, routes_backup, routes_sync
 )
 
 GET_ROUTERS = [
@@ -110,6 +94,7 @@ GET_ROUTERS = [
     routes_orders.handle_get,
     routes_factory.handle_get,
     routes_inventory.handle_get,
+    routes_warehouses.handle_get,
     routes_purchases_manage.handle_get,
     routes_vouchers.handle_get,
     routes_expenses.handle_get,
@@ -135,6 +120,7 @@ POST_ROUTERS = [
     routes_delivery.handle_post,
     routes_factory_actions.handle_post,
     routes_inventory.handle_post,
+    routes_warehouses.handle_post,
     routes_purchases.handle_post,
     routes_purchases_manage.handle_post,
     routes_vouchers.handle_post,

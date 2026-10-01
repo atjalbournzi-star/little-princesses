@@ -14,79 +14,80 @@ function ReceiptVoucherModal({
   const [exchangeRate, setExchangeRate] = useState(String(editData?.exchange_rate || '1.0'));
   const [targetAcc, setTargetAcc] = useState(editData?.target_acc || '104');
   const [notes, setNotes] = useState(editData?.notes || '');
-  const [payments, setPayments] = useState(
-    editData?.splitPayments || [{ id: 1, method: 'صندوق الريال اليمني (YER)', acc_code: '101.1', amount: editData?.amount || '' }]
-  );
-
   const currCode = window.CurrencyService ? window.CurrencyService.normalizeCode(currency) : 'YER';
+  const getCashDef = (c) => c === 'SAR' ? { m: 'صندوق الريال السعودي (SAR)', code: '101.2' } : (c === 'USD' ? { m: 'صندوق الدولار (USD)', code: '101.3' } : { m: 'صندوق الريال اليمني (YER)', code: '101.1' });
+  const [payments, setPayments] = useState(editData?.splitPayments || [{ id: 1, method: getCashDef(currCode).m, acc_code: getCashDef(currCode).code, amount: editData?.amount || '' }]);
+  const [submittingLocal, setSubmittingLocal] = useState(false);
+
   useEffect(() => {
-    if (window.CurrencyService && !isEdit) {
-      setExchangeRate(String(window.CurrencyService.getRate(currCode)));
+    if (window.CurrencyService && !isEdit) setExchangeRate(String(window.CurrencyService.getRate(currCode)));
+    if (!isEdit) {
+      setPayments(prev => {
+        if (prev.length === 1 && ['101.1', '101.2', '101.3'].includes(prev[0].acc_code)) {
+          const def = getCashDef(currCode);
+          if (prev[0].acc_code !== def.code) return [{ ...prev[0], method: def.m, acc_code: def.code }];
+        }
+        return prev;
+      });
     }
   }, [currency, currCode, isEdit]);
 
   const totalAmount = useMemo(() => payments.reduce((sum, r) => sum + (parseFloat(r.amount) || 0), 0), [payments]);
 
-  const handleAddPayment = () => {
-    setPayments(prev => [...prev, { id: Date.now() + Math.random(), method: 'تحويل بنكي (الكريمي)', acc_code: '102', amount: '' }]);
-  };
+  const handleAddPayment = () => setPayments(prev => [...prev, { id: Date.now() + Math.random(), method: 'تحويل بنكي (الكريمي)', acc_code: '102', amount: '' }]);
   const handleRemovePayment = (idx) => {
     if (payments.length <= 1) return showToast?.('يجب أن يحتوي السند على طريقة دفع واحدة على الأقل ⚠️', 'warning');
     setPayments(prev => prev.filter((_, i) => i !== idx));
   };
-  const handlePaymentChange = (idx, field, val) => {
-    setPayments(prev => {
-      const copy = [...prev];
-      copy[idx] = { ...copy[idx], [field]: val };
-      return copy;
-    });
-  };
+  const handlePaymentChange = (idx, field, val) => setPayments(prev => prev.map((p, i) => i === idx ? { ...p, [field]: val } : p));
 
   const handleSubmit = async (e) => {
     e?.preventDefault();
+    if (isSubmitting || submittingLocal) return;
     if (!party.trim()) return showToast?.('يرجى اختيار أو كتابة اسم الطرف المسدد ⚠️', 'error');
     if (totalAmount <= 0) return showToast?.('يرجى إدخال مبلغ السند ⚠️', 'error');
 
-    const vRate = parseFloat(exchangeRate) || 1.0;
-    const vBaseAmt = totalAmount * vRate;
-    const voucherNo = editData?.v_no || `RV-${Date.now().toString().slice(-6)}`;
-    const paySummary = payments.map(p => `${p.method}: ${(parseFloat(p.amount) || 0).toLocaleString('en-US')} ${currCode}`).join(' + ');
+    setSubmittingLocal(true);
+    try {
+      const vRate = parseFloat(exchangeRate) || 1.0;
+      const vBaseAmt = totalAmount * vRate;
+      const voucherNo = editData?.v_no || `RV-${Date.now().toString().slice(-6)}`;
+      const paySummary = payments.map(p => `${p.method}: ${(parseFloat(p.amount) || 0).toLocaleString('en-US')} ${currCode}`).join(' + ');
 
-    const newV = {
-      id: editData?.id || Date.now(),
-      v_no: voucherNo, voucher_no: voucherNo, payment_no: voucherNo,
-      v_type: 'سند قبض', voucher_type: 'سند قبض', payment_type: 'سند قبض',
-      party, party_name: party, phone, amount: totalAmount, currency: currCode,
-      exchange_rate: vRate, base_amount: vBaseAmt,
-      date: editData?.date || (typeof TODAY_STR_ISO !== 'undefined' ? TODAY_STR_ISO : new Date().toISOString().slice(0, 10)),
-      notes: notes ? `${notes} | الحساب المقابل: ${targetAcc}` : `سند قبض - ${party} (${paySummary}) | الحساب المقابل: ${targetAcc}`,
-      pay_method: paySummary, payment_method: paySummary,
-      acc_code: payments[0]?.acc_code || '101', target_acc: targetAcc
-    };
-
-    const entries = payments.filter(p => (parseFloat(p.amount) || 0) > 0).map(p => {
-      const lineAmt = parseFloat(p.amount) || 0;
-      const dObj = (accounts || []).find(a => String(a.code || a.acc_code) === String(p.acc_code || '101'));
-      const cObj = (accounts || []).find(a => String(a.code || a.acc_code) === String(targetAcc));
-      return {
-        id: Date.now() + Math.random(),
-        transaction_id: `TX-VCH-${voucherNo}`,
-        entry_no: 'AUTO-VCH-' + voucherNo,
-        debit: dObj ? `${dObj.code || dObj.acc_code} - ${dObj.name || dObj.account_name}` : (p.acc_code || '101'),
-        credit: cObj ? `${cObj.code || cObj.acc_code} - ${cObj.name || cObj.account_name}` : targetAcc,
-        debit_code: p.acc_code || '101', credit_code: targetAcc,
-        amount: lineAmt, currency: currCode, exchange_rate: vRate, base_amount: lineAmt * vRate,
-        ref_type: 'RECEIPT_VOUCHER', ref_id: voucherNo, date: newV.date,
-        notes: `سند قبض [${p.method}]: ${party} - ${notes || ''}`, status: 'posted'
+      const newV = {
+        id: editData?.id || Date.now(), v_no: voucherNo, voucher_no: voucherNo, payment_no: voucherNo,
+        v_type: 'سند قبض', voucher_type: 'سند قبض', payment_type: 'سند قبض',
+        party, party_name: party, phone, amount: totalAmount, currency: currCode,
+        exchange_rate: vRate, base_amount: vBaseAmt,
+        date: editData?.date || (typeof TODAY_STR_ISO !== 'undefined' ? TODAY_STR_ISO : new Date().toISOString().slice(0, 10)),
+        notes: notes ? `${notes} | الحساب المقابل: ${targetAcc}` : `سند قبض - ${party} (${paySummary}) | الحساب المقابل: ${targetAcc}`,
+        pay_method: paySummary, payment_method: paySummary,
+        acc_code: payments[0]?.acc_code || getCashDef(currCode).code, target_acc: targetAcc
       };
-    });
 
-    const success = await onSaveVoucher({
-      newV, generatedEntries: entries, splitPayments: payments, vRate,
-      modalTargetAcc: targetAcc, isReceipt: true, vBaseAmt,
-      customerOrderData: { custName: party, amt: totalAmount }
-    });
-    if (success) onClose();
+      const entries = payments.filter(p => (parseFloat(p.amount) || 0) > 0).map(p => {
+        const lineAmt = parseFloat(p.amount) || 0;
+        const dObj = (accounts || []).find(a => String(a.code || a.acc_code) === String(p.acc_code || '101'));
+        const cObj = (accounts || []).find(a => String(a.code || a.acc_code) === String(targetAcc));
+        return {
+          id: Date.now() + Math.random(), transaction_id: `TX-VCH-${voucherNo}`, entry_no: 'AUTO-VCH-' + voucherNo,
+          debit: dObj ? `${dObj.code || dObj.acc_code} - ${dObj.name || dObj.account_name}` : (p.acc_code || '101'),
+          credit: cObj ? `${cObj.code || cObj.acc_code} - ${cObj.name || cObj.account_name}` : targetAcc,
+          debit_code: p.acc_code || '101', credit_code: targetAcc, amount: lineAmt, currency: currCode, exchange_rate: vRate,
+          base_amount: lineAmt * vRate, ref_type: 'RECEIPT_VOUCHER', ref_id: voucherNo, date: newV.date,
+          notes: `سند قبض [${p.method}]: ${party} - ${notes || ''}`, status: 'posted'
+        };
+      });
+
+      const success = await onSaveVoucher({
+        newV, generatedEntries: entries, splitPayments: payments, vRate,
+        modalTargetAcc: targetAcc, isReceipt: true, vBaseAmt,
+        customerOrderData: { custName: party, amt: totalAmount }
+      });
+      if (success) onClose();
+    } finally {
+      setSubmittingLocal(false);
+    }
   };
 
   return (
@@ -107,13 +108,9 @@ function ReceiptVoucherModal({
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-[#181d2a]/70 p-3.5 rounded-2xl border border-[#2d3748]">
             <div className="sm:col-span-2">
               <label className="block text-[11px] font-bold text-gray-300 mb-1">اسم العميلة / الطرف المسدد *</label>
-              <input
-                list="receipt-parties"
-                type="text"
-                value={party}
+              <input list="receipt-parties" type="text" value={party}
                 onChange={e => {
-                  const val = e.target.value;
-                  setParty(val);
+                  const val = e.target.value; setParty(val);
                   const f = (customers || []).find(c => c.name === val);
                   if (f?.phone) setPhone(f.phone);
                   const pAcc = findPartnerAccount?.(val);
@@ -138,7 +135,13 @@ function ReceiptVoucherModal({
 
             <div>
               <label className="block text-[11px] font-bold text-gray-300 mb-1">عملة السند</label>
-              <select value={currency} onChange={e => setCurrency(e.target.value)} className="w-full h-10 px-3 rounded-xl border border-[#374151] bg-[#111827] text-white text-xs font-bold outline-none">
+              <select value={currency} onChange={e => {
+                const nextC = e.target.value;
+                setCurrency(nextC);
+                const nextCode = window.CurrencyService ? window.CurrencyService.normalizeCode(nextC) : 'YER';
+                const def = getCashDef(nextCode);
+                setPayments(prev => (prev.length === 1 && ['101.1', '101.2', '101.3'].includes(prev[0].acc_code)) ? [{ ...prev[0], method: def.m, acc_code: def.code }] : prev);
+              }} className="w-full h-10 px-3 rounded-xl border border-[#374151] bg-[#111827] text-white text-xs font-bold outline-none">
                 {["YER ﷼", "SAR ﷼", "USD $"].map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
@@ -149,11 +152,11 @@ function ReceiptVoucherModal({
             <div>
               <label className="block text-[11px] font-bold text-gray-300 mb-1">الحساب المقابل (الدائن)</label>
               <select value={targetAcc} onChange={e => setTargetAcc(e.target.value)} className="w-full h-10 px-3 rounded-xl border border-[#374151] bg-[#111827] text-white text-xs outline-none">
+                <option value="202">202 - عرابين وأمانات عملاء الفساتين</option>
                 <option value="104">104 - ذمم العملاء والمدينون</option>
-                <option value="4111">4111 - إيرادات تفصيل وتصميم فساتين</option>
-                <option value="2121">2121 - عربون دفعات وحجوزات مقدماً</option>
+                <option value="401">401 - إيرادات مبيعات وتفصيل فساتين</option>
                 {(partnerAccounts || []).map(p => <option key={p.code} value={p.code}>{p.code} - رأس مال {getCleanPartnerName?.(p)}</option>)}
-                {(accounts || []).filter(a => !a.is_group && !['104', '4111', '2121'].includes(String(a.code))).map(a => <option key={a.code || a.id} value={a.code || a.acc_code}>{a.code || a.acc_code} - {a.name || a.account_name}</option>)}
+                {(accounts || []).filter(a => !a.is_group && !['104', '202', '401', '4111', '2121'].includes(String(a.code || a.acc_code))).map(a => <option key={a.code || a.id} value={a.code || a.acc_code}>{a.code || a.acc_code} - {a.name || a.account_name}</option>)}
               </select>
             </div>
           </div>
@@ -198,8 +201,8 @@ function ReceiptVoucherModal({
 
           <div className="flex justify-between items-center pt-2 border-t border-[#2d3748]">
             <button type="button" onClick={onClose} className="px-4 py-2 rounded-xl border border-[#374151] text-gray-300 text-xs font-bold hover:bg-[#2d3748] cursor-pointer">إلغاء</button>
-            <button type="submit" disabled={isSubmitting || totalAmount <= 0 || !party.trim()} className="px-6 py-2.5 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 transition shadow-lg cursor-pointer disabled:opacity-40">
-              {isSubmitting ? 'جاري الحفظ...' : 'اعتماد سند القبض 💾'}
+            <button type="submit" disabled={isSubmitting || submittingLocal || totalAmount <= 0 || !party.trim()} className="px-6 py-2.5 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 transition shadow-lg cursor-pointer disabled:opacity-40">
+              {isSubmitting || submittingLocal ? 'جاري الحفظ...' : 'اعتماد سند القبض 💾'}
             </button>
           </div>
         </form>

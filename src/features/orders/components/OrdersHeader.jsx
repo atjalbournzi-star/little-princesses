@@ -12,6 +12,21 @@ function OrdersHeader({
   stats = {}
 }) {
   const currencyDisplay = stats.currencyDisplay || "YER ريال";
+  const POSHeaderComp = window.POSHeader;
+
+  if (activeMode === 'pos' && POSHeaderComp) {
+    return (
+      <POSHeaderComp
+        activeMode={activeMode}
+        setActiveMode={setActiveMode}
+        cartCount={cartCount}
+        ordersCount={ordersCount}
+        onOpenScanDeliver={onOpenScanDeliver}
+        stats={stats}
+        currencyDisplay={currencyDisplay}
+      />
+    );
+  }
 
   return (
     <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-[#E8E5EA] dark:border-slate-800 shadow-[0_2px_12px_rgba(0,0,0,0.02)] overflow-hidden">

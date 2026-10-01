@@ -170,6 +170,7 @@ CREATE TABLE orders (
             delivery_date TEXT,
             pickup_time TEXT DEFAULT 'الساعة 4 مساءً',
             delivery_fee REAL DEFAULT 0.0,
+            delivery_payment_mode TEXT DEFAULT 'DIRECT_TO_COURIER',
             fabric_status TEXT DEFAULT 'متوفر بالورشة',
             custom_notes TEXT,
             status TEXT DEFAULT 'قيد الخياطة 🪡',

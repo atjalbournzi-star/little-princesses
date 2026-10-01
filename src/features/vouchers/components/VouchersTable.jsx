@@ -20,13 +20,14 @@ function VouchersTable({
       <table className="w-full text-xs table-fixed border-collapse">
         <thead>
           <tr className="bg-[#FAFAFB] text-[#6F6B75] font-semibold border-b border-[#E8E5EA]">
-            <th className="px-3 py-3 text-right w-[9%]">النوع</th>
-            <th className="px-3 py-3 text-right w-[14%]">رقم السند</th>
-            <th className="px-3 py-3 text-right w-[16%]">الطرف (المستفيد / العميل)</th>
-            <th className="px-3 py-3 text-left w-[14%]">المبلغ ({activeTargetCurr})</th>
-            <th className="px-3 py-3 text-right w-[11%]">طريقة الدفع</th>
-            <th className="px-3 py-3 text-right w-[18%]">الحساب المالي</th>
-            <th className="px-3 py-3 text-center w-[10%]">التاريخ</th>
+            <th className="px-3 py-3 text-right w-[8%]">النوع</th>
+            <th className="px-3 py-3 text-right w-[11%]">رقم السند</th>
+            <th className="px-3 py-3 text-right w-[14%]">الطرف (المستفيد / العميل)</th>
+            <th className="px-3 py-3 text-left w-[13%]">المبلغ ({activeTargetCurr})</th>
+            <th className="px-3 py-3 text-right w-[10%]">طريقة الدفع</th>
+            <th className="px-3 py-3 text-right w-[15%]">الحساب المالي</th>
+            <th className="px-3 py-3 text-right w-[17%]">الحساب المقابل</th>
+            <th className="px-3 py-3 text-center w-[9%]">التاريخ</th>
             <th className="px-3 py-3 text-center w-[9%]">إجراءات</th>
           </tr>
         </thead>
@@ -34,8 +35,28 @@ function VouchersTable({
           {vouchers.map(v => {
             const rawAcc = v.account || v.acc_code || v.account_id || v.payment_source || '';
             const accCodeOnly = String(rawAcc).trim().split(' - ')[0].trim();
-            const match = (accounts || []).find(a => String(a.code || a.acc_code || a.id) === accCodeOnly);
+            const match = (accounts || []).find(a => 
+              String(a.id || '') === accCodeOnly ||
+              String(a.code || '') === accCodeOnly ||
+              String(a.acc_code || '') === accCodeOnly ||
+              String(a.id || '') === `ACC-${accCodeOnly}` ||
+              String(a.code || '') === accCodeOnly.replace(/^ACC-/, '')
+            );
             const accLabel = match ? `${match.code || match.acc_code} - ${match.name || match.account_name || match.acc_name || match.name_en || match.code}` : (rawAcc || '101 - الصندوق الرئيسي');
+
+            const rawTarget = v.target_account || v.target_acc || (v.isReceipt ? '104' : '201');
+            const targetCodeOnly = String(rawTarget).trim().split(' - ')[0].trim();
+            const targetMatch = (accounts || []).find(a => 
+              String(a.id || '') === targetCodeOnly ||
+              String(a.code || '') === targetCodeOnly ||
+              String(a.acc_code || '') === targetCodeOnly ||
+              String(a.id || '') === `ACC-${targetCodeOnly}` ||
+              String(a.code || '') === targetCodeOnly.replace(/^ACC-/, '')
+            );
+            const targetLabel = targetMatch 
+              ? `${targetMatch.code || targetMatch.acc_code} - ${targetMatch.name || targetMatch.account_name || targetMatch.acc_name || targetMatch.code}`
+              : (rawTarget.includes('202') ? '202 - عرابين وأمانات العملاء' : (rawTarget.includes('104') ? '104 - ذمم العملاء' : rawTarget));
+            const isAdvance = String(targetCodeOnly).includes('202') || (v.notes && (v.notes.includes('عربون') || v.notes.includes('حجز')));
 
             const vCurr = window.CurrencyService ? window.CurrencyService.normalizeCode(v.currency) : (v.currency || 'YER');
             const isSameCurr = vCurr === activeTargetCurr;
@@ -95,6 +116,12 @@ function VouchersTable({
 
                 <td className="px-3 py-3 text-right align-middle text-[#25232A] text-xs font-medium whitespace-nowrap truncate" title={accLabel}>
                   {accLabel}
+                </td>
+
+                <td className="px-3 py-3 text-right align-middle whitespace-nowrap truncate" title={targetLabel}>
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold border truncate ${isAdvance ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-[#E2F5F7] text-[#007F8C] border-[#C5ECF0]'}`}>
+                    {targetLabel}
+                  </span>
                 </td>
 
                 <td className="px-3 py-3 text-center align-middle text-[#6F6B75] text-xs whitespace-nowrap">

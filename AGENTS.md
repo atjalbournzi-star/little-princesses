@@ -1,22 +1,36 @@
-# 🚨 MANDATORY AGENT DIRECTIVES - قواعد السلامة وسياق الكود الالتزامية
+# Little Princesses ERP - Architecture & Coding Standards
 
-يجب على أي نموذج ذكاء اصطناعي (AI Agent) يقرأ هذا المستند التقيّد الصارم والقاطع بالقواعد التالية قبل البدء بأي مهمة، تعديل، قراءة جزئية، أو إضافة كود في مشروع **Little Princesses ERP**:
+1. **Strict File Length Limit**:
+   - No single source file must ever exceed 220 lines (including imports, comments, and empty lines).
+   - Target range: 80 - 180 lines per file.
+   - If a file approaches 200 lines, immediately extract business logic into hooks, helpers into utils, or split UI into sub-components.
 
----
+2. **Modular Directory Pattern (Frontend)**:
+   - `src/features/[feature]/utils/`: Pure helper functions, formatting, calculations, and message templates.
+   - `src/features/[feature]/hooks/`: `use[Feature]Data.js` (fetching/filtering) and `use[Feature]Actions.js` (business logic/mutations).
+   - `src/features/[feature]/components/`: Modular UI (Header, FilterBar, Tables, Cards, Modals).
+   - Complex Modals and heavy Tables must have their own isolated component file.
+   - `src/features/[feature].jsx`: Strict orchestrator / layout coordinator (100–150 lines max).
 
-## 1. 🔍 قراءة واستيعاب الملف المعني بالكامل (Full File Context Inspection)
-* **يمنع منعاً باتاً (STRICTLY FORBIDDEN):** إجراء أي تعديل أو إضافة كود بناءً على قراءة مقطوعة (Snippet View)، أو تخمين الأسماء والدوال والهيكلية بدون رؤية الكود كاملاً.
-* **الالتزام الإجباري (MANDATORY REQUIREMENT):** قراءة الملف المستهدف كاملاً من بدايته وحتى نهايته باستخدام أدوات الفحص (`view_file`) لاستيعاب السياق العام، المعمارية، مسميات المتغيرات والدوال، والعقود البرمجية قبل إجراء أي تغيير.
+3. **Backend & Shared Services Pattern**:
+   - Heavy service files (e.g., `pg_service.py`, `api.js`) must be split into domain-driven sub-modules within a dedicated folder (e.g., `services/pg/`).
+   - The root file must remain as a lightweight Facade re-exporting functions to ensure zero breaking changes for existing API consumers.
+   - Multi-table operations (vouchers, inventory moves, journal lines) must strictly use atomic database transactions with automatic rollback on error.
 
-## 2. 🛡️ التعديل التراكمي وحظر إعادة بناء الملفات (Zero Rewrite / Non-Destructive Editing)
-* **يمنع منعاً باتاً (STRICTLY FORBIDDEN):** إملاء أو إعادة كتابة أو مسح أي ملف قائم من الصفر (`No File Wiping / Zero Rewrite Policy`).
-* **الالتزام الإجباري (MANDATORY REQUIREMENT):** التعديل يجب أن يكون دقيقاً وموجهاً حصراً للأسطر المستهدفة باستخدام أدوات التعديل الجزئي (`replace_file_content` / `multi_replace_file_content`) مع الحفاظ التام على جميع الدوال، الميزات القائمة، والتعليقات البرمجية السابقة.
+4. **Browser Runtime & Global Scope Contract**:
+   - Every modular sub-file must export to `window` using a unique feature prefix (e.g., `window.MarketingHeader`, `window.AccountsTable`) to prevent global namespace collisions.
+   - The main orchestrator must safely resolve dependencies with fallbacks (`window.[Name] || ...`).
+   - `index.html` imports must strictly respect execution order: `utils` -> `services` -> `hooks` -> `components` -> `Feature.jsx`.
+   - Any added or updated script in `index.html` must include an updated cache-busting query (e.g., `?v=192`).
 
-## 3. 🧪 التحقق والتشغيل الفعلي (Empirical Runtime Verification)
-* **الالتزام الإجباري (MANDATORY REQUIREMENT):** التحقق التام من خلو الكود من الأخطاء البرمجية بعد التعديل، وتشغيل الخوادم والسكربتات ذات الصلة للتأكد من سلامة النظام قبل إعلان انتهاء المهمة.
+5. **Zero Regressions & Financial Governance**:
+   - Preserve existing State, Props, and DB schema contracts without renaming or losing features.
+   - Reuse core shared engines (`CurrencyService`, `AccountingEngine`) with zero duplication.
+   - Strict Monetary Precision: No raw floating-point math for currency; use strict accounting rounding and integer units where applicable.
+   - Absolute prohibition of hard deletes on financial, transactional, and audit records (use soft flags / audit logs).
 
-## 4. 📜 الامتثال الصارم لميثاق الحوكمة البرمجية (Software & Financial Governance)
-* **الالتزام الإجباري (MANDATORY REQUIREMENT):** الالتزام الحرفي بالبنود المحددة في `PROJECT_GOVERNANCE.md` و `.agents/rules/governance.md`، بما في ذلك: انضباط النطاق (Scope Discipline)، حظر تكرار المحركات (No Duplicate Engines)، حظر الحذف النهائي للبيانات المالية (No Hard Delete)، حظر تعديل الأرصدة يدوياً، حظر الأرقام العائمة للأموال (استخدام Decimal حصراً)، حظر وضع الأسرار في الكود، وتحقيق معيار اكتمال المهام (Definition of Done).
+6. **Mandatory Automated & Runtime Verification**:
+   - Empirical line-count verification via PowerShell is required before marking any task as complete (all business files < 220 lines).
+   - Automated line-count excludes vendor bundles (*.min.js), database seed/migration scripts, and backups.
+   - Runtime health check: Backend responding, browser console clean (zero red errors/ReferenceErrors), and zero Babel runtime syntax crashes.
 
----
-*هذه التعليمات ملزمة لجميع وكلاء الذكاء الاصطناعي وتُطبق تلقائياً على كل المحادثات والمهام.*

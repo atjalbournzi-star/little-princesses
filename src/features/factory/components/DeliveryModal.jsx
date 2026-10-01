@@ -12,6 +12,8 @@ function DeliveryModal({
   const utils = window.FactoryUtils || {};
   const inputCls = "w-full h-11 px-3.5 py-2.5 rounded-xl border border-[#E8E5EA] bg-white text-[#25232A] text-xs font-medium placeholder:text-[#6F6B75] focus:bg-white focus:border-[#8F2A87] focus:ring-2 focus:ring-[#F2E7F3] transition-all outline-none";
   const labelCls = "block text-xs font-semibold text-[#25232A] mb-1.5";
+  const delFee = parseFloat(deliveryModalData.delivery_fee || deliveryModalData.order?.delivery_fee || 0);
+  const delMode = deliveryModalData.delivery_payment_mode || deliveryModalData.order?.delivery_payment_mode || 'DIRECT_TO_COURIER';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-fadeIn" dir="rtl">
@@ -73,6 +75,15 @@ function DeliveryModal({
                 <span className="font-mono font-black text-[#8F2A87] mt-0.5 block">{deliveryModalData.resolvedRemaining?.toLocaleString()} ر.ي</span>
               </div>
             </div>
+
+            {delFee > 0 && (
+              <div className="p-2.5 rounded-xl bg-purple-50/70 border border-[#E5CEE7] text-xs flex justify-between items-center">
+                <span className="font-semibold text-[#8F2A87]">
+                  {delMode === 'PREPAID_VIA_ATELIER' ? '🚚 رسوم التوصيل مسددة مسبقاً للأتيليه:' : '🛵 رسوم التوصيل مباشرة للسائق (لا تُحصّل للأتيليه):'}
+                </span>
+                <span className="font-mono font-bold text-[#25232A]">{delFee.toLocaleString()} ر.ي</span>
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-3">
               <div>

@@ -3,15 +3,15 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>نظام الإدارة المتكامل الذكي | ERP Master</title>
+  <title>ظ†ط¸ط§ظ… ط§ظ„ط¥ط¯ط§ط±ط© ط§ظ„ظ…طھظƒط§ظ…ظ„ ط§ظ„ط°ظƒظٹ | ERP Master</title>
   
   <!-- Global Standard Numerals (123) & Calendar Runtime Engine -->
   <script>
     (function() {
-      var arabicDigits = '٠١٢٣٤٥٦٧٨٩';
+      var arabicDigits = 'ظ ظ،ظ¢ظ£ظ¤ظ¥ظ¦ظ§ظ¨ظ©';
       function toLatinDigits(str) {
         if (str === null || str === undefined) return '';
-        return String(str).replace(/[٠-٩]/g, function(c) {
+        return String(str).replace(/[ظ -ظ©]/g, function(c) {
           var idx = arabicDigits.indexOf(c);
           return idx !== -1 ? idx : c;
         });
@@ -85,7 +85,7 @@
         window.Intl.DateTimeFormat.supportedLocalesOf = _OrigDateTimeFormat.supportedLocalesOf;
       }
 
-      // 4. HTML5 Date Inputs & Calendar Auto-Enforcer (التقويم القياسي 123)
+      // 4. HTML5 Date Inputs & Calendar Auto-Enforcer (ط§ظ„طھظ‚ظˆظٹظ… ط§ظ„ظ‚ظٹط§ط³ظٹ 123)
       function enforceStandardCalendar(el) {
         if (!el || !el.tagName) return;
         var type = el.getAttribute('type');
@@ -228,7 +228,7 @@
       color: #25232A;
     }
 
-    /* ── Western Tabular Numerals & Monetary Formatting ── */
+    /* â”€â”€ Western Tabular Numerals & Monetary Formatting â”€â”€ */
     .numeric, .amount, .price, .kpi-value, .tabular-nums, .font-mono, .font-numeric {
       font-family: 'Inter', 'Cairo', sans-serif !important;
       font-feature-settings: "tnum" 1, "lnum" 1;
@@ -237,7 +237,7 @@
       display: inline-block;
     }
 
-    /* ── Standard Western Numerals (123) for Date Pickers & Calendar Dropdown ── */
+    /* â”€â”€ Standard Western Numerals (123) for Date Pickers & Calendar Dropdown â”€â”€ */
     input[type="date"], input[type="datetime-local"], input[type="time"], input[type="month"] {
       font-family: 'Inter', 'Cairo', sans-serif !important;
       font-feature-settings: "locl" 0, "lnum" 1, "tnum" 1 !important;
@@ -268,7 +268,7 @@
       filter: invert(0.8);
     }
 
-    /* ── Hierarchy & Metric Classes ── */
+    /* â”€â”€ Hierarchy & Metric Classes â”€â”€ */
     .currency-symbol {
       font-size: 0.75rem;
       font-weight: 500;
@@ -338,30 +338,69 @@
   <script type="text/babel" src="./components/Toast.jsx?v=148"></script>
   <script type="text/babel" src="./components/LoginModal.jsx?v=148"></script>
   <script type="text/babel" src="./components/UsersModal.jsx?v=148"></script>
-  <script type="text/babel" src="./components/Sidebar.jsx?v=148"></script>
+  <script type="text/babel" src="./components/Sidebar.jsx?v=245"></script>
   <script type="text/babel" src="./components/Header.jsx?v=148"></script>
+  <script type="text/babel" src="./components/layout/AppSidebar.jsx?v=245"></script>
+  <script type="text/babel" src="./components/layout/AppTopbar.jsx?v=231"></script>
+  <script type="text/babel" src="./components/AppLayout.jsx?v=245"></script>
+  <script type="text/babel" src="./components/MainLayout.jsx?v=237"></script>
   <script type="text/babel" src="./components/MobileNav.jsx?v=148"></script>
   <script type="text/babel" src="./components/PrintModal.jsx?v=148"></script>
 
   <!-- 3. Feature Modules -->
-  <script type="text/babel" src="./features/Dashboard.jsx?v=148"></script>
-  <script type="text/babel" src="./features/Customers.jsx?v=148"></script>
-  <script type="text/babel" src="./features/Products.jsx?v=148"></script>
-  <script type="text/babel" src="./features/Orders.jsx?v=148"></script>
-  <script type="text/babel" src="./features/Purchases.jsx?v=148"></script>
-  <script type="text/babel" src="./features/Inventory.jsx?v=148"></script>
-  <script type="text/babel" src="./features/Accounts.jsx?v=148"></script>
-  <script type="text/babel" src="./features/Factory.jsx?v=148"></script>
-  <script type="text/babel" src="./features/Vouchers.jsx?v=148"></script>
-  <script type="text/babel" src="./features/Expenses.jsx?v=148"></script>
-  <script type="text/babel" src="./features/Journal.jsx?v=148"></script>
-  <script type="text/babel" src="./features/Reports.jsx?v=148"></script>
-  <script type="text/babel" src="./features/Marketing.jsx?v=148"></script>
-  <script type="text/babel" src="./features/HR.jsx?v=148"></script>
-  <script type="text/babel" src="./features/Feedback.jsx?v=148"></script>
-  <script type="text/babel" src="./features/Settings.jsx?v=148"></script>
+  <script type="text/babel" src="./features/Dashboard.jsx?v=242"></script>
+  <script type="text/babel" src="./features/Customers.jsx?v=251"></script>
+  <!-- Products Modular Architecture -->
+  <script type="text/babel" src="./features/products/utils/productUtils.js?v=186"></script>
+  <script type="text/babel" src="./features/products/hooks/useProductsData.js?v=186"></script>
+  <script type="text/babel" src="./features/products/hooks/useProductActions.js?v=186"></script>
+  <script type="text/babel" src="./features/products/components/ProductsHeader.jsx?v=186"></script>
+  <script type="text/babel" src="./features/products/components/ProductsFilterBar.jsx?v=186"></script>
+  <script type="text/babel" src="./features/products/components/ProductCard.jsx?v=186"></script>
+  <script type="text/babel" src="./features/products/components/ProductsTable.jsx?v=186"></script>
+  <script type="text/babel" src="./features/products/components/ProductModal.jsx?v=186"></script>
+  <script type="text/babel" src="./features/Products.jsx?v=186"></script>
+  <script type="text/babel" src="./features/Orders.jsx?v=149"></script>
+  <!-- Inventory Modular Architecture -->
+  <script type="text/babel" src="./features/inventory/utils/inventoryUtils.js?v=188"></script>
+  <script type="text/babel" src="./features/inventory/hooks/useInventoryData.js?v=188"></script>
+  <script type="text/babel" src="./features/inventory/hooks/useInventoryActions.js?v=188"></script>
+  <script type="text/babel" src="./features/inventory/components/InventoryHeader.jsx?v=188"></script>
+  <script type="text/babel" src="./features/inventory/components/InventoryFilterBar.jsx?v=188"></script>
+  <script type="text/babel" src="./features/inventory/components/InventoryTable.jsx?v=188"></script>
+  <script type="text/babel" src="./features/inventory/components/InventoryPurchasesTable.jsx?v=188"></script>
+  <script type="text/babel" src="./features/inventory/components/InventoryMovementsTable.jsx?v=188"></script>
+  <script type="text/babel" src="./features/inventory/components/InventoryAddItemModal.jsx?v=188"></script>
+  <script type="text/babel" src="./features/inventory/components/StockAdjustmentModal.jsx?v=188"></script>
+  <script type="text/babel" src="./features/inventory/components/WarehouseTransferModal.jsx?v=188"></script>
+  <script type="text/babel" src="./features/inventory/components/ItemMovementModal.jsx?v=188"></script>
+  <script type="text/babel" src="./features/Inventory.jsx?v=188"></script>
+
+  <!-- Accounts Module (ظ…ط¹ظٹط§ط±ظٹ - ظ…ظ‚ط³ظ… ط¥ظ„ظ‰ hooks + components) -->
+  <script type="text/babel" src="./features/accounts/hooks/accountHelpers.js?v=149"></script>
+  <script type="text/babel" src="./features/accounts/hooks/useAccountsData.js?v=149"></script>
+  <script type="text/babel" src="./features/accounts/hooks/useAccountActions.js?v=149"></script>
+  <script type="text/babel" src="./features/accounts/components/AccountsHeader.jsx?v=149"></script>
+  <script type="text/babel" src="./features/accounts/components/AccountsFilterBar.jsx?v=149"></script>
+  <script type="text/babel" src="./features/accounts/components/AccountsTreeView.jsx?v=149"></script>
+  <script type="text/babel" src="./features/accounts/components/AccountsTable.jsx?v=149"></script>
+  <script type="text/babel" src="./features/accounts/components/AccountModal.jsx?v=149"></script>
+  <script type="text/babel" src="./features/accounts/components/AccountStatementModal.jsx?v=149"></script>
+  <script type="text/babel" src="./features/Accounts.jsx?v=149"></script>
+  <script type="text/babel" src="./utils/measurementConverter.js?v=221"></script>
+
+  <script type="text/babel" src="./features/Factory.jsx?v=149"></script>
+  <script type="text/babel" src="./features/Vouchers.jsx?v=149"></script>
+  <script type="text/babel" src="./features/Expenses.jsx?v=149"></script>
+  <script type="text/babel" src="./features/Journal.jsx?v=149"></script>
+  <script type="text/babel" src="./features/Reports.jsx?v=149"></script>
+  <script type="text/babel" src="./features/Marketing.jsx?v=149"></script>
+  <script type="text/babel" src="./features/HR.jsx?v=149"></script>
+  <script type="text/babel" src="./features/Feedback.jsx?v=149"></script>
+  <script type="text/babel" src="./features/Settings.jsx?v=149"></script>
 
   <!-- 4. Main App Entry Point -->
-  <script type="text/babel" src="./App.jsx?v=148"></script>
+  <script type="text/babel" src="./App.jsx?v=149"></script>
 </body>
 </html>
+

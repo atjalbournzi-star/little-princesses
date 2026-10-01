@@ -17,7 +17,12 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
     return `PUR-${lastNum + 1}`;
   };
 
-  const emptyHeader = () => ({ bill_no: '', supplier_id: '', supplier: '', supplier_phone: '', discount: '', notes: '', currency: defaultCurrency, exchange_rate: '', pay_type: defaultPayType, transfer_no: '', payment_source: '', receipt_url: '', invoice_image_url: '', date: todayStrIso, freight_cost: '', transfer_fees: '' });
+  const emptyHeader = () => ({
+    bill_no: '', supplier_id: '', supplier: '', supplier_phone: '', warehouse_id: 'WH-MAIN',
+    discount: '', notes: '', currency: defaultCurrency, exchange_rate: '', pay_type: defaultPayType,
+    transfer_no: '', payment_source: '', receipt_url: '', invoice_image_url: '', date: todayStrIso,
+    freight_cost: '', transfer_fees: ''
+  });
   const emptyItem = () => ({ item: '', unit: 'متر', qty: '', price: '', total: '' });
 
   const [headerData, setHeaderData] = useState(emptyHeader), [itemData, setItemData] = useState(emptyItem), [editingIndex, setEditingIndex] = useState(null);
@@ -27,7 +32,14 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
   // Subcomponents & Hooks
   const useData = window.usePurchasesData || (() => ({}));
   const useActions = window.usePurchaseActions || (() => ({}));
-  const { SupplierQuickAddModal: QuickAddModal, PurchaseItemsTable: ItemsTable, PurchaseModal: ModalComponent, PurchasesFilterBar: FilterBar, PurchasesTable: DataTable } = window;
+  const {
+    SupplierQuickAddModal: QuickAddModal,
+    PurchaseItemsTable: ItemsTable,
+    PurchaseModal: ModalComponent,
+    PurchasesFilterBar: FilterBar,
+    PurchasesTable: DataTable,
+    PurchaseHeaderForm: HeaderForm
+  } = window;
 
   const {
     suppliers, setSuppliers, isLoadingSuppliers, supplierSearch, setSupplierSearch,
@@ -105,84 +117,18 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
           </span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-5 bg-[#FAFAFB] rounded-2xl border border-[#E8E5EA]">
-          <div><label className={labelCls}>رقم الفاتورة</label><input type="text" className={inputCls + " font-mono"} placeholder={`مثال: ${genBillNo()}`} value={headerData.bill_no} onChange={e => setHeaderData(p => ({ ...p, bill_no: e.target.value }))} /></div>
-
-          {/* اختيار المورد */}
-          <div className="relative" ref={supplierDropdownRef}>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className={labelCls}>المورد المعتمد *</label>
-              <button type="button" onClick={() => setShowQuickAddSupplier(true)} className="text-[11px] font-bold text-[#8F2A87] hover:text-[#73216C] bg-[#F2E7F3] hover:bg-[#E5CEE7] px-2 py-0.5 rounded-lg flex items-center gap-1 transition cursor-pointer">➕ مورد جديد</button>
-            </div>
-            <div className="relative flex items-center">
-              <input type="text" className={inputCls + " pl-12 pr-8 font-medium " + (headerData.supplier_id ? "border-[#8F2A87] bg-purple-50/20" : "")} placeholder="ابحث بالاسم أو الهاتف..." value={supplierSearch || headerData.supplier} onFocus={() => setIsSupplierDropdownOpen(true)} onChange={e => { setSupplierSearch(e.target.value); setHeaderData(p => ({ ...p, supplier: e.target.value, supplier_id: '' })); setIsSupplierDropdownOpen(true); }} />
-              <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#6F6B75] pointer-events-none text-xs">👤</span>
-              <div className="absolute left-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                {(headerData.supplier || supplierSearch) && <button type="button" onClick={() => { setHeaderData(p => ({ ...p, supplier_id: '', supplier: '', supplier_phone: '' })); setSupplierSearch(''); }} className="text-[#6F6B75] hover:text-[#D64545] p-1 text-xs cursor-pointer">✕</button>}
-                <button type="button" onClick={() => setIsSupplierDropdownOpen(prev => !prev)} className="text-[#6F6B75] hover:text-[#8F2A87] p-1 text-xs cursor-pointer">▼</button>
-              </div>
-            </div>
-            {isSupplierDropdownOpen && (
-              <div className="absolute top-full right-0 left-0 mt-1 bg-white rounded-xl border border-[#E8E5EA] shadow-xl z-30 max-h-60 overflow-y-auto divide-y divide-[#F2E7F3]">
-                {isLoadingSuppliers ? <div className="p-3 text-center text-[#6F6B75] text-xs">⏳ جاري جلب الموردين...</div> : (filteredSuppliersList || []).length === 0 ? (
-                  <div className="p-3 text-center space-y-2"><p className="text-[#6F6B75] text-xs">لا يوجد موردون مسجلون</p><button type="button" onClick={() => setShowQuickAddSupplier(true)} className="px-3 py-1 bg-[#8F2A87] text-white text-xs font-bold rounded-lg hover:bg-[#73216C] transition inline-flex items-center gap-1 cursor-pointer">➕ إضافة مورد جديد</button></div>
-                ) : filteredSuppliersList.map(s => (
-                  <div key={s.id} onClick={() => handleSelectSupplier(s)} className={`p-2.5 hover:bg-[#F2E7F3]/40 cursor-pointer flex items-center justify-between transition-colors ${String(headerData.supplier_id) === String(s.id) ? 'bg-[#F2E7F3] border-r-4 border-[#8F2A87]' : ''}`}>
-                    <div>
-                      <div className="font-bold text-xs text-[#25232A] flex items-center gap-1.5"><span>{s.name}</span>{s.city && <span className="text-[10px] text-[#6F6B75] bg-[#FAFAFB] px-1.5 py-0.2 rounded border border-[#E8E5EA]">{s.city}</span>}</div>
-                      {s.phone && <div className="text-[11px] font-mono text-[#6F6B75] mt-0.5 dir-ltr">📱 {s.phone}</div>}
-                    </div>
-                    <span className="text-[10px] font-bold font-mono px-1.5 py-0.5 rounded-full bg-gray-50 text-gray-700 border border-gray-200">{parseFloat(s.current_balance || s.balance || 0).toLocaleString('en-US')} ﷼</span>
-                  </div>
-                ))}
-              </div>
-            )}
-            {selectedSupplierObj && (
-              <div className="mt-1.5 flex items-center justify-between px-2.5 py-1 bg-[#F2E7F3]/40 border border-[#E5CEE7] rounded-lg text-[11px]">
-                <span className="text-[#6F6B75] font-medium truncate max-w-[120px]" title={selectedSupplierObj.name}>💼 {selectedSupplierObj.name}</span>
-                <span className="font-mono font-bold text-[11px] text-[#8F2A87]">الرصيد: {parseFloat(selectedSupplierObj.current_balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ﷼</span>
-              </div>
-            )}
-          </div>
-
-          <div><label className={labelCls}>هاتف المورد 📱</label><input type="text" className={inputCls + " font-mono"} placeholder="يُملأ آلياً" value={headerData.supplier_phone} onChange={e => setHeaderData(p => ({ ...p, supplier_phone: e.target.value }))} /></div>
-          <div><label className={labelCls}>العملة</label>
-            <select className={inputCls} value={headerData.currency} onChange={e => {
-              const newC = e.target.value, norm = window.CurrencyService ? window.CurrencyService.normalizeCode(newC) : 'YER';
-              let autoBox = norm === 'SAR' ? '101.2 - صندوق الريال السعودي (SAR)' : (norm === 'USD' ? '101.3 - صندوق الدولار (USD)' : '101.1 - صندوق الريال اليمني (YER)');
-              setHeaderData(p => ({ ...p, currency: newC, payment_source: autoBox, exchange_rate: window.CurrencyService ? window.CurrencyService.getRate(newC) : '' }));
-            }}>
-              {(typeof CURRENCIES !== 'undefined' ? CURRENCIES : ['YER ﷼','SAR ﷼','USD $']).map(c => { const v = typeof c === 'object' ? c.value : c, l = typeof c === 'object' ? c.label : c; return <option key={v} value={v}>{l}</option>; })}
-            </select>
-          </div>
-
-          {headerData.currency && window.CurrencyService && window.CurrencyService.normalizeCode(headerData.currency) !== 'YER' && (
-            <div><label className={labelCls}>سعر الصرف (1 {window.CurrencyService.normalizeCode(headerData.currency)} = ? YER)</label><input type="number" step="0.01" className={inputCls + " font-mono font-bold text-[#8F2A87] bg-amber-50"} value={headerData.exchange_rate || (window.CurrencyService ? window.CurrencyService.getRate(headerData.currency) : 1)} onChange={e => setHeaderData(p => ({ ...p, exchange_rate: e.target.value }))} /></div>
-          )}
-
-          <div><label className={labelCls}>الخصم والتخفيض 💸</label><input type="number" step="0.01" min="0" className={inputCls + " font-mono font-bold text-[#D64545]"} placeholder="0.00" value={headerData.discount} onChange={e => setHeaderData(p => ({ ...p, discount: e.target.value }))} /></div>
-          <div><label className={labelCls}>طريقة الدفع</label>
-            <select className={inputCls} value={headerData.pay_type} onChange={e => {
-              const pt = e.target.value, autoBox = pt === 'آجل' ? '201 - ذمم الموردين ومحلات الأقمشة' : (headerData.currency && String(headerData.currency).includes('SAR') ? '101.2 - صندوق الريال السعودي (SAR)' : (headerData.currency && String(headerData.currency).includes('USD') ? '101.3 - صندوق الدولار (USD)' : '101.1 - صندوق الريال اليمني (YER)'));
-              setHeaderData(p => ({ ...p, pay_type: pt, payment_source: autoBox }));
-            }}>
-              {(typeof PAY_METHODS !== 'undefined' ? PAY_METHODS : ['نقدي','حوالة بنكية','آجل']).map(pt => <option key={pt} value={pt}>{pt}</option>)}
-            </select>
-          </div>
-          <div><label className={labelCls}>حساب الدفع</label>
-            <select className={inputCls} value={headerData.payment_source} onChange={e => setHeaderData(p => ({ ...p, payment_source: e.target.value }))}>
-              <option value="">-- اختر حساب الدفع --</option>
-              {(accounts || []).map(a => { const c = a.acc_code || a.code || a.account_code || '', n = a.acc_name || a.name || a.account_name || '', label = n ? `${c} - ${n}` : String(c); return <option key={c} value={label}>{label}</option>; })}
-            </select>
-          </div>
-          <div><label className={labelCls}>رقم الحوالة</label><input type="text" className={inputCls + " font-mono text-[#8F2A87]"} value={headerData.transfer_no} onChange={e => setHeaderData(p => ({ ...p, transfer_no: e.target.value }))} /></div>
-          <div><label className={labelCls}>صورة الفاتورة 🧾</label><div className="flex gap-2"><label className="flex-1 cursor-pointer bg-white hover:bg-[#FAFAFB] border border-[#E8E5EA] text-[#25232A] font-bold p-2.5 rounded-xl text-center flex items-center justify-center h-11">🧾 اختر صورة<input type="file" accept="image/*" className="hidden" onChange={e => handleFileUpload(e, 'invoice_image_url', 'صورة الفاتورة 🧾')} /></label>{headerData.invoice_image_url && <button type="button" onClick={() => { setPreviewImage(headerData.invoice_image_url); setPreviewTitle('🧾 صورة الفاتورة'); }} className="p-2 bg-[#F2E7F3] text-[#8F2A87] rounded-xl font-bold border border-[#E5CEE7] h-11 px-3 cursor-pointer">🧾</button>}</div></div>
-          <div><label className={labelCls}>صورة السند 💳</label><div className="flex gap-2"><label className="flex-1 cursor-pointer bg-white hover:bg-[#FAFAFB] border border-[#E8E5EA] text-[#25232A] font-bold p-2.5 rounded-xl text-center flex items-center justify-center h-11">📷 اختر صورة<input type="file" accept="image/*" className="hidden" onChange={e => handleFileUpload(e, 'receipt_url', 'صورة السند 💳')} /></label>{headerData.receipt_url && <button type="button" onClick={() => { setPreviewImage(headerData.receipt_url); setPreviewTitle('💳 صورة السند'); }} className="p-2 bg-[#E2F5F7] text-[#007F8C] rounded-xl font-bold border border-[#C5ECF0] h-11 px-3 cursor-pointer">🖼️</button>}</div></div>
-          <div><label className={labelCls}>تاريخ الفاتورة</label><input type="date" lang="en-GB" dir="ltr" className={inputCls} value={headerData.date} onChange={e => setHeaderData(p => ({ ...p, date: e.target.value }))} /></div>
-          <div><label className={labelCls}>تكلفة النقل</label><input type="number" step="0.01" min="0" className={inputCls + " font-mono font-bold text-[#8F2A87]"} placeholder="0.00" value={headerData.freight_cost} onChange={e => setHeaderData(p => ({ ...p, freight_cost: e.target.value }))} /></div>
-          <div><label className={labelCls}>رسوم التحويل</label><input type="number" step="0.01" min="0" className={inputCls + " font-mono font-bold text-[#D64545]"} placeholder="0.00" value={headerData.transfer_fees} onChange={e => setHeaderData(p => ({ ...p, transfer_fees: e.target.value }))} /></div>
-          <div className="sm:col-span-2 lg:col-span-2"><label className={labelCls}>ملاحظات الفاتورة والبيان 📝</label><input type="text" className={inputCls} placeholder="ملاحظات وتفاصيل الفاتورة" value={headerData.notes} onChange={e => setHeaderData(p => ({ ...p, notes: e.target.value }))} /></div>
-        </div>
+        {HeaderForm && (
+          <HeaderForm
+            headerData={headerData} setHeaderData={setHeaderData} genBillNo={genBillNo}
+            setShowQuickAddSupplier={setShowQuickAddSupplier} supplierDropdownRef={supplierDropdownRef}
+            supplierSearch={supplierSearch} setSupplierSearch={setSupplierSearch}
+            isSupplierDropdownOpen={isSupplierDropdownOpen} setIsSupplierDropdownOpen={setIsSupplierDropdownOpen}
+            isLoadingSuppliers={isLoadingSuppliers} filteredSuppliersList={filteredSuppliersList}
+            handleSelectSupplier={handleSelectSupplier} selectedSupplierObj={selectedSupplierObj}
+            accounts={accounts} handleFileUpload={handleFileUpload} setPreviewImage={setPreviewImage}
+            setPreviewTitle={setPreviewTitle} inputCls={inputCls} labelCls={labelCls}
+          />
+        )}
 
         {ItemsTable && (
           <ItemsTable

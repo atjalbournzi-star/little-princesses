@@ -8,16 +8,20 @@ function OrderFormModal({
 }) {
   const getCustName = window.getCustomerName || ((c) => c?.name || '');
   const todayStr = typeof TODAY_STR_ISO !== 'undefined' ? TODAY_STR_ISO : new Date().toISOString().slice(0, 10);
+  const OrderPricing = window.OrderPricing || {};
 
   const [customerName, setCustomerName] = useState("");
   const [childName, setChildName] = useState("");
   const [productName, setProductName] = useState("");
   const [qty, setQty] = useState("1");
+  const [deliveryFee, setDeliveryFee] = useState("0");
+  const [deliveryPaymentMode, setDeliveryPaymentMode] = useState("DIRECT_TO_COURIER");
   const [total, setTotal] = useState("");
   const [paid, setPaid] = useState("");
   const [orderDate, setOrderDate] = useState(todayStr);
   const [deliveryDate, setDeliveryDate] = useState(todayStr);
   const [campaignId, setCampaignId] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const selectedCustomer = (customers || []).find(c => (getCustName(c) || "").trim() === (customerName || "").trim());
   const availableChildren = selectedCustomer?.measurements || [];
@@ -30,12 +34,17 @@ function OrderFormModal({
         if (m) { cName = m[1].trim(); chName = m[2].trim(); }
       }
       setCustomerName(cName); setChildName(chName); setProductName(editingOrder.product_name || "");
-      setQty(String(editingOrder.qty || "1")); setTotal(String(editingOrder.total || "0")); setPaid(String(editingOrder.paid || "0"));
+      setQty(String(editingOrder.qty || "1"));
+      setDeliveryFee(String(editingOrder.delivery_fee || editingOrder.delivery || "0"));
+      setDeliveryPaymentMode(editingOrder.delivery_payment_mode || "DIRECT_TO_COURIER");
+      setTotal(String(editingOrder.total || editingOrder.total_amount || "0"));
+      setPaid(String(editingOrder.paid || editingOrder.paid_amount || "0"));
       setOrderDate(editingOrder.order_date ? String(editingOrder.order_date).split("T")[0] : todayStr);
       setDeliveryDate(editingOrder.delivery_date ? String(editingOrder.delivery_date).split("T")[0] : todayStr);
       setCampaignId(editingOrder.campaign_id || "");
     } else if (!isEditing) {
-      setCustomerName(""); setChildName(""); setProductName(""); setQty("1"); setTotal(""); setPaid("");
+      setCustomerName(""); setChildName(""); setProductName(""); setQty("1"); setDeliveryFee("0");
+      setDeliveryPaymentMode("DIRECT_TO_COURIER"); setTotal(""); setPaid("");
       setOrderDate(todayStr); setDeliveryDate(todayStr); setCampaignId("");
     }
   }, [isEditing, editingOrder, todayStr]);
@@ -44,16 +53,15 @@ function OrderFormModal({
     if (isEditing) return;
     const selP = (products || []).find(p => p.name === productName);
     if (!selP) return;
-    let targetPrice = parseFloat(selP.sell_price) || 0;
-    if (childName && availableChildren.length > 0) {
-      const child = availableChildren.find(c => c.child_name === childName);
-      if (child && child.estimated_age && selP.price_matrix) {
-        const bracketPrice = selP.price_matrix[child.estimated_age];
-        if (bracketPrice) targetPrice = parseFloat(bracketPrice) || targetPrice;
-      }
-    }
-    if (targetPrice > 0) setTotal(targetPrice.toString());
-  }, [productName, childName, isEditing, products, availableChildren]);
+    const child = availableChildren.find(c => c.child_name === childName);
+    const tier = child?.estimated_age || (child && OrderPricing.resolveAgeTier ? OrderPricing.resolveAgeTier(child.dress_length || child.total_height) : null);
+    const targetPrice = OrderPricing.resolveProductTierPrice ? OrderPricing.resolveProductTierPrice(selP, tier, child) : (parseFloat(selP.sell_price) || 0);
+    const q = Math.max(1, parseInt(qty, 10) || 1);
+    const df = Math.max(0, parseFloat(deliveryFee) || 0);
+    const isPrepaid = deliveryPaymentMode === "PREPAID_VIA_ATELIER";
+    const totalAmt = (targetPrice * q) + (isPrepaid ? df : 0);
+    if (targetPrice > 0 || (isPrepaid && df > 0)) setTotal(totalAmt.toString());
+  }, [productName, childName, qty, deliveryFee, deliveryPaymentMode, isEditing, products, availableChildren]);
 
   useEffect(() => {
     if (isEditing || !childName || !availableChildren.length) return;
@@ -68,13 +76,24 @@ function OrderFormModal({
 
   const totalNum = Math.max(0, parseFloat(total) || 0), paidNum = Math.max(0, parseFloat(paid) || 0), remainingNum = Math.max(0, totalNum - paidNum);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    onSaveInvoice({
-      isEditing, editingOrderId,
-      payload: { customer_name: customerName, child_name: childName, product_name: productName, qty, total, paid, order_date: orderDate, delivery_date: deliveryDate, campaign_id: campaignId },
-      resetForm: onClose
-    });
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      await onSaveInvoice({
+        isEditing, editingOrderId,
+        payload: {
+          customer_name: customerName, child_name: childName, product_name: productName,
+          qty, total, paid, delivery_fee: parseFloat(deliveryFee) || 0,
+          delivery_payment_mode: deliveryPaymentMode,
+          order_date: orderDate, delivery_date: deliveryDate, campaign_id: campaignId
+        },
+        resetForm: onClose
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const inputCls = "w-full h-11 px-3.5 py-2.5 rounded-xl border border-[#E8E5EA] dark:border-slate-700 bg-white dark:bg-slate-900 text-[#25232A] dark:text-slate-100 text-xs font-medium placeholder:text-[#6F6B75] focus:border-[#B0005A] focus:ring-2 focus:ring-[#FCE8F2] outline-none transition-all";
@@ -133,7 +152,21 @@ function OrderFormModal({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4.5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3 rounded-xl bg-purple-50/50 dark:bg-slate-800/40 border border-[#E5CEE7] dark:border-slate-700">
+          <div>
+            <label className={labelCls}>طريقة دفع رسوم التوصيل 🚚</label>
+            <select value={deliveryPaymentMode} onChange={e => setDeliveryPaymentMode(e.target.value)} className={inputCls}>
+              <option value="DIRECT_TO_COURIER">🛵 دفع مباشر للسائق عند الاستلام (لا يضاف للفاتورة)</option>
+              <option value="PREPAID_VIA_ATELIER">🚚 مدفوع مسبقاً للأتيليه (يضاف لإجمالي الفاتورة)</option>
+            </select>
+          </div>
+          <div>
+            <label className={labelCls}>رسوم التوصيل ({currencyDisplay})</label>
+            <input type="number" step="0.01" min="0" value={deliveryFee} onChange={e => setDeliveryFee(e.target.value)} className={inputCls + " text-center font-mono font-bold"} placeholder="0.00" />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-4">
           <div><label className={labelCls}>الكمية (عدد)</label><input type="number" min="1" value={qty} onChange={e => setQty(e.target.value)} className={inputCls + " text-center font-mono font-bold"} /></div>
           <div><label className={labelCls}>الإجمالي الكلي ({currencyDisplay})</label><input type="number" step="0.01" min="0" value={total} onChange={e => setTotal(e.target.value)} className={inputCls + " text-center font-mono font-bold"} placeholder="0.00" /></div>
           <div><label className={labelCls}>المدفوع / العربون ({currencyDisplay})</label><input type="number" step="0.01" min="0" value={paid} onChange={e => setPaid(e.target.value)} className={inputCls + " text-center font-mono font-bold text-[#007F8C]"} placeholder="0.00" /></div>
@@ -148,8 +181,8 @@ function OrderFormModal({
 
         <div className="flex justify-end pt-2 gap-2">
           {onClose && <button type="button" onClick={onClose} className="px-6 py-3 rounded-xl font-bold text-xs bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:bg-gray-200 transition cursor-pointer">إلغاء</button>}
-          <button type="submit" className="w-full sm:w-auto px-8 py-3 rounded-xl font-bold text-xs text-white bg-[#B0005A] hover:bg-[#8E0049] transition shadow-xs flex items-center justify-center gap-2 cursor-pointer">
-            <span>{isEditing ? "حفظ تعديلات الفاتورة" : "حفظ الفاتورة وتوليد QR Code"}</span>
+          <button type="submit" disabled={isSubmitting} className="w-full sm:w-auto px-8 py-3 rounded-xl font-bold text-xs text-white bg-[#B0005A] hover:bg-[#8E0049] transition shadow-xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60">
+            <span>{isSubmitting ? "جاري الحفظ..." : (isEditing ? "حفظ تعديلات الفاتورة" : "حفظ الفاتورة وتوليد QR Code")}</span>
           </button>
         </div>
       </form>

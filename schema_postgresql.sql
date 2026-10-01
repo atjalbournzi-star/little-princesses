@@ -153,6 +153,8 @@ CREATE TABLE IF NOT EXISTS products (
     description TEXT,
     min_stock INT DEFAULT 0,
     status VARCHAR(30) DEFAULT 'Active',
+    target_segment VARCHAR(50) DEFAULT 'kids', -- ('kids', 'women_adults', 'custom_free')
+    barcode VARCHAR(100), -- باركود أو كود QR للموديل
     created_by VARCHAR(64) REFERENCES users(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP

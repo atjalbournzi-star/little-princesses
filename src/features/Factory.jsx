@@ -22,9 +22,10 @@ function Factory(props) {
     loadingAlterations, scanProgressModalOpen, setScanProgressModalOpen,
     scanBarcodeQuery, setScanBarcodeQuery, scannedProgressJob,
     advancingScanProgress, selectedJobCustomer, setSelectedJobCustomer,
-    printModalData, setPrintModalData, qcModalData, setQcModalData,
+    printModalData, setPrintModalData, jobTicketData, setJobTicketData,
+    modelPreviewData, setModelPreviewData, qcModalData, setQcModalData,
     stageFilter, setStageFilter, search, setSearch, form, setForm,
-    fabricInventory, fetchFactoryAnalytics, fetchAlterations, filteredFactory
+    fabricInventory, fetchFactoryAnalytics, fetchAlterations, filteredFactory, bespokeOrders
   } = data;
 
   const Header = window.FactoryHeader;
@@ -36,6 +37,8 @@ function Factory(props) {
   const Delivery = window.DeliveryModal;
   const QC = window.QualityCheckModal;
   const Scan = window.ScanProgressModal;
+  const JobTicket = window.JobTicketPrintModal;
+  const ModelImage = window.ModelImageModal;
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto px-4 py-2" dir="rtl">
@@ -51,10 +54,14 @@ function Factory(props) {
         <>
           {AssignModal && (
             <AssignModal
-              form={form} setForm={setForm} orders={orders} employees={employees}
-              customers={customers} fabricInventory={fabricInventory} stages={stages}
+              form={form} setForm={setForm} orders={bespokeOrders || orders} employees={employees}
+              customers={customers} products={products} fabricInventory={fabricInventory} stages={stages}
               handleOrderSelect={actions.handleOrderSelect} handleStageEmpChange={actions.handleStageEmpChange}
               handleStageChange={actions.handleStageChange} selectLatestCustomer={actions.selectLatestCustomer}
+              handleProductionTypeChange={actions.handleProductionTypeChange}
+              handleProductChange={actions.handleProductChange}
+              handleSizeChange={actions.handleSizeChange}
+              setModelPreviewData={setModelPreviewData}
               handleSubmit={actions.handleSubmit} showToast={showToast}
             />
           )}
@@ -73,7 +80,10 @@ function Factory(props) {
                 setQcModalData={setQcModalData} advanceToNextStage={actions.advanceToNextStage}
                 handleStockInflow={actions.handleReceiveStockInflow} handleReverseStockInflow={actions.handleReverseStockInflow}
                 handleOpenDeliveryModal={actions.handleOpenDeliveryModal} handleReverseDelivery={actions.handleReverseDelivery}
-                handleOpenPrintModal={actions.handleOpenPrintModal} loadIntoForm={actions.loadIntoForm}
+                handleOpenPrintModal={actions.handleOpenPrintModal}
+                handleOpenJobTicket={actions.handleOpenJobTicket}
+                setModelPreviewData={setModelPreviewData}
+                loadIntoForm={actions.loadIntoForm}
                 handleDeleteOrder={actions.handleDeleteOrder}
               />
             )}
@@ -130,6 +140,21 @@ function Factory(props) {
         />
       )}
 
+      {jobTicketData && JobTicket && (
+        <JobTicket
+          isOpen={!!jobTicketData} job={jobTicketData.job} product={jobTicketData.product}
+          onClose={() => setJobTicketData(null)}
+        />
+      )}
+
+      {modelPreviewData && ModelImage && (
+        <ModelImage
+          isOpen={!!modelPreviewData} product={modelPreviewData.product}
+          imageUrl={modelPreviewData.imageUrl} modelName={modelPreviewData.modelName}
+          onClose={() => setModelPreviewData(null)}
+        />
+      )}
+
       {selectedJobCustomer && typeof JobCardModal !== 'undefined' && (
         <JobCardModal customer={selectedJobCustomer} onClose={() => setSelectedJobCustomer(null)} />
       )}
@@ -137,7 +162,4 @@ function Factory(props) {
   );
 }
 
-if (typeof window !== 'undefined') {
-  window.Factory = Factory;
-}
-
+window.Factory = Factory;

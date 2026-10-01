@@ -167,4 +167,43 @@ def handle_post(handler, path, parsed_url) -> bool:
                 pass
         return True
 
+    if path in ('/api/crm/customers/delete', '/api/customers/delete') and handler.command == 'POST':
+        content_length = int(handler.headers.get('Content-Length', 0))
+        post_data = handler.rfile.read(content_length)
+        try:
+            data = json.loads(post_data.decode('utf-8')) if post_data else {}
+            cid = data.get('customer_id') or data.get('id')
+            if not cid:
+                raise ValueError("معرف العميل مطلوب للحذف")
+            try:
+                conn = get_db()
+                cur = conn.cursor()
+                cur.execute("DELETE FROM measurement_profiles WHERE customer_id = ?", (cid,))
+                cur.execute("DELETE FROM children WHERE customer_id = ?", (cid,))
+                cur.execute("DELETE FROM customers WHERE id = ?", (cid,))
+                log_audit(conn, 'customer', cid, 'DELETE', None, {'id': cid}, data.get('deleted_by', 'system'))
+                conn.commit()
+                conn.close()
+            except Exception as e_sql:
+                print(f"[SQLite Delete Customer Fallback]: {e_sql}")
+
+            try:
+                pg_service.delete_customer({'customer_id': cid, 'id': cid})
+            except Exception as e_pg:
+                print(f"[PG Delete Customer Fallback]: {e_pg}")
+
+            handler.send_response(200)
+            handler._send_cors_headers()
+            handler.send_header('Content-Type', 'application/json; charset=utf-8')
+            handler.end_headers()
+            handler.wfile.write(json.dumps({'success': True, 'id': cid, 'message': 'تم حذف بيانات العميل بنجاح'}).encode('utf-8'))
+            return True
+        except Exception as e:
+            handler.send_response(400)
+            handler._send_cors_headers()
+            handler.send_header('Content-Type', 'application/json; charset=utf-8')
+            handler.end_headers()
+            handler.wfile.write(json.dumps({'success': False, 'error': str(e)}).encode('utf-8'))
+            return True
+
     return False

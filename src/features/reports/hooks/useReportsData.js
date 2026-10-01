@@ -111,26 +111,13 @@ function useReportsData({ orders = [], expenses = [], vouchers = [], journal = [
   }, [journal, accounts, selectedLedgerAcc, dateRange, targetCode]);
 
   const cashBankReconciliation = useMemo(() => {
-    const cashAccs = (accounts || []).filter(a => !a.is_group && (['101', '102', '103'].some(p => cleanCode(a.code || a.id).startsWith(p)) || ['صندوق', 'خزينة', 'بنك', 'كريمي'].some(k => (a.account_name || a.name || '').includes(k))));
-    return cashAccs.map(acc => {
-      const c = cleanCode(acc.code || acc.id), name = acc.account_name || acc.name || c;
-      const nativeCurr = (c === '101.2' || name.includes('سعودي')) ? 'SAR' : ((c === '101.3' || name.includes('دولار')) ? 'USD' : 'YER');
-      const rate = (typeof window !== 'undefined' && window.CurrencyService) ? window.CurrencyService.getRate(nativeCurr) : 1.0;
-      const tbRow = trialBalanceData.rows.find(r => String(r.id) === String(acc.id) || cleanCode(r.code) === c || r.name === name);
-      const openingBase = tbRow?.opening_balance_base || 0, debitBase = tbRow?.total_debit_base || 0, creditBase = tbRow?.total_credit_base || 0, closingLedgerBase = tbRow?.net_balance_base || 0;
-      const chartAcc = liveAccountsMap[acc.id] || liveAccountsMap[c], chartBalanceBase = chartAcc ? (chartAcc.balance || 0) : (parseFloat(acc.current_balance) || 0);
-      return {
-        id: acc.id, code: c, name, nativeCurr, rate,
-        openingTarget: window.CurrencyService ? window.CurrencyService.fromBase(openingBase, targetCode) : openingBase,
-        debitTarget: window.CurrencyService ? window.CurrencyService.fromBase(debitBase, targetCode) : debitBase,
-        creditTarget: window.CurrencyService ? window.CurrencyService.fromBase(creditBase, targetCode) : creditBase,
-        closingLedgerTarget: window.CurrencyService ? window.CurrencyService.fromBase(closingLedgerBase, targetCode) : closingLedgerBase,
-        chartBalanceTarget: window.CurrencyService ? window.CurrencyService.fromBase(chartBalanceBase, targetCode) : chartBalanceBase,
-        closingNative: nativeCurr === 'YER' ? closingLedgerBase : (acc.foreign_balance != null ? Number(acc.foreign_balance) : (rate > 0 ? closingLedgerBase / rate : closingLedgerBase)),
-        diff: Math.abs(closingLedgerBase - chartBalanceBase), isMatched: Math.abs(closingLedgerBase - chartBalanceBase) < 0.05
-      };
-    });
-  }, [accounts, trialBalanceData, liveAccountsMap, targetCode, cleanCode]);
+    if (u.buildCashBankReconciliation && u.filterCashBankAccounts) {
+      const cashAccs = u.filterCashBankAccounts(accounts, cleanCode, getAccountCategory);
+      return u.buildCashBankReconciliation(cashAccs, trialBalanceData?.rows || [], liveAccountsMap, targetCode, cleanCode);
+    }
+    const cashAccs = (accounts || []).filter(a => !a.is_group && ['101', '102', '103'].some(p => cleanCode(a.code || a.id).startsWith(p)) && !cleanCode(a.code || a.id).startsWith('5'));
+    return cashAccs.map(acc => ({ id: acc.id, code: cleanCode(acc.code || acc.id), name: acc.name, nativeCurr: 'YER', rate: 1, openingTarget: 0, debitTarget: 0, creditTarget: 0, closingLedgerTarget: parseFloat(acc.current_balance) || 0, chartBalanceTarget: parseFloat(acc.current_balance) || 0, closingNative: parseFloat(acc.current_balance) || 0, diff: 0, isMatched: true }));
+  }, [accounts, trialBalanceData, liveAccountsMap, targetCode, cleanCode, getAccountCategory, u]);
 
   const statementData = useMemo(() => {
     if (statementType === 'customer') {
@@ -156,44 +143,14 @@ function useReportsData({ orders = [], expenses = [], vouchers = [], journal = [
   }, [statementType, selectedPartyId, customers, purchases, orders, vouchers, toReportAmount, dateRange]);
 
   const dailySalesData = useMemo(() => {
-    const dailyMap = {}; let totalSales = 0, totalCash = 0, totalCredit = 0;
-    (orders || []).forEach(o => {
-      const d = (o.order_date || o.date || o.created_at || '').split('T')[0];
-      if (!d || !isInDateRange(d)) return;
-      const tot = toReportAmount(o.total || o.total_amount || 0, o.currency, o.exchange_rate);
-      const pd = toReportAmount(o.paid || o.paid_amount || 0, o.currency, o.exchange_rate);
-      const rem = Math.max(0, tot - pd);
-      totalSales += tot; totalCash += pd; totalCredit += rem;
-      if (!dailyMap[d]) dailyMap[d] = { date: d, orderCount: 0, totalSales: 0, cashCollected: 0, creditRemaining: 0 };
-      dailyMap[d].orderCount += 1; dailyMap[d].totalSales += tot; dailyMap[d].cashCollected += pd; dailyMap[d].creditRemaining += rem;
-    });
-    const days = Object.values(dailyMap).sort((a, b) => b.date.localeCompare(a.date));
-    days.forEach(day => { day.collectionRate = day.totalSales > 0 ? (day.cashCollected / day.totalSales) * 100 : 0; });
-    return { days, totalSales, totalCash, totalCredit, overallCollectionRate: totalSales > 0 ? (totalCash / totalSales) * 100 : 0, creditRate: totalSales > 0 ? (totalCredit / totalSales) * 100 : 0, orderCount: (orders || []).length };
-  }, [orders, dateRange, toReportAmount]);
+    if (u.computeDailySalesData) return u.computeDailySalesData(orders, dateRange, toReportAmount, isInDateRange);
+    return { days: [], totalSales: 0, totalCash: 0, totalCredit: 0, overallCollectionRate: 0, creditRate: 0, orderCount: (orders || []).length };
+  }, [orders, dateRange, toReportAmount, u]);
 
   const modelProfitabilityData = useMemo(() => {
-    const prods = (products?.length > 0) ? products : [];
-    if (prods.length === 0) {
-      const map = {};
-      (orders || []).forEach(o => {
-        const n = o.product_name || 'فستان كوتور ملكي';
-        if (!map[n]) {
-          const tot = parseFloat(o.total || o.total_amount || 0);
-          map[n] = { id: o.product_id || n, name: n, category: 'فساتين جاهزة وتفصيل', sellingPrice: tot, fabricCost: Math.round(tot * 0.45), laborCost: Math.round(tot * 0.15), totalCost: Math.round(tot * 0.60), profit: Math.round(tot * 0.40), marginPct: 40.0, soldCount: 1 };
-        } else { map[n].soldCount += 1; }
-      });
-      return Object.values(map);
-    }
-    return prods.map(p => {
-      const name = p.model_name || p.name || 'موديل راقي خاص', sellingPrice = parseFloat(p.base_price || p.price || 0);
-      const fabricCost = parseFloat(p.fabric_cost || 0), laborCost = parseFloat(p.labor_cost || 0), packagingCost = parseFloat(p.packaging_cost || 0);
-      const totalCost = (fabricCost + laborCost + packagingCost) > 0 ? (fabricCost + laborCost + packagingCost) : parseFloat(p.cost_price || (sellingPrice * 0.55));
-      const profit = Math.max(0, sellingPrice - totalCost), marginPct = sellingPrice > 0 ? (profit / sellingPrice) * 100 : 0;
-      const soldCount = (orders || []).filter(o => (o.product_id && String(o.product_id) === String(p.id)) || (o.product_name && o.product_name === name)).length;
-      return { id: p.id || p.sku, name, category: p.category || 'فساتين تفصيل', sellingPrice, fabricCost, laborCost, totalCost, profit, marginPct, soldCount };
-    });
-  }, [products, orders]);
+    if (u.computeModelProfitabilityData) return u.computeModelProfitabilityData(products, orders);
+    return [];
+  }, [products, orders, u]);
 
   const productionStats = useMemo(() => u.computeProductionStats ? u.computeProductionStats(orders) : { totalOrders: 0, inProdCount: 0, completedCount: 0, totalWages: 0, totalFabricUsed: 0 }, [orders, u]);
   const inventoryStats = useMemo(() => u.computeInventoryStats ? u.computeInventoryStats(inventory) : { totalItems: 0, totalValuation: 0, lowStockCount: 0, totalFabrics: 0 }, [inventory, u]);

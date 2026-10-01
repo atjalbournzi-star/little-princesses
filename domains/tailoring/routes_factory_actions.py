@@ -6,22 +6,31 @@ import pg_service
 
 
 def handle_post(handler, path, parsed_url) -> bool:
-    if path in ('/api/factory', '/api/factory/update', '/api/production/update-stage', '/api/production/assign'):
+    if path in ('/api/factory', '/api/factory/update', '/api/production/update-stage', '/api/production/assign', '/api/atelier/orders', '/api/job-orders', '/api/factory/orders'):
         content_length = int(handler.headers.get('Content-Length', 0))
         post_data = handler.rfile.read(content_length)
         try:
             data = json.loads(post_data.decode('utf-8')) if post_data else {}
             res = pg_service.update_factory(data)
+            ded_count = res.get('deducted_items', 0) if isinstance(res, dict) else 0
             handler.send_response(200)
             handler._send_cors_headers()
             handler.send_header('Content-Type', 'application/json; charset=utf-8')
             handler.end_headers()
-            handler.wfile.write(json.dumps({'success': True, 'data': res, 'message': 'تم تحديث حالة المشغل وأمر الإنتاج بنجاح 🚀'}, ensure_ascii=False, default=str).encode('utf-8'))
+            resp_body = {
+                'success': True,
+                'status': 'success',
+                'data': res,
+                'deducted_items': ded_count,
+                'message': f'تم حفظ أمر التشغيل واقتطاع {ded_count} أصناف قماش من المخزون بنجاح 🚀'
+            }
+            handler.wfile.write(json.dumps(resp_body, ensure_ascii=False, default=str).encode('utf-8'))
         except Exception as e:
             handler.send_response(500)
             handler._send_cors_headers()
             handler.send_header('Content-Type', 'application/json; charset=utf-8')
             handler.end_headers()
+            handler.wfile.write(json.dumps({'success': False, 'status': 'error', 'error': str(e)}).encode('utf-8'))
         return True
 
     if path in ('/api/factory/delete', '/api/production/delete', '/api/factory/remove'):

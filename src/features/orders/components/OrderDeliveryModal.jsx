@@ -14,6 +14,8 @@ function OrderDeliveryModal({
   const tot = parseFloat(order.total ?? order.total_amount ?? 0);
   const pd = parseFloat(order.paid ?? order.paid_amount ?? 0);
   const rem = Math.max(0, tot - pd);
+  const delFee = parseFloat(order.delivery_fee || order.delivery || 0);
+  const delMode = order.delivery_payment_mode || 'DIRECT_TO_COURIER';
 
   const [deliveryForm, setDeliveryForm] = useState({
     amount_collected: String(rem),
@@ -112,6 +114,15 @@ function OrderDeliveryModal({
                 <span className="font-mono font-black text-[#B0005A] dark:text-rose-400 mt-0.5 block">{rem.toLocaleString()}</span>
               </div>
             </div>
+
+            {delFee > 0 && (
+              <div className="p-2.5 rounded-xl bg-purple-50/70 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 text-xs flex justify-between items-center">
+                <span className="font-semibold text-[#8F2A87] dark:text-purple-300">
+                  {delMode === 'PREPAID_VIA_ATELIER' ? '🚚 رسوم التوصيل مسددة مسبقاً للأتيليه:' : '🛵 رسوم التوصيل تُدفع للسائق مباشرة:'}
+                </span>
+                <span className="font-mono font-bold text-[#25232A] dark:text-slate-100">{delFee.toLocaleString()} {currencyDisplay.split(' ')[0]}</span>
+              </div>
+            )}
 
             {/* Form Fields */}
             <div className="grid grid-cols-2 gap-3">

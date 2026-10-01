@@ -123,7 +123,7 @@ function QualityCheckModal({
             </div>
             <div>
               <label className={labelCls}>مبلغ الأجر / العمولة المعتمد للترحيل إلى HR (ر.ي):</label>
-              <input type="number" className={inputCls + " font-mono font-bold text-[#8F2A87] text-center"} value={qcModalData.wage || qcModalData.tailor_wage || 5000} onChange={e => setQcModalData({ ...qcModalData, wage: e.target.value })} />
+              <input type="number" className={inputCls + " font-mono font-bold text-[#8F2A87] text-center"} value={qcModalData.wage || qcModalData.tailor_wage || 500} onChange={e => setQcModalData({ ...qcModalData, wage: e.target.value })} />
             </div>
             <div>
               <label className={labelCls}>ملاحظات تقرير الفحص (تُسجل في Supabase):</label>
