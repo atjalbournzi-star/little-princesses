@@ -19,6 +19,7 @@ def handle_post(handler, path, parsed_url) -> bool:
             supplier_id = data.get('supplier_id') or ''
             supplier = data.get('supplier') or data.get('supplier_name') or ''
             supplier_phone = str(data.get('supplier_phone') or data.get('phone') or data.get('supplier_number') or '').strip()
+            warehouse_id = data.get('warehouse_id') or data.get('warehouse') or data.get('branch_id') or data.get('location') or 'WH-MAIN'
             discount = float(data.get('discount') or data.get('discount_amount') or 0.0)
             notes_val = str(data.get('notes') or '').strip()
             currency = data.get('currency', 'YER')
@@ -28,6 +29,8 @@ def handle_post(handler, path, parsed_url) -> bool:
             transfer_no = data.get('transfer_no') or data.get('transaction_ref') or ''
             freight_cost = float(data.get('freight_cost') or data.get('shipping_cost') or 0.0)
             transfer_fees = float(data.get('transfer_fees') or data.get('transfer_fee') or 0.0)
+            orig_amt = float(data.get('original_amount') or data.get('items_total') or 0.0)
+            grand_tot = float(data.get('grand_total') or data.get('net_amount') or 0.0)
             receipt_url = data.get('receipt_url') or data.get('receipt_attachment') or ''
             invoice_image_url = data.get('invoice_image_url') or data.get('invoice_attachment') or data.get('invoice_url') or ''
             created_by = data.get('created_by', 'admin')
@@ -49,6 +52,9 @@ def handle_post(handler, path, parsed_url) -> bool:
                 'supplier': supplier,
                 'supplier_name': supplier,
                 'supplier_phone': supplier_phone,
+                'warehouse_id': warehouse_id,
+                'branch_id': warehouse_id,
+                'location': warehouse_id,
                 'discount': discount,
                 'currency': currency,
                 'date': date_val,
@@ -63,6 +69,8 @@ def handle_post(handler, path, parsed_url) -> bool:
                 'shipping_cost': freight_cost,
                 'transfer_fees': transfer_fees,
                 'transfer_fee': transfer_fees,
+                'original_amount': orig_amt,
+                'grand_total': grand_tot,
                 'receipt_url': receipt_url,
                 'receipt_attachment': receipt_url,
                 'invoice_image_url': invoice_image_url,

@@ -66,6 +66,22 @@ function Feedback({
         />
       )}
 
+      {data.activeTab === 'qc_station' && (
+        window.QualityAssurance ? (
+          <window.QualityAssurance 
+            orders={orders} 
+            setOrders={setOrders} 
+            factory={factory} 
+            setFactory={setFactory} 
+            employees={employees} 
+            showToast={showToast} 
+            currency={currency} 
+          />
+        ) : (
+          <div className="p-8 text-center text-slate-400">جاري تحميل محطة الفحص الفني للأزياء...</div>
+        )
+      )}
+
       {data.activeTab === 'executive' && ExecTab && (
         <ExecTab productQualityProfiles={data.productQualityProfiles} metrics={data.metrics} currencyDisplay={data.currencyDisplay} />
       )}
@@ -117,7 +133,7 @@ function Feedback({
           selectedCert={data.selectedCert} setSelectedCert={data.setSelectedCert}
           showFormulaModal={data.showFormulaModal} setShowFormulaModal={data.setShowFormulaModal}
           lineageDrawer={data.lineageDrawer} setLineageDrawer={data.setLineageDrawer}
-          customers={customers} orders={orders} products={products}
+          customers={customers} orders={orders} products={products} employees={employees} purchases={purchases}
           feedbackForm={actions.feedbackForm} setFeedbackForm={actions.setFeedbackForm} handleCreateFeedback={actions.handleCreateFeedback}
           masterEvalForm={actions.masterEvalForm} setMasterEvalForm={actions.setMasterEvalForm} handleCreateMasterEvaluation={actions.handleCreateMasterEvaluation}
           inspectionForm={actions.inspectionForm} setInspectionForm={actions.setInspectionForm} handleCreateInspection={actions.handleCreateInspection}

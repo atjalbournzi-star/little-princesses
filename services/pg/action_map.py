@@ -9,7 +9,7 @@ from . import (
     pg_vouchers, pg_expenses, pg_accounts, pg_journal,
     pg_factory, pg_payroll, pg_system, pg_audit,
     pg_dashboard, pg_customer_tracking, pg_warehouses,
-    pg_receipt_sync
+    pg_receipt_sync, pg_cost_centers
 )
 
 ACTION_HANDLERS = {
@@ -100,11 +100,14 @@ ACTION_HANDLERS = {
     "updateVoucher": pg_vouchers.add_voucher,
     "deleteVoucher": pg_vouchers.delete_voucher,
     "deletePayment": pg_vouchers.delete_voucher,
+    "reverseVoucher": pg_vouchers.reverse_voucher,
+    "getVoucherCardData": pg_vouchers.get_voucher_card_data,
     "recalculateAdvanceDeposits": pg_receipt_sync.recalculate_advance_deposits_action,
     "getExpenses": pg_expenses.get_expenses,
     "addExpense": pg_expenses.add_expense,
     "deleteExpense": pg_expenses.delete_expense,
     "removeExpense": pg_expenses.delete_expense,
+    "getCostCenters": pg_cost_centers.get_cost_centers,
     "getAccounts": pg_accounts.get_accounts,
     "getChartOfAccounts": pg_accounts.get_accounts,
     "getChartOfAccountsTree": pg_accounts.get_accounts,

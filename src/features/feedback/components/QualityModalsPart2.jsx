@@ -71,7 +71,7 @@ function QualityModalsPart2({
               <div className="flex justify-end gap-2.5 pt-2 border-t border-[#E8E5EA]">
                 <button type="button" onClick={onClose} className="px-5 py-2.5 bg-[#FAFAFB] hover:bg-[#E8E5EA] text-[#25232A] rounded-xl font-bold text-xs border border-[#E8E5EA] cursor-pointer">إلغاء</button>
                 <button type="submit" disabled={isSubmitting} className="px-6 py-2.5 bg-[#F28A00] hover:bg-[#C97300] text-white rounded-xl font-bold text-xs shadow-xs cursor-pointer">
-                  {isSubmitting ? 'جاري الحفظ...' : 'حفظ العيب في سوبابيز 💾'}
+                  {isSubmitting ? 'جاري الحفظ...' : 'تسجيل وتوثيق العيب ⚠️'}
                 </button>
               </div>
             </form>
@@ -103,7 +103,7 @@ function QualityModalsPart2({
               <div className="flex justify-end gap-2.5 pt-2 border-t border-[#E8E5EA]">
                 <button type="button" onClick={onClose} className="px-5 py-2.5 bg-[#FAFAFB] hover:bg-[#E8E5EA] text-[#25232A] rounded-xl font-bold text-xs border border-[#E8E5EA] cursor-pointer">إلغاء</button>
                 <button type="submit" disabled={isSubmitting} className="px-6 py-2.5 bg-[#8F2A87] hover:bg-[#73216C] text-white rounded-xl font-bold text-xs shadow-xs cursor-pointer">
-                  {isSubmitting ? 'جاري الحفظ...' : 'حفظ الإجراء في سوبابيز 💾'}
+                  {isSubmitting ? 'جاري الحفظ...' : 'اعتماد الإجراء الوقائي (CAPA) 🛡️'}
                 </button>
               </div>
             </form>

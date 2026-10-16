@@ -21,163 +21,158 @@ function ProductCostingMatrix({
     updateWomenSizeChart
   } = actions;
 
-  const inputCls = "w-full h-9 px-2 rounded-xl border border-[#E8E5EA] dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-bold font-mono text-[#25232A] dark:text-slate-100 focus:border-[#8F2A87] dark:focus:border-purple-500 outline-none transition text-left";
+  const wageInputCls = "h-6.5 w-20 font-mono text-xs font-bold text-white text-center bg-slate-900 border border-slate-700 rounded-lg outline-none focus:border-pink-500 transition";
+  const microInputCls = "h-6 text-xs text-center font-mono font-bold text-white bg-slate-900 border border-slate-700 rounded-md outline-none focus:border-pink-500";
+
+  const [measUnit, setMeasUnit] = React.useState('سم'); // 'سم' | 'إنش'
+  const isInch = measUnit === 'إنش';
+
+  const formatDisp = (cmVal) => {
+    if (cmVal === '' || cmVal == null || isNaN(cmVal)) return '';
+    return isInch ? +(cmVal / 2.54).toFixed(1) : cmVal;
+  };
+
+  const handleUpdate = (id, field, rawVal, isWomen = false) => {
+    const num = parseFloat(rawVal);
+    const cmVal = isNaN(num) ? '' : (isInch ? +(num * 2.54).toFixed(1) : num);
+    if (isWomen) updateWomenSizeChart(id, field, cmVal);
+    else {
+      updateAgeChart(id, field, cmVal);
+      if (field === 'length') updateAgeChart(id, 'max', cmVal);
+    }
+  };
+
+  const totalWorkshopWages = (
+    parseFloat(cutterWage || 0) +
+    parseFloat(tailorWage || 0) +
+    parseFloat(embroidWage || 0) +
+    parseFloat(finisherWage || 0) +
+    parseFloat(packagingCost || 0)
+  );
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      {/* 1. مراحل التشغيل وتكاليف الأجور */}
-      <div className="p-4 bg-[#FAFAFB] dark:bg-slate-900/60 rounded-xl border border-[#E8E5EA] dark:border-slate-800 space-y-3">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-bold text-[#25232A] dark:text-slate-100 block">
+    <div className="grid grid-cols-2 gap-2.5 p-2.5 flex-1 select-none min-h-0 overflow-hidden" dir="rtl">
+      {/* 1. اليمين: أجور المراحل الفنية وتكاليف التشغيل (5 صفوف متناسقة ومريحة) */}
+      <div className="p-2.5 bg-[#0F172A] rounded-xl border border-slate-800 flex flex-col justify-between shadow-md">
+        <div className="flex items-center justify-between pb-1 border-b border-slate-800">
+          <span className="text-xs font-bold text-white block">
             🏭 أجور مراحل التصنيع والتشغيل الفنية:
           </span>
-          <span className="text-[11px] font-mono font-bold text-[#8F2A87] dark:text-purple-300 bg-[#F2E7F3] dark:bg-purple-950/50 px-2 py-0.5 rounded-lg border border-[#E5CEE7] dark:border-purple-800/40">
+          <span className="text-[10.5px] font-mono font-bold text-pink-400 bg-pink-950/40 px-2 py-0.5 rounded border border-pink-800/40">
             {activeModelCurrencyLabel}
           </span>
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-1.5 my-auto">
           {/* مرحلة القص والباترون */}
-          <div className="flex items-center justify-between gap-3 bg-white dark:bg-slate-800 p-2 rounded-xl border border-[#E8E5EA] dark:border-slate-700">
+          <div className="flex items-center justify-between gap-1 bg-slate-900/80 py-1 px-2.5 rounded-lg border border-slate-800">
             <div className="flex items-center gap-2">
               <span className="text-sm">✂️</span>
-              <span className="text-xs font-medium text-[#25232A] dark:text-slate-200">1. أجرة القص والباترون:</span>
+              <span className="text-xs font-semibold text-slate-200">1. أجرة القص والباترون:</span>
             </div>
-            <div className="w-28">
-              <input type="number" min="0" step="0.5" value={cutterWage} onChange={e => setCutterWage(e.target.value)} className={inputCls} placeholder="0.0" />
-            </div>
+            <input type="number" min="0" step="0.5" value={cutterWage} onChange={e => setCutterWage(e.target.value)} className={wageInputCls} />
           </div>
 
           {/* مرحلة الخياطة والتجميع */}
-          <div className="flex items-center justify-between gap-3 bg-white dark:bg-slate-800 p-2 rounded-xl border border-[#E8E5EA] dark:border-slate-700">
+          <div className="flex items-center justify-between gap-1 bg-slate-900/80 py-1 px-2.5 rounded-lg border border-slate-800">
             <div className="flex items-center gap-2">
               <span className="text-sm">🪡</span>
-              <span className="text-xs font-medium text-[#25232A] dark:text-slate-200">2. أجرة الخياطة والتفصيل:</span>
+              <span className="text-xs font-semibold text-slate-200">2. أجرة الخياطة والتفصيل:</span>
             </div>
-            <div className="w-28">
-              <input type="number" min="0" step="0.5" value={tailorWage} onChange={e => setTailorWage(e.target.value)} className={inputCls} placeholder="0.0" />
-            </div>
+            <input type="number" min="0" step="0.5" value={tailorWage} onChange={e => setTailorWage(e.target.value)} className={wageInputCls} />
           </div>
 
           {/* مرحلة التطريز والشك اليدوي */}
-          <div className="flex items-center justify-between gap-3 bg-white dark:bg-slate-800 p-2 rounded-xl border border-[#E8E5EA] dark:border-slate-700">
+          <div className="flex items-center justify-between gap-1 bg-slate-900/80 py-1 px-2.5 rounded-lg border border-slate-800">
             <div className="flex items-center gap-2">
               <span className="text-sm">✨</span>
-              <span className="text-xs font-medium text-[#25232A] dark:text-slate-200">3. أجرة التطريز والشك اليدوي:</span>
+              <span className="text-xs font-semibold text-slate-200">3. أجرة التطريز والشك:</span>
             </div>
-            <div className="w-28">
-              <input type="number" min="0" step="0.5" value={embroidWage} onChange={e => setEmbroidWage(e.target.value)} className={inputCls} placeholder="0.0" />
-            </div>
+            <input type="number" min="0" step="0.5" value={embroidWage} onChange={e => setEmbroidWage(e.target.value)} className={wageInputCls} />
           </div>
 
           {/* مرحلة الكي والتشطيب النهائي */}
-          <div className="flex items-center justify-between gap-3 bg-white dark:bg-slate-800 p-2 rounded-xl border border-[#E8E5EA] dark:border-slate-700">
+          <div className="flex items-center justify-between gap-1 bg-slate-900/80 py-1 px-2.5 rounded-lg border border-slate-800">
             <div className="flex items-center gap-2">
               <span className="text-sm">👔</span>
-              <span className="text-xs font-medium text-[#25232A] dark:text-slate-200">4. أجرة التشطيب والكي النهائي:</span>
+              <span className="text-xs font-semibold text-slate-200">4. أجرة التشطيب والكي:</span>
             </div>
-            <div className="w-28">
-              <input type="number" min="0" step="0.5" value={finisherWage} onChange={e => setFinisherWage(e.target.value)} className={inputCls} placeholder="0.0" />
-            </div>
+            <input type="number" min="0" step="0.5" value={finisherWage} onChange={e => setFinisherWage(e.target.value)} className={wageInputCls} />
           </div>
 
           {/* التغليف ومستلزمات التسليم */}
-          <div className="flex items-center justify-between gap-3 bg-white dark:bg-slate-800 p-2 rounded-xl border border-[#E8E5EA] dark:border-slate-700">
+          <div className="flex items-center justify-between gap-1 bg-slate-900/80 py-1 px-2.5 rounded-lg border border-slate-800">
             <div className="flex items-center gap-2">
               <span className="text-sm">📦</span>
-              <span className="text-xs font-medium text-[#25232A] dark:text-slate-200">5. التغليف ومستلزمات الإكسسوار:</span>
+              <span className="text-xs font-semibold text-slate-200">5. التغليف والإكسسوار:</span>
             </div>
-            <div className="w-28">
-              <input type="number" min="0" step="0.5" value={packagingCost} onChange={e => setPackagingCost(e.target.value)} className={inputCls} placeholder="0.0" />
-            </div>
+            <input type="number" min="0" step="0.5" value={packagingCost} onChange={e => setPackagingCost(e.target.value)} className={wageInputCls} />
           </div>
         </div>
 
-        {/* إجمالي تكاليف الإنتاج المباشرة */}
-        <div className="p-3 bg-white dark:bg-slate-800 rounded-xl border border-[#E8E5EA] dark:border-slate-700 space-y-1.5 text-xs">
-          <div className="flex justify-between items-center text-[#6F6B75] dark:text-slate-400">
-            <span>متوسط تكلفة الخامات (BOM):</span>
-            <span className="font-mono font-bold text-[#25232A] dark:text-slate-200">{computedFabricTotal.toFixed(1)} {activeModelCurrencyLabel}</span>
-          </div>
-          <div className="flex justify-between items-center text-[#6F6B75] dark:text-slate-400">
-            <span>إجمالي أجور المراحل الفنية:</span>
-            <span className="font-mono font-bold text-[#8F2A87] dark:text-purple-300">+{computedTotalLabor.toFixed(1)} {activeModelCurrencyLabel}</span>
-          </div>
-          <div className="flex justify-between items-center pt-1.5 border-t border-[#E8E5EA] dark:border-slate-700 text-sm font-bold">
-            <span className="text-[#25232A] dark:text-slate-100">إجمالي تكلفة الإنتاج التقديرية:</span>
-            <span className="font-mono font-extrabold text-[#007F8C] dark:text-cyan-400">{computedTotalCost.toFixed(1)} {activeModelCurrencyLabel}</span>
-          </div>
+        {/* ملخص الأجور الشامل ديناميكياً لكافة المراحل الخمس */}
+        <div className="text-[11px] text-slate-300 text-center py-1 bg-slate-900/60 rounded-lg border border-slate-800/80">
+          مجموع أجور الورشة: <strong className="text-pink-400 font-mono font-bold">+{totalWorkshopWages.toFixed(1)} {activeModelCurrencyLabel}</strong>
         </div>
       </div>
 
-      {/* 2. جدول القياسات والأطوال القياسية (Age Chart / Adult Size Chart) */}
-      <div className="p-4 bg-[#FAFAFB] dark:bg-slate-900/60 rounded-xl border border-[#E8E5EA] dark:border-slate-800 space-y-3">
-        <span className="text-xs font-bold text-[#25232A] dark:text-slate-100 block">
-          {targetSegment === 'women_adults' ? '👗 جدول مقاسات ومواصفات الكبار المعيارية (سم):' : '📏 جدول أطوال وقياسات الموديل المعيارية (سم):'}
-        </span>
-        {targetSegment === 'women_adults' ? (
-          <div className="space-y-1.5 overflow-x-auto">
-            <div className="grid grid-cols-4 gap-2 text-[11px] font-bold text-[#6F6B75] dark:text-slate-300 px-2 pb-1 border-b border-[#E8E5EA] dark:border-slate-700 text-center">
-              <span>المقاس</span>
-              <span>الصدر (سم)</span>
-              <span>الخصر (سم)</span>
-              <span>طول الفستان</span>
-            </div>
-            {womenSizeChart.map(row => (
-              <div key={row.id} className="grid grid-cols-4 gap-2 items-center bg-white dark:bg-slate-800 p-2 rounded-xl border border-[#E8E5EA] dark:border-slate-700 text-xs">
-                <span className="font-bold text-[#8F2A87] dark:text-purple-300 text-center">{row.label || row.size}</span>
-                <input
-                  type="number"
-                  value={row.chest ?? ''}
-                  onChange={e => updateWomenSizeChart(row.id, 'chest', parseFloat(e.target.value) || '')}
-                  placeholder="صدر"
-                  className="h-7 px-1 text-center font-mono border dark:border-slate-600 rounded bg-[#FAFAFB] dark:bg-slate-900 text-xs text-[#25232A] dark:text-slate-100 outline-none"
-                />
-                <input
-                  type="number"
-                  value={row.waist ?? ''}
-                  onChange={e => updateWomenSizeChart(row.id, 'waist', parseFloat(e.target.value) || '')}
-                  placeholder="خصر"
-                  className="h-7 px-1 text-center font-mono border dark:border-slate-600 rounded bg-[#FAFAFB] dark:bg-slate-900 text-xs text-[#25232A] dark:text-slate-100 outline-none"
-                />
-                <input
-                  type="number"
-                  value={row.length ?? ''}
-                  onChange={e => updateWomenSizeChart(row.id, 'length', parseFloat(e.target.value) || '')}
-                  placeholder="طول"
-                  className="h-7 px-1 text-center font-mono border dark:border-slate-600 rounded bg-[#FAFAFB] dark:bg-slate-900 text-xs text-[#25232A] dark:text-slate-100 outline-none"
-                />
-              </div>
-            ))}
+      {/* 2. اليسار: جدول الأطوال والقياسات الهندسية المعيارية مع زر تحويل (سم / إنش) */}
+      <div className="p-2.5 bg-[#0F172A] rounded-xl border border-slate-800 flex flex-col justify-between shadow-md overflow-hidden">
+        <div>
+          <div className="flex items-center justify-between pb-1 mb-1.5 border-b border-slate-800">
+            <span className="text-xs font-bold text-white block">
+              {targetSegment === 'women_adults' ? '👗 جدول مقاسات الكبار المعيارية:' : '📏 جدول قياسات الموديل المعيارية:'}
+            </span>
+            <button
+              type="button"
+              onClick={() => setMeasUnit(p => p === 'سم' ? 'إنش' : 'سم')}
+              className="h-5 px-2 text-[10px] font-bold bg-cyan-950/60 text-cyan-300 border border-cyan-800/60 hover:bg-cyan-900/60 rounded cursor-pointer flex items-center gap-1 transition"
+              title="التبديل بين السنتيمتر والإنش"
+            >
+              <span>الوحدة:</span>
+              <span className="text-white font-mono">{measUnit}</span>
+              <span>🔄</span>
+            </button>
           </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-2">
-            {ageChart.slice(0, 6).map(row => (
-              <div key={row.id} className="bg-white dark:bg-slate-800 p-2 rounded-xl border border-[#E8E5EA] dark:border-slate-700 flex items-center justify-between gap-1 text-[11px]">
-                <span className="text-[#6F6B75] dark:text-slate-300 font-semibold">{row.age}</span>
-                <div className="flex items-center gap-1 w-24">
-                  <input
-                    type="number"
-                    value={row.min}
-                    onChange={e => updateAgeChart(row.id, 'min', parseFloat(e.target.value))}
-                    placeholder="من"
-                    className="w-11 h-7 p-1 text-center font-mono border dark:border-slate-600 rounded bg-[#FAFAFB] dark:bg-slate-900 text-xs text-[#25232A] dark:text-slate-100"
-                  />
-                  <span className="text-[#6F6B75]">-</span>
-                  <input
-                    type="number"
-                    value={row.max}
-                    onChange={e => updateAgeChart(row.id, 'max', parseFloat(e.target.value))}
-                    placeholder="إلى"
-                    className="w-11 h-7 p-1 text-center font-mono border dark:border-slate-600 rounded bg-[#FAFAFB] dark:bg-slate-900 text-xs text-[#25232A] dark:text-slate-100"
-                  />
+
+          {targetSegment === 'women_adults' ? (
+            <div className="space-y-1">
+              <div className="grid grid-cols-4 gap-1 text-[10px] font-bold text-slate-400 px-1 pb-0.5 border-b border-slate-800 text-center">
+                <span>المقاس</span>
+                <span>الصدر ({measUnit})</span>
+                <span>الخصر ({measUnit})</span>
+                <span>الطول ({measUnit})</span>
+              </div>
+              {womenSizeChart.map(row => (
+                <div key={row.id} className="grid grid-cols-4 gap-1 items-center bg-slate-900/80 p-0.5 px-1 rounded-lg border border-slate-800 text-xs h-6">
+                  <span className="font-bold text-pink-400 text-center text-[10.5px] font-mono">{row.label || row.size}</span>
+                  <input type="number" step={isInch ? "0.1" : "0.5"} value={formatDisp(row.chest)} onChange={e => handleUpdate(row.id, 'chest', e.target.value, true)} className={microInputCls + " px-1"} />
+                  <input type="number" step={isInch ? "0.1" : "0.5"} value={formatDisp(row.waist)} onChange={e => handleUpdate(row.id, 'waist', e.target.value, true)} className={microInputCls + " px-1"} />
+                  <input type="number" step={isInch ? "0.1" : "0.5"} value={formatDisp(row.length)} onChange={e => handleUpdate(row.id, 'length', e.target.value, true)} className={microInputCls + " px-1"} />
                 </div>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-1">
+              <div className="grid grid-cols-4 gap-1 text-[10px] font-bold text-slate-400 px-1 pb-0.5 border-b border-slate-800 text-center">
+                <span>المقاس / العمر</span>
+                <span>الصدر ({measUnit})</span>
+                <span>الخصر ({measUnit})</span>
+                <span>الطول ({measUnit})</span>
               </div>
-            ))}
-          </div>
-        )}
-        <p className="text-[10.5px] text-[#6F6B75] dark:text-slate-400">
-          💡 تساعد القياسات المعيارية كاشير المبيعات ومعمل التفصيل في مطابقة مقاسات العميلات بدقة.
+              {ageChart.slice(0, 4).map(row => (
+                <div key={row.id} className="grid grid-cols-4 gap-1 items-center bg-slate-900/80 p-0.5 px-1 rounded-lg border border-slate-800 text-xs h-6">
+                  <span className="font-bold text-pink-400 text-center text-[10.5px] font-mono">{row.age || row.size}</span>
+                  <input type="number" step={isInch ? "0.1" : "0.5"} value={formatDisp(row.chest)} onChange={e => handleUpdate(row.id, 'chest', e.target.value, false)} className={microInputCls + " px-1"} />
+                  <input type="number" step={isInch ? "0.1" : "0.5"} value={formatDisp(row.waist)} onChange={e => handleUpdate(row.id, 'waist', e.target.value, false)} className={microInputCls + " px-1"} />
+                  <input type="number" step={isInch ? "0.1" : "0.5"} value={formatDisp(row.length ?? row.max)} onChange={e => handleUpdate(row.id, 'length', e.target.value, false)} className={microInputCls + " px-1"} />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <p className="text-[10px] text-slate-400 text-center pt-1 border-t border-slate-800/80">
+          💡 مطابقة القياسات المعيارية بالسم أو الإنش تضمن دقة التفصيل وتقليل التعديلات.
         </p>
       </div>
     </div>
@@ -185,3 +180,4 @@ function ProductCostingMatrix({
 }
 
 window.ProductCostingMatrix = ProductCostingMatrix;
+window.BOMOperations = ProductCostingMatrix;

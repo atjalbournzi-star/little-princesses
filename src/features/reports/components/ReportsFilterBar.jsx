@@ -13,13 +13,13 @@ function ReportsFilterBar({
   selectedPartyId, setSelectedPartyId,
   purchases = [], customers = []
 }) {
-  const inputCls = "h-10 px-3 rounded-xl border border-[#E8E5EA] bg-white text-[#25232A] text-xs font-semibold placeholder:text-[#6F6B75] focus:border-[#009FAE] outline-none transition";
+  const inputCls = "h-10 px-3 rounded-xl border border-slate-700 bg-slate-800 text-white text-xs font-semibold placeholder:text-slate-500 focus:border-fuchsia-500 outline-none transition";
 
   return (
-    <div className="print-hidden p-6 bg-[#FAFAFB] rounded-2xl border border-[#E8E5EA] space-y-4">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5 items-end">
+    <div className="print-hidden p-6 bg-slate-900 rounded-2xl border border-slate-800 space-y-4 text-white">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 items-end">
         <div>
-          <label className="block text-[11px] font-bold text-[#6F6B75] mb-1.5">الفترة الزمنية السريعة</label>
+          <label className="block text-[11px] font-bold text-white mb-1.5">الفترة الزمنية السريعة</label>
           <select
             value={periodPreset}
             onChange={e => setPeriodPreset(e.target.value)}
@@ -35,7 +35,7 @@ function ReportsFilterBar({
         </div>
 
         <div>
-          <label className="block text-[11px] font-bold text-[#6F6B75] mb-1.5">من تاريخ 📅</label>
+          <label className="block text-[11px] font-bold text-white mb-1.5">من تاريخ 📅</label>
           <input
             type="date"
             lang="en-GB"
@@ -47,7 +47,7 @@ function ReportsFilterBar({
         </div>
 
         <div>
-          <label className="block text-[11px] font-bold text-[#6F6B75] mb-1.5">إلى تاريخ 📅</label>
+          <label className="block text-[11px] font-bold text-white mb-1.5">إلى تاريخ 📅</label>
           <input
             type="date"
             lang="en-GB"
@@ -59,32 +59,25 @@ function ReportsFilterBar({
         </div>
 
         <div>
-          <label className="block text-[11px] font-bold text-[#6F6B75] mb-1.5">عملة العرض والتقارير</label>
+          <label className="block text-[11px] font-bold text-white mb-1.5">عملة العرض والتقارير</label>
           <select
             value={reportCurrency}
             onChange={e => setReportCurrency(e.target.value)}
-            className={`w-full ${inputCls} font-bold text-[#8F2A87]`}
+            className={`w-full ${inputCls} font-bold text-white`}
           >
             {["YER ﷼", "SAR ﷼", "USD $"].map(c => <option key={c} value={c}>{c}</option>)}
           </select>
-        </div>
-
-        <div>
-          <div className="bg-white px-3 h-10 rounded-xl border border-[#E8E5EA] flex items-center justify-between text-xs">
-            <span className="text-[#6F6B75] text-[11px]">القيود والسجلات المفحوصة:</span>
-            <span className="font-mono font-bold text-[#007F8C]">{testedCount}</span>
-          </div>
         </div>
       </div>
 
       {/* فلاتر إضافية سياقية خاصة بدفتر الأستاذ والمطابقات في التقارير المالية */}
       {activeTab === 'financial' && financialSubTab === 'general_ledger' && (
-        <div className="pt-3 border-t border-[#E8E5EA] flex items-center gap-3">
-          <label className="text-xs font-bold text-[#6F6B75] shrink-0">اختر الحساب لدفتر الأستاذ:</label>
+        <div className="pt-3 border-t border-slate-800 flex items-center gap-3">
+          <label className="text-xs font-bold text-white shrink-0">اختر الحساب لدفتر الأستاذ:</label>
           <select
             value={selectedLedgerAcc}
             onChange={e => setSelectedLedgerAcc(e.target.value)}
-            className={`w-full sm:w-80 ${inputCls} font-bold text-[#8F2A87]`}
+            className={`w-full sm:w-80 ${inputCls} font-bold text-white`}
           >
             {(accounts || []).filter(a => !a.is_group).map(a => {
               const accId = a.id || a.code;
@@ -97,12 +90,12 @@ function ReportsFilterBar({
       )}
 
       {activeTab === 'financial' && financialSubTab === 'statements' && (
-        <div className="pt-3 border-t border-[#E8E5EA] flex flex-wrap items-center gap-3">
-          <div className="flex bg-white p-1 rounded-xl border border-[#E8E5EA]">
+        <div className="pt-3 border-t border-slate-800 flex flex-wrap items-center gap-3">
+          <div className="flex bg-slate-800 p-1 rounded-xl border border-slate-700">
             <button
               type="button"
               onClick={() => { setStatementType('treasury'); setSelectedPartyId(''); }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${statementType === 'treasury' ? 'bg-[#E2F5F7] text-[#007F8C]' : 'text-[#6F6B75]'}`}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${statementType === 'treasury' ? 'bg-slate-700 text-white font-bold' : 'text-slate-300 font-medium hover:text-white'}`}
             >
               <span>🏦</span>
               <span>مطابقة الصناديق والبنوك</span>
@@ -110,7 +103,7 @@ function ReportsFilterBar({
             <button
               type="button"
               onClick={() => { setStatementType('supplier'); setSelectedPartyId(''); }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${statementType === 'supplier' ? 'bg-[#F2E7F3] text-[#8F2A87]' : 'text-[#6F6B75]'}`}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${statementType === 'supplier' ? 'bg-slate-700 text-white font-bold' : 'text-slate-300 font-medium hover:text-white'}`}
             >
               <span>🧵</span>
               <span>كشف حساب الموردين</span>
@@ -118,7 +111,7 @@ function ReportsFilterBar({
             <button
               type="button"
               onClick={() => { setStatementType('customer'); setSelectedPartyId(''); }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${statementType === 'customer' ? 'bg-pink-50 text-[#B0005A]' : 'text-[#6F6B75]'}`}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${statementType === 'customer' ? 'bg-slate-700 text-white font-bold' : 'text-slate-300 font-medium hover:text-white'}`}
             >
               <span>👗</span>
               <span>كشف حساب العميلات</span>
@@ -129,7 +122,7 @@ function ReportsFilterBar({
             <select
               value={selectedPartyId}
               onChange={e => setSelectedPartyId(e.target.value)}
-              className={`${inputCls} text-xs font-bold w-52 text-[#8F2A87]`}
+              className={`${inputCls} text-xs font-bold w-52 text-white`}
             >
               <option value="">كافة الموردين (عرض شامل)</option>
               {[...new Set((purchases || []).map(p => p.supplier || p.supplier_name || p.vendor_name).filter(Boolean))].map(n => (
@@ -142,7 +135,7 @@ function ReportsFilterBar({
             <select
               value={selectedPartyId}
               onChange={e => setSelectedPartyId(e.target.value)}
-              className={`${inputCls} text-xs font-bold w-52 text-[#B0005A]`}
+              className={`${inputCls} text-xs font-bold w-52 text-white`}
             >
               <option value="">كافة العميلات (عرض شامل)</option>
               {(customers || []).map(c => (

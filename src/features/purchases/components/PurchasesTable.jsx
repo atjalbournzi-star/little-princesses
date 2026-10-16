@@ -34,17 +34,17 @@ function PurchasesTable({ filteredPurchases = [], handleOpenEdit, handleDeleteRe
   }
 
   return (
-    <div className="overflow-x-auto rounded-2xl border border-[#E8E5EA] shadow-xs">
+    <div className="overflow-x-auto rounded-2xl border border-[#E8E5EA] dark:border-slate-800 shadow-xs">
       <table className="w-full text-right text-xs border-collapse min-w-[900px]">
         <thead>
-          <tr className="bg-[#FAFAFB] text-[#6F6B75] font-bold border-b border-[#E8E5EA]">
-            <th className="px-4 py-3.5 text-right whitespace-nowrap sticky right-0 z-10 bg-[#FAFAFB] shadow-[-2px_0_4px_rgba(0,0,0,0.02)]">رقم الفاتورة والتاريخ</th>
+          <tr className="bg-[#FAFAFB] dark:bg-slate-900 text-[#6F6B75] dark:text-slate-300 font-bold border-b border-[#E8E5EA] dark:border-slate-800">
+            <th className="px-4 py-3.5 text-right whitespace-nowrap sticky right-0 z-10 bg-[#FAFAFB] dark:bg-slate-900 shadow-[-2px_0_4px_rgba(0,0,0,0.02)]">رقم الفاتورة والتاريخ</th>
             <th className="px-4 py-3.5 text-right whitespace-nowrap">المورد وبيانات التواصل</th>
             <th className="px-4 py-3.5 text-right whitespace-nowrap">الصنف / تفاصيل الكمية والسعر</th>
             <th className="px-4 py-3.5 text-center whitespace-nowrap">الخصم / النقل</th>
             <th className="px-4 py-3.5 text-center whitespace-nowrap">الصافي الإجمالي (YER)</th>
             <th className="px-4 py-3.5 text-right whitespace-nowrap">حساب الدفع والبيان</th>
-            <th className="px-4 py-3.5 text-center whitespace-nowrap sticky left-0 z-10 bg-[#FAFAFB] shadow-[2px_0_4px_rgba(0,0,0,0.02)]">المرفقات والإجراءات</th>
+            <th className="px-4 py-3.5 text-center whitespace-nowrap sticky left-0 z-10 bg-[#FAFAFB] dark:bg-slate-900 shadow-[2px_0_4px_rgba(0,0,0,0.02)]">المرفقات والإجراءات</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-[#E8E5EA] bg-white">

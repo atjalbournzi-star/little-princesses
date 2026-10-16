@@ -71,11 +71,28 @@ def add_purchase(payload):
         net_paid_yer = max(0.0, (items_amt_yer + shipping_yer + transfer_yer) - discount_yer)
         grand_total_yer = net_paid_yer
 
-        credit_acc = 'ACC-201' if pay_method == 'آجل' else resolve_account_id(cur, pay_source_raw, default_id='ACC-101-1', currency=curr)
-        if pay_method != 'آجل' and (not pay_source_raw or credit_acc in ('ACC-101', 'ACC-101-1')):
-            credit_acc = 'ACC-101-2' if curr == 'SAR' else ('ACC-101-3' if curr == 'USD' else 'ACC-101-1')
+        cash_acc = resolve_account_id(cur, pay_source_raw, default_id='ACC-101-1', currency=curr)
+        if not pay_source_raw or cash_acc in ('ACC-101', 'ACC-101-1'):
+            cash_acc = 'ACC-101-2' if curr == 'SAR' else ('ACC-101-3' if curr == 'USD' else 'ACC-101-1')
 
-        if not supp_id and supp_name:
+        # التحقق من وجود المستودع الفعلي بقاعدة البيانات مع الرجوع للمستودع الرئيسي
+        cur.execute("SELECT id FROM warehouses WHERE id = %s LIMIT 1;", (warehouse_id,))
+        wh_row = cur.fetchone()
+        if not wh_row:
+            cur.execute("SELECT id FROM warehouses WHERE name = %s OR code = %s LIMIT 1;", (warehouse_id, warehouse_id))
+            wh_row = cur.fetchone()
+            warehouse_id = wh_row['id'] if wh_row else 'WH-MAIN'
+
+        # التحقق من وجود المورد أو إنشائه تلقائياً لمنع خطأ القيود الخارجية
+        if supp_id:
+            cur.execute("SELECT id FROM suppliers WHERE id = %s LIMIT 1;", (supp_id,))
+            if not cur.fetchone():
+                cur.execute("SELECT id FROM suppliers WHERE name = %s LIMIT 1;", (supp_name,))
+                s_row = cur.fetchone()
+                if s_row: supp_id = s_row['id']
+                else:
+                    cur.execute("INSERT INTO suppliers (id, name, phone, city, address, current_balance, is_active, created_at, updated_at) VALUES (%s, %s, %s, 'صنعاء', 'توريد خامات ومشتريات', 0.0, True, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) ON CONFLICT (id) DO NOTHING;", (supp_id, supp_name or 'مورد عام', supp_phone or '0000000000'))
+        elif supp_name:
             cur.execute("SELECT id FROM suppliers WHERE name = %s LIMIT 1;", (supp_name,))
             s_row = cur.fetchone()
             if s_row: supp_id = s_row['id']
@@ -103,7 +120,8 @@ def add_purchase(payload):
             RETURNING *;
         """
         pay_status = 'Unpaid' if pay_method == 'آجل' else 'Paid'
-        cur.execute(query, (pur_id, inv_no, supp_id, supp_name, supp_phone, inv_date, header_name, header_unit, total_qty, header_price, curr, rate, orig_amt, discount, items_amt_yer, shipping_cost, transfer_fee, grand_total_yer, pay_method, credit_acc, transfer_no, invoice_image_url, receipt_url, pay_status, clean_str(data.get('created_by') or 'admin'), notes))
+        pay_acc_code = 'ACC-201' if pay_method == 'آجل' else cash_acc
+        cur.execute(query, (pur_id, inv_no, supp_id, supp_name, supp_phone, inv_date, header_name, header_unit, total_qty, header_price, curr, rate, orig_amt, discount, items_amt_yer, shipping_cost, transfer_fee, grand_total_yer, pay_method, pay_acc_code, transfer_no, invoice_image_url, receipt_url, pay_status, clean_str(data.get('created_by') or 'admin'), notes))
         res = dict(cur.fetchone())
 
         cur.execute("SELECT inventory_id, quantity FROM purchase_items WHERE purchase_id = %s;", (pur_id,))
@@ -115,8 +133,10 @@ def add_purchase(payload):
         cur.execute("DELETE FROM inventory_transactions WHERE reference_type = 'purchases' AND reference_id = %s;", (pur_id,))
 
         saved_items = []
+        cost_ratio = (net_paid_orig / orig_amt) if orig_amt > 0 else 1.0
         for itm in items:
-            it_cost_yer = round(itm['unit_price'] * rate, 2)
+            net_u_cost = round(itm['unit_price'] * cost_ratio, 4)
+            it_cost_yer = round(net_u_cost * rate, 2)
             cur.execute("SELECT id, quantity, unit_cost FROM inventory WHERE name = %s OR item_code = %s LIMIT 1 FOR UPDATE;", (itm['item_name'], itm['item_name']))
             inv_row = cur.fetchone()
             if inv_row:
@@ -124,10 +144,10 @@ def add_purchase(payload):
                 old_q, old_c = float(inv_row['quantity'] or 0.0), float(inv_row['unit_cost'] or 0.0)
                 new_q = old_q + itm['quantity']
                 new_c = round(((old_q * old_c) + (itm['quantity'] * it_cost_yer)) / new_q, 2) if new_q > 0 else it_cost_yer
-                cur.execute("UPDATE inventory SET quantity = %s, unit_cost = %s, status = 'Available', updated_at = CURRENT_TIMESTAMP WHERE id = %s;", (new_q, new_c, inv_id))
+                cur.execute("UPDATE inventory SET quantity = %s, unit_cost = %s, location = %s, status = 'Available', updated_at = CURRENT_TIMESTAMP WHERE id = %s;", (new_q, new_c, warehouse_id, inv_id))
             else:
                 inv_id = generate_id("MAT")
-                cur.execute("INSERT INTO inventory (id, item_code, name, type, category, unit, quantity, unit_cost, currency, supplier_id, location, status) VALUES (%s, %s, %s, 'Fabric', 'أقمشة فاخرة', %s, %s, %s, 'YER', %s, %s, 'Available');", (inv_id, inv_id, itm['item_name'], itm['unit'], itm['quantity'], it_cost_yer, supp_id, warehouse_id))
+                cur.execute("INSERT INTO inventory (id, item_code, name, type, category, unit, quantity, reserved_qty, unit_cost, currency, supplier_id, location, status) VALUES (%s, %s, %s, 'Fabric', 'أقمشة فاخرة', %s, %s, 0.0, %s, 'YER', %s, %s, 'Available');", (inv_id, inv_id, itm['item_name'], itm['unit'], itm['quantity'], it_cost_yer, supp_id, warehouse_id))
 
             cur.execute("""
                 INSERT INTO warehouse_stock (id, warehouse_id, inventory_id, quantity, reserved_qty, updated_at)
@@ -141,32 +161,41 @@ def add_purchase(payload):
             saved_items.append({"id": p_item_id, "item_name": itm['item_name'], "unit": itm['unit'], "quantity": itm['quantity'], "unit_price": itm['unit_price'], "total_price": itm['total_price'], "warehouse_id": warehouse_id})
 
         clean_ref = pur_id[4:] if str(pur_id).startswith('PUR-') else pur_id
-        if pay_method != 'آجل' and net_paid_orig > 0:
-            cur.execute("""
-                INSERT INTO payments (id, payment_no, invoice_id, supplier_id, payment_type, amount, currency, exchange_rate, base_amount, payment_method, account_id, date, status, notes)
-                VALUES (%s, %s, %s, %s, 'Payment', %s, %s, %s, %s, %s, %s, %s, 'Confirmed', %s)
-                ON CONFLICT (payment_no) DO UPDATE SET amount = EXCLUDED.amount, base_amount = EXCLUDED.base_amount, account_id = EXCLUDED.account_id;
-            """, (generate_id("PAY"), f"PAY-{clean_ref}", pur_id, supp_id, net_paid_orig, curr, rate, net_paid_yer, pay_method, credit_acc, inv_date, f"سداد فاتورة مشتريات {inv_no}"))
 
+        # 1. قيد الفاتورة والتوريد (مدين: 105 مخزون الأقمشة / دائن: 201 ذمم الموردين)
         if orig_amt > 0 or net_paid_orig > 0:
-            auto_jv_no = f"JV-PUR-{clean_ref}"
+            pur_jv_no = f"JV-PUR-{clean_ref}"
             cur.execute("""
                 INSERT INTO journal_entries (id, entry_no, entry_date, description, debit_account_id, credit_account_id, amount, total_amount, base_amount, ref_type, ref_id, currency, exchange_rate, status, notes)
-                VALUES (%s, %s, %s, %s, 'ACC-105', %s, %s, %s, %s, 'Purchase', %s, %s, %s, 'Posted', %s)
-                ON CONFLICT (entry_no) DO UPDATE SET amount = EXCLUDED.amount, total_amount = EXCLUDED.total_amount, base_amount = EXCLUDED.base_amount;
-            """, (generate_id("JV"), auto_jv_no, inv_date, f"فاتورة مشتريات خامات {inv_no}", credit_acc, net_paid_orig, net_paid_orig, net_paid_yer, pur_id, curr, rate, f"ترحيل مشتريات {inv_no}"))
-            cur.execute("SELECT id FROM journal_entries WHERE entry_no = %s LIMIT 1;", (auto_jv_no,))
-            act_jv_id = cur.fetchone()['id']
-            cur.execute("DELETE FROM journal_entry_lines WHERE entry_id = %s;", (act_jv_id,))
-            cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, 'ACC-105', %s, %s, 0.0, %s, 0.0);", (generate_id("JVL"), act_jv_id, f"مخزون خامات - فاتورة {inv_no}", orig_amt, items_amt_yer))
-            if shipping_cost > 0:
-                cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, 'ACC-507', %s, %s, 0.0, %s, 0.0);", (generate_id("JVL"), act_jv_id, f"مصاريف شحن ونقل - فاتورة {inv_no}", shipping_cost, shipping_yer))
-            if transfer_fee > 0:
-                cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, 'ACC-508', %s, %s, 0.0, %s, 0.0);", (generate_id("JVL"), act_jv_id, f"رسوم وعمولات تحويل - فاتورة {inv_no}", transfer_fee, transfer_yer))
-            if discount > 0:
-                cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, 'ACC-403', %s, 0.0, %s, 0.0, %s);", (generate_id("JVL"), act_jv_id, f"خصم وتخفيض مكتسب - فاتورة {inv_no}", discount, discount_yer))
-            if net_paid_orig > 0:
-                cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, %s, %s, 0.0, %s, 0.0, %s);", (generate_id("JVL"), act_jv_id, credit_acc, f"سداد/استحقاق فاتورة {inv_no}", net_paid_orig, net_paid_yer))
+                VALUES (%s, %s, %s, %s, 'ACC-105', 'ACC-201', %s, %s, %s, 'Purchase', %s, %s, %s, 'Posted', %s)
+                ON CONFLICT (entry_no) DO UPDATE SET amount = EXCLUDED.amount, total_amount = EXCLUDED.total_amount, base_amount = EXCLUDED.base_amount, credit_account_id = 'ACC-201';
+            """, (generate_id("JV"), pur_jv_no, inv_date, f"فاتورة توريد مشتريات خامات {inv_no} - {supp_name}", net_paid_orig, net_paid_orig, net_paid_yer, pur_id, curr, rate, f"توريد مشتريات {inv_no}"))
+            cur.execute("SELECT id FROM journal_entries WHERE entry_no = %s LIMIT 1;", (pur_jv_no,))
+            act_pur_jv = cur.fetchone()['id']
+            cur.execute("DELETE FROM journal_entry_lines WHERE entry_id = %s;", (act_pur_jv,))
+            cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, 'ACC-105', %s, %s, 0.0, %s, 0.0);", (generate_id("JVL"), act_pur_jv, f"مخزون الأقمشة والخامات - فاتورة {inv_no}", net_paid_orig, net_paid_yer))
+            cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, 'ACC-201', %s, 0.0, %s, 0.0, %s);", (generate_id("JVL"), act_pur_jv, f"استحقاق فاتورة {inv_no} - {supp_name}", net_paid_orig, net_paid_yer))
+
+        # 2. سند الصرف وقيد السداد النمطي (مدين: 201 ذمم الموردين / دائن: الصندوق المستخدم)
+        if pay_method != 'آجل' and net_paid_orig > 0:
+            pay_no = f"PAY-{clean_ref}"
+            cur.execute("""
+                INSERT INTO payments (id, payment_no, invoice_id, supplier_id, payment_type, amount, currency, exchange_rate, base_amount, payment_method, account_id, target_account_id, party_name, date, status, notes)
+                VALUES (%s, %s, %s, %s, 'Payment', %s, %s, %s, %s, %s, %s, 'ACC-201', %s, %s, 'Confirmed', %s)
+                ON CONFLICT (payment_no) DO UPDATE SET amount = EXCLUDED.amount, base_amount = EXCLUDED.base_amount, account_id = EXCLUDED.account_id, target_account_id = 'ACC-201', party_name = EXCLUDED.party_name;
+            """, (generate_id("PAY"), pay_no, pur_id, supp_id, net_paid_orig, curr, rate, net_paid_yer, pay_method, cash_acc, supp_name, inv_date, f"سداد فاتورة مشتريات {inv_no} - {supp_name}"))
+
+            pay_jv_no = f"AUTO-VCH-{pay_no}"
+            cur.execute("""
+                INSERT INTO journal_entries (id, entry_no, entry_date, description, debit_account_id, credit_account_id, amount, total_amount, base_amount, ref_type, ref_id, currency, exchange_rate, status, notes)
+                VALUES (%s, %s, %s, %s, 'ACC-201', %s, %s, %s, %s, 'Payment', %s, %s, %s, 'Posted', %s)
+                ON CONFLICT (entry_no) DO UPDATE SET amount = EXCLUDED.amount, total_amount = EXCLUDED.total_amount, base_amount = EXCLUDED.base_amount, credit_account_id = EXCLUDED.credit_account_id;
+            """, (generate_id("JV"), pay_jv_no, inv_date, f"سند صرف سداد فاتورة مشتريات {inv_no}: {supp_name}", cash_acc, net_paid_orig, net_paid_orig, net_paid_yer, pur_id, curr, rate, f"سداد فاتورة {inv_no}"))
+            cur.execute("SELECT id FROM journal_entries WHERE entry_no = %s LIMIT 1;", (pay_jv_no,))
+            act_pay_jv = cur.fetchone()['id']
+            cur.execute("DELETE FROM journal_entry_lines WHERE entry_id = %s;", (act_pay_jv,))
+            cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, 'ACC-201', %s, %s, 0.0, %s, 0.0);", (generate_id("JVL"), act_pay_jv, f"مدين - سداد فاتورة {inv_no} ({supp_name})", net_paid_orig, net_paid_yer))
+            cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, %s, %s, 0.0, %s, 0.0, %s);", (generate_id("JVL"), act_pay_jv, cash_acc, f"دائن - سداد فاتورة {inv_no} ({supp_name})", net_paid_orig, net_paid_yer))
 
         if pay_method == 'آجل' and supp_id and supp_id != 'SUPP-GENERAL':
             cur.execute("UPDATE suppliers SET current_balance = current_balance + %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s;", (net_paid_orig, supp_id))

@@ -1,57 +1,63 @@
 // src/features/reports/components/FinancialBalanceSheetView.jsx
 
-function FinancialBalanceSheetView({ subTab, balanceSheetData, trialBalanceData, reportCurrency, fmtMoney, targetCode }) {
+function FinancialBalanceSheetView({ subTab, balanceSheetData, trialBalanceData, reportCurrency, fmtMoney, targetCode, isTBLoading }) {
   if (subTab === 'trial_balance') {
     return (
       <div className="bg-white rounded-2xl border border-[#E8E5EA] shadow-[0_2px_12px_rgba(0,0,0,0.02)] overflow-hidden">
-        <div className="px-6 py-4 border-b border-[#E8E5EA] bg-[#FAFAFB] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="px-6 py-4 border-b border-slate-800 bg-slate-900 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h3 className="font-bold text-sm text-[#25232A]">ميزان المراجعة بالمجاميع والأرصدة الختامية</h3>
-            <p className="text-[11px] text-[#6F6B75]">فحص توازن كافة الحركات المحاسبية المدينة والدائنة في دليل الحسابات</p>
+            <h3 className="font-bold text-sm text-white">ميزان المراجعة بالمجاميع والأرصدة الختامية</h3>
+            <p className="text-[11px] text-white">فحص توازن كافة الحركات المحاسبية المدينة والدائنة في دليل الحسابات</p>
           </div>
-          <span className={`px-3 py-1 rounded-full text-xs font-bold font-mono border ${trialBalanceData.isBalanced ? 'bg-[#E2F5F7] text-[#007F8C] border-[#C5ECF0]' : 'bg-rose-50 text-[#D64545] border-rose-200'}`}>
+          <span className={`px-3 py-1 rounded-full text-xs font-bold font-mono border ${trialBalanceData.isBalanced ? 'bg-emerald-950/80 text-emerald-400 border-emerald-800' : 'bg-rose-950/80 text-[#D64545] border-rose-800'}`}>
             {trialBalanceData.isBalanced ? '✅ متزن محاسبياً 100%' : '⚠️ غير متزن'}
           </span>
         </div>
+        {isTBLoading && (
+          <div className="p-3 bg-sky-50 border-b border-sky-100 flex items-center justify-center gap-2 text-xs text-[#007F8C] font-bold">
+            <span className="w-3.5 h-3.5 border-2 border-[#007F8C] border-t-transparent rounded-full animate-spin"></span>
+            <span>جاري تحديث بيانات ميزان المراجعة من السيرفر...</span>
+          </div>
+        )}
 
         <div className="overflow-x-auto">
-          <table className="w-full text-xs text-right border-collapse">
+          <table className="w-full text-xs text-right border-collapse min-w-[960px]">
             <thead>
-              <tr className="bg-[#FAFAFB] text-[#6F6B75] font-semibold border-b border-[#E8E5EA]">
-                <th className="px-4 py-3 text-right">كود الحساب</th>
-                <th className="px-4 py-3 text-right">اسم الحساب</th>
-                <th className="px-4 py-3 text-center">النوع</th>
-                <th className="px-4 py-3 text-center">الطبيعة</th>
-                <th className="px-4 py-3 text-left font-mono">رصيد سابق / افتتاحي</th>
-                <th className="px-4 py-3 text-left font-mono">مجموع المدين ({targetCode})</th>
-                <th className="px-4 py-3 text-left font-mono">مجموع الدائن ({targetCode})</th>
-                <th className="px-4 py-3 text-left font-mono">رصيد ختامي مدين</th>
-                <th className="px-4 py-3 text-left font-mono">رصيد ختامي دائن</th>
+              <tr className="bg-slate-900 text-white font-medium border-b border-slate-800">
+                <th className="px-3.5 py-3 text-right whitespace-nowrap min-w-[90px] font-medium text-white">كود الحساب</th>
+                <th className="px-3.5 py-3 text-right whitespace-nowrap min-w-[180px] font-medium text-white">اسم الحساب</th>
+                <th className="px-2.5 py-3 text-center whitespace-nowrap min-w-[70px] font-medium text-white">النوع</th>
+                <th className="px-2.5 py-3 text-center whitespace-nowrap min-w-[70px] font-medium text-white">الطبيعة</th>
+                <th className="px-3.5 py-3 text-left font-mono whitespace-nowrap min-w-[110px] font-medium text-white">رصيد سابق / افتتاحي</th>
+                <th className="px-3.5 py-3 text-left font-mono whitespace-nowrap min-w-[125px] font-medium text-white">مجموع المدين ({targetCode})</th>
+                <th className="px-3.5 py-3 text-left font-mono whitespace-nowrap min-w-[125px] font-medium text-white">مجموع الدائن ({targetCode})</th>
+                <th className="px-3.5 py-3 text-left font-mono whitespace-nowrap min-w-[125px] font-medium text-white">رصيد ختامي مدين</th>
+                <th className="px-3.5 py-3 text-left font-mono whitespace-nowrap min-w-[125px] font-medium text-white">رصيد ختامي دائن</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E8E5EA] bg-white">
               {trialBalanceData.rows.map(r => (
                 <tr key={r.code} className="hover:bg-[#FAFAFB] transition-colors">
-                  <td className="px-4 py-2.5 font-bold font-mono text-[#8F2A87]">{r.code}</td>
-                  <td className="px-4 py-2.5 font-medium text-[#25232A]">{r.name}</td>
-                  <td className="px-4 py-2.5 text-center"><span className="px-2 py-0.5 rounded-md bg-[#FAFAFB] border border-[#E8E5EA] text-[10px] text-[#6F6B75]">{r.type}</span></td>
-                  <td className="px-4 py-2.5 text-center"><span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${r.nature === 'debit' ? 'bg-[#E2F5F7] text-[#007F8C]' : 'bg-rose-50 text-[#D64545]'}`}>{r.nature === 'debit' ? 'مدين' : 'دائن'}</span></td>
-                  <td className="px-4 py-2.5 text-left font-mono text-[#6F6B75]">{r.opening_target !== 0 ? fmtMoney(r.opening_target) : '0'}</td>
-                  <td className="px-4 py-2.5 text-left font-mono font-bold text-[#007F8C]">{fmtMoney(r.total_debit_target)}</td>
-                  <td className="px-4 py-2.5 text-left font-mono font-bold text-[#D64545]">{fmtMoney(r.total_credit_target)}</td>
-                  <td className="px-4 py-2.5 text-left font-mono font-bold text-[#25232A]">{fmtMoney(r.debit_balance_target)}</td>
-                  <td className="px-4 py-2.5 text-left font-mono font-bold text-[#25232A]">{fmtMoney(r.credit_balance_target)}</td>
+                  <td className="px-3.5 py-2.5 font-bold font-mono text-[#8F2A87] whitespace-nowrap">{r.code}</td>
+                  <td className="px-3.5 py-2.5 font-medium text-[#25232A] whitespace-nowrap">{r.name}</td>
+                  <td className="px-2.5 py-2.5 text-center whitespace-nowrap"><span className="px-2 py-0.5 rounded-md bg-[#FAFAFB] border border-[#E8E5EA] text-[10px] text-[#6F6B75]">{r.type}</span></td>
+                  <td className="px-2.5 py-2.5 text-center whitespace-nowrap"><span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${String(r.nature || '').toLowerCase() === 'debit' ? 'bg-[#E2F5F7] text-[#007F8C]' : 'bg-rose-50 text-[#D64545]'}`}>{String(r.nature || '').toLowerCase() === 'debit' ? 'مدين' : 'دائن'}</span></td>
+                  <td className="px-3.5 py-2.5 text-left font-mono text-[#6F6B75] whitespace-nowrap tabular-nums">{r.opening_target !== 0 ? `${fmtMoney(r.opening_target)} ${targetCode}` : `0 ${targetCode}`}</td>
+                  <td className="px-3.5 py-2.5 text-left font-mono font-bold text-[#007F8C] whitespace-nowrap tabular-nums">{fmtMoney(r.total_debit_target)} {targetCode}</td>
+                  <td className="px-3.5 py-2.5 text-left font-mono font-bold text-[#D64545] whitespace-nowrap tabular-nums">{fmtMoney(r.total_credit_target)} {targetCode}</td>
+                  <td className="px-3.5 py-2.5 text-left font-mono font-bold text-[#25232A] whitespace-nowrap tabular-nums">{fmtMoney(r.debit_balance_target)} {targetCode}</td>
+                  <td className="px-3.5 py-2.5 text-left font-mono font-bold text-[#25232A] whitespace-nowrap tabular-nums">{fmtMoney(r.credit_balance_target)} {targetCode}</td>
                 </tr>
               ))}
             </tbody>
             <tfoot>
               <tr className="bg-[#FAFAFB] font-extrabold border-t-2 border-[#E8E5EA] text-xs">
-                <td colSpan="4" className="px-4 py-3.5 text-right text-[#25232A]">المجاميع الإجمالية وتأكيد التوازن:</td>
-                <td className="px-4 py-3.5 text-left font-mono text-[#6F6B75] text-sm">{fmtMoney(trialBalanceData.grandOpening)}</td>
-                <td className="px-4 py-3.5 text-left font-mono text-[#007F8C] text-sm">{fmtMoney(trialBalanceData.grandDebit)}</td>
-                <td className="px-4 py-3.5 text-left font-mono text-[#D64545] text-sm">{fmtMoney(trialBalanceData.grandCredit)}</td>
-                <td className="px-4 py-3.5 text-left font-mono text-[#25232A] text-sm">{fmtMoney(trialBalanceData.grandDebitBal)}</td>
-                <td className="px-4 py-3.5 text-left font-mono text-[#25232A] text-sm">{fmtMoney(trialBalanceData.grandCreditBal)}</td>
+                <td colSpan="4" className="px-3.5 py-3.5 text-right text-[#25232A] whitespace-nowrap font-bold">المجاميع الإجمالية وتأكيد التوازن:</td>
+                <td className="px-3.5 py-3.5 text-left font-mono text-[#6F6B75] text-xs sm:text-sm whitespace-nowrap tabular-nums">{fmtMoney(trialBalanceData.grandOpening)} {targetCode}</td>
+                <td className="px-3.5 py-3.5 text-left font-mono text-[#007F8C] text-xs sm:text-sm whitespace-nowrap tabular-nums">{fmtMoney(trialBalanceData.grandDebit)} {targetCode}</td>
+                <td className="px-3.5 py-3.5 text-left font-mono text-[#D64545] text-xs sm:text-sm whitespace-nowrap tabular-nums">{fmtMoney(trialBalanceData.grandCredit)} {targetCode}</td>
+                <td className="px-3.5 py-3.5 text-left font-mono text-[#25232A] text-xs sm:text-sm whitespace-nowrap tabular-nums">{fmtMoney(trialBalanceData.grandDebitBal)} {targetCode}</td>
+                <td className="px-3.5 py-3.5 text-left font-mono text-[#25232A] text-xs sm:text-sm whitespace-nowrap tabular-nums">{fmtMoney(trialBalanceData.grandCreditBal)} {targetCode}</td>
               </tr>
             </tfoot>
           </table>
@@ -63,13 +69,24 @@ function FinancialBalanceSheetView({ subTab, balanceSheetData, trialBalanceData,
   // default: balance_sheet
   return (
     <div className="space-y-6">
-      <div className={`p-4 rounded-2xl border flex items-center justify-between transition-all ${balanceSheetData.isBalanced ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-[#D64545]'}`}>
+      <div className={`p-4 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-3 transition-all ${balanceSheetData.isBalanced ? 'bg-emerald-50/80 border-emerald-200 text-emerald-900' : 'bg-rose-50/80 border-rose-200 text-[#D64545]'}`}>
         <div className="flex items-center gap-2.5 font-bold text-xs">
-          <span className="text-base">{balanceSheetData.isBalanced ? '✅' : '⚠️'}</span>
-          <span>حالة الميزانية العمومية: {balanceSheetData.isBalanced ? 'الميزانية العمومية متزنة ومطابقة تماماً (الأصول = الخصوم + حقوق الملكية + صافي ربح الفترة)' : `يوجد فارق غير متزن (${fmtMoney(balanceSheetData.diff)} ${reportCurrency})`}</span>
+          <span className="text-lg">{balanceSheetData.isBalanced ? '✅' : '⚠️'}</span>
+          <div>
+            <div className="font-extrabold text-sm">
+              {balanceSheetData.isBalanced ? 'الميزانية العمومية متزنة ومطابقة تماماً' : 'تنبيه: يوجد فارق غير متزن في الميزانية'}
+            </div>
+            <p className="text-[11px] font-medium opacity-85 mt-0.5">
+              معادلة الميزانية: الأصول ({fmtMoney(balanceSheetData.totalAssets)} {reportCurrency}) = الخصوم وحقوق الملكية ({fmtMoney(balanceSheetData.totalLiabilitiesAndEquity)} {reportCurrency})
+              {!balanceSheetData.isBalanced && ` | الفارق: ${fmtMoney(balanceSheetData.diff)} ${reportCurrency}`}
+            </p>
+          </div>
         </div>
-        <div className="font-mono text-xs font-bold">
-          <span>الأصول: {fmtMoney(balanceSheetData.totalAssets)} {reportCurrency}</span> | <span>الخصوم والملكية: {fmtMoney(balanceSheetData.totalLiabilitiesAndEquity)} {reportCurrency}</span>
+        <div className="flex items-center gap-2 self-end md:self-center font-mono text-xs font-bold bg-white/80 px-3.5 py-1.5 rounded-xl border border-current/20 shadow-2xs">
+          <span className="text-[#007F8C]">الأصول: {fmtMoney(balanceSheetData.totalAssets)}</span>
+          <span className="text-[#6F6B75]">≡</span>
+          <span className="text-[#8F2A87]">الخصوم والملكية: {fmtMoney(balanceSheetData.totalLiabilitiesAndEquity)}</span>
+          <span className="text-[#25232A] font-sans font-semibold mr-1">{reportCurrency}</span>
         </div>
       </div>
 

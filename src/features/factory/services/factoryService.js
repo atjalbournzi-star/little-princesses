@@ -23,13 +23,20 @@ const FactoryService = {
   },
 
   async updateStage(updatedF) {
-    if (window.productionAPI && typeof window.productionAPI.updateStage === 'function') {
-      return window.productionAPI.updateStage(updatedF);
+    try {
+      if (window.productionAPI && typeof window.productionAPI.updateStage === 'function') {
+        return await window.productionAPI.updateStage(updatedF);
+      }
+      const res = await fetch('/api/factory/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedF)
+      }).then(r => r.json());
+      return res;
+    } catch (e) {
+      if (typeof callGAS === 'function') return await callGAS('updateFactory', updatedF);
+      return { success: false, error: 'تعذر الاتصال بالسيرفر: ' + (e.message || 'خطأ في الشبكة') };
     }
-    if (typeof callGAS === 'function') {
-      return callGAS('updateFactory', updatedF);
-    }
-    return { success: true };
   },
 
   async deleteOrder(id, orderNo) {
@@ -93,21 +100,39 @@ const FactoryService = {
   },
 
   async approveQc(payload) {
-    const res = await fetch('/api/factory/job-card/approve', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    return res.json();
+    try {
+      const res = await fetch('/api/factory/job-card/approve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        return { success: false, error: data.error || data.message || `خطأ في الخادم (${res.status})` };
+      }
+      return data;
+    } catch (err) {
+      console.error('FactoryService.approveQc network error:', err);
+      return { success: false, error: 'تعذر الاتصال بالخادم: ' + (err.message || 'خطأ في الشبكة') };
+    }
   },
 
   async reworkQc(payload) {
-    const res = await fetch('/api/factory/job-card/rework', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    return res.json();
+    try {
+      const res = await fetch('/api/factory/job-card/rework', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        return { success: false, error: data.error || data.message || `خطأ في الخادم (${res.status})` };
+      }
+      return data;
+    } catch (err) {
+      console.error('FactoryService.reworkQc network error:', err);
+      return { success: false, error: 'تعذر الاتصال بالخادم: ' + (err.message || 'خطأ في الشبكة') };
+    }
   }
 };
 

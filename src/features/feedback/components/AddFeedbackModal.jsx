@@ -135,7 +135,7 @@ function AddFeedbackModal({
               disabled={isSubmitting}
               className="px-6 py-2.5 bg-[#009FAE] hover:bg-[#007F8C] text-white rounded-xl font-bold text-xs shadow-xs cursor-pointer flex items-center gap-1.5"
             >
-              <span>{isSubmitting ? 'جاري الحفظ...' : 'حفظ التقييم في سوبابيز 💾'}</span>
+              <span>{isSubmitting ? 'جاري الحفظ...' : 'اعتماد وحفظ تقييم العميل ✓'}</span>
             </button>
           </div>
         </form>

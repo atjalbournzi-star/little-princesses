@@ -25,6 +25,21 @@ def today_str():
     return datetime.date.today().strftime("%Y-%m-%d")
 
 
+def generate_sequential_order_no(cur, order_date_str=None):
+    dt = clean_str(order_date_str) or today_str()
+    parts = dt.split('-')
+    prefix = f"ORD-{parts[0]}-{parts[1]}{parts[2]}-" if len(parts) >= 3 else f"ORD-{today_str().replace('-', '')[:8]}-"
+    cur.execute("SELECT order_no FROM orders WHERE order_no LIKE %s ORDER BY order_no DESC LIMIT 1;", (f"{prefix}%",))
+    row = cur.fetchone()
+    if row and row.get('order_no'):
+        try:
+            last_seq = int(row['order_no'].split('-')[-1])
+            return f"{prefix}{last_seq + 1:02d}"
+        except Exception:
+            pass
+    return f"{prefix}01"
+
+
 def clean_num(val, default=0.0):
     if val is None or val == "":
         return default
@@ -106,6 +121,12 @@ def ensure_base_system_seed():
                 recalculate_advance_deposits(cur)
             except Exception as e_adv:
                 logger.warning(f"⚠️ Account 202 sync notice: {e_adv}")
+            # 8. Standard Chart of Accounts Seeder
+            try:
+                from .pg_chart_seed import ensure_chart_of_accounts_seed
+                ensure_chart_of_accounts_seed(cur)
+            except Exception as e_coa:
+                logger.warning(f"⚠️ Chart of Accounts seed notice: {e_coa}")
         logger.info("✅ تم التحقق من البيانات التأسيسية للنظام (Seed Data Checked)")
     except Exception as e:
         logger.warning(f"⚠️ تنبيه أثناء غرس البيانات التأسيسية: {e}")

@@ -15,7 +15,14 @@ function useAccountActions({
     try {
       const res = await fetch('/api/accounts/list').then(r => r.json());
       const list = (res && Array.isArray(res.data)) ? res.data : (Array.isArray(res) ? res : []);
-      if (list.length > 0 && setAccounts) setAccounts(list);
+      if (list.length > 0 && setAccounts) {
+        setAccounts(prev => {
+          if (!prev || prev.length <= 1) return list;
+          const merged = [...list], mCodes = new Set(list.map(a => String(a.code || a.account_code || a.id)));
+          prev.forEach(p => { if (!mCodes.has(String(p.code || p.account_code || p.id))) merged.push(p); });
+          return merged;
+        });
+      }
       try {
         const jRes = await fetch('/api/journal').then(r => r.json());
         const jList = (jRes && Array.isArray(jRes.data)) ? jRes.data : (Array.isArray(jRes) ? jRes : []);
@@ -48,17 +55,16 @@ function useAccountActions({
 
   // ── تصفير شجرة الحسابات والبيانات التجريبية ───────────────────────────────
   const handleCleanResetAccounts = async () => {
-    if (!window.confirm('⚠️ تحذير: هل أنت متأكد من رغبتك في تصفير شجرة الحسابات وتصفير كافة الأرصدة والمبالغ التجريبية إلى 0.00 في قاعدة البيانات؟\n\n(سيتم تصفير الأرصدة إلى 0.00 ومسح كافة القيود والسندات التجريبية دون التأثير على العملاء أو الأقسام الأخرى)')) return;
+    if (!window.confirm('⚠️ هل أنت متأكد من رغبتك في تصفير شجرة الحسابات وتصفير الأرصدة إلى 0.00 في قاعدة البيانات؟')) return;
     setIsResetting(true);
     try {
-      const res = await fetch('/api/accounts/clean-reset', { method: 'POST' });
-      const data = await res.json();
-      if (data.success) {
-        if (Array.isArray(data.data)) setAccounts(data.data);
+      const res = await fetch('/api/accounts/clean-reset', { method: 'POST' }).then(r => r.json());
+      if (res && res.success) {
+        if (Array.isArray(res.data)) setAccounts(res.data);
         if (setJournal) setJournal([]);
         if (setVouchers) setVouchers([]);
-        showToast('✅ تم تصفير شجرة الحسابات وتصفير كافة الأرصدة إلى 0.00 ومسح القيود التجريبية بنجاح ⚡');
-      } else { showToast(data.error || 'فشل التصفير', 'error'); }
+        showToast('✅ تم تصفير شجرة الحسابات وتصفير كافة الأرصدة إلى 0.00 بنجاح ⚡');
+      } else { showToast(res.error || 'فشل التصفير', 'error'); }
     } catch (err) { console.error(err); showToast('حدث خطأ أثناء الاتصال بالخادم للتصفير', 'error'); }
     finally { setIsResetting(false); }
   };
@@ -73,10 +79,10 @@ function useAccountActions({
       else { parentId = cleanCode(presetParentId); parentCode = parentId; }
     }
     if (parentCode.startsWith('3') || parentId.startsWith('3')) { initialType = 'حقوق ملكية'; initialNature = 'credit'; }
-    else if (parentCode.startsWith('1') || parentId.startsWith('1')) { initialType = 'أصول'; initialNature = 'debit'; }
     else if (parentCode.startsWith('2') || parentId.startsWith('2')) { initialType = 'خصوم'; initialNature = 'credit'; }
     else if (parentCode.startsWith('4') || parentId.startsWith('4')) { initialType = 'إيرادات'; initialNature = 'credit'; }
     else if (parentCode.startsWith('5') || parentId.startsWith('5') || parentCode.startsWith('6') || parentId.startsWith('6')) { initialType = 'مصروفات'; initialNature = 'debit'; }
+    else { initialType = 'أصول'; initialNature = 'debit'; }
     let initialCode = getSmartSuggestedAccountCode(parentCode || parentId, accountsWithRollupBalances);
     if (window.suggestAccountCode && (parentCode || parentId)) {
       try { const beCode = await window.suggestAccountCode(parentCode || parentId); if (beCode && beCode !== '101' && !accountsWithRollupBalances.some(a => cleanCode(a.code || a.account_code) === cleanCode(beCode))) initialCode = beCode; } catch (e) {}
@@ -153,10 +159,10 @@ function useAccountActions({
     const cleanC = cleanCode(formData.code);
     let finalType = formData.account_type, finalNature = formData.nature;
     if (cleanC.startsWith('3')) { finalType = 'حقوق ملكية'; finalNature = 'credit'; }
-    else if (cleanC.startsWith('1')) { finalType = 'أصول'; finalNature = 'debit'; }
     else if (cleanC.startsWith('2')) { finalType = 'خصوم'; finalNature = 'credit'; }
     else if (cleanC.startsWith('4')) { finalType = 'إيرادات'; finalNature = 'credit'; }
     else if (cleanC.startsWith('5') || cleanC.startsWith('6')) { finalType = 'مصروفات'; finalNature = 'debit'; }
+    else { finalType = 'أصول'; finalNature = 'debit'; }
     const payload = { ...formData, account_type: finalType, nature: finalNature, balance: editingAccount ? (parseFloat(editingAccount.balance) || 0.0) : 0.0, opening_balance: 0.0, current_balance: editingAccount ? (parseFloat(editingAccount.balance) || 0.0) : 0.0, is_group: Number(formData.is_group), is_active: Number(formData.is_active) };
     try {
       const res = await fetch('/api/accounts/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).then(r => r.json());
@@ -174,8 +180,7 @@ function useAccountActions({
 
   // ── تفعيل أو تعطيل الحساب ─────────────────────────────────────────────────
   const handleToggleStatus = async (acc) => {
-    const newStatus = acc.is_active === 1 ? 0 : 1;
-    const actionText = newStatus === 1 ? 'تفعيل' : 'تعطيل';
+    const newStatus = acc.is_active === 1 ? 0 : 1, actionText = newStatus === 1 ? 'تفعيل' : 'تعطيل';
     if (!confirm(`هل أنت متأكد من رغبتك في ${actionText} الحساب (${acc.code} - ${acc.name})؟`)) return;
     const payload = { ...acc, is_active: newStatus };
     try {
@@ -185,18 +190,18 @@ function useAccountActions({
     } catch (err) { showToast(`فشل ${actionText} الحساب`, 'error'); }
   };
 
-  // ── حذف الحساب مع التحقق من الفروع ────────────────────────────────────────
+  // ── حذف الحساب مع التحقق من الفروع والأرصدة ──────────────────────────────
   const handleDeleteAccount = async (acc, isChildOf) => {
     const hasChildrenFlag = (accountsWithRollupBalances || []).some(a => isChildOf(a, acc));
-    if (hasChildrenFlag) return showToast(`لا يمكن حذف الحساب (${acc.code} - ${acc.name}) لأنه حساب رئيسي يحتوي على حسابات فرعية تحته. يرجى حذف أو نقل الفروع أولاً.`, 'error');
+    if (hasChildrenFlag) return showToast(`لا يمكن حذف الحساب (${acc.code} - ${acc.name}) لوجود حسابات فرعية تحته. يرجى حذف الفروع أولاً.`, 'error');
+    const bal = Math.abs(parseFloat(acc.balance || 0)), rBal = Math.abs(parseFloat(acc.rollupBalance || 0));
+    if (bal > 0.001 || rBal > 0.001) return showToast(`لا يمكن حذف الحساب (${acc.code} - ${acc.name}) لوجود رصيد مالي مسجل عليه.`, 'error');
     if (!confirm(`هل أنت متأكد من حذف الحساب (${acc.code} - ${acc.name}) نهائياً؟`)) return;
     try {
       const payload = { id: acc.id, code: acc.code, account_code: acc.code, name: acc.name, account_name: acc.name };
-      let res;
-      if (window.deleteAccount) res = await window.deleteAccount(payload);
-      else res = await fetch('/api/accounts/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).then(r => r.json());
+      const res = window.deleteAccount ? await window.deleteAccount(payload) : await fetch('/api/accounts/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).then(r => r.json());
       if (res && res.success !== false) {
-        showToast(`تم حذف الحساب (${acc.code} - ${acc.name}) بنجاح من النظام وقاعدة البيانات 🗑️`, 'success');
+        showToast(`تم حذف الحساب (${acc.code} - ${acc.name}) بنجاح من النظام 🗑️`, 'success');
         setAccounts(prev => (prev || []).filter(a => cleanCode(a.code) !== cleanCode(acc.code) && String(a.id) !== String(acc.id)));
         await fetchFreshAccounts();
       } else { showToast((res && (res.error || res.message)) || 'لا يمكن حذف الحساب', 'error'); }

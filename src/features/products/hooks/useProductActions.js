@@ -23,15 +23,15 @@ function useProductActions({ products = [], setProducts, inventory = [], showToa
 
   // 2. مصفوفة الأقمشة والخامات (BOM)
   const [fabricsList, setFabricsList] = useState([u.createDefaultFabricRow ? u.createDefaultFabricRow("YER", "kids") : {
-    id: Date.now(), inventory_id: "", name: "", unit: "متر", currency: "YER", brackets: { '1-2Y': 1.0, '3-5Y': 1.5, '6-9Y': 2.0, '10-13Y': 2.5 }, cost: 0
+    id: Date.now(), inventory_id: "", name: "", unit: "متر", currency: "YER", brackets: { '1-2Y': "", '3-5Y': "", '6-9Y': "", '10-13Y': "" }, cost: 0
   }]);
 
   // 3. مراحل التشغيل وتكاليف الأجور
   const [cutterWage, setCutterWage] = useState(""), [tailorWage, setTailorWage] = useState("");
   const [embroidWage, setEmbroidWage] = useState(""), [finisherWage, setFinisherWage] = useState("");
   const [packagingCost, setPackagingCost] = useState(""), [pricesMatrix, setPricesMatrix] = useState({ '1-2Y': "", '3-5Y': "", '6-9Y': "", '10-13Y': "" });
-  const [ageChart, setAgeChart] = useState(() => u.DEFAULT_AGE_CHART || []);
-  const [womenSizeChart, setWomenSizeChart] = useState(() => u.DEFAULT_WOMEN_SIZE_CHART || []);
+  const [ageChart, setAgeChart] = useState(() => (u.DEFAULT_AGE_CHART ? JSON.parse(JSON.stringify(u.DEFAULT_AGE_CHART)) : []));
+  const [womenSizeChart, setWomenSizeChart] = useState(() => (u.DEFAULT_WOMEN_SIZE_CHART ? JSON.parse(JSON.stringify(u.DEFAULT_WOMEN_SIZE_CHART)) : []));
   const updateWomenSizeChart = (id, field, v) => setWomenSizeChart(prev => prev.map(w => w.id === id ? { ...w, [field]: v } : w));
   const activeModelCurrency = useMemo(() => getCurrencyCode(formCurrency), [formCurrency, getCurrencyCode]);
   const activeModelCurrencyLabel = useMemo(() => getCurrencyLabel(formCurrency), [formCurrency, getCurrencyLabel]);
@@ -105,14 +105,14 @@ function useProductActions({ products = [], setProducts, inventory = [], showToa
     return seg?.referenceSize || '6-9Y';
   }, [targetSegment, u]);
 
-  const computedTotalLabor = (parseFloat(cutterWage || 0) + parseFloat(tailorWage || 0) + parseFloat(embroidWage || 0) + parseFloat(finisherWage || 0));
+  const computedTotalLabor = (parseFloat(cutterWage || 0) + parseFloat(tailorWage || 0) + parseFloat(embroidWage || 0) + parseFloat(finisherWage || 0) + parseFloat(packagingCost || 0));
   const computedFabricTotal = costsPerBracket[refSize] || Object.values(costsPerBracket)[0] || 0;
-  const computedTotalCost = computedFabricTotal + computedTotalLabor + parseFloat(packagingCost || 0);
+  const computedTotalCost = computedFabricTotal + computedTotalLabor;
   const computedProfit = parseFloat(pricesMatrix[refSize] || Object.values(pricesMatrix)[0] || 0) - computedTotalCost;
 
   const handleApplyPresetMargin = (pct = 40) => {
     if (u.calculateSuggestedPrices) {
-      const suggested = u.calculateSuggestedPrices(costsPerBracket, computedTotalLabor + parseFloat(packagingCost || 0), pct);
+      const suggested = u.calculateSuggestedPrices(costsPerBracket, computedTotalLabor, pct);
       setPricesMatrix(suggested);
       if (showToast) showToast(`تم تطبيق أسعار مقترحة بهامش ربح +${pct}% ✨`);
     }
@@ -126,8 +126,10 @@ function useProductActions({ products = [], setProducts, inventory = [], showToa
     setPricesMatrix({ '1-2Y': "", '3-5Y': "", '6-9Y': "", '10-13Y': "" });
     setSelectedSizes(['1-2Y', '3-5Y', '6-9Y', '10-13Y']);
     setFabricsList([u.createDefaultFabricRow ? u.createDefaultFabricRow(activeModelCurrency, 'kids') : {
-      id: Date.now(), inventory_id: "", name: "", unit: "متر", currency: activeModelCurrency, brackets: { '1-2Y': 1.0, '3-5Y': 1.5, '6-9Y': 2.0, '10-13Y': 2.5 }, cost: 0
+      id: Date.now(), inventory_id: "", name: "", unit: "متر", currency: activeModelCurrency, brackets: { '1-2Y': "", '3-5Y': "", '6-9Y': "", '10-13Y': "" }, cost: 0
     }]);
+    setAgeChart(u.DEFAULT_AGE_CHART ? JSON.parse(JSON.stringify(u.DEFAULT_AGE_CHART)) : []);
+    setWomenSizeChart(u.DEFAULT_WOMEN_SIZE_CHART ? JSON.parse(JSON.stringify(u.DEFAULT_WOMEN_SIZE_CHART)) : []);
     setActiveTab("basic"); setModalOpen(true);
   };
 
@@ -137,11 +139,16 @@ function useProductActions({ products = [], setProducts, inventory = [], showToa
     setSmartCode(p.sku || p.barcode || p.model_no || `LP-${p.id}`);
     setTargetSegment(seg); setCategory(p.category || "فساتين وبدلات خاصة"); setSubcategory(p.subcategory || "");
     setCollection(p.collection || ""); setImageUrl(p.image_url || p.image || ""); setDescription(p.description || ""); setStatus(p.status || "Active");
-    setCutterWage(p.cutter_wage || ""); setTailorWage(p.tailor_wage || (p.labor_cost ? (p.labor_cost * 0.5) : ""));
-    setEmbroidWage(p.embroiderer_wage || (p.labor_cost ? (p.labor_cost * 0.3) : "")); setFinisherWage(p.finisher_wage || (p.labor_cost ? (p.labor_cost * 0.2) : ""));
-    setPackagingCost(p.packaging_cost || "");
-    if (p.sizes?.length) setSelectedSizes(p.sizes);
+    const bmMeta = (p.bom && typeof p.bom === 'object' && !Array.isArray(p.bom)) ? (p.bom.meta || {}) : {};
+    setCutterWage(p.cutter_wage || bmMeta.cutter_wage || "");
+    setTailorWage(p.tailor_wage || bmMeta.tailor_wage || (p.labor_cost ? (p.labor_cost * 0.5) : ""));
+    setEmbroidWage(p.embroiderer_wage || bmMeta.embroiderer_wage || (p.labor_cost ? (p.labor_cost * 0.3) : ""));
+    setFinisherWage(p.finisher_wage || bmMeta.finisher_wage || (p.labor_cost ? (p.labor_cost * 0.2) : ""));
+    setPackagingCost(p.packaging_cost || bmMeta.packaging_cost || "");
+    const loadedSizes = p.sizes?.length ? p.sizes : (bmMeta.sizes?.length ? bmMeta.sizes : (p.price_matrix ? Object.keys(p.price_matrix) : []));
+    if (loadedSizes.length) setSelectedSizes(loadedSizes);
     if (p.colors?.length) setSelectedColors(p.colors);
+    else if (bmMeta.colors?.length) setSelectedColors(bmMeta.colors);
     if (p.currency) setFormCurrency(getCurrencyCode(p.currency));
     if (u.normalizeProductForEdit) {
       const norm = u.normalizeProductForEdit(p, refSize);
@@ -157,6 +164,7 @@ function useProductActions({ products = [], setProducts, inventory = [], showToa
 
   const handleSaveProduct = async (e) => {
     if (e?.preventDefault) e.preventDefault();
+    if (isSaving) return;
     if (!modelName.trim()) return showToast ? showToast("اسم الموديل مطلوب ⚠️", "error") : null;
     setIsSaving(true);
     const resolvedChart = targetSegment === 'women_adults' ? womenSizeChart : ageChart;
@@ -176,10 +184,11 @@ function useProductActions({ products = [], setProducts, inventory = [], showToa
         if (window.bomAPI?.saveModel) await window.bomAPI.saveModel(newP);
         if (showToast) showToast("تم إضافة الموديل وحساب التكلفة سحابياً ☁️🧮");
       }
+      setModalOpen(false);
     } catch (err) {
       if (showToast) showToast(err.message || "تم الحفظ محلياً 🧮");
-    }
-    setIsSaving(false); setModalOpen(false);
+      setModalOpen(false);
+    } finally { setIsSaving(false); }
   };
 
   const handleDeleteProduct = async (id) => {
@@ -194,19 +203,16 @@ function useProductActions({ products = [], setProducts, inventory = [], showToa
   };
 
   return {
-    modalOpen, setModalOpen, activeTab, setActiveTab, editId, isSaving,
-    modelName, setModelName, smartCode, setSmartCode, generateNewSmartCode,
-    targetSegment, setTargetSegment: handleTargetSegmentChange, category, setCategory,
-    subcategory, setSubcategory, collection, setCollection, imageUrl, setImageUrl,
+    modalOpen, setModalOpen, activeTab, setActiveTab, editId, isSaving, modelName, setModelName,
+    smartCode, setSmartCode, generateNewSmartCode, targetSegment, setTargetSegment: handleTargetSegmentChange,
+    category, setCategory, subcategory, setSubcategory, collection, setCollection, imageUrl, setImageUrl,
     description, setDescription, status, setStatus, formCurrency, setFormCurrency, calcDate, setCalcDate,
-    selectedSizes, toggleSize, selectedColors, toggleColor, fabricsList, setFabricsList,
-    handleFabricChange, handleFabricBracketChange, addFabricRow, removeFabricRow,
-    cutterWage, setCutterWage, tailorWage, setTailorWage, embroidWage, setEmbroidWage, finisherWage, setFinisherWage,
-    packagingCost, setPackagingCost, pricesMatrix, setPricesMatrix, handlePriceChange,
-    ageChart, setAgeChart, updateAgeChart, womenSizeChart, setWomenSizeChart, updateWomenSizeChart,
-    activeModelCurrency, activeModelCurrencyLabel,
-    costsPerBracket, computedFabricTotal, computedTotalLabor, computedTotalCost, computedProfit,
-    handleApplyPresetMargin, handleOpenAddModal, handleEditProduct, handleSaveProduct, handleDeleteProduct
+    selectedSizes, setSelectedSizes, toggleSize, selectedColors, setSelectedColors, toggleColor, fabricsList, setFabricsList,
+    handleFabricChange, handleFabricBracketChange, addFabricRow, removeFabricRow, cutterWage, setCutterWage,
+    tailorWage, setTailorWage, embroidWage, setEmbroidWage, finisherWage, setFinisherWage, packagingCost, setPackagingCost,
+    pricesMatrix, setPricesMatrix, handlePriceChange, ageChart, setAgeChart, updateAgeChart, womenSizeChart, setWomenSizeChart,
+    updateWomenSizeChart, activeModelCurrency, activeModelCurrencyLabel, costsPerBracket, computedFabricTotal,
+    computedTotalLabor, computedTotalCost, computedProfit, handleApplyPresetMargin, handleOpenAddModal, handleEditProduct, handleSaveProduct, handleDeleteProduct
   };
 }
 

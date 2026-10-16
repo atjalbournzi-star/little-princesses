@@ -27,9 +27,13 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(data)
         }).then(r => r.json());
-        if (res && res.success) return res;
-      } catch (e) {}
-      return await callGAS('updateFactory', data);
+        if (res && (res.success || res.status === 'success')) return res;
+        if (res && (res.error || res.message)) return { success: false, error: res.error || res.message };
+        return res || { success: true };
+      } catch (e) {
+        if (typeof callGAS === 'function') return await callGAS('updateFactory', data);
+        return { success: false, error: 'تعذر الاتصال بالسيرفر: ' + (e.message || 'خطأ في الشبكة') };
+      }
     },
     assignOrder: async (data) => {
       try {
@@ -131,7 +135,7 @@
 
   window.getFeedback = async function() {
     try {
-      const res = await fetch('/api/quality/feedback').then(r => r.json()).catch(() => callGAS('getFeedback'));
+      const res = await fetch('/api/quality/feedback').then(r => (r.ok ? r.json() : { success: false, data: [] })).catch(() => ({ success: false, data: [] }));
       return res && res.data ? res.data : [];
     } catch (e) {
       console.error('getFeedback error:', e);

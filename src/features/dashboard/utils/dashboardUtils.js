@@ -100,21 +100,21 @@ const calculateTreasuryBalances = (accounts = [], journal = [], targetCode = 'YE
   let totalBank = 0.0;
   const bankChildAccs = accList.filter(a => {
     const code = String(a.code || a.acc_code || a.account_code || a.id || '');
-    return (code.startsWith('1112.') || code.startsWith('103.') || code.startsWith('ACC-103-'));
+    return (code.startsWith('1112.') || code.startsWith('102.') || code.startsWith('ACC-102-'));
   });
   if (bankChildAccs.length > 0) {
     bankChildAccs.forEach(ba => {
       const code = String(ba.code || ba.acc_code || ba.account_code || ba.id || '');
-      if (code !== '1112' && code !== '103') totalBank += (accountBalances[code] || 0.0);
+      if (code !== '1112' && code !== '102') totalBank += (accountBalances[code] || 0.0);
     });
   } else {
-    totalBank = (accountBalances['1112'] !== undefined ? accountBalances['1112'] : (accountBalances['103'] || 0.0));
+    totalBank = (accountBalances['1112'] !== undefined ? accountBalances['1112'] : (accountBalances['102'] || 0.0));
   }
 
   const foreignTreasuryDetails = [];
   accList.forEach(a => {
     const code = String(a.code || a.acc_code || a.account_code || a.id || '');
-    const isTreasury = code.startsWith('101.') || code.startsWith('103.') || code.startsWith('1111.') || code.startsWith('1112.') || code === '1121';
+    const isTreasury = code.startsWith('101.') || code.startsWith('102.') || code.startsWith('1111.') || code.startsWith('1112.') || code === '1121';
     if (isTreasury && a.currency && a.currency !== 'YER') {
       const balInBase = accountBalances[code] || 0;
       let fBal = (a.foreign_balance !== undefined && a.foreign_balance !== null && a.foreign_balance !== '')

@@ -71,7 +71,7 @@ def handle_post(handler, path, parsed_url) -> bool:
             handler.wfile.write(json.dumps({'success': False, 'error': str(e)}).encode('utf-8'))
         return True
 
-    if path in ('/api/factory/job-card/approve', '/api/production/job-card/approve', '/api/factory/qc/approve'):
+    if path in ('/api/factory/job-card/approve', '/api/production/job-card/approve', '/api/factory/qc/approve', '/api/quality/approve', '/api/orders/quality-approve'):
         content_length = int(handler.headers.get('Content-Length', 0))
         post_data = handler.rfile.read(content_length)
         try:

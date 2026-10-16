@@ -129,6 +129,21 @@
         return await callGAS('deleteExpense', payload);
       }
       return { success: true };
+    },
+    approveExpense: async (data) => {
+      const payload = typeof data === 'object' ? data : { id: data, expense_id: data };
+      try {
+        const res = await fetch('/api/finance/expenses/approve', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        }).then(r => r.json());
+        if (res && res.success) return res;
+        if (res && res.error) throw new Error(res.error);
+      } catch (e) {
+        if (e.message && !e.message.includes('fetch')) throw e;
+      }
+      return { success: false, message: 'تعذر الاتصال بالسيرفر' };
     }
   };
   window.expensesAPI = window.expenseAPI;

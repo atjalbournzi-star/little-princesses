@@ -9,56 +9,53 @@ function ReportsHeader({ activeTab, setActiveTab, handleExportExcel, handlePrint
   ];
 
   return (
-    <div className="print-hidden bg-white rounded-2xl border border-[#E8E5EA] shadow-[0_2px_12px_rgba(0,0,0,0.02)] overflow-hidden transition-all">
-      <div className="px-6 py-4 border-b border-[#E8E5EA] flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-gradient-to-r from-white via-[#FAFAFB] to-white">
+    <div className="print-hidden bg-slate-900 rounded-2xl border border-slate-800 shadow-[0_2px_12px_rgba(0,0,0,0.15)] overflow-hidden transition-all text-white">
+      <div className="px-6 py-3.5 border-b border-slate-800 flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-slate-900">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-[#E2F5F7] text-[#007F8C] flex items-center justify-center text-lg font-bold border border-[#C5ECF0]">
+          <div className="w-8 h-8 rounded-lg bg-slate-800/60 text-slate-300 flex items-center justify-center text-sm border border-slate-700/60">
             📊
           </div>
           <div>
-            <h2 className="text-sm font-bold text-[#25232A]">المركز المالي والتقارير التحليلية الشاملة</h2>
-            <p className="text-[11px] text-[#6F6B75]">
+            <h2 className="text-sm font-bold text-white tracking-wide">المركز المالي والتقارير التحليلية الشاملة</h2>
+            <p className="text-[11px] text-white">
               {brandProfile?.name || 'مؤسسة الأميرات الصغيرات'} — قوائم الدخل، المبيعات، خطوط الإنتاج، والمخزون
             </p>
           </div>
         </div>
 
-        {/* أزرار الإجراءات والطباعة وتصدير Excel */}
-        <div className="flex items-center gap-2 flex-wrap">
+        {/* أزرار الإجراءات والطباعة وتصدير Excel كأيقونات رمادية هادئة ناعمة وصغيرة الحجم */}
+        <div className="flex items-center gap-1.5">
           <button
             type="button"
             onClick={handleExportExcel}
-            title="تصدير جدول التقرير النشط حالياً إلى ملف Excel منسق متعدد الأعمدة"
-            className="h-10 px-3.5 rounded-xl font-bold text-xs text-[#007F8C] bg-[#E2F5F7] hover:bg-[#C5ECF0] border border-[#C5ECF0] transition flex items-center gap-2 cursor-pointer shadow-2xs"
+            title="تصدير جدول التقرير النشط حالياً إلى ملف Excel منسق (XLSX)"
+            className="w-8 h-8 rounded-lg text-slate-400 hover:text-white bg-slate-800/60 border border-slate-700/60 transition flex items-center justify-center cursor-pointer shadow-2xs"
           >
-            <span>📊</span>
-            <span>تصدير Excel (XLSX)</span>
+            <span className="text-[16px]">📊</span>
           </button>
 
           <button
             type="button"
             onClick={handlePrint}
-            title="حفظ التقرير المالي المنسق كملف PDF رسمي مع الترويسة والتوقيعات"
-            className="h-10 px-3.5 rounded-xl font-bold text-xs text-[#8F2A87] bg-[#F2E7F3] hover:bg-[#E5CEE7] border border-[#E5CEE7] transition flex items-center gap-2 cursor-pointer shadow-2xs"
+            title="حفظ التقرير المالي المنسق كملف PDF رسمي"
+            className="w-8 h-8 rounded-lg text-slate-400 hover:text-white bg-slate-800/60 border border-slate-700/60 transition flex items-center justify-center cursor-pointer shadow-2xs"
           >
-            <span>📑</span>
-            <span>حفظ كـ PDF</span>
+            <span className="text-[16px]">📑</span>
           </button>
 
           <button
             type="button"
             onClick={handlePrint}
-            title="طباعة التقرير المالي الرسمي الحالي"
-            className="h-10 px-4 rounded-xl font-bold text-xs text-white bg-[#009FAE] hover:bg-[#007F8C] transition flex items-center gap-2 cursor-pointer shadow-xs"
+            title="طباعة التقرير المالي الرسمي"
+            className="w-8 h-8 rounded-lg text-slate-400 hover:text-white bg-slate-800/60 border border-slate-700/60 transition flex items-center justify-center cursor-pointer shadow-2xs"
           >
-            <span>🖨️</span>
-            <span>طباعة التقرير</span>
+            <span className="text-[16px]">🖨️</span>
           </button>
         </div>
       </div>
 
-      {/* شريط التبويبات الرئيسي لأنواع التقارير */}
-      <div className="flex items-center gap-2 px-6 pt-2 overflow-x-auto border-b border-[#E8E5EA] bg-white">
+      {/* شريط التبويبات الرئيسي لأنواع التقارير بخط أبيض ناصع */}
+      <div className="flex items-center gap-2 px-6 pt-2 overflow-x-auto border-b border-slate-800 bg-slate-900">
         {tabs.map(tab => {
           const isActive = activeTab === tab.id;
           return (
@@ -66,15 +63,15 @@ function ReportsHeader({ activeTab, setActiveTab, handleExportExcel, handlePrint
               key={tab.id}
               type="button"
               onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-3 text-xs font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
+              className={`px-4 py-3 text-xs border-b-2 transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
                 isActive
-                  ? 'border-[#009FAE] text-[#007F8C] bg-[#E2F5F7]/30'
-                  : 'border-transparent text-[#6F6B75] hover:text-[#25232A]'
+                  ? 'border-white text-white font-bold bg-slate-800/80'
+                  : 'border-transparent text-white font-medium hover:text-white hover:bg-slate-800/40'
               }`}
             >
-              <span>{tab.icon}</span>
-              <span>{tab.label}</span>
-              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-normal ${isActive ? 'bg-[#009FAE] text-white' : 'bg-gray-100 text-gray-600'}`}>
+              <span className="text-sm">{tab.icon}</span>
+              <span className="font-medium text-white">{tab.label}</span>
+              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${isActive ? 'bg-fuchsia-700 text-white' : 'bg-slate-800 text-white border border-slate-700'}`}>
                 {tab.badge}
               </span>
             </button>

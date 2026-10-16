@@ -4,6 +4,7 @@ from .db_pool import (
     generate_id, today_str
 )
 from .pg_factory_fabric import deduct_fabric, deduct_fabrics_batch, ensure_valid_product
+from .pg_factory_stage_sync import sync_production_order_commissions
 
 logger = logging.getLogger("LittlePrincesses_PG_FactoryUpdate")
 
@@ -109,7 +110,7 @@ def update_factory(payload):
                 sewing_due_date = COALESCE(%s, sewing_due_date),
                 embroidery_due_date = COALESCE(%s, embroidery_due_date),
                 finishing_due_date = COALESCE(%s, finishing_due_date),
-                tailor_wage = CASE WHEN %s > 0 THEN %s ELSE tailor_wage END,
+                tailor_wage = CASE WHEN %s >= 0 THEN %s ELSE tailor_wage END,
                 tailor_status = COALESCE(NULLIF(%s, ''), tailor_status),
                 quality_score = CASE WHEN %s IS NOT NULL THEN %s ELSE quality_score END,
                 quality_notes = CASE WHEN %s != '' THEN %s ELSE quality_notes END,
@@ -117,12 +118,12 @@ def update_factory(payload):
                 cut_meters = CASE WHEN %s > 0 THEN %s ELSE cut_meters END,
                 cut_unit = COALESCE(NULLIF(%s, ''), cut_unit),
                 cutter_name = COALESCE(NULLIF(%s, ''), cutter_name),
-                cutter_wage = CASE WHEN %s > 0 THEN %s ELSE cutter_wage END,
+                cutter_wage = CASE WHEN %s >= 0 THEN %s ELSE cutter_wage END,
                 tailor_name = COALESCE(NULLIF(%s, ''), tailor_name),
                 embroiderer_name = COALESCE(NULLIF(%s, ''), embroiderer_name),
-                embroiderer_wage = CASE WHEN %s > 0 THEN %s ELSE embroiderer_wage END,
+                embroiderer_wage = CASE WHEN %s >= 0 THEN %s ELSE embroiderer_wage END,
                 finisher_name = COALESCE(NULLIF(%s, ''), finisher_name),
-                finisher_wage = CASE WHEN %s > 0 THEN %s ELSE finisher_wage END,
+                finisher_wage = CASE WHEN %s >= 0 THEN %s ELSE finisher_wage END,
                 pieces_count = CASE WHEN %s > 0 THEN %s ELSE pieces_count END,
                 production_type = COALESCE(NULLIF(%s, ''), production_type),
                 size_code = COALESCE(NULLIF(%s, ''), size_code),
@@ -173,6 +174,8 @@ def update_factory(payload):
         real_ord = (row.get('order_id') if row else None) or order_no_in or po_id
         if real_ord:
             cur.execute("UPDATE orders SET production_status = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s OR order_no = %s;", (db_order_status, real_ord, real_ord))
+        if row:
+            sync_production_order_commissions(cur, row)
 
         res = dict(row) if row else {"status": "success"}
         for k in ['created_at', 'updated_at', 'start_date']:

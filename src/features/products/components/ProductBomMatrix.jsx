@@ -55,138 +55,127 @@ function ProductBomMatrix({
   }, [localInv, inventory]);
 
   return (
-    <div className="p-4 bg-[#FAFAFB] dark:bg-slate-900/60 rounded-xl border border-[#E8E5EA] dark:border-slate-800 space-y-3.5">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-        <div>
-          <span className="text-xs font-bold text-[#25232A] dark:text-slate-100 block">
-            🧵 شجرة خامات الموديل (BOM) — {seg.label || 'شجرة المواد'}
+    <div className="flex-1 overflow-hidden p-3 flex flex-col justify-between space-y-2 select-none" dir="rtl">
+      <div className="flex items-center justify-between gap-2 shrink-0 pb-1 border-b border-slate-800">
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs font-bold text-white">
+            🧵 شجرة خامات الموديل (BOM) — {seg.label || 'المواد والأقمشة'}
           </span>
-          <span className="text-[11px] text-[#6F6B75] dark:text-slate-400">
-            ربط الأقمشة والمستلزمات مع المخزون الحي لحساب استهلاك الأمتار والتكلفة بدقة لكل مقاس
+          <span className="text-[10px] text-slate-400 hidden sm:inline">
+            (تحديد استهلاك الأمتار لكل مقاس لحساب تكلفة القطعة)
           </span>
         </div>
         <button
           type="button"
           onClick={addFabricRow}
-          className="px-3 py-1.5 bg-white dark:bg-slate-800 text-[#8F2A87] dark:text-purple-300 hover:bg-[#F2E7F3] dark:hover:bg-purple-950/40 border border-[#E5CEE7] dark:border-purple-800/40 rounded-xl text-xs font-bold transition cursor-pointer self-start sm:self-auto flex items-center gap-1 shadow-2xs"
+          className="h-6 px-2 text-[10.5px] font-bold bg-pink-600/20 text-pink-300 border border-pink-500/40 rounded-md hover:bg-pink-600/30 transition cursor-pointer flex items-center gap-1"
         >
-          <span>➕</span>
-          <span>إضافة مادة / قماش</span>
+          <span>+</span>
+          <span>إضافة خامة / قماش</span>
         </button>
       </div>
 
-      {/* جدول بنود المواد المرن */}
-      <div className="space-y-2.5 overflow-x-auto">
-        <div className="min-w-[680px] space-y-2">
-          {/* ترويسة الأعمدة الديناميكية */}
-          <div className="flex items-center gap-2 text-[11px] font-semibold text-[#6F6B75] dark:text-slate-400 px-2">
-            <span className="w-56 shrink-0">الخامة من المخزون الحي</span>
-            <div className="flex-1 grid gap-2" style={{ gridTemplateColumns: `repeat(${sizes.length}, minmax(0, 1fr))` }}>
-              {sizes.map(sz => (
-                <span key={sz} className="text-center font-bold font-mono">
-                  {sizeLabels[sz] || sz} (م)
-                </span>
-              ))}
-            </div>
-            <span className="w-9 text-center shrink-0">حذف</span>
-          </div>
+      {/* جدول بنود المواد المرن بنظام الشبكة الموحد بنسبة 100% */}
+      <div className="space-y-1.5 flex-1 overflow-y-auto custom-scrollbar min-h-0">
+        {/* ترويسة الأعمدة بنظام CSS Grid مطابق تماماً للصفوف */}
+        <div
+          className="grid items-center gap-1.5 text-[10.5px] font-bold text-slate-300 px-2.5 py-1 bg-slate-900/60 rounded-lg border border-slate-800/80 w-full grid-cols-[1.8fr_1fr_1fr_1fr_1fr_40px]"
+          style={{ gridTemplateColumns: `1.8fr repeat(${sizes.length}, 1fr) 40px` }}
+        >
+          <span className="truncate pr-0.5">الخامة من المخزون الحي</span>
+          {sizes.map(sz => (
+            <span key={sz} className="whitespace-nowrap text-center font-bold font-mono text-slate-200">
+              {sizeLabels[sz] || sz}
+            </span>
+          ))}
+          <span className="text-center shrink-0">حذف</span>
+        </div>
 
-          {fabricsList.map(fab => (
-            <div key={fab.id} className="flex items-center gap-2 bg-white dark:bg-slate-800/90 p-2.5 rounded-xl border border-[#E8E5EA] dark:border-slate-700 shadow-2xs">
-              {/* اختيار الخامة من المخزون الحي مع الرصيد والسعر */}
-              <div className="w-56 shrink-0">
-                <select
-                  value={fab.name}
-                  onChange={e => {
-                    const val = e.target.value;
-                    const selectedInv = fabricMaterials.find(inv => (inv.item_name || inv.name) === val);
-                    handleFabricChange(fab.id, 'name', val, selectedInv);
-                  }}
-                  className={inputCls + " w-full font-medium"}
-                >
-                  <option value="">-- اختر من مخزون الأقمشة الحي --</option>
-                  {fabricMaterials.map(inv => {
-                    const itemName = inv.item_name || inv.name;
-                    const itemCost = parseFloat(inv.unit_cost ?? inv.cost_price ?? inv.cost ?? inv.cost_per_meter ?? 0);
-                    const itemCurr = inv.currency || 'YER';
-                    const itemStock = parseFloat(inv.available_qty ?? inv.quantity ?? 0);
-                    const unit = inv.unit || 'متر';
-                    return (
-                      <option key={inv.id || itemName} value={itemName}>
-                        {itemName} (المتوفر: {itemStock} {unit}) [{itemCost} {itemCurr}/{unit}]
-                      </option>
-                    );
-                  })}
-                </select>
-                {fab.name && (
-                  <div className="text-[10px] text-[#007F8C] font-mono mt-1 px-1 flex items-center justify-between flex-wrap gap-1">
-                    <span>سعر المتر: <strong>{fab.cost} {fab.currency || 'YER'}</strong></span>
-                    {fab.available_qty !== undefined && (
-                      <span className="text-[#6F6B75]">المتوفر: <strong>{fab.available_qty} {fab.unit}</strong></span>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* حقول استهلاك الأمتار للمقاسات الديناميكية */}
-              <div className="flex-1 grid gap-2" style={{ gridTemplateColumns: `repeat(${sizes.length}, minmax(0, 1fr))` }}>
-                {sizes.map(sz => {
-                  const val = fab.brackets?.[sz] ?? (sz === '6-9Y' ? fab.meters_6_9 : '') ?? '';
+        {/* صفوف المواد */}
+        {fabricsList.map(fab => (
+          <div
+            key={fab.id}
+            className="grid items-center gap-1.5 h-8 py-1 px-2.5 text-xs bg-slate-900/90 rounded-lg border border-slate-800 shadow-sm w-full grid-cols-[1.8fr_1fr_1fr_1fr_1fr_40px]"
+            style={{ gridTemplateColumns: `1.8fr repeat(${sizes.length}, 1fr) 40px` }}
+          >
+            {/* اختيار الخامة من المخزون */}
+            <div className="min-w-0">
+              <select
+                value={fab.name}
+                onChange={e => {
+                  const val = e.target.value;
+                  const selectedInv = fabricMaterials.find(inv => (inv.item_name || inv.name) === val);
+                  handleFabricChange(fab.id, 'name', val, selectedInv);
+                }}
+                className="h-6 px-2 text-xs bg-slate-900 border border-slate-700 rounded-md text-white outline-none focus:border-pink-500 font-medium w-full cursor-pointer truncate"
+              >
+                <option value="">-- اختر الخامة --</option>
+                {fabricMaterials.map(inv => {
+                  const itemName = inv.item_name || inv.name;
+                  const itemCost = parseFloat(inv.unit_cost ?? inv.cost_price ?? inv.cost ?? inv.cost_per_meter ?? 0);
+                  const itemCurr = inv.currency || 'YER';
+                  const itemStock = parseFloat(inv.available_qty ?? inv.quantity ?? 0);
+                  const unit = inv.unit || 'متر';
                   return (
-                    <input
-                      key={sz}
-                      type="number"
-                      step="0.1"
-                      min="0"
-                      value={val}
-                      onChange={e => handleFabricBracketChange && handleFabricBracketChange(fab.id, sz, e.target.value)}
-                      placeholder="1.0"
-                      className={inputCls + " w-full text-center font-mono font-bold"}
-                      title={`استهلاك مقاس ${sz}`}
-                    />
+                    <option key={inv.id || itemName} value={itemName}>
+                      {itemName} ({itemStock} {unit}) [{itemCost} {itemCurr}]
+                    </option>
                   );
                 })}
-              </div>
-
-              {/* زر حذف السطر */}
-              <div className="w-9 shrink-0 flex justify-center">
-                <button
-                  type="button"
-                  onClick={() => removeFabricRow(fab.id)}
-                  disabled={fabricsList.length === 1}
-                  className="w-8 h-8 rounded-lg text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition cursor-pointer disabled:opacity-20 flex items-center justify-center"
-                  title="حذف هذا البند"
-                >
-                  ✕
-                </button>
-              </div>
+              </select>
             </div>
-          ))}
-        </div>
+
+            {/* حقول استهلاك الأمتار للمقاسات مدمجة وموسطنة */}
+            {sizes.map(sz => {
+              const val = fab.brackets?.[sz] ?? (sz === '6-9Y' ? fab.meters_6_9 : '') ?? '';
+              return (
+                <div key={sz} className="w-full flex items-center justify-center min-w-0">
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    value={val}
+                    onChange={e => handleFabricBracketChange && handleFabricBracketChange(fab.id, sz, e.target.value)}
+                    className="w-full h-6 text-center font-mono font-bold text-white bg-slate-900 border border-slate-700 rounded-md outline-none focus:border-pink-500 text-xs px-0.5"
+                    title={`استهلاك مقاس ${sz}`}
+                  />
+                </div>
+              );
+            })}
+
+            {/* زر حذف السطر في أقصى اليسار */}
+            <div className="w-full flex items-center justify-center shrink-0">
+              <button
+                type="button"
+                onClick={() => removeFabricRow(fab.id)}
+                disabled={fabricsList.length === 1}
+                className="w-5.5 h-5.5 rounded-md text-rose-400 hover:text-white hover:bg-rose-950/60 text-xs transition cursor-pointer disabled:opacity-20 flex items-center justify-center font-bold"
+                title="حذف هذا البند"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        ))}
       </div>
 
-      {/* ملخص تكلفة الخامات المستهلكة لكل مقاس معتمد */}
-      <div className="pt-2 border-t border-[#E8E5EA] dark:border-slate-800">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-[11px] font-bold text-[#6F6B75] dark:text-slate-400 block">
-            إجمالي تكلفة الخامات المستهلكة لكل مقاس ({seg.label || 'الفئة المختارة'}):
-          </span>
-          <span className="text-[10px] font-bold text-[#007F8C] bg-[#E2F5F7] dark:bg-cyan-950/40 text-cyan-800 dark:text-cyan-300 px-2 py-0.5 rounded">
-            ⚡ احتساب تلقائي بضرب سعر المتر في أمتار كل مقاس
-          </span>
-        </div>
-        <div className={`grid gap-2 text-center text-xs ${sizes.length > 4 ? 'grid-cols-3 sm:grid-cols-6' : (sizes.length === 1 ? 'grid-cols-1 max-w-xs mx-auto' : 'grid-cols-2 sm:grid-cols-4')}`}>
-          {sizes.map(sz => (
-            <div key={sz} className="bg-white dark:bg-slate-800 p-2.5 rounded-xl border border-[#E8E5EA] dark:border-slate-700 shadow-2xs">
-              <span className="text-[10.5px] text-[#6F6B75] dark:text-slate-400 block mb-0.5 font-mono">
-                {sizeLabels[sz] || sz}
-              </span>
-              <span className="font-bold text-[#8F2A87] dark:text-purple-300 font-mono text-sm">
-                {(costsPerBracket[sz] || 0).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
-              </span>
-              <span className="text-[10px] text-[#6F6B75] dark:text-slate-400 font-sans mr-1">{activeModelCurrencyLabel}</span>
-            </div>
-          ))}
+      {/* ملخص تكلفة الخامات التقديرية بحسب المقاسات */}
+      <div className="p-2.5 bg-[#0F172A] rounded-xl border border-slate-800 space-y-1.5 shrink-0 shadow-md">
+        <span className="text-[11px] font-bold text-slate-300 block">
+          📊 ملخص تكلفة الخامات المحتسبة لكل مقاس:
+        </span>
+        <div className={`grid gap-2 ${sizes.length > 4 ? 'grid-cols-3 xl:grid-cols-6' : 'grid-cols-2 sm:grid-cols-4'}`}>
+          {sizes.map(sz => {
+            const cost = costsPerBracket[sz] || 0;
+            return (
+              <div key={sz} className="bg-slate-900/90 border border-slate-800 rounded-lg p-1.5 flex items-center justify-between text-xs">
+                <span className="font-mono font-bold text-pink-300 text-[10.5px] truncate max-w-[85px]">{sizeLabels[sz] || sz}</span>
+                <span className="font-mono font-bold text-white">
+                  {cost.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 1})} <span className="text-[9px] text-slate-400 font-sans">{(activeModelCurrencyLabel || 'YER').split(' ')[0]}</span>
+                </span>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
@@ -194,3 +183,4 @@ function ProductBomMatrix({
 }
 
 window.ProductBomMatrix = ProductBomMatrix;
+window.BOMFabricTree = ProductBomMatrix;

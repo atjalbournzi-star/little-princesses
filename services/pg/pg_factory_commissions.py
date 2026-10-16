@@ -122,15 +122,33 @@ def get_tailor_unpaid_pieces(params=None):
         for r in rows:
             d = dict(r)
             for fld in ['completed_at', 'approved_at', 'paid_at']:
-                if d.get(fld):
-                    d[fld] = str(d[fld])
-            if d.get('order_date'):
-                d['order_date'] = str(d['order_date'])
+                if d.get(fld): d[fld] = str(d[fld])
+            if d.get('order_date'): d['order_date'] = str(d['order_date'])
             d['wage_amount'] = float(d.get('wage_amount') or 0.0)
             d['quality_score'] = float(d.get('quality_score') or 5.0)
             d['pieces_count'] = int(d.get('pieces_count') or 1)
             d['is_on_time'] = bool(d.get('is_on_time', True))
             res.append(d)
+
+        if not res and emp_name:
+            cur.execute("""
+                SELECT po.id, po.production_order_no, o.order_no, po.product_name, po.child_name, po.stage,
+                       e.salary as wage_amount, COALESCE(po.pieces_count, 1) as pieces_count,
+                       po.start_date as order_date, po.updated_at as completed_at, 5.0 as quality_score, 'Approved' as status
+                FROM production_orders po
+                LEFT JOIN orders o ON po.order_id = o.id
+                LEFT JOIN employees e ON (e.name = %s OR e.id = %s)
+                WHERE (po.cutter_name = %s OR po.tailor_name = %s OR po.embroiderer_name = %s OR po.finisher_name = %s OR po.notes ILIKE %s)
+                ORDER BY po.created_at DESC;
+            """, (emp_name, emp_id, emp_name, emp_name, emp_name, emp_name, f"%{emp_name}%"))
+            for r in cur.fetchall():
+                d = dict(r)
+                d['order_no'] = d.get('order_no') or d.get('production_order_no')
+                d['wage_amount'] = float(d.get('wage_amount') or 400.0)
+                d['pieces_count'] = int(d.get('pieces_count') or 1)
+                d['order_date'] = str(d['order_date']) if d.get('order_date') else None
+                d['completed_at'] = str(d['completed_at']) if d.get('completed_at') else None
+                res.append(d)
         return res
 
 

@@ -48,7 +48,10 @@ function CustomerMeasurementsForm({
         {fieldsToRender.map(([f, lbl]) => {
           const val = currM[f], hasVal = val !== undefined && val !== null && val !== '' && !isNaN(parseFloat(val));
           const num = hasVal ? parseFloat(val) : null;
-          const sub = hasVal ? (currM.unit === 'إنش' ? `≈ ${(num*2.54).toFixed(1)} سم` : `≈ ${(num/2.54).toFixed(1)}"`) : `(${currM.unit || 'سم'})`;
+          const isInch = /^(inch|in|إنش|انش)$/i.test(String(currM?.unit || '').trim());
+          const sub = hasVal
+            ? (isInch ? `≈ ${(num * 2.54).toFixed(1)} سم` : `≈ ${(num / 2.54).toFixed(1)}"`)
+            : `(${isInch ? 'إنش' : 'سم'})`;
           return (
             <div key={f} className="h-10 p-1 bg-slate-900/80 border border-slate-700 rounded-lg text-center flex flex-col justify-between">
               <div className="flex items-center justify-between text-[10px] font-bold text-slate-300 leading-tight px-1">

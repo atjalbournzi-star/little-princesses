@@ -138,37 +138,20 @@ function Accounts({
 
   // ── العرض ────────────────────────────────────────────────────────────────
   return (
-    <div className="space-y-6 animate-fadeIn text-right" dir="rtl">
+    <div className="space-y-3 animate-fadeIn text-right" dir="rtl">
 
       <AccountsHeader
-        accountsWithRollupBalances={accountsWithRollupBalances}
-        isSyncing={isSyncing} isResetting={isResetting}
-        onSync={handleSyncCloudAccounts}
-        onReset={handleCleanResetAccounts}
-        onAddPartner={handleOpenAddPartnerModal}
-        onAddExpense={handleOpenAddExpenseModal}
-        onAddMain={() => handleOpenAddModal(null)}
-        onAuditLog={handleOpenAuditModal}
-        currency={activeTargetCurr} currDef={currDef} isBaseCurrency={isBaseCurrency}
-      />
-
-      <AccountsFilterBar
         searchTerm={searchTerm} setSearchTerm={setSearchTerm}
         filterType={filterType} onFilterTypeChange={handleFilterTypeChange}
         maxDepthFilter={maxDepthFilter} onMaxDepthChange={handleMaxDepthChange}
+        viewMode={viewMode} setViewMode={setViewMode}
         onExpandAll={expandAll} onCollapseAll={collapseAll}
-        accountsWithRollupBalances={accountsWithRollupBalances}
+        onAddAccount={() => handleOpenAddModal(null)}
+        onAuditLog={handleOpenAuditModal}
+        accountsCount={accountsWithRollupBalances.length}
+        groupCount={accountsWithRollupBalances.filter(a => a.is_group === 1).length}
+        postingCount={accountsWithRollupBalances.filter(a => a.is_group === 0).length}
       />
-
-      {/* تبديل العرض: شجرة / جدول */}
-      <div className="flex items-center gap-2">
-        <button onClick={() => setViewMode('tree')} className={`px-4 py-2 rounded-xl text-xs font-bold border transition ${viewMode === 'tree' ? 'bg-[#8F2A87] text-white border-[#8F2A87]' : 'bg-[#FAFAFB] text-[#25232A] border-[#E8E5EA] hover:bg-[#E8E5EA]'}`}>
-          🌳 عرض شجري
-        </button>
-        <button onClick={() => setViewMode('table')} className={`px-4 py-2 rounded-xl text-xs font-bold border transition ${viewMode === 'table' ? 'bg-[#8F2A87] text-white border-[#8F2A87]' : 'bg-[#FAFAFB] text-[#25232A] border-[#E8E5EA] hover:bg-[#E8E5EA]'}`}>
-          📋 عرض جدولي
-        </button>
-      </div>
 
       {viewMode === 'tree' ? (
         <AccountsTreeView
@@ -216,3 +199,6 @@ function Accounts({
     </div>
   );
 }
+
+window.Accounts = Accounts;
+

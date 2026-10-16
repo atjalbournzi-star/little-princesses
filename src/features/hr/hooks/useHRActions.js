@@ -5,83 +5,68 @@ function useHRActions({
   employees, setEmployees, payroll, setPayroll, journal, setJournal,
   factory, payrollMonth, bonus, setBonus, deduction, currentPayroll,
   currencyDisplay, showToast, setAdvances, setAdvanceModalOpen,
-  setActiveVoucherForPrint, loadTailorSummaries, loadCommissions,
+  setActiveVoucherForPrint, loadTailorSummaries, loadCommissions, commissions,
 }) {
   const activeEmployees = useMemo(() => employees.filter(e => e.status === 'نشط'), [employees]);
 
   const calculateEmployeeCompletedTasks = (empName) => {
+    if (commissions && commissions.length > 0) {
+      const list = commissions.filter(c => (c.employee_name === empName || c.employee_id === empName) && c.status === 'Approved');
+      if (list.length > 0) return list.reduce((sum, c) => sum + Number(c.pieces_count || 1), 0);
+    }
     if (!factory) return 0;
-    return factory.filter(f => f.tailor === empName &&
-      (f.stage === 'تشطيب' || f.stage === 'جاهز للتسليم' || f.stage === 'تسليم' || f.stage === 'مكتمل' || (f.progress && Number(f.progress) >= 80))
-    ).length;
+    return factory.filter(f => {
+      const isC = f.cutter_name === empName, isT = f.tailor === empName || f.tailor_name === empName;
+      const isE = f.embroiderer_name === empName, isF = f.finisher_name === empName;
+      if (!isC && !isT && !isE && !isF) return false;
+      const prog = Number(f.progress || 0);
+      const isReady = f.stage?.includes('جاهز') || f.stage?.includes('تسليم');
+      return isReady || (isC && prog >= 40) || (isT && prog >= 60) || (isE && prog >= 80) || (isF && prog >= 100);
+    }).length;
   };
 
   const handleSaveEmployee = async (e, { id, empName, empRole, empType, empSalary, empPhone, empDate, empStatus, resetForm }) => {
     if (e) e.preventDefault();
     if (!empName) return showToast("يرجى إدخال اسم الموظف ⚠️", "error");
-    if (!empSalary) return showToast("يرجى إدخال الراتب الأساسي أو سعر القطعة ⚠️", "error");
-
-    if (id) {
-      const updated = { id, name: empName, role: empRole, type: empType, baseSalary: parseFloat(empSalary) || 0, base_salary: parseFloat(empSalary) || 0, phone: empPhone, hireDate: empDate, hire_date: empDate, status: empStatus || 'نشط' };
-      try {
-        if (window.hrAPI?.addEmployee) await window.hrAPI.addEmployee(updated);
-        else await window.callGAS('updateEmployee', updated);
-        setEmployees(employees.map(emp => emp.id === id ? { ...emp, ...updated } : emp));
-        showToast("تم تحديث بيانات الموظف بنجاح ✅");
-      } catch (err) {
-        setEmployees(employees.map(emp => emp.id === id ? { ...emp, ...updated } : emp));
-        showToast("تم التحديث محلياً ⚡");
-      }
-      if (resetForm) resetForm();
-      return;
-    }
-
-    const newEmp = { id: 'EMP-' + Date.now(), name: empName, role: empRole, type: empType, baseSalary: parseFloat(empSalary) || 0, base_salary: parseFloat(empSalary) || 0, phone: empPhone, hireDate: empDate, hire_date: empDate, status: 'نشط' };
+    if (!empSalary && empType === 'راتب شهري') return showToast("يرجى إدخال الراتب الأساسي ⚠️", "error");
+    const numSal = parseFloat(empSalary) || 0;
+    const empData = {
+      id: id || ('EMP-' + Date.now()), name: empName, full_name: empName, role: empRole,
+      type: empType, employment_type: empType, baseSalary: numSal, base_salary: numSal,
+      phone: empPhone, hireDate: empDate, hire_date: empDate, status: empStatus || 'نشط'
+    };
     try {
-      if (window.hrAPI?.addEmployee) {
-        const res = await window.hrAPI.addEmployee(newEmp);
-        setEmployees([newEmp, ...employees]);
-        showToast(res.message || "تم تسجيل الموظف بنجاح 👤");
-      } else {
-        await window.callGAS('addEmployee', newEmp);
-        setEmployees([newEmp, ...employees]);
-        showToast("تم تسجيل الموظف بنجاح 👤");
-      }
-      if (resetForm) resetForm();
+      if (window.hrAPI?.addEmployee) await window.hrAPI.addEmployee(empData);
+      else await window.callGAS(id ? 'updateEmployee' : 'addEmployee', empData);
+      setEmployees(id ? employees.map(emp => emp.id === id ? { ...emp, ...empData } : emp) : [empData, ...employees]);
+      showToast(id ? "تم تحديث بيانات الموظف بنجاح ✅" : "تم تسجيل الموظف بنجاح 👤");
     } catch (err) {
-      setEmployees([newEmp, ...employees]);
-      showToast(err.message || "تم الحفظ محلياً ⚡");
-      if (resetForm) resetForm();
+      setEmployees(id ? employees.map(emp => emp.id === id ? { ...emp, ...empData } : emp) : [empData, ...employees]);
+      showToast("تم الحفظ محلياً ⚡");
     }
+    if (resetForm) resetForm();
   };
 
   const toggleEmpStatus = async (id) => {
     const emp = employees.find(e => e.id === id);
     if (!emp) return;
-    const newStatus = emp.status === 'نشط' ? 'موقوف' : 'نشط';
+    const updated = { ...emp, status: emp.status === 'نشط' ? 'موقوف' : 'نشط' };
     try {
-      if (window.hrAPI?.addEmployee) await window.hrAPI.addEmployee({ ...emp, status: newStatus });
-      else await window.callGAS('updateEmployee', { id, status: newStatus });
-      setEmployees(employees.map(e => e.id === id ? { ...e, status: newStatus } : e));
+      if (window.hrAPI?.addEmployee) await window.hrAPI.addEmployee(updated);
+      else await window.callGAS('updateEmployee', updated);
       showToast("تم تحديث حالة الموظف 🔄");
-    } catch (err) {
-      setEmployees(employees.map(e => e.id === id ? { ...e, status: newStatus } : e));
-      showToast("تم التحديث محلياً ⚡");
-    }
+    } catch (err) { showToast("تم التحديث محلياً ⚡"); }
+    setEmployees(employees.map(e => e.id === id ? updated : e));
   };
 
   const deleteEmp = async (id) => {
-    if (confirm("هل أنت متأكد من حذف الموظف نهائياً؟ 🗑️")) {
-      try {
-        if (window.hrAPI?.deleteEmployee) await window.hrAPI.deleteEmployee(id);
-        else await window.callGAS('deleteEmployee', { id });
-        setEmployees(employees.filter(e => e.id !== id));
-        showToast("تم حذف الموظف 🗑️");
-      } catch (err) {
-        setEmployees(employees.filter(e => e.id !== id));
-        showToast("تم الحذف محلياً ⚡");
-      }
-    }
+    if (!confirm("هل أنت متأكد من حذف الموظف نهائياً؟ 🗑️")) return;
+    try {
+      if (window.hrAPI?.deleteEmployee) await window.hrAPI.deleteEmployee(id);
+      else await window.callGAS('deleteEmployee', { id });
+      showToast("تم حذف الموظف 🗑️");
+    } catch (err) { showToast("تم الحذف محلياً ⚡"); }
+    setEmployees(employees.filter(e => e.id !== id));
   };
 
   const handleGeneratePayroll = async () => {
@@ -104,7 +89,7 @@ function useHRActions({
     const newRecords = activeEmployees.map((emp, index) => {
       let p = emp.baseSalary || 0, piecesCount = 0, piecesStatement = "";
       if (emp.type === 'بالقطعة' && factory) {
-        const tailorTasks = factory.filter(f => f.tailor === emp.name && (f.stage === 'تشطيب' || f.stage === 'جاهز للتسليم' || f.stage === 'تسليم' || f.stage === 'مكتمل' || (f.progress && Number(f.progress) >= 80)) && f.due_date?.startsWith(payrollMonth));
+        const tailorTasks = factory.filter(f => (f.tailor === emp.name || f.tailor_name === emp.name || f.cutter_name === emp.name || f.embroiderer_name === emp.name || f.finisher_name === emp.name) && (f.stage === 'تشطيب' || f.stage?.includes('جاهز') || f.stage?.includes('تسليم') || f.stage === 'مكتمل' || (f.progress && Number(f.progress) >= 80)) && (!payrollMonth || f.due_date?.startsWith(payrollMonth)));
         piecesCount = tailorTasks.length;
         p = piecesCount * (emp.baseSalary || 0);
         piecesStatement = tailorTasks.map(t => `- طلب #${t.order_no} / ${t.product || 'بدون اسم'} | الإنجاز: ${t.due_date}`).join('\n');
@@ -126,7 +111,8 @@ function useHRActions({
   };
 
   const handleSubmitAdvance = async ({ empId, empName, amount, accountId, notes }) => {
-    const payload = { emp_id: empId, emp_name: empName, amount, currency: currencyDisplay || 'YER', account_id: accountId, month: payrollMonth, notes: notes || `سلفة نقدية للموظف ${empName}` };
+    const safeCurr = window.CurrencyService ? window.CurrencyService.normalizeCode(currencyDisplay) : (String(currencyDisplay).includes('SAR') ? 'SAR' : (String(currencyDisplay).includes('USD') ? 'USD' : 'YER'));
+    const payload = { emp_id: empId, emp_name: empName, amount, currency: safeCurr, account_id: accountId, month: payrollMonth, notes: notes || `سلفة نقدية للموظف ${empName}` };
     const res = await window.hrAPI.addAdvance(payload);
     if (res?.success) {
       showToast(res.message || "تم صرف السلفة وتقييدها باليومية بنجاح ✅", "success");
@@ -134,6 +120,7 @@ function useHRActions({
         const freshAdv = await window.hrAPI.getAdvances(payrollMonth);
         setAdvances(freshAdv || []);
       }
+      if (typeof window.loadAccounts === 'function') window.loadAccounts();
       const targetRec = currentPayroll?.records?.find(r => r.empId === empId || r.name === empName);
       if (targetRec) {
         const newDeduction = (targetRec.deduction || 0) + amount;
@@ -165,18 +152,39 @@ function useHRActions({
           setActiveVoucherForPrint({ voucher_no: proc.payment_no, date: proc.date, employee_name: proc.emp_name, payment_method: 'نقدي (كاش)', account_id: 'ACC-101', pieces_count: record.piecesCount || 0, entry_no: proc.entry_no, net_amount: proc.net, currency: proc.currency || 'YER', title: `سند صرف راتب ومستحقات شهر ${currentPayroll.month}`, created_by: 'المحاسب المالي' });
         }
       } else {
-        const currCode = window.CurrencyService?.normalizeCode(currencyDisplay) || 'YER';
-        const rate = window.CurrencyService?.getRate(currCode) || 1.0;
-        const baseObj = window.CurrencyService?.toBase(finalNet, currCode, rate) || { base_amount: finalNet, exchange_rate: rate };
-        const newEntry = { id: Date.now(), transaction_id: `TX-PAY-${Date.now()}`, entry_no: `PAY-${Date.now().toString().slice(-4)}`, debit: "5121", credit: "1111", amount: finalNet, currency: currCode, exchange_rate: rate, base_amount: baseObj.base_amount, ref_type: "صرف راتب", date: new Date().toISOString().split('T')[0], notes: `راتب ${record.name} لشهر ${currentPayroll.month}` };
-        await window.callGAS("addJournalEntry", newEntry);
-        if (setJournal) setJournal([newEntry, ...journal]);
-        await window.callGAS("updatePayrollRecord", { id: record.id, status: 'تم الصرف ✅', bonus: finalBonus, netSalary: finalNet });
-        setPayroll(payroll.map(p => p.id === record.id ? { ...p, status: 'تم الصرف ✅', bonus: finalBonus, netSalary: finalNet } : p));
-        const newBonus = { ...bonus }; delete newBonus[record.empId]; setBonus(newBonus);
-        showToast("تم تسليم الراتب وإنشاء القيد المحاسبي 💸", "success");
+        const res = await fetch('/api/hr/payroll/post', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ month: currentPayroll.month, records: [{ ...record, bonus: finalBonus, netSalary: finalNet }] }) }).then(r => r.json());
+        if (res?.success) {
+          setPayroll(payroll.map(p => p.id === record.id ? { ...p, status: 'تم الصرف ✅', bonus: finalBonus, netSalary: finalNet } : p));
+          const newBonus = { ...bonus }; delete newBonus[record.empId]; setBonus(newBonus);
+          showToast(res.message || "تم تسليم الراتب بنجاح 💸", "success");
+        }
       }
     } catch (e) { showToast(e.message || "حدث خطأ أثناء صرف الراتب", "error"); }
+  };
+
+  const handleConsolidatedPayrollPay = async (pendingRecords) => {
+    if (!currentPayroll || !pendingRecords || pendingRecords.length === 0) return false;
+    try {
+      const recordsToPay = pendingRecords.map(r => {
+        const b = bonus[r.empId] ? parseFloat(bonus[r.empId]) : 0;
+        return { ...r, bonus: (r.bonus || 0) + b, netSalary: (r.netSalary || 0) + b };
+      });
+      const res = await fetch('/api/hr/payroll/disburse-bulk', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ month: currentPayroll.month, records: recordsToPay })
+      }).then(r => r.json());
+      if (res?.success) {
+        showToast(res.message || "تم اعتماد وصرف المسير المجمع بنجاح 💸", "success");
+        const paidIds = new Set(recordsToPay.map(r => r.id || r.empId));
+        setPayroll(payroll.map(p => (paidIds.has(p.id) || paidIds.has(p.employee_id)) ? { ...p, status: 'تم الصرف ✅' } : p));
+        setBonus({});
+        if (loadTailorSummaries) loadTailorSummaries();
+        if (loadCommissions) loadCommissions();
+        return true;
+      }
+      showToast(res?.message || res?.error || "فشل الصرف المجمع", "error");
+    } catch (e) { showToast(e.message || "حدث خطأ أثناء الصرف المجمع", "error"); }
+    return false;
   };
 
   const handleSubmitPayout = async (payload) => {
@@ -191,5 +199,7 @@ function useHRActions({
     return false;
   };
 
-  return { activeEmployees, calculateEmployeeCompletedTasks, handleSaveEmployee, toggleEmpStatus, deleteEmp, handleGeneratePayroll, handleSubmitAdvance, handlePaySalary, handleSubmitPayout };
+  return { activeEmployees, calculateEmployeeCompletedTasks, handleSaveEmployee, toggleEmpStatus, deleteEmp, handleGeneratePayroll, handleSubmitAdvance, handlePaySalary, handleConsolidatedPayrollPay, handleSubmitPayout };
 }
+
+window.useHRActions = useHRActions;

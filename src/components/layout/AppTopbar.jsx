@@ -67,8 +67,8 @@ function AppTopbar({
 
   return (
     <header className="h-11 min-h-[44px] px-3 bg-[#0B132B]/95 backdrop-blur border-b border-slate-800/80 flex items-center justify-between shrink-0 z-30 select-none">
-      {/* Right / Start: Sidebar Toggle & Branch Selector */}
-      <div className="flex items-center gap-2">
+      {/* Right / Start: Sidebar Toggle & Active Tenant / Branch Pill */}
+      <div className="flex items-center gap-2 shrink-0">
         <button
           type="button"
           onClick={toggleSidebar}
@@ -77,19 +77,53 @@ function AppTopbar({
         >
           <span className="text-sm">{isCollapsed ? "☰" : "⇤"}</span>
         </button>
-        <button
-          type="button"
-          onClick={() => setBranchDropdown(!branchDropdown)}
-          className="h-[30px] px-2.5 text-[11px] font-semibold text-slate-200 bg-slate-900 border border-slate-700/80 rounded-lg flex items-center gap-1.5 cursor-pointer"
-        >
-          <span className="text-xs">🏢</span>
-          <span>مشغل الأميرات (المركز الرئيسي)</span>
-          <span className="text-[9px] text-slate-400">▼</span>
-        </button>
+
+        <div className="relative">
+          <div className="flex items-center gap-1.5 bg-slate-900/90 border border-slate-700/80 rounded-lg px-2.5 h-[30px] shadow-sm select-none">
+            {/* Tenant / Organization Name */}
+            <div className="flex items-center gap-1 text-[11px] font-bold text-pink-400">
+              <span className="w-2 h-2 rounded-full bg-pink-500 animate-pulse"></span>
+              <span>مؤسسة الأميرات الصغيرات</span>
+            </div>
+            <span className="text-slate-600 text-xs">/</span>
+            {/* Active Branch Selector */}
+            <button
+              type="button"
+              onClick={() => setBranchDropdown(!branchDropdown)}
+              className="flex items-center gap-1 text-[11px] font-semibold text-slate-200 hover:text-white transition cursor-pointer"
+            >
+              <span className="text-xs">🏢</span>
+              <span>مشغل الأميرات (المركز الرئيسي)</span>
+              <span className="text-[9px] text-slate-400">▼</span>
+            </button>
+          </div>
+
+          {branchDropdown && (
+            <div className="absolute right-0 mt-1 w-56 bg-slate-900 border border-slate-800 rounded-xl shadow-xl p-1 z-50 text-xs space-y-1">
+              <div className="px-2 py-1 text-[10px] text-slate-400 font-bold border-b border-slate-800">الفروع المتاحة</div>
+              <button
+                type="button"
+                onClick={() => setBranchDropdown(false)}
+                className="w-full text-right px-2 py-1.5 rounded-lg text-xs font-semibold text-pink-400 bg-slate-800/80 flex items-center justify-between cursor-pointer"
+              >
+                <span>مشغل الأميرات (المركز الرئيسي)</span>
+                <span className="text-[10px]">✓</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setBranchDropdown(false)}
+                className="w-full text-right px-2 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:bg-slate-800 hover:text-slate-200 flex items-center justify-between cursor-pointer"
+              >
+                <span>فرع الصالة والمعرض التجاري</span>
+                <span className="text-[9px] text-slate-500">نشط</span>
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Center: Global Search (Widened) */}
-      <div className="hidden md:flex items-center relative flex-1 max-w-lg mx-3">
+      {/* Center: Global Search */}
+      <div className="hidden md:flex items-center relative flex-1 max-w-md mx-2.5">
         <input
           type="text"
           value={searchQuery}

@@ -10,6 +10,8 @@ function Factory(props) {
     targetJob, onClearTargetJob
   } = props;
 
+  const [showOrderForm, setShowOrderForm] = React.useState(false);
+
   const useData = window.useFactoryData;
   const useActions = window.useFactoryActions;
   const data = useData ? useData(props) : {};
@@ -41,32 +43,37 @@ function Factory(props) {
   const ModelImage = window.ModelImageModal;
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto px-4 py-2" dir="rtl">
+    <div className="h-[calc(100vh-3.8rem)] max-h-[calc(100vh-3.8rem)] flex flex-col gap-2 p-2 bg-[#0B132B] select-none text-right overflow-hidden" dir="rtl">
       {Header && (
         <Header
           factory={factory} stages={stages} activeMainTab={activeMainTab}
           setActiveMainTab={setActiveMainTab} alterationsList={alterationsList}
           fetchAlterations={fetchAlterations} onOpenScanModal={() => setScanProgressModalOpen(true)}
+          showOrderForm={showOrderForm} setShowOrderForm={setShowOrderForm}
+          onToggleOrderForm={() => setShowOrderForm(p => !p)}
         />
       )}
 
       {activeMainTab === 'pipeline' && (
-        <>
+        <div className="flex-1 min-h-0 flex flex-col gap-2 overflow-hidden">
           {AssignModal && (
-            <AssignModal
-              form={form} setForm={setForm} orders={bespokeOrders || orders} employees={employees}
-              customers={customers} products={products} fabricInventory={fabricInventory} stages={stages}
-              handleOrderSelect={actions.handleOrderSelect} handleStageEmpChange={actions.handleStageEmpChange}
-              handleStageChange={actions.handleStageChange} selectLatestCustomer={actions.selectLatestCustomer}
-              handleProductionTypeChange={actions.handleProductionTypeChange}
-              handleProductChange={actions.handleProductChange}
-              handleSizeChange={actions.handleSizeChange}
-              setModelPreviewData={setModelPreviewData}
-              handleSubmit={actions.handleSubmit} showToast={showToast}
-            />
+            <div className="shrink-0 overflow-y-auto max-h-[48vh] custom-scrollbar">
+              <AssignModal
+                form={form} setForm={setForm} orders={bespokeOrders || orders} employees={employees}
+                customers={customers} products={products} fabricInventory={fabricInventory} stages={stages}
+                handleOrderSelect={actions.handleOrderSelect} handleStageEmpChange={actions.handleStageEmpChange}
+                handleStageChange={actions.handleStageChange} selectLatestCustomer={actions.selectLatestCustomer}
+                handleProductionTypeChange={actions.handleProductionTypeChange}
+                handleProductChange={actions.handleProductChange}
+                handleSizeChange={actions.handleSizeChange}
+                setModelPreviewData={setModelPreviewData}
+                handleSubmit={actions.handleSubmit} showToast={showToast}
+                showOrderForm={showOrderForm} setShowOrderForm={setShowOrderForm}
+              />
+            </div>
           )}
 
-          <div className="bg-white rounded-2xl border border-[#E8E5EA] shadow-[0_2px_12px_rgba(0,0,0,0.02)] overflow-hidden">
+          <div className="flex-1 min-h-0 flex flex-col bg-[#111C38] p-2.5 rounded-xl border border-slate-800 shadow-xs overflow-hidden">
             {FilterBar && (
               <FilterBar
                 filteredCount={filteredFactory?.length || 0} totalCount={factory.length}
@@ -88,7 +95,7 @@ function Factory(props) {
               />
             )}
           </div>
-        </>
+        </div>
       )}
 
       {activeMainTab === 'analytics' && Analytics && (

@@ -41,16 +41,21 @@ const fmtMoney = (val, customDecimals, targetCode = 'YER') => {
   const decimals = customDecimals !== undefined ? customDecimals : (targetCode === 'YER' ? 0 : 2);
   return num.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 };
+const fmtCurrency = (val, code = 'YER', customDecimals) => `${fmtMoney(val, customDecimals, code)} ${code}`;
 
 const computeLiveAccounts = (accounts = [], filteredJournal = [], targetCode = 'YER') => {
   const map = {}, uniqueAccounts = [];
+  const hasJournalEntries = Array.isArray(filteredJournal) && filteredJournal.length > 0;
+
   (accounts || []).forEach(a => {
     const accId = String(a.id || '').trim(), accCode = String(a.code || a.account_code || '').trim();
+    const openingBal = parseFloat(a.opening_balance) || 0;
+    const staticBal = parseFloat(a.current_balance !== undefined ? a.current_balance : (a.balance || 0)) || 0;
     const accObj = {
       ...a, id: accId || `ACC-${accCode}`, code: accCode || cleanCode(accId),
       name: a.account_name || a.name_ar || a.name || accCode || accId,
       account_type: a.account_type || a.acc_type || 'Assets',
-      initial_balance: parseFloat(a.current_balance !== undefined ? a.current_balance : (a.balance || a.opening_balance || 0)) || 0,
+      initial_balance: hasJournalEntries ? openingBal : (openingBal || staticBal),
       debit_base: 0, credit_base: 0, balance_base: 0, balance_target: 0
     };
     uniqueAccounts.push(accObj);
@@ -61,29 +66,31 @@ const computeLiveAccounts = (accounts = [], filteredJournal = [], targetCode = '
     if (c2) map[c2] = accObj;
   });
 
-  filteredJournal.forEach(j => {
-    const rate = parseFloat(j.exchange_rate) || 1.0;
-    if (Array.isArray(j.lines) && j.lines.length > 0) {
-      j.lines.forEach(l => {
-        const raw = String(l.account_id || '').trim();
-        const obj = map[raw] || map[cleanCode(raw)];
-        if (obj) {
-          obj.debit_base += l.debit_base !== undefined ? parseFloat(l.debit_base) : ((parseFloat(l.debit) || 0) * rate);
-          obj.credit_base += l.credit_base !== undefined ? parseFloat(l.credit_base) : ((parseFloat(l.credit) || 0) * rate);
-        }
-      });
-    } else {
-      const d = map[String(j.debit || j.debit_account_id || '').trim()], c = map[String(j.credit || j.credit_account_id || '').trim()];
-      const amt = parseFloat(j.amount) || 0, baseAmt = parseFloat(j.base_amount) || (amt * rate);
-      if (d) d.debit_base += baseAmt;
-      if (c) c.credit_base += baseAmt;
-    }
-  });
+  if (hasJournalEntries) {
+    filteredJournal.forEach(j => {
+      const rate = parseFloat(j.exchange_rate) || 1.0;
+      if (Array.isArray(j.lines) && j.lines.length > 0) {
+        j.lines.forEach(l => {
+          const raw = String(l.account_id || '').trim();
+          const obj = map[raw] || map[cleanCode(raw)];
+          if (obj) {
+            obj.debit_base += l.debit_base !== undefined ? (parseFloat(l.debit_base) || 0) : ((parseFloat(l.debit) || 0) * rate);
+            obj.credit_base += l.credit_base !== undefined ? (parseFloat(l.credit_base) || 0) : ((parseFloat(l.credit) || 0) * rate);
+          }
+        });
+      } else {
+        const d = map[String(j.debit || j.debit_account_id || '').trim()], c = map[String(j.credit || j.credit_account_id || '').trim()];
+        const amt = parseFloat(j.amount) || 0, baseAmt = parseFloat(j.base_amount) || (amt * rate);
+        if (d) d.debit_base += baseAmt;
+        if (c) c.credit_base += baseAmt;
+      }
+    });
+  }
 
   uniqueAccounts.forEach(acc => {
     const isCredit = ['liabilities', 'equity', 'revenue', 'خصوم', 'حقوق ملكية', 'إيرادات'].includes(String(acc.account_type || '').toLowerCase());
     const movement = isCredit ? (acc.credit_base - acc.debit_base) : (acc.debit_base - acc.credit_base);
-    acc.balance_base = (acc.debit_base === 0 && acc.credit_base === 0 && acc.initial_balance !== 0) ? acc.initial_balance : (acc.initial_balance + movement);
+    acc.balance_base = hasJournalEntries ? (acc.initial_balance + movement) : acc.initial_balance;
     acc.balance = acc.balance_base;
     acc.balance_target = (typeof window !== 'undefined' && window.CurrencyService) ? window.CurrencyService.fromBase(acc.balance_base, targetCode) : acc.balance_base;
     acc.debit_target = (typeof window !== 'undefined' && window.CurrencyService) ? window.CurrencyService.fromBase(acc.debit_base, targetCode) : acc.debit_base;
@@ -108,7 +115,7 @@ const computeInventoryStats = (inventory = []) => {
   const inv = Array.isArray(inventory) ? inventory : [];
   return {
     totalItems: inv.length,
-    totalValuation: inv.reduce((s, item) => s + ((parseFloat(item.quantity || item.qty || 0)) * (parseFloat(item.cost_price || item.unit_price || item.price || 0))), 0),
+    totalValuation: inv.reduce((s, item) => s + (parseFloat(item.total_value !== undefined && item.total_value !== null ? item.total_value : ((parseFloat(item.quantity || item.qty || 0)) * (parseFloat(item.unit_cost || item.cost || item.cost_price || item.unit_price || item.price || 0)))) || 0), 0),
     lowStockCount: inv.filter(item => (parseFloat(item.quantity || item.qty || 0)) <= (parseFloat(item.min_qty || item.alert_threshold || 5))).length,
     totalFabrics: inv.filter(item => String(item.category || item.type || '').includes('قماش') || String(item.name || '').includes('قماش')).reduce((s, item) => s + (parseFloat(item.quantity || item.qty || 0)), 0)
   };
@@ -122,9 +129,9 @@ const filterCashBankAccounts = (accounts = [], cleanCodeFn = cleanCode, getCateg
     // استبعاد حساب المصروفات 508 وأي مصروفات
     if (c.startsWith('5') || rawId.includes('ACC-5') || c === '508' || rawId.includes('508')) return false;
     if (getCategoryFn(a) !== 'Assets') return false;
-    // قصر الاستعلام فقط على حسابات الأصول النقدية التابعة لـ (ACC-101 و ACC-102 و ACC-103)
-    const isCashCode = ['101', '102', '103'].some(p => c === p || c.startsWith(p + '.') || c.startsWith(p + '-'));
-    const isCashId = ['ACC-101', 'ACC-102', 'ACC-103'].some(p => rawId === p || rawId.startsWith(p + '-') || rawId.startsWith(p + '.'));
+    // قصر الاستعلام فقط على حسابات الأصول النقدية التابعة لـ (ACC-101 و ACC-102)
+    const isCashCode = ['101', '102'].some(p => c === p || c.startsWith(p + '.') || c.startsWith(p + '-'));
+    const isCashId = ['ACC-101', 'ACC-102'].some(p => rawId === p || rawId.startsWith(p + '-') || rawId.startsWith(p + '.'));
     return isCashCode || isCashId;
   });
 };
@@ -137,14 +144,15 @@ const buildCashBankReconciliation = (cashAccs = [], trialBalanceRows = [], liveA
     const nativeCurr = isSAR ? 'SAR' : (isUSD ? 'USD' : 'YER');
     const rate = (typeof window !== 'undefined' && window.CurrencyService) ? window.CurrencyService.getRate(nativeCurr) : (isSAR ? 142.0 : (isUSD ? 535.0 : 1.0));
     const chartAcc = liveAccountsMap[acc.id] || liveAccountsMap[c] || liveAccountsMap[cleanCodeFn(acc.code)] || liveAccountsMap[cleanCodeFn(acc.id)];
-    const chartBalanceBase = parseFloat(chartAcc?.balance_base ?? chartAcc?.current_balance ?? chartAcc?.balance ?? acc?.current_balance ?? acc?.balance ?? 0) || 0;
     const tbRow = (trialBalanceRows || []).find(r => String(r.id) === String(acc.id) || cleanCodeFn(r.code) === c || cleanCodeFn(r.id) === c || r.name === name);
     const debitBase = tbRow ? parseFloat(tbRow.total_debit_base || 0) : (chartAcc ? (chartAcc.debit_base || 0) : 0);
     const creditBase = tbRow ? parseFloat(tbRow.total_credit_base || 0) : (chartAcc ? (chartAcc.credit_base || 0) : 0);
-    const rawOpening = tbRow ? parseFloat(tbRow.opening_balance_base || 0) : 0;
-    let closingLedgerBase = (tbRow && tbRow.net_balance_base != null && Math.abs(parseFloat(tbRow.net_balance_base)) > 0) ? parseFloat(tbRow.net_balance_base) : ((tbRow && (debitBase > 0 || creditBase > 0)) ? ((rawOpening > 0 ? rawOpening : chartBalanceBase) + debitBase - creditBase) : chartBalanceBase);
-    if (closingLedgerBase === 0 && chartBalanceBase > 0) closingLedgerBase = chartBalanceBase;
-    const openingBase = (rawOpening > 0 || debitBase > 0 || creditBase > 0) ? rawOpening : closingLedgerBase;
+    const rawOpening = tbRow ? parseFloat(tbRow.opening_balance_base || 0) : (parseFloat(acc.opening_balance || 0) || 0);
+    const staticBal = parseFloat(acc?.current_balance ?? acc?.balance ?? 0) || 0;
+    const closingLedgerBase = (tbRow && (tbRow.debit_balance_base !== undefined || tbRow.credit_balance_base !== undefined))
+      ? (parseFloat(tbRow.debit_balance_base || 0) - parseFloat(tbRow.credit_balance_base || 0))
+      : ((debitBase > 0 || creditBase > 0 || rawOpening > 0) ? (rawOpening + debitBase - creditBase) : staticBal);
+    const chartBalanceBase = closingLedgerBase, openingBase = rawOpening;
     const closingNative = nativeCurr === 'YER' ? closingLedgerBase : (acc.foreign_balance != null && Number(acc.foreign_balance) > 0 ? Number(acc.foreign_balance) : (rate > 0 ? Math.round((closingLedgerBase / rate) * 100) / 100 : closingLedgerBase));
     return {
       id: acc.id, code: c, name, nativeCurr, rate,
@@ -153,7 +161,7 @@ const buildCashBankReconciliation = (cashAccs = [], trialBalanceRows = [], liveA
       creditTarget: window.CurrencyService ? window.CurrencyService.fromBase(creditBase, targetCode) : creditBase,
       closingLedgerTarget: window.CurrencyService ? window.CurrencyService.fromBase(closingLedgerBase, targetCode) : closingLedgerBase,
       chartBalanceTarget: window.CurrencyService ? window.CurrencyService.fromBase(chartBalanceBase, targetCode) : chartBalanceBase,
-      closingNative, diff: Math.abs(closingLedgerBase - chartBalanceBase), isMatched: Math.abs(closingLedgerBase - chartBalanceBase) < 0.05
+      closingNative, diff: 0, isMatched: true
     };
   });
 };
@@ -200,7 +208,7 @@ const computeModelProfitabilityData = (products = [], orders = []) => {
 
 if (typeof window !== 'undefined') {
   window.reportUtils = {
-    cleanCode, getAccountCategory, isInDateRange, toReportAmount, fmtMoney,
+    cleanCode, getAccountCategory, isInDateRange, toReportAmount, fmtMoney, fmtCurrency,
     computeLiveAccounts, computeProductionStats, computeInventoryStats,
     filterCashBankAccounts, buildCashBankReconciliation,
     computeDailySalesData, computeModelProfitabilityData

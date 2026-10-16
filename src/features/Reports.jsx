@@ -23,7 +23,8 @@ function Reports({
     statementType, setStatementType, selectedPartyId, setSelectedPartyId,
     targetCode, toReportAmount, fmtMoney, filteredJournal, liveAccountsMap,
     pnlData, balanceSheetData, trialBalanceData, generalLedgerRows, cashBankReconciliation,
-    statementData, dailySalesData, modelProfitabilityData, productionStats, inventoryStats
+    statementData, dailySalesData, modelProfitabilityData, productionStats, inventoryStats,
+    isTBLoading, isGLLoading
   } = useData({ orders, expenses, vouchers, journal, accounts, purchases, customers, inventory, products, currency });
 
   const { getTabTitle, handleExportExcel, handlePrint } = useExport({
@@ -48,7 +49,7 @@ function Reports({
   const testedCount = activeTab === 'financial' ? filteredJournal.length : (activeTab === 'orders' ? (orders || []).length : (activeTab === 'production' ? productionStats.totalOrders : inventoryStats.totalItems));
 
   return (
-    <div className="space-y-6 animate-fadeIn text-right" dir="rtl">
+    <div className="space-y-6 animate-fadeIn text-right pb-16" dir="rtl">
       {/* ترويسة الطباعة الرسمية المعتمدة */}
       {PrintHeader && <PrintHeader brandProfile={brandProfile} getTabTitle={getTabTitle} dateRange={dateRange} reportCurrency={reportCurrency} />}
 
@@ -102,6 +103,11 @@ function Reports({
           reportCurrency={reportCurrency}
           fmtMoney={fmtMoney}
           targetCode={targetCode}
+          isTBLoading={isTBLoading}
+          isGLLoading={isGLLoading}
+          selectedLedgerAcc={selectedLedgerAcc}
+          setSelectedLedgerAcc={setSelectedLedgerAcc}
+          accounts={accounts}
         />
       )}
 

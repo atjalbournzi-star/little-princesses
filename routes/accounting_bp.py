@@ -1,4 +1,4 @@
-﻿# routes/accounting_bp.py
+# routes/accounting_bp.py
 # Accounts, Journal Entries, Vouchers, and Expenses Flask Blueprint
 
 from flask import Blueprint, request, jsonify
@@ -135,6 +135,25 @@ def delete_voucher():
         return jsonify({'success': False, 'error': str(e)}), 400
 
 
+@accounting_bp.route('/api/vouchers/reverse', methods=['POST'])
+def reverse_voucher():
+    try:
+        data = request.get_json(silent=True) or {}
+        res = pg_service.reverse_voucher(data)
+        return jsonify(res), (200 if res.get('success') else 400)
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+
+@accounting_bp.route('/api/vouchers/card-data', methods=['GET'])
+def voucher_card_data():
+    try:
+        v_id = request.args.get('id', '')
+        return jsonify(pg_service.get_voucher_card_data(v_id)), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+
 @accounting_bp.route('/api/finance/expenses', methods=['GET'])
 @accounting_bp.route('/api/expenses', methods=['GET'])
 @accounting_bp.route('/api/expenses/list', methods=['GET'])
@@ -169,3 +188,27 @@ def delete_expense():
         return jsonify(res), (200 if res.get('success') else 400)
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 400
+
+
+@accounting_bp.route('/api/finance/expenses/approve', methods=['POST'])
+@accounting_bp.route('/api/expenses/approve', methods=['POST'])
+def approve_expense():
+    try:
+        data = request.get_json(silent=True) or {}
+        payload = data.get('data') or data
+        res = pg_service.approve_expense_atomic(payload)
+        return jsonify(res), (200 if res.get('success') else 400)
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+
+
+@accounting_bp.route('/api/cost-centers', methods=['GET'])
+@accounting_bp.route('/api/accounting/cost-centers', methods=['GET'])
+def list_cost_centers():
+    try:
+        data = pg_service.get_cost_centers()
+        return jsonify({'success': True, 'data': data, 'count': len(data)}), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e), 'data': []}), 500
+

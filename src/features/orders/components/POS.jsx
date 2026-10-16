@@ -33,8 +33,10 @@ function POS({
   const CartComp = window.POSCart;
 
   const posCategories = useMemo(() => {
-    const baseCats = ['الكل', 'منتجات جاهزة', 'تفصيل مخصص', 'طلبات خاصة', 'إكسسوارات ومكملات'];
-    return Array.from(new Set([...baseCats, ...(products || []).map(p => p.category).filter(Boolean)]));
+    const cats = (products || [])
+      .map(p => p.category || p.classification)
+      .filter(Boolean);
+    return ['الكل', ...Array.from(new Set(cats))];
   }, [products]);
 
   const addToCart = (product) => {
@@ -86,8 +88,8 @@ function POS({
   };
 
   return (
-    <div className="h-[calc(100vh-2.75rem)] flex flex-col overflow-hidden bg-[#0B132B] p-2 space-y-1 select-none" dir="rtl">
-      {/* 1. Header (Strictly Pinned, No Scroll) */}
+    <div className="w-full h-full max-h-full overflow-hidden flex flex-col p-1.5 bg-slate-100 dark:bg-[#0B132B] select-none transition-colors">
+      {/* Ultra-compact Header & KPIs Bar (h-8.5) */}
       {HeaderComp && (
         <HeaderComp
           activeMode={activeMode}
@@ -100,46 +102,52 @@ function POS({
         />
       )}
 
-      {/* 2. Main POS Viewport: Right 68% Catalog, Left 32% Cart */}
-      <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-2 overflow-hidden w-full">
-        {CatalogComp && (
-          <CatalogComp
-            products={products}
-            cart={cart}
-            addToCart={addToCart}
-            currencyDisplay={currencyDisplay}
-            posCategory={posCategory}
-            setPosCategory={setPosCategory}
-            posSearch={posSearch}
-            setPosSearch={setPosSearch}
-            barcodeInput={barcodeInput}
-            setBarcodeInput={setBarcodeInput}
-            handleBarcodeSubmit={handleBarcodeSubmit}
-            barcodeInputRef={barcodeInputRef}
-            posCategories={posCategories}
-          />
-        )}
+      {/* Main Workspace Split */}
+      <div className="flex-1 flex gap-2 min-h-0 overflow-hidden" dir="ltr">
+        {/* Left Column: Fixed POS Cart */}
+        <div className="w-76 w-[304px] xl:w-80 h-full flex flex-col shrink-0 overflow-hidden" dir="rtl">
+          {CartComp && (
+            <CartComp
+              cart={cart}
+              setCart={setCart}
+              customers={customers}
+              currencyDisplay={currencyDisplay}
+              onCheckout={onCheckout}
+              isSubmittingPOS={isSubmittingPOS}
+              posCustomerName={posCustomerName}
+              setPosCustomerName={setPosCustomerName}
+              posChildName={posChildName}
+              setPosChildName={setPosChildName}
+              posPaymentMethod={posPaymentMethod}
+              setPosPaymentMethod={setPosPaymentMethod}
+              posDiscount={posDiscount}
+              setPosDiscount={setPosDiscount}
+              posCashReceived={posCashReceived}
+              setPosCashReceived={setPosCashReceived}
+            />
+          )}
+        </div>
 
-        {CartComp && (
-          <CartComp
-            cart={cart}
-            setCart={setCart}
-            customers={customers}
-            currencyDisplay={currencyDisplay}
-            onCheckout={onCheckout}
-            isSubmittingPOS={isSubmittingPOS}
-            posCustomerName={posCustomerName}
-            setPosCustomerName={setPosCustomerName}
-            posChildName={posChildName}
-            setPosChildName={setPosChildName}
-            posPaymentMethod={posPaymentMethod}
-            setPosPaymentMethod={setPosPaymentMethod}
-            posDiscount={posDiscount}
-            setPosDiscount={setPosDiscount}
-            posCashReceived={posCashReceived}
-            setPosCashReceived={setPosCashReceived}
-          />
-        )}
+        {/* Right Column: Catalog Workspace */}
+        <div className="flex-1 h-full flex flex-col min-w-0 overflow-hidden" dir="rtl">
+          {CatalogComp && (
+            <CatalogComp
+              products={products}
+              cart={cart}
+              addToCart={addToCart}
+              currencyDisplay={currencyDisplay}
+              posCategory={posCategory}
+              setPosCategory={setPosCategory}
+              posSearch={posSearch}
+              setPosSearch={setPosSearch}
+              barcodeInput={barcodeInput}
+              setBarcodeInput={setBarcodeInput}
+              handleBarcodeSubmit={handleBarcodeSubmit}
+              barcodeInputRef={barcodeInputRef}
+              posCategories={posCategories}
+            />
+          )}
+        </div>
       </div>
     </div>
   );

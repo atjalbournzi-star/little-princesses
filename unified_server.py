@@ -75,7 +75,7 @@ from domains.inventory import (
     routes_inventory, routes_warehouses, routes_purchases, routes_purchases_manage
 )
 from domains.accounting import (
-    routes_vouchers, routes_expenses, routes_journal, routes_accounts
+    routes_vouchers, routes_expenses, routes_journal, routes_accounts, routes_reports
 )
 from domains.quality import (
     routes_dashboard, routes_actions as quality_actions, routes_feedback
@@ -99,6 +99,7 @@ GET_ROUTERS = [
     routes_vouchers.handle_get,
     routes_expenses.handle_get,
     routes_journal.handle_get,
+    routes_reports.handle_get,
     routes_accounts.handle_get,
     routes_dashboard.handle_get,
     routes_feedback.handle_get,

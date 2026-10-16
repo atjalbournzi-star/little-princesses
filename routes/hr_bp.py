@@ -1,4 +1,4 @@
-﻿# routes/hr_bp.py
+# routes/hr_bp.py
 # Human Resources, Payroll, Advances, and Tailor Payouts Flask Blueprint
 
 from flask import Blueprint, request, jsonify
@@ -69,6 +69,28 @@ def save_payroll_batch():
         return jsonify({'success': False, 'error': str(e)}), 400
 
 
+@hr_bp.route('/api/hr/payroll/post', methods=['POST'])
+@hr_bp.route('/api/payroll/post', methods=['POST'])
+def post_payroll():
+    try:
+        data = request.get_json(silent=True) or {}
+        res = pg_service.post_payroll(data)
+        return jsonify(res), (200 if res.get('success') else 400)
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+
+@hr_bp.route('/api/hr/payroll/disburse-bulk', methods=['POST'])
+@hr_bp.route('/api/payroll/disburse-bulk', methods=['POST'])
+def disburse_payroll_bulk():
+    try:
+        data = request.get_json(silent=True) or {}
+        res = pg_service.disburse_payroll_run_atomic(data)
+        return jsonify(res), (200 if res.get('success') else 400)
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+
 @hr_bp.route('/api/hr/advances', methods=['GET'])
 @hr_bp.route('/api/advances', methods=['GET'])
 def list_advances():
@@ -82,6 +104,8 @@ def list_advances():
 
 @hr_bp.route('/api/hr/advances', methods=['POST'])
 @hr_bp.route('/api/advances', methods=['POST'])
+@hr_bp.route('/api/hr/employees/advance', methods=['POST'])
+@hr_bp.route('/api/employees/advance', methods=['POST'])
 def save_advance():
     try:
         data = request.get_json(silent=True) or {}
@@ -130,3 +154,26 @@ def tailor_payout():
         return jsonify(res), (200 if res.get('success') else 400)
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 400
+
+
+@hr_bp.route('/api/hr/piece-rate-logs', methods=['GET'])
+@hr_bp.route('/api/piece-rate-logs', methods=['GET'])
+def piece_rate_logs():
+    try:
+        params = {k: v for k, v in request.args.items()}
+        data = pg_service.get_worker_piece_rate_logs(params)
+        return jsonify({'success': True, 'data': data}), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e), 'data': []}), 500
+
+
+@hr_bp.route('/api/hr/liquidate-pieces', methods=['POST'])
+@hr_bp.route('/api/liquidate-pieces', methods=['POST'])
+def liquidate_pieces():
+    try:
+        data = request.get_json(silent=True) or {}
+        res = pg_service.liquidate_worker_pieces_atomic(data)
+        return jsonify(res), (200 if res.get('success') else 400)
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+

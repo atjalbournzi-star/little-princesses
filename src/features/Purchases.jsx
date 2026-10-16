@@ -48,15 +48,20 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
     search, setSearch, isHistoryOpen, setIsHistoryOpen, filteredPurchases
   } = useData({ purchases, setPurchases, headerData, setHeaderData });
 
-  const rawItemsSum = billItems.reduce((acc, curr) => acc + (parseFloat(curr.total) || 0), 0) + (parseFloat(headerData.freight_cost) || 0) + (parseFloat(headerData.transfer_fees) || 0);
+  const rawItemsSum = (billItems || []).reduce((sum, item) => {
+    const qty = Number(item.quantity || item.qty || 0);
+    const price = Number(item.unit_price || item.price || item.cost || 0);
+    return sum + (qty * price);
+  }, 0);
   const discountVal = parseFloat(headerData.discount) || 0;
-  const grandTotal = Math.max(0, rawItemsSum - discountVal);
+  const shippingFees = (parseFloat(headerData.freight_cost) || 0) + (parseFloat(headerData.transfer_fees) || 0);
+  const grandTotal = Math.max(0, rawItemsSum - discountVal + shippingFees);
 
   const { isSaving, editSaving, handleSaveFullBill, handleSaveEditRecord, handleDeleteRecord } = useActions({
     headerData, setHeaderData, emptyHeader, billItems, setBillItems, emptyItem, setItemData, setEditingIndex,
     setSupplierSearch, fetchSuppliers, purchases, setPurchases, inventory, setInventory, accounts, setAccounts,
     vouchers, setVouchers, journal, setJournal, showToast, defaultCurrency, defaultPayType, todayStrIso,
-    genBillNo, discountVal, grandTotal
+    genBillNo, discountVal, grandTotal, rawItemsSum
   });
 
   const handleOpenEdit = (p) => {
@@ -112,9 +117,12 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
               <p className="text-[11px] text-[#6F6B75]">إصدار فاتورة شراء، توريد المخزون، وتوليد القيود وسندات الصرف آلياً</p>
             </div>
           </div>
-          <span className="text-[#8F2A87] font-mono font-bold text-xs bg-[#F2E7F3] px-3 py-1 rounded-xl">
-            {headerData.bill_no ? headerData.bill_no : `تلقائي: ${genBillNo()}`}
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-semibold text-[#6F6B75]">رقم الفاتورة:</span>
+            <span className="text-[#8F2A87] font-mono font-bold text-xs bg-[#F2E7F3] border border-[#E5CEE7] px-3 py-1 rounded-xl">
+              {headerData.bill_no ? headerData.bill_no : genBillNo()}
+            </span>
+          </div>
         </div>
 
         {HeaderForm && (
@@ -133,7 +141,8 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
         {ItemsTable && (
           <ItemsTable
             itemData={itemData} setItemData={setItemData} emptyItem={emptyItem} editingIndex={editingIndex}
-            setEditingIndex={setEditingIndex} billItems={billItems} setBillItems={setBillItems} headerData={headerData}
+            setEditingIndex={setEditingIndex} billItems={billItems} setBillItems={setBillItems}
+            headerData={headerData} setHeaderData={setHeaderData} rawItemsSum={rawItemsSum}
             grandTotal={grandTotal} isSaving={isSaving} handleSaveFullBill={handleSaveFullBill} showToast={showToast}
             UNITS={UNITS} inputCls={inputCls} labelCls={labelCls}
           />
@@ -141,7 +150,7 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
       </div>
 
       {/* ── سجل المشتريات القابل للطي ── */}
-      <div className="bg-white rounded-2xl border border-[#E8E5EA] shadow-[0_2px_12px_rgba(0,0,0,0.02)] overflow-hidden transition-all duration-300">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-[0_2px_12px_rgba(0,0,0,0.02)] overflow-hidden transition-all duration-300">
         {FilterBar && <FilterBar isHistoryOpen={isHistoryOpen} setIsHistoryOpen={setIsHistoryOpen} filteredPurchasesCount={(filteredPurchases || []).length} search={search} setSearch={setSearch} />}
         {isHistoryOpen && DataTable && (
           <div className="p-5 space-y-4 animate-fade-in">

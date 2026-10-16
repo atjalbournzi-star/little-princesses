@@ -49,6 +49,18 @@ def handle_get(handler, path, parsed_url) -> bool:
             handler.end_headers()
             handler.wfile.write(json.dumps({'success': True, 'data': data}, ensure_ascii=False, default=str).encode('utf-8'))
             return True
+
+        if path in ('/api/hr/piece-rate-logs', '/api/piece-rate-logs'):
+            query_params = urllib.parse.parse_qs(parsed_url.query)
+            params = {k: v[0] for k, v in query_params.items()}
+            data = pg_service.get_worker_piece_rate_logs(params)
+            handler.send_response(200)
+            handler._send_cors_headers()
+            handler.send_header('Content-Type', 'application/json; charset=utf-8')
+            handler.end_headers()
+            handler.wfile.write(json.dumps({'success': True, 'data': data}, ensure_ascii=False, default=str).encode('utf-8'))
+            return True
+
     except Exception as e:
         handler.send_response(500)
         handler._send_cors_headers()
@@ -99,12 +111,15 @@ def handle_post(handler, path, parsed_url) -> bool:
             handler.wfile.write(json.dumps({'success': False, 'error': str(e)}).encode('utf-8'))
         return True
 
-    if path in ('/api/hr/payroll/post', '/api/payroll/post', '/api/hr/payroll/pay'):
+    if path in ('/api/hr/payroll/post', '/api/payroll/post', '/api/hr/payroll/pay', '/api/hr/payroll/disburse-bulk', '/api/payroll/disburse-bulk'):
         content_length = int(handler.headers.get('Content-Length', 0))
         post_data = handler.rfile.read(content_length)
         try:
             data = json.loads(post_data.decode('utf-8')) if post_data else {}
-            res = pg_service.post_payroll(data)
+            if 'disburse-bulk' in path:
+                res = pg_service.disburse_payroll_run_atomic(data)
+            else:
+                res = pg_service.post_payroll(data)
             handler.send_response(200)
             handler._send_cors_headers()
             handler.send_header('Content-Type', 'application/json; charset=utf-8')
@@ -157,4 +172,25 @@ def handle_post(handler, path, parsed_url) -> bool:
             handler.wfile.write(json.dumps({'success': False, 'error': str(e)}).encode('utf-8'))
         return True
 
+    if path in ('/api/hr/liquidate-pieces', '/api/liquidate-pieces'):
+        content_length = int(handler.headers.get('Content-Length', 0))
+        post_data = handler.rfile.read(content_length)
+        try:
+            data = json.loads(post_data.decode('utf-8')) if post_data else {}
+            res = pg_service.liquidate_worker_pieces_atomic(data)
+            status_code = 200 if res.get('success') else 400
+            handler.send_response(status_code)
+            handler._send_cors_headers()
+            handler.send_header('Content-Type', 'application/json; charset=utf-8')
+            handler.end_headers()
+            handler.wfile.write(json.dumps(res, ensure_ascii=False, default=str).encode('utf-8'))
+        except Exception as e:
+            handler.send_response(500)
+            handler._send_cors_headers()
+            handler.send_header('Content-Type', 'application/json; charset=utf-8')
+            handler.end_headers()
+            handler.wfile.write(json.dumps({'success': False, 'error': str(e)}).encode('utf-8'))
+        return True
+
     return False
+

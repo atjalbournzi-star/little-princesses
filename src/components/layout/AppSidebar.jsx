@@ -84,7 +84,7 @@ function AppSidebar({
                 const aCls = isActive ? 'bg-pink-50 text-pink-700 border-pink-500 dark:text-white dark:font-bold dark:bg-purple-600/25 dark:border-r-2 dark:border-purple-400' : 'text-slate-500 hover:bg-slate-100 dark:text-white dark:hover:bg-slate-800/80 transition-colors';
                 return (
                   <button key={item.id} type="button" title={isCollapsed ? item.label : undefined} onClick={() => setActiveTab(item.id)}
-                    className={`group relative transition-colors cursor-pointer flex ${isCollapsed ? 'h-7 w-7 mx-auto rounded-lg items-center justify-center ' + aCls : 'w-full h-7 px-2.5 rounded-lg items-center gap-2.5 ' + (isActive ? activeCls : inactiveCls)}`}>
+                    className={`nav-item group relative transition-colors cursor-pointer flex ${isCollapsed ? 'h-7 w-7 mx-auto rounded-lg items-center justify-center ' + aCls : 'w-full h-7 px-2.5 rounded-lg items-center gap-2.5 ' + (isActive ? activeCls : inactiveCls)}`}>
                     <div className={`shrink-0 flex items-center justify-center ${isActive ? 'text-pink-600 dark:text-white' : 'text-slate-500 dark:text-slate-200 group-hover:text-slate-700 dark:group-hover:text-white'}`}>
                       <IconComp className="w-4 h-4 flex-shrink-0" />
                     </div>

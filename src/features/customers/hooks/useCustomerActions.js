@@ -72,7 +72,7 @@ function useCustomerActions({
           return cid !== finalCustId && cid !== custId && (!payload.phone.trim() || c.phone !== payload.phone.trim());
         })]);
       }
-
+      window.dispatchEvent(new CustomEvent('erp:ordersChanged'));
       const depAmt = parseFloat(payload.ledger?.deposit || 0);
       const successMsg = depAmt > 0
         ? `✅ تم حفظ ${payload.name} وقيد دفعة (${depAmt.toLocaleString('en-US')} ${currency.display}) بنجاح`
@@ -187,33 +187,27 @@ function useCustomerActions({
     const cid = c.customer_id || c.id || 'CUST';
     const cOrders = (orders || []).filter(o => (o.customer_id && String(o.customer_id) === String(cid)) || (o.customer_name && o.customer_name === (c.name || c.customer_name)));
     const isRepeat = cOrders.length > 0;
-    const newOrdNo = isRepeat ? `ORD-${cid}-${String(cOrders.length + 1).padStart(2, '0')}` : `ORD-${cid}`;
+    const dStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const todaySeq = (orders || []).filter(o => o.order_no?.startsWith(`ORD-${dStr.slice(0, 4)}-${dStr.slice(4, 8)}-`)).length + 1;
+    const newOrdNo = `ORD-${dStr.slice(0, 4)}-${dStr.slice(4, 8)}-${String(todaySeq).padStart(2, '0')}`;
     const mPrice = parseFloat(latestMeas?.adjusted_price || latestMeas?.price || 0);
     const totS = mPrice > 0 ? mPrice : parseFloat(c.ledger?.total_sales ?? c.total_sales ?? 0);
     const prodName = latestMeas?.selected_model || latestMeas?.model_name || 'ساندرلا';
 
     onSendToFactory({
-      customer_id: cid, order_no: newOrdNo,
-      customer: c.name || c.customer_name, customer_name: c.name || c.customer_name,
+      customer_id: cid, order_no: newOrdNo, customer: c.name || c.customer_name, customer_name: c.name || c.customer_name,
       child_name: latestMeas?.child_name || (c.children?.[0]?.child_name || 'الأميرة'),
       product: prodName, product_name: prodName, measurements: latestMeas, quantity: 1,
-      total_amount: totS, paid_amount: 0, remaining_amount: totS,
-      currency: currency?.display || 'YER',
+      total_amount: totS, paid_amount: 0, remaining_amount: totS, currency: currency?.display || 'YER',
       notes: isRepeat ? `أمر تفصيل مكرر (${cOrders.length + 1}) - العميلة: ${c.name}` : `أمر تفصيل للعميلة: ${c.name}`
     });
-    showToast && showToast(`✨ تم إعداد أمر تشغيل ${isRepeat ? 'مكرر جديد' : 'جديد'} (${newOrdNo}) ونقله للمعمل ✂️🧵`, 'success');
+    showToast && showToast(`✨ تم إعداد أمر تشغيل جديد (${newOrdNo}) ونقله للمعمل ✂️🧵`, 'success');
   }, [onSendToFactory, orders, currency, showToast]);
 
   return {
-    loading,
-    isSaving,
-    handleSaveCustomer,
-    handleSaveMeasurements,
-    handleSaveLedger,
-    handleDeleteCustomer,
-    handleOpenDressCard,
-    handleSendWhatsAppDressCard,
-    handleDispatchToFactory
+    loading, isSaving, handleSaveCustomer, handleSaveMeasurements,
+    handleSaveLedger, handleDeleteCustomer, handleOpenDressCard,
+    handleSendWhatsAppDressCard, handleDispatchToFactory
   };
 }
 

@@ -12,6 +12,8 @@ def get_orders(params=None):
                COALESCE(c.name, 'عميل') as customer_name, 
                COALESCE(c.phone, '') as customer_phone,
                COALESCE(p.model_name, oi.notes, 'موديل راقي') as product_name,
+               p.image_url as image_url,
+               p.image_url as prod_image_url,
                COALESCE(
                    ch.child_name,
                    (SELECT m.child_name FROM measurements m WHERE m.child_id = o.child_id LIMIT 1),
@@ -122,6 +124,10 @@ def update_order(payload):
             if dpm in ('DIRECT_TO_COURIER', 'PREPAID_VIA_ATELIER'):
                 updates.append("delivery_payment_mode = %s")
                 params.append(dpm)
+
+        if 'subtotal' in data:
+            updates.append("subtotal = %s")
+            params.append(clean_num(data.get('subtotal')))
 
         if 'total' in data or 'total_amount' in data:
             tot = clean_num(data.get('total') or data.get('total_amount'))

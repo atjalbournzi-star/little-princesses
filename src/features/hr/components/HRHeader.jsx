@@ -1,146 +1,142 @@
-// HRHeader.jsx - ترويسة إدارة الموارد البشرية وبطاقات المؤشرات والتبويبات
+// HRHeader.jsx - ترويسة الموارد البشرية مع شريط التبويبات والمؤشرات الحية
 function HRHeader({
   activeTab,
   setActiveTab,
   employees = [],
   payroll = [],
+  currentPayroll = null,
   advances = [],
   commissions = [],
+  tailorSummaries = [],
   currencyDisplay = "SAR",
-  onQuickAddEmployee,
-  onQuickAddAdvance,
 }) {
-  const activeCount = employees.filter((e) => e.status === "نشط").length;
-  const totalAdvancesSum = advances.reduce(
-    (sum, a) => sum + (parseFloat(a.amount) || 0),
-    0
-  );
-  const pendingPayrollCount = payroll.filter(
-    (p) => !p.status?.includes("تم الصرف")
+  // 1. إجمالي الكادر الوظيفي
+  const activeStaffCount = employees.filter(
+    (e) => e.status === "نشط" || e.status === "active"
   ).length;
-  const currentMonthPayrollTotal = payroll.reduce(
-    (sum, p) => sum + (parseFloat(p.netSalary || p.net_amount) || 0),
+
+  // 2. مستحقات أجور القطع المعلقة (Approved & unpaid)
+  const pendingCommissions = commissions.filter(
+    (c) => (c.status === "Approved" || c.status === "معتمد") && !c.paid_at && c.status !== "Paid"
+  );
+  const unliquidatedPiecesSum = pendingCommissions.length > 0
+    ? pendingCommissions.reduce((sum, c) => sum + (parseFloat(c.wage_amount) || 0), 0)
+    : tailorSummaries.reduce((sum, t) => sum + (parseFloat(t.unpaid_total_amount) || 0), 0);
+  const unliquidatedPiecesCount = pendingCommissions.length > 0
+    ? pendingCommissions.reduce((sum, c) => sum + (parseInt(c.pieces_count) || 1), 0)
+    : tailorSummaries.reduce((sum, t) => sum + (parseInt(t.unpaid_pieces_count) || 0), 0);
+
+  // 3. إجمالي السلف القائمة
+  const openAdvances = advances.filter(
+    (a) => !a.is_settled && a.status !== "Settled" && !a.reversal_entry_id
+  );
+  const openAdvancesSum = openAdvances.reduce(
+    (sum, a) => sum + (parseFloat(a.remaining_amount ?? a.amount) || 0),
     0
   );
 
-  const tabBtn = (key, label, badge) => (
-    <button
-      key={key}
-      onClick={() => setActiveTab(key)}
-      className={`px-5 py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer flex items-center gap-1.5 ${
-        activeTab === key
-          ? "bg-[#8F2A87] text-white shadow-xs"
-          : "bg-[#FAFAFB] text-[#25232A] hover:bg-[#E8E5EA] border border-[#E8E5EA]"
-      }`}
-    >
-      {badge?.icon && <span>{badge.icon}</span>}
-      <span>{label}</span>
-      {badge && badge.count > 0 && (
-        <span className="bg-white/20 px-1.5 py-0.2 rounded-full font-mono text-[10px]">
-          {badge.count}
-        </span>
-      )}
-    </button>
+  // 4. صافي المسير المستحق للصرف
+  const payrollRecords = currentPayroll?.records || payroll;
+  const pendingPayrollRecords = payrollRecords.filter(
+    (p) => !p.status?.includes("تم الصرف") && p.status !== "Paid"
   );
+  const netPayablePayrollSum = pendingPayrollRecords.reduce(
+    (sum, p) => sum + (parseFloat(p.netSalary ?? p.net_amount ?? p.totalDue) || 0),
+    0
+  );
+
+  const tabs = [
+    { key: "employees", label: "سجل الموظفين", count: employees.length },
+    { key: "commissions", label: "أجور وإنتاج القطع", count: unliquidatedPiecesCount },
+    { key: "advances", label: "السلف والعهد النقدية", count: openAdvances.length },
+    { key: "payroll", label: "مسير الرواتب المدمج", count: pendingPayrollRecords.length },
+  ];
 
   return (
-    <div className="space-y-4">
-      {/* الترويسة الرئيسية */}
-      <div className="bg-white rounded-2xl border border-[#E8E5EA] shadow-[0_2px_12px_rgba(0,0,0,0.02)] overflow-hidden">
-        <div className="p-6 border-b border-[#E8E5EA] flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gradient-to-r from-white via-[#FAFAFB] to-white">
-          <div className="flex items-center gap-3.5">
-            <div className="w-12 h-12 rounded-2xl bg-[#F2E7F3] text-[#8F2A87] border border-[#E5CEE7] flex items-center justify-center text-xl font-bold shadow-xs">
-              {typeof Icons !== "undefined" && Icons.HR ? (
-                <Icons.HR className="w-6 h-6" />
-              ) : typeof Icons !== "undefined" && Icons.Users ? (
-                <Icons.Users className="w-6 h-6" />
-              ) : (
-                <span>👥</span>
+    <div className="shrink-0 flex flex-col mb-1">
+      {/* 1. شريط التبويبات الموحد */}
+      <div className="h-7 mb-1 shrink-0 flex items-center gap-1.5 overflow-x-auto custom-scrollbar">
+        {tabs.map((tab) => {
+          const isActive = activeTab === tab.key;
+          return (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => setActiveTab(tab.key)}
+              className={`h-6 px-2.5 rounded-md text-[11px] font-bold transition-colors cursor-pointer flex items-center gap-1 shrink-0 ${
+                isActive
+                  ? "bg-pink-600 text-white shadow-sm"
+                  : "bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700"
+              }`}
+            >
+              <span>{tab.label}</span>
+              {tab.count > 0 && (
+                <span className={`px-1 py-0.2 rounded-full font-mono text-[9px] ${
+                  isActive ? "bg-white/20 text-white" : "bg-slate-900/60 text-slate-300"
+                }`}>
+                  {tab.count}
+                </span>
               )}
-            </div>
-            <div>
-              <h1 className="text-base md:text-lg font-bold text-[#25232A]">
-                إدارة الموارد البشرية والرواتب (HR & Payroll Studio)
-              </h1>
-              <p className="text-xs text-[#6F6B75] mt-0.5">
-                سجل الكادر، احتساب أجور القطعة آلياً من الورشة، ومسير الرواتب المالي
-              </p>
-            </div>
-          </div>
+            </button>
+          );
+        })}
+      </div>
 
-          <div className="flex gap-2 flex-wrap">
-            {tabBtn("employees", "سجل الموظفين")}
-            {tabBtn("payroll", "مسير الرواتب المدمج")}
-            {tabBtn("advances", "السلف والعهد النقدية", {
-              icon: "💸",
-              count: advances.length,
-            })}
-            {tabBtn("commissions", "عمولات وأجور الخياطين", {
-              icon: "⭐",
-              count: commissions.length,
-            })}
+      {/* 2. شريط المؤشرات الحية المصغر */}
+      <div className="h-10 mb-1.5 grid grid-cols-2 lg:grid-cols-4 gap-1.5 shrink-0">
+        <div className="bg-slate-900/80 border border-slate-800 px-2 py-0.5 rounded-lg flex items-center justify-between h-full">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] text-slate-400 font-medium">الكادر:</span>
+            <span className="text-xs font-mono font-bold text-white">{activeStaffCount}</span>
+            <span className="text-[9px] text-slate-400">نشط</span>
           </div>
+          <span className="text-[9px] font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-800/40 px-1 py-0.2 rounded">
+            {employees.length} مسجل
+          </span>
         </div>
 
-        {/* بطاقات المؤشرات السريعة (KPI Strip) */}
-        <div className="p-4 grid grid-cols-2 lg:grid-cols-4 gap-3 bg-[#FAFAFB]">
-          <div className="bg-white p-3.5 rounded-xl border border-[#E8E5EA] shadow-2xs">
-            <span className="text-[11px] text-[#6F6B75] font-semibold block">
-              إجمالي الكادر الوظيفي
+        <div className="bg-slate-900/80 border border-slate-800 px-2 py-0.5 rounded-lg flex items-center justify-between h-full">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] text-slate-400 font-medium">أجور القطع:</span>
+            <span className="text-xs font-mono font-bold text-pink-400">
+              {unliquidatedPiecesSum.toLocaleString("en-US")}
             </span>
-            <div className="flex items-baseline justify-between mt-1">
-              <span className="text-lg font-black font-mono text-[#8F2A87]">
-                {employees.length}
-              </span>
-              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
-                {activeCount} نشط
-              </span>
-            </div>
+            <span className="text-[9px] text-slate-400">{currencyDisplay}</span>
           </div>
+          <span className="text-[9px] font-bold text-pink-400 bg-pink-950/60 border border-pink-800/40 px-1 py-0.2 rounded">
+            {unliquidatedPiecesCount} معتمد
+          </span>
+        </div>
 
-          <div className="bg-white p-3.5 rounded-xl border border-[#E8E5EA] shadow-2xs">
-            <span className="text-[11px] text-[#6F6B75] font-semibold block">
-              مسيرات الرواتب المسجلة
+        <div className="bg-slate-900/80 border border-slate-800 px-2 py-0.5 rounded-lg flex items-center justify-between h-full">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] text-slate-400 font-medium">السلف القائمة:</span>
+            <span className="text-xs font-mono font-bold text-amber-400">
+              {openAdvancesSum.toLocaleString("en-US")}
             </span>
-            <div className="flex items-baseline justify-between mt-1">
-              <span className="text-lg font-black font-mono text-[#007F8C]">
-                {currentMonthPayrollTotal.toLocaleString("en-US")}
-              </span>
-              <span className="text-[10px] font-sans text-[#6F6B75]">
-                {currencyDisplay}
-              </span>
-            </div>
+            <span className="text-[9px] text-slate-400">{currencyDisplay}</span>
           </div>
+          <span className="text-[9px] font-bold text-amber-400 bg-amber-950/60 border border-amber-800/40 px-1 py-0.2 rounded">
+            {openAdvances.length} سلفة
+          </span>
+        </div>
 
-          <div className="bg-white p-3.5 rounded-xl border border-[#E8E5EA] shadow-2xs">
-            <span className="text-[11px] text-[#6F6B75] font-semibold block">
-              السلف والعهد القائمة
+        <div className="bg-slate-900/80 border border-slate-800 px-2 py-0.5 rounded-lg flex items-center justify-between h-full">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] text-slate-400 font-medium">صافي المسير:</span>
+            <span className="text-xs font-mono font-bold text-emerald-400">
+              {netPayablePayrollSum.toLocaleString("en-US")}
             </span>
-            <div className="flex items-baseline justify-between mt-1">
-              <span className="text-lg font-black font-mono text-[#D64545]">
-                {totalAdvancesSum.toLocaleString("en-US")}
-              </span>
-              <span className="text-[10px] font-sans text-[#6F6B75]">
-                {currencyDisplay}
-              </span>
-            </div>
+            <span className="text-[9px] text-slate-400">{currencyDisplay}</span>
           </div>
-
-          <div className="bg-white p-3.5 rounded-xl border border-[#E8E5EA] shadow-2xs">
-            <span className="text-[11px] text-[#6F6B75] font-semibold block">
-              رواتب معلقة بانتظار الصرف
-            </span>
-            <div className="flex items-baseline justify-between mt-1">
-              <span className="text-lg font-black font-mono text-amber-600">
-                {pendingPayrollCount}
-              </span>
-              <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded">
-                قيد الإجراء
-              </span>
-            </div>
-          </div>
+          <span className="text-[9px] font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-800/40 px-1 py-0.2 rounded">
+            {pendingPayrollRecords.length} موظف
+          </span>
         </div>
       </div>
     </div>
   );
 }
+
+window.HRHeader = HRHeader;
+window.HRStatsHeader = HRHeader;

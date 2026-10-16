@@ -10,23 +10,21 @@ function useFactoryOrderActions(props) {
 
   const handleStageEmpChange = (stageRole, empName) => {
     const matched = (employees || []).find(e => e.name === empName || e.id === empName);
-    const wage = matched ? String(matched.salary || matched.baseSalary || matched.base_salary || '') : '';
-    const wageSvc = window.WageMatrixService || {};
-    const dW = wageSvc.resolveStageWages ? wageSvc.resolveStageWages(form) : {};
-    if (stageRole === 'cutter') setForm(p => ({ ...p, cutter_name: empName, cutter_wage: wage || p.cutter_wage || String(dW.cutter_wage || '') }));
-    else if (stageRole === 'tailor') setForm(p => ({ ...p, tailor_name: empName, tailor: empName, tailor_wage: wage || p.tailor_wage || String(dW.tailor_wage || '') }));
-    else if (stageRole === 'embroiderer') setForm(p => ({ ...p, embroiderer_name: empName, embroiderer_wage: wage || p.embroiderer_wage || String(dW.embroiderer_wage || '') }));
-    else if (stageRole === 'finisher') setForm(p => ({ ...p, finisher_name: empName, finisher_wage: wage || p.finisher_wage || String(dW.finisher_wage || '') }));
+    const pW = matched ? (matched.piece_rate ?? matched.piece_wage ?? matched.pieceRate ?? matched.pieceWage ?? matched.salary ?? matched.baseSalary ?? matched.base_salary) : '';
+    const wage = (pW !== undefined && pW !== '' && pW !== null) ? String(pW) : '';
+    const dW = (window.WageMatrixService?.resolveStageWages) ? window.WageMatrixService.resolveStageWages(form) : {};
+    if (stageRole === 'cutter') setForm(p => ({ ...p, cutter_name: empName, cutter_wage: wage !== '' ? wage : (p.cutter_wage || String(dW.cutter_wage || '')) }));
+    else if (stageRole === 'tailor') setForm(p => ({ ...p, tailor_name: empName, tailor: empName, tailor_wage: wage !== '' ? wage : (p.tailor_wage || String(dW.tailor_wage || '')) }));
+    else if (stageRole === 'embroiderer') setForm(p => ({ ...p, embroiderer_name: empName, embroiderer_wage: wage !== '' ? wage : (p.embroiderer_wage || String(dW.embroiderer_wage || '')) }));
+    else if (stageRole === 'finisher') setForm(p => ({ ...p, finisher_name: empName, finisher_wage: wage !== '' ? wage : (p.finisher_wage || String(dW.finisher_wage || '')) }));
   };
 
   const selectLatestCustomer = () => {
     if (!customers?.length) return showToast('لا يوجد عملاء مسجلون حالياً ⚠️', 'warning');
-    const c = customers[0], m = c.measurements?.[0], ch = m?.child_name || c.children?.[0]?.child_name || 'الأميرة';
-    const pName = m?.selected_model || m?.model_name || 'فستان سندرلا';
+    const c = customers[0], m = c.measurements?.[0], ch = m?.child_name || c.children?.[0]?.child_name || 'الأميرة', pName = m?.selected_model || m?.model_name || 'فستان سندرلا';
     const ord = (orders || []).find(o => o.customer_id === c.id || o.customer_id === c.customer_id || (o.customer_name && o.customer_name === c.name));
     const autoCalc = utils.calculateMetersForModel ? utils.calculateMetersForModel(pName, ch, c.name, products, customers, fabricInventory) : { fabric: 'تفتة تركي', meters: 3 };
-    const due = ord?.delivery_date || (utils.addDays ? utils.addDays(todayStrIso, 4) : '');
-    const autoM = utils.autoDistributeMilestones ? utils.autoDistributeMilestones(todayStrIso, due) : {};
+    const due = ord?.delivery_date || (utils.addDays ? utils.addDays(todayStrIso, 4) : ''), autoM = utils.autoDistributeMilestones ? utils.autoDistributeMilestones(todayStrIso, due) : {};
     setForm(p => ({
       ...p, order_no: ord ? (ord.order_no || ord.id) : `ORD-${c.customer_id || c.id || '1001'}-${Date.now().toString().slice(-4)}`,
       customer: c.name || c.customer_name, customer_name: c.name || c.customer_name, child_name: ch, product: pName, product_name: pName, product_id: ord?.product_id || '',
@@ -64,10 +62,13 @@ function useFactoryOrderActions(props) {
     const delFee = parseFloat(ord.delivery_fee ?? ord.delivery ?? 0);
     const delMode = ord.delivery_payment_mode || 'DIRECT_TO_COURIER';
     const isPrepaid = delMode === 'PREPAID_VIA_ATELIER';
-    const baseDressTot = unitPrice > 0 ? (unitPrice * orderQty) : (parseFloat(ord.total_amount ?? ord.total ?? ord.total_price ?? 0) - (isPrepaid ? delFee : 0));
-    const finalTot = baseDressTot + (isPrepaid ? delFee : 0);
-    const ordPd = parseFloat(ord.paid_amount ?? ord.paid ?? ord.deposit ?? 0);
-    const targetDueDate = ord.delivery_date || ord.due_date || (utils.addDays ? utils.addDays(todayStrIso, 4) : '');
+    const rawOrdTot = ord.total_amount ?? ord.total_price ?? ord.grand_total ?? ord.total ?? ord.price ?? ord.base_amount;
+    const ordTotNum = (rawOrdTot !== undefined && rawOrdTot !== null && rawOrdTot !== '') ? parseFloat(rawOrdTot) : 0;
+    const baseDressTot = unitPrice > 0 ? (unitPrice * orderQty) : (ordTotNum - (isPrepaid ? delFee : 0));
+    const finalTot = ordTotNum > 0 ? ordTotNum : (baseDressTot + (isPrepaid ? delFee : 0));
+    const ordPd = parseFloat(ord.paid_amount ?? ord.advance_paid ?? ord.paid ?? ord.deposit ?? ord.deposit_amount ?? ord.paid_total ?? 0) || 0;
+    const ordRem = Math.max(0, finalTot - ordPd);
+    const targetDueDate = ord.delivery_date || ord.due_date || ord.delivery_date_iso || ord.target_date || (utils.addDays ? utils.addDays(todayStrIso, 4) : '');
     const autoM = utils.autoDistributeMilestones ? utils.autoDistributeMilestones(todayStrIso, targetDueDate) : {};
     const wageSvc = window.WageMatrixService || {};
     const stageWages = wageSvc.resolveStageWages ? wageSvc.resolveStageWages(form, prod) : {};
@@ -89,9 +90,8 @@ function useFactoryOrderActions(props) {
       embroidery_due_date: autoM.embroidery, finishing_due_date: autoM.finishing, fabric_name: firstBom.fabric_name || p.fabric_name, cut_meters: firstBom.cut_meters || '1.50',
       cut_unit: firstBom.cut_unit || 'متر', deduct_inventory: true, production_type: 'bespoke', bom_items: bomItems, bom: bomItems, materials: bomItems,
       delivery_fee: delFee, delivery_payment_mode: delMode, price: unitPrice, total_price: finalTot,
-      total_amount: Number(ord.total_amount ?? ord.base_amount ?? finalTot), paid_amount: Number(ord.paid_amount ?? ord.advance_paid ?? ordPd),
-      advance_paid: Number(ord.paid_amount ?? ord.advance_paid ?? ordPd), remaining_balance: Number(ord.remaining_balance ?? ord.remaining_amount ?? ord.remaining ?? (finalTot - ordPd)),
-      remaining_amount: Number(ord.remaining_balance ?? ord.remaining_amount ?? ord.remaining ?? (finalTot - ordPd)), subtotal: Number(ord.subtotal ?? (finalTot - delFee)), currency: ord.currency || 'YER'
+      total_amount: finalTot, paid_amount: ordPd, advance_paid: ordPd, deposit: ordPd,
+      remaining_balance: ordRem, remaining_amount: ordRem, remaining: ordRem, subtotal: Number(ord.subtotal ?? (finalTot - delFee)), currency: ord.currency || 'YER'
     }));
   };
 
@@ -101,6 +101,9 @@ function useFactoryOrderActions(props) {
   };
 
   const loadIntoForm = (f) => {
+    const fTot = parseFloat(f.total_amount ?? f.total_price ?? f.total ?? 0);
+    const fPd = parseFloat(f.paid_amount ?? f.advance_paid ?? f.paid ?? f.deposit ?? 0);
+    const fRem = Math.max(0, fTot - fPd);
     setForm({
       order_no: f.order_no || f.id, customer: f.customer || f.customer_name || 'ام هنادي', customer_name: f.customer_name || f.customer || 'ام هنادي',
       child_name: f.child_name || 'هنادي', product: f.product || f.product_name || 'فستان سندرلا', product_name: f.product || f.product_name || 'فستان سندرلا',
@@ -111,8 +114,8 @@ function useFactoryOrderActions(props) {
       cutter_wage: String(f.cutter_wage || ''), tailor_wage: String(f.tailor_wage || ''), embroiderer_name: f.embroiderer_name || '',
       embroidery_wage: String(f.embroiderer_wage || ''), finisher_name: f.finisher_name || '', finisher_wage: String(f.finisher_wage || ''),
       fabric_name: f.fabric_name || '', cut_meters: f.cut_meters ? String(f.cut_meters) : '', cut_unit: f.cut_unit || 'متر', bom_items: f.bom_items || [],
-      delivery_fee: f.delivery_fee || 0, total_amount: f.total_amount, paid_amount: f.paid_amount, advance_paid: f.advance_paid || f.paid_amount,
-      remaining_balance: f.remaining_balance || f.remaining_amount, remaining_amount: f.remaining_amount || f.remaining_balance, subtotal: f.subtotal, deduct_inventory: false
+      delivery_fee: f.delivery_fee || 0, total_amount: fTot, paid_amount: fPd, advance_paid: fPd, deposit: fPd,
+      remaining_balance: fRem, remaining_amount: fRem, remaining: fRem, subtotal: f.subtotal, deduct_inventory: false
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
     showToast(`تم تحميل بيانات أمر التشغيل (${f.order_no || f.id}) للتعديل ✏️`, 'info');
@@ -147,10 +150,14 @@ function useFactoryOrderActions(props) {
 
     const first = rawBom[0] || {};
     const existing = (factory || []).find(f => f.order_no === form.order_no || f.id === form.order_no);
+    const subTot = parseFloat(form.total_amount ?? form.total_price ?? form.total ?? 0);
+    const subPd = parseFloat(form.paid_amount ?? form.advance_paid ?? form.paid ?? form.deposit ?? 0);
+    const subRem = Math.max(0, subTot - subPd);
     const newF = {
       id: existing ? existing.id : Date.now(), ...form, customer_name: form.customer || form.customer_name, child_name: form.child_name,
       product_name: form.product || form.product_name, quantity: form.quantity || 1, cut_meters: parseFloat(first.cut_meters || form.cut_meters || 0),
       cut_quantity: parseFloat(first.cut_meters || form.cut_meters || 0), cut_unit: first.cut_unit || form.cut_unit || 'متر', fabric_name: first.fabric_name || form.fabric_name,
+      total_amount: subTot, paid_amount: subPd, advance_paid: subPd, deposit: subPd, remaining_amount: subRem, remaining_balance: subRem, remaining: subRem,
       bom_items: rawBom, bom: rawBom, materials: rawBom, fabrics: rawBom,
       deduct_inventory: form.deduct_inventory !== false, cutter_name: form.cutter_name, cutter_wage: parseFloat(form.cutter_wage || 0),
       tailor_name: form.tailor_name || form.tailor, tailor: form.tailor_name || form.tailor, tailor_wage: parseFloat(form.tailor_wage || 0),
@@ -158,32 +165,32 @@ function useFactoryOrderActions(props) {
     };
 
     try {
-      const res = await (service.updateStage ? service.updateStage(newF) : { success: true });
-      if (existing) setFactory(factory.map(f => (f.order_no === form.order_no || f.id === form.order_no) ? newF : f));
-      else setFactory([newF, ...factory]);
-      showToast(res?.message || 'تم حفظ وتحديث أمر المشغل واقتطاع القماش بنجاح 🚀', 'success');
+      const res = await (service.updateStage ? service.updateStage(newF) : { success: false, error: 'خدمة التحديث غير متوفرة' });
+      if (res && (res.success === false || res.status === 'error')) throw new Error(res.error || res.message || 'فشل حفظ أمر التشغيل');
+      setFactory(prev => existing ? prev.map(f => (f.order_no === form.order_no || f.id === form.order_no) ? newF : f) : [newF, ...prev]);
+      showToast(res?.message || 'تم اعتماد أمر التشغيل وحفظه بنجاح في قاعدة البيانات 🚀', 'success');
+      window.dispatchEvent(new CustomEvent('erp:factoryChanged', { detail: { orderNo: form.order_no, status: 'updated' } }));
+      window.dispatchEvent(new CustomEvent('erp:ordersChanged', { detail: { orderNo: form.order_no } }));
     } catch (err) {
-      if (existing) setFactory(factory.map(f => (f.order_no === form.order_no || f.id === form.order_no) ? newF : f));
-      else setFactory([newF, ...factory]);
-      showToast('تم الحفظ محلياً ⚡', 'warning');
+      console.error('Error saving factory order:', err);
+      showToast(`فشل الحفظ في قاعدة البيانات ❌: ${err.message || 'خطأ في الاتصال بالخادم'}`, 'error');
     }
   };
 
   const advanceToNextStage = async (f) => {
     const curIdx = stages.indexOf(f.stage);
-    if (curIdx < stages.length - 1) {
-      const nextStage = stages[curIdx + 1], nextProg = utils.STAGE_PROGRESS?.[nextStage] || 100;
-      const updatedF = { ...f, stage: nextStage, progress: nextProg, order_no: f.order_no || f.id };
-      try {
-        await (service.updateStage ? service.updateStage(updatedF) : {});
-        setFactory(p => p.map(i => (i.order_no === f.order_no || i.id === f.id) ? { ...i, stage: nextStage, progress: nextProg } : i));
-        showToast(nextProg === 100 ? `تم إنجاز الطلب ${f.order_no} بنجاح 📦✨` : `تم ترقية الطلب إلى [${nextStage}] 🧵`, 'success');
-      } catch (err) {
-        setFactory(p => p.map(i => (i.order_no === f.order_no || i.id === f.id) ? { ...i, stage: nextStage, progress: nextProg } : i));
-        showToast(`تم الترقية محلياً ⚡`, 'warning');
-      }
-    } else {
-      showToast('الطلب في مرحلته النهائية بالفعل (جاهز للتسليم 📦)', 'info');
+    if (curIdx >= stages.length - 1) return showToast('الطلب في مرحلته النهائية بالفعل (جاهز للتسليم 📦)', 'info');
+    const nextStage = stages[curIdx + 1], nextProg = utils.STAGE_PROGRESS?.[nextStage] || 100;
+    const updatedF = { ...f, stage: nextStage, progress: nextProg, order_no: f.order_no || f.id };
+    try {
+      const res = await (service.updateStage ? service.updateStage(updatedF) : { success: false, error: 'خدمة التحديث غير متوفرة' });
+      if (res && (res.success === false || res.status === 'error')) throw new Error(res.error || res.message || 'فشل ترقية المرحلة في الباك إند');
+      setFactory(p => p.map(i => (i.order_no === f.order_no || i.id === f.id) ? { ...i, stage: nextStage, progress: nextProg } : i));
+      showToast(nextProg === 100 ? `تم إنجاز الطلب ${f.order_no} بنجاح 📦✨` : `تم ترقية الطلب إلى [${nextStage}] وترحيله لقاعدة البيانات 🧵`, 'success');
+      window.dispatchEvent(new CustomEvent('erp:factoryChanged', { detail: { orderNo: f.order_no } }));
+    } catch (err) {
+      console.error('Error advancing stage:', err);
+      showToast(`فشل الترقية في قاعدة البيانات ❌: ${err.message || 'خطأ في الاتصال بالخادم'}`, 'error');
     }
   };
 
@@ -201,8 +208,7 @@ function useFactoryOrderActions(props) {
   };
 
   const handleOpenPrintModal = (f) => {
-    const data = utils.preparePrintData ? utils.preparePrintData(f, orders, customers, products) : { order: f };
-    setPrintModalData(data);
+    setPrintModalData(utils.preparePrintData ? utils.preparePrintData(f, orders, customers, products) : { order: f });
   };
 
   return {

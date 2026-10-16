@@ -10,6 +10,7 @@ function FeedbackFilterBar({
   setFilterStatus
 }) {
   const tabs = [
+    { id: 'qc_station', label: '👑 محطة الفحص الفني (QC Station)' },
     { id: 'executive', label: '🧠 الذكاء التنفيذي' },
     { id: 'products', label: '👗 موثوقية الموديلات' },
     { id: 'fabrics', label: '🧵 تقييم الأقمشة والخامات' },

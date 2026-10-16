@@ -10,34 +10,33 @@ function HR({
   const [bonus, setBonus] = useState({});
   const [deduction, setDeduction] = useState({});
 
-  // فلاتر ونوافذ الموظفين والسلف
-  const [searchQuery, setSearchQuery] = useState('');
-  const [roleFilter, setRoleFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [employeeModalOpen, setEmployeeModalOpen] = useState(false);
-  const [editingEmployee, setEditingEmployee] = useState(null);
-  const [advanceModalOpen, setAdvanceModalOpen] = useState(false);
-  const [advanceEmp, setAdvanceEmp] = useState('');
-  const [advanceAmount, setAdvanceAmount] = useState('');
-  const [advanceBox, setAdvanceBox] = useState('ACC-101-1');
-  const [advanceNotes, setAdvanceNotes] = useState('');
-  const [submittingAdvance, setSubmittingAdvance] = useState(false);
-
-  // صرف مستحقات الخياطين وسندات الطباعة
-  const [selectedTailorForPayout, setSelectedTailorForPayout] = useState(null);
-  const [payoutCashAccount, setPayoutCashAccount] = useState('ACC-101');
-  const [payoutMethod, setPayoutMethod] = useState('نقدي / كاش');
-  const [payoutDeductions, setPayoutDeductions] = useState(0);
-  const [payoutNotes, setPayoutNotes] = useState('');
-  const [submittingPayout, setSubmittingPayout] = useState(false);
-  const [activeVoucherForPrint, setActiveVoucherForPrint] = useState(null);
+  // فلاتر ونوافذ الموظفين والسلف ومستحقات الصرف
+  const [searchQuery, setSearchQuery] = useState(''), [roleFilter, setRoleFilter] = useState('all'), [statusFilter, setStatusFilter] = useState('all');
+  const [employeeModalOpen, setEmployeeModalOpen] = useState(false), [editingEmployee, setEditingEmployee] = useState(null);
+  const [advanceModalOpen, setAdvanceModalOpen] = useState(false), [advanceEmp, setAdvanceEmp] = useState(''), [advanceAmount, setAdvanceAmount] = useState(''), [advanceBox, setAdvanceBox] = useState('ACC-101-1'), [advanceNotes, setAdvanceNotes] = useState(''), [submittingAdvance, setSubmittingAdvance] = useState(false);
+  const [selectedTailorForPayout, setSelectedTailorForPayout] = useState(null), [payoutCashAccount, setPayoutCashAccount] = useState('ACC-101'), [payoutMethod, setPayoutMethod] = useState('نقدي / كاش'), [payoutDeductions, setPayoutDeductions] = useState(0), [payoutNotes, setPayoutNotes] = useState(''), [submittingPayout, setSubmittingPayout] = useState(false), [activeVoucherForPrint, setActiveVoucherForPrint] = useState(null);
   const currencyDisplay = currency?.display || 'SAR';
 
-  // خطافات البيانات والإجراءات
-  const hrData = useHRData({ activeTab, payrollMonth });
-  const { commissions, tailorSummaries, selectedTailorForPieces, setSelectedTailorForPieces,
-    tailorPieces, loadingPieces, advances, setAdvances, loadingAdvances, loadCommissions,
-    loadTailorSummaries, loadAdvances, handleOpenPiecesModal } = hrData;
+  // استدعاء الخطافات والمكونات بأمان تام من window
+  const useData = window.useHRData || (typeof useHRData !== 'undefined' ? useHRData : () => ({}));
+  const useActions = window.useHRActions || (typeof useHRActions !== 'undefined' ? useHRActions : () => ({}));
+  const HRHeader = window.HRHeader || (typeof HRHeader !== 'undefined' ? HRHeader : () => null);
+  const HRFilterBar = window.HRFilterBar || (typeof HRFilterBar !== 'undefined' ? HRFilterBar : () => null);
+  const EmployeeTable = window.EmployeeTable || (typeof EmployeeTable !== 'undefined' ? EmployeeTable : () => null);
+  const CommissionsView = window.CommissionsView || (typeof CommissionsView !== 'undefined' ? CommissionsView : () => null);
+  const AdvancesView = window.AdvancesView || (typeof AdvancesView !== 'undefined' ? AdvancesView : () => null);
+  const PayrollView = window.PayrollView || (typeof PayrollView !== 'undefined' ? PayrollView : () => null);
+  const EmployeeModal = window.EmployeeModal || (typeof EmployeeModal !== 'undefined' ? EmployeeModal : () => null);
+  const AdvancesModal = window.AdvancesModal || (typeof AdvancesModal !== 'undefined' ? AdvancesModal : () => null);
+  const PiecesModal = window.PiecesModal || window.PieceRateDetailsModal || (typeof PiecesModal !== 'undefined' ? PiecesModal : () => null);
+  const PayoutModal = window.PayoutModal || (typeof PayoutModal !== 'undefined' ? PayoutModal : () => null);
+  const PayoutVoucher = window.PayoutVoucher || (typeof PayoutVoucher !== 'undefined' ? PayoutVoucher : () => null);
+
+  const hrData = useData({ activeTab, payrollMonth });
+  const { commissions = [], tailorSummaries = [], selectedTailorForPieces = null, setSelectedTailorForPieces = () => {},
+    tailorPieces = [], loadingPieces = false, advances = [], setAdvances = () => {}, loadingAdvances = false, loadCommissions = () => {},
+    loadTailorSummaries = () => {}, loadAdvances = () => {}, handleOpenPiecesModal = () => {}, handleLiquidatePieces = () => {} } = hrData || {};
+
 
   const currentPayroll = useMemo(() => {
     const recordsForMonth = payroll.filter(p => p.month === payrollMonth);
@@ -45,7 +44,7 @@ function HR({
     const mapped = recordsForMonth.map(r => {
       const emp = employees.find(e => e.name === r.empName) || {};
       return {
-        id: r.id, empId: emp.id || r.id, name: r.empName, role: emp.role || 'غير محدد',
+        id: r.id, empId: r.empId || r.employee_id || r.id, name: r.empName, role: emp.role || 'غير محدد',
         type: r.type, baseSalary: r.baseValue, piecesCount: r.piecesCount, totalDue: r.totalDue,
         pieceWages: r.totalDue, bonus: r.bonus, deduction: r.deductions, netSalary: r.netSalary,
         status: r.status, piecesStatement: r.piecesStatement || ""
@@ -54,13 +53,13 @@ function HR({
     return { month: payrollMonth, status: mapped.every(r => r.status.includes('تم الصرف')) ? 'مكتمل' : 'قيد الصرف', records: mapped };
   }, [payroll, payrollMonth, employees]);
 
-  const hrActions = useHRActions({
+  const hrActions = useActions({
     employees, setEmployees, payroll, setPayroll, journal, setJournal, factory,
     payrollMonth, bonus, setBonus, deduction, currentPayroll, currencyDisplay, showToast,
-    setAdvances, setAdvanceModalOpen, setActiveVoucherForPrint, loadTailorSummaries, loadCommissions
+    setAdvances, setAdvanceModalOpen, setActiveVoucherForPrint, loadTailorSummaries, loadCommissions, commissions
   });
   const { calculateEmployeeCompletedTasks, handleSaveEmployee, toggleEmpStatus, deleteEmp,
-    handleGeneratePayroll, handleSubmitAdvance, handlePaySalary, handleSubmitPayout } = hrActions;
+    handleGeneratePayroll, handleSubmitAdvance, handlePaySalary, handleConsolidatedPayrollPay, handleSubmitPayout } = hrActions || {};
 
   const filteredEmployees = useMemo(() => employees.filter(emp => {
     const matchSearch = !searchQuery || emp.name?.toLowerCase().includes(searchQuery.toLowerCase()) || emp.phone?.includes(searchQuery);
@@ -77,11 +76,9 @@ function HR({
     setSubmittingAdvance(true);
     try {
       const empObj = employees.find(emp => emp.id === advanceEmp || emp.name === advanceEmp);
-      const ok = await handleSubmitAdvance({
-        empId: empObj ? empObj.id : advanceEmp, empName: empObj ? empObj.name : advanceEmp,
-        amount: amt, accountId: advanceBox, notes: advanceNotes
-      });
+      const ok = await handleSubmitAdvance({ empId: empObj ? empObj.id : advanceEmp, empName: empObj ? empObj.name : advanceEmp, amount: amt, accountId: advanceBox, notes: advanceNotes });
       if (ok) { setAdvanceModalOpen(false); setAdvanceAmount(''); setAdvanceNotes(''); }
+      return ok;
     } finally { setSubmittingAdvance(false); }
   };
 
@@ -100,63 +97,73 @@ function HR({
   };
 
   return (
-    <div className="space-y-6 animate-fadeIn text-right" dir="rtl">
+    <div className="h-[calc(100vh-3.8rem)] max-h-[calc(100vh-3.8rem)] overflow-hidden flex flex-col p-2 bg-[#0B132B] select-none text-right" dir="rtl">
       <HRHeader
         activeTab={activeTab} setActiveTab={setActiveTab} employees={employees}
-        payroll={payroll} advances={advances} commissions={commissions} currencyDisplay={currencyDisplay}
+        payroll={payroll} currentPayroll={currentPayroll} advances={advances}
+        commissions={commissions} tailorSummaries={tailorSummaries} currencyDisplay={currencyDisplay}
       />
 
-      {activeTab === 'employees' && (
-        <div className="space-y-4">
-          <HRFilterBar
-            searchQuery={searchQuery} setSearchQuery={setSearchQuery} roleFilter={roleFilter}
-            setRoleFilter={setRoleFilter} statusFilter={statusFilter} setStatusFilter={setStatusFilter}
-            onOpenAddModal={() => { setEditingEmployee(null); setEmployeeModalOpen(true); }} totalEmployees={employees.length}
+      <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-1 pb-14">
+        {activeTab === 'employees' && (
+          <div className="space-y-4">
+            <HRFilterBar
+              searchQuery={searchQuery} setSearchQuery={setSearchQuery} roleFilter={roleFilter}
+              setRoleFilter={setRoleFilter} statusFilter={statusFilter} setStatusFilter={setStatusFilter}
+              onOpenAddModal={() => { setEditingEmployee(null); setEmployeeModalOpen(true); }} totalEmployees={employees.length}
+            />
+            <EmployeeTable
+              employees={filteredEmployees} currencyDisplay={currencyDisplay}
+              calculateEmployeeCompletedTasks={calculateEmployeeCompletedTasks} toggleEmpStatus={toggleEmpStatus}
+              deleteEmp={deleteEmp} onEditEmployee={(emp) => { setEditingEmployee(emp); setEmployeeModalOpen(true); }}
+            />
+          </div>
+        )}
+
+        {activeTab === 'commissions' && (
+          <CommissionsView
+            commissions={commissions} tailorSummaries={tailorSummaries} loadCommissions={loadCommissions}
+            loadTailorSummaries={loadTailorSummaries} onOpenPiecesModal={(t) => handleOpenPiecesModal(t, showToast)}
+            onOpenPayoutModal={(t) => { setSelectedTailorForPayout(t); setPayoutCashAccount('ACC-101'); setPayoutMethod('نقدي / كاش'); setPayoutDeductions(0); setPayoutNotes(''); }}
+            currencyDisplay={currencyDisplay}
           />
-          <EmployeeTable
-            employees={filteredEmployees} currencyDisplay={currencyDisplay}
-            calculateEmployeeCompletedTasks={calculateEmployeeCompletedTasks} toggleEmpStatus={toggleEmpStatus}
-            deleteEmp={deleteEmp} onEditEmployee={(emp) => { setEditingEmployee(emp); setEmployeeModalOpen(true); }}
+        )}
+
+        {activeTab === 'advances' && (
+          <AdvancesView
+            advances={advances} loadingAdvances={loadingAdvances} payrollMonth={payrollMonth}
+            setPayrollMonth={setPayrollMonth} loadAdvances={loadAdvances}
+            onOpenNewAdvanceModal={() => { setAdvanceEmp(''); setAdvanceAmount(''); setAdvanceBox('ACC-101-1'); setAdvanceNotes(''); setAdvanceModalOpen(true); }}
+            onPrintVoucher={(adv) => setActiveVoucherForPrint({
+              voucher_no: adv.payment_no || `PAY-ADV-${adv.id}`, date: adv.date ? adv.date.slice(0, 10) : new Date().toISOString().slice(0, 10),
+              employee_name: adv.employee_name, payment_method: 'نقدي (كاش)', account_id: adv.account_id || 'ACC-101-1', pieces_count: 0,
+              entry_no: adv.entry_no || 'قيد مرحل', net_amount: parseFloat(adv.amount || 0), currency: adv.currency || currencyDisplay,
+              title: 'سند صرف سلفة نقدية (Advance Payment Voucher)', notes: adv.notes || `سلفة نقدية للموظف ${adv.employee_name}`, created_by: 'أمين الصندوق'
+            })}
+            currencyDisplay={currencyDisplay}
           />
-        </div>
-      )}
+        )}
 
-      {activeTab === 'payroll' && (
-        <PayrollView
-          payrollMonth={payrollMonth} setPayrollMonth={setPayrollMonth} currentPayroll={currentPayroll}
-          bonus={bonus} setBonus={setBonus} currencyDisplay={currencyDisplay}
-          handleGeneratePayroll={handleGeneratePayroll}
-          handleAddAdvance={(rec) => {
-            setAdvanceEmp(rec.empId || rec.name); setAdvanceAmount(''); setAdvanceBox('ACC-101-1');
-            setAdvanceNotes(`سلفة نقدية للموظف ${rec.name} - شهر ${payrollMonth}`); setAdvanceModalOpen(true);
-          }}
-          handlePaySalary={handlePaySalary}
-        />
-      )}
-
-      {activeTab === 'advances' && (
-        <AdvancesView
-          advances={advances} loadingAdvances={loadingAdvances} payrollMonth={payrollMonth}
-          setPayrollMonth={setPayrollMonth} loadAdvances={loadAdvances}
-          onOpenNewAdvanceModal={() => { setAdvanceEmp(''); setAdvanceAmount(''); setAdvanceBox('ACC-101-1'); setAdvanceNotes(''); setAdvanceModalOpen(true); }}
-          onPrintVoucher={(adv) => setActiveVoucherForPrint({
-            voucher_no: adv.payment_no || `PAY-ADV-${adv.id}`, date: adv.date ? adv.date.slice(0, 10) : new Date().toISOString().slice(0, 10),
-            employee_name: adv.employee_name, payment_method: 'نقدي (كاش)', account_id: adv.account_id || 'ACC-101-1', pieces_count: 0,
-            entry_no: adv.entry_no || 'قيد مرحل', net_amount: parseFloat(adv.amount || 0), currency: adv.currency || currencyDisplay,
-            title: 'سند صرف سلفة نقدية (Advance Payment Voucher)', notes: adv.notes || `سلفة نقدية للموظف ${adv.employee_name}`, created_by: 'أمين الصندوق'
-          })}
-          currencyDisplay={currencyDisplay}
-        />
-      )}
-
-      {activeTab === 'commissions' && (
-        <CommissionsView
-          commissions={commissions} tailorSummaries={tailorSummaries} loadCommissions={loadCommissions}
-          loadTailorSummaries={loadTailorSummaries} onOpenPiecesModal={(t) => handleOpenPiecesModal(t, showToast)}
-          onOpenPayoutModal={(t) => { setSelectedTailorForPayout(t); setPayoutCashAccount('ACC-101'); setPayoutMethod('نقدي / كاش'); setPayoutDeductions(0); setPayoutNotes(''); }}
-          currencyDisplay={currencyDisplay}
-        />
-      )}
+        {activeTab === 'payroll' && (
+          <PayrollView
+            payrollMonth={payrollMonth} setPayrollMonth={setPayrollMonth} currentPayroll={currentPayroll}
+            bonus={bonus} setBonus={setBonus} currencyDisplay={currencyDisplay}
+            handleGeneratePayroll={handleGeneratePayroll}
+            handleAddAdvance={(rec) => {
+              setAdvanceEmp(rec.empId || rec.name); setAdvanceAmount(''); setAdvanceBox('ACC-101-1');
+              setAdvanceNotes(`سلفة نقدية للموظف ${rec.name} - شهر ${payrollMonth}`); setAdvanceModalOpen(true);
+            }}
+            handlePaySalary={handlePaySalary}
+            handleConsolidatedPayrollPay={handleConsolidatedPayrollPay}
+            onOpenPiecesModal={(rec) => handleOpenPiecesModal({
+              employee_name: rec.name, employee_id: rec.empId,
+              unpaid_pieces_count: rec.piecesCount,
+              unpaid_total_amount: (rec.type === 'بالقطعة' ? rec.pieceWages : rec.baseSalary),
+              statusFilter: rec.status?.includes('تم الصرف') ? 'all' : 'unpaid'
+            }, showToast)}
+          />
+        )}
+      </div>
 
       <EmployeeModal
         isOpen={employeeModalOpen} onClose={() => setEmployeeModalOpen(false)}
@@ -173,12 +180,17 @@ function HR({
 
       <PiecesModal
         selectedTailorForPieces={selectedTailorForPieces} onClose={() => setSelectedTailorForPieces(null)}
-        loadingPieces={loadingPieces} tailorPieces={tailorPieces} currencyDisplay={currencyDisplay}
+        loadingPieces={loadingPieces} tailorPieces={tailorPieces} piecesError={hrData.piecesError} currencyDisplay={currencyDisplay}
+        onLiquidatePieces={async (wId, ids) => {
+          const res = await handleLiquidatePieces(wId, ids);
+          if (showToast) showToast(res?.message || "تم اعتماد وصرف أجور القطع بنجاح 💸", "success");
+        }}
         onProceedToPayout={(t) => {
           setSelectedTailorForPieces(null); setSelectedTailorForPayout(t);
           setPayoutCashAccount('ACC-101'); setPayoutMethod('نقدي / كاش'); setPayoutDeductions(0); setPayoutNotes('');
         }}
       />
+
 
       <PayoutModal
         selectedTailorForPayout={selectedTailorForPayout} onClose={() => setSelectedTailorForPayout(null)}
@@ -192,3 +204,6 @@ function HR({
     </div>
   );
 }
+
+window.HR = HR;
+window.HRLayout = HR;

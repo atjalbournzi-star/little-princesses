@@ -89,7 +89,7 @@ function useDashboardData({
     let inflow = 0, outflow = 0;
     const isCashAcc = (accStr) => {
       const s = String(accStr || '').trim();
-      return ['101', '102', '103', 'ACC-101', 'ACC-102', 'ACC-103', '1111', '1112'].some(p => s === p || s.startsWith(p + '.') || s.startsWith(p + '-'));
+      return ['101', '102', 'ACC-101', 'ACC-102', '1111', '1112'].some(p => s === p || s.startsWith(p + '.') || s.startsWith(p + '-'));
     };
 
     const jList = Array.isArray(filteredJournal) ? filteredJournal : [];

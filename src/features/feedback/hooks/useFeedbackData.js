@@ -20,7 +20,7 @@ function useFeedbackData({
   const [qualitySettings, setQualitySettings] = useState([]);
   const [isLoadingBackend, setIsLoadingBackend] = useState(false);
 
-  const [activeTab, setActiveTab] = useState('executive');
+  const [activeTab, setActiveTab] = useState('qc_station');
   const [timeframe, setTimeframe] = useState('all');
   const [search, setSearch] = useState('');
   const [filterDept, setFilterDept] = useState('all');

@@ -101,6 +101,11 @@ function useFactoryData({
       const autoCalc = utils.calculateMetersForModel
         ? utils.calculateMetersForModel(targetJob.product, targetJob.child_name, targetJob.customer_name, products, customers, fabricInventory)
         : { fabric: 'تفتة تركي', meters: 3 };
+      const tjTot = parseFloat(targetJob.total_amount ?? targetJob.total_price ?? targetJob.grand_total ?? targetJob.total ?? targetJob.price ?? 0) || 0;
+      const tjPd = parseFloat(targetJob.paid_amount ?? targetJob.advance_paid ?? targetJob.paid ?? targetJob.deposit ?? targetJob.deposit_amount ?? 0) || 0;
+      const tjRem = Math.max(0, tjTot - tjPd);
+      const targetDue = targetJob.delivery_date || targetJob.due_date || targetJob.delivery_date_iso || targetJob.target_date || (utils.addDays ? utils.addDays(todayStrIso, 4) : '');
+      const autoM = utils.autoDistributeMilestones ? utils.autoDistributeMilestones(todayStrIso, targetDue) : {};
       setForm(prev => ({
         ...prev,
         order_no: targetJob.order_no || `JOB-${targetJob.customer_id || 'CUST'}-${Date.now().toString().slice(-4)}`,
@@ -111,13 +116,17 @@ function useFactoryData({
         quantity: targetJob.quantity || 1,
         tailor: prev.tailor || (employees?.find(emp => emp.status === 'نشط' && emp.role === 'خياط')?.name || employees?.find(emp => emp.status === 'نشط')?.name || ''),
         stage: stages[0], progress: '20', start_date: todayStrIso,
-        due_date: utils.addDays ? utils.addDays(todayStrIso, 4) : '',
+        due_date: targetDue,
+        cutting_due_date: targetJob.cutting_due_date || autoM.cutting || '',
+        sewing_due_date: targetJob.sewing_due_date || autoM.sewing || '',
+        embroidery_due_date: targetJob.embroidery_due_date || autoM.embroidery || '',
+        finishing_due_date: targetJob.finishing_due_date || autoM.finishing || '',
         fabric_name: autoCalc.fabric, cut_meters: String(autoCalc.meters), deduct_inventory: true,
         production_type: 'bespoke',
         measurements_spec: targetJob.measurements || prev.measurements_spec || {},
-        total_amount: parseFloat(targetJob.total_amount || 0),
-        paid_amount: parseFloat(targetJob.paid_amount || 0),
-        remaining_amount: parseFloat(targetJob.remaining_amount || 0),
+        total_amount: tjTot, total_price: tjTot,
+        paid_amount: tjPd, advance_paid: tjPd, deposit: tjPd,
+        remaining_amount: tjRem, remaining_balance: tjRem, remaining: tjRem,
         currency: targetJob.currency || 'YER'
       }));
       if (typeof onClearTargetJob === 'function') onClearTargetJob();
@@ -125,42 +134,71 @@ function useFactoryData({
   }, [targetJob, utils, products, customers, fabricInventory, employees, stages, todayStrIso, onClearTargetJob]);
 
   const filteredFactory = useMemo(() => {
-    return (factory || []).filter(f => {
-      const matchSearch = !search ||
-        (f.order_no || '').toLowerCase().includes(search.toLowerCase()) ||
-        (f.customer || f.customer_name || '').toLowerCase().includes(search.toLowerCase()) ||
-        (f.product || f.product_name || '').toLowerCase().includes(search.toLowerCase()) ||
-        (f.tailor || '').toLowerCase().includes(search.toLowerCase());
-      const matchStage = stageFilter === 'الكل' || f.stage === stageFilter;
+    const list = Array.isArray(factory) ? factory : [];
+    const searchStr = (search || '').toLowerCase().trim();
+    return list.filter(f => {
+      if (!f) return false;
+      const isDelivered = f?.status === 'delivered' || f?.stage === 'تم التسليم' || f?.stage === 'تم التسليم ✅' || f?.production_status === 'delivered' || f?.production_status === 'Delivered';
+      const matchSearch = !searchStr ||
+        (f?.order_no || f?.id || '').toString().toLowerCase().includes(searchStr) ||
+        (f?.customer || f?.customer_name || f?.client || f?.client?.name || '').toString().toLowerCase().includes(searchStr) ||
+        (f?.child_name || '').toString().toLowerCase().includes(searchStr) ||
+        (f?.product || f?.product_name || f?.items?.[0]?.name || '').toString().toLowerCase().includes(searchStr) ||
+        (f?.tailor || f?.tailor_name || '').toString().toLowerCase().includes(searchStr);
+      const matchStage = stageFilter === 'الكل' ? !isDelivered : f?.stage === stageFilter;
       return matchSearch && matchStage;
     });
   }, [factory, search, stageFilter]);
 
-  // مزامنة تلقائية لطلبات المبيعات وسجل العملاء والموظفين إذا كانت القائمة فارغة
-  useEffect(() => {
-    if ((!orders || orders.length === 0) && typeof setOrders === 'function') {
+  const syncOrders = useCallback(() => {
+    if (typeof setOrders === 'function') {
       fetch('/api/sales/orders').then(r => r.json()).then(d => {
         const list = (d && Array.isArray(d.data)) ? d.data : (Array.isArray(d) ? d : []);
         if (list.length > 0) setOrders(list);
       }).catch(() => {});
     }
-    if ((!customers || customers.length === 0) && typeof setCustomers === 'function') {
-      fetch('/api/customers').then(r => r.json()).then(d => {
-        const list = (d && Array.isArray(d.data)) ? d.data : (Array.isArray(d) ? d : []);
-        if (list.length > 0) setCustomers(list);
-      }).catch(() => {});
-    }
-    if ((!employees || employees.length === 0) && typeof setEmployees === 'function') {
-      fetch('/api/hr/employees').then(r => r.json()).then(d => {
-        const list = (d && Array.isArray(d.data)) ? d.data : (Array.isArray(d) ? d : []);
-        if (list.length > 0) setEmployees(list);
-      }).catch(() => {});
-    }
-  }, [orders, customers, employees, setOrders, setCustomers, setEmployees]);
+  }, [setOrders]);
 
-  const bespokeOrders = useMemo(() => {
-    return utils.getBespokeOrdersList ? utils.getBespokeOrdersList(orders, customers, products) : (orders || []);
-  }, [orders, customers, products, utils]);
+  useEffect(() => {
+    syncOrders();
+    const handleQcSync = (e) => {
+      const detail = e?.detail || {};
+      const targetClean = String(detail.orderId || detail.order_no || '').replace(/^#/, '').trim().toLowerCase();
+      if (targetClean && detail.status === 'passed') {
+        const readyState = { status: 'ready_for_delivery', stage: 'جاهز للتسليم 📦', production_status: 'ready', tailor_status: 'approved', wage_credited: true, quality_score: 5.0, quality_status: 'passed', progress: 100 };
+        const isMatch = (item) => item && (String(item.order_no || '').replace(/^#/, '').trim().toLowerCase() === targetClean || String(item.id || '').replace(/^#/, '').trim().toLowerCase() === targetClean);
+        if (typeof setFactory === 'function') {
+          setFactory(prev => {
+            let found = false;
+            const nextList = (prev || []).map(item => isMatch(item) ? (found = true, { ...item, ...readyState }) : item);
+            if (!found) nextList.unshift({ id: detail.order_no || targetClean, order_no: targetClean, customer: detail.customer_name || 'عميلة كريمة', child_name: detail.child_name || 'الأميرة', product: detail.product_name || 'فستان كوتور', tailor: detail.tailor_name || 'بشرى', ...readyState });
+            return nextList;
+          });
+        }
+        if (typeof setOrders === 'function') setOrders(prev => (prev || []).map(item => isMatch(item) ? { ...item, ...readyState } : item));
+      } else if (targetClean && (detail.status === 'delivered' || detail.stage === 'تم التسليم')) {
+        if (typeof setFactory === 'function') {
+          setFactory(prev => (prev || []).filter(item => {
+            const iNo = String(item.order_no || '').replace(/^#/, '').trim().toLowerCase();
+            const iId = String(item.id || '').replace(/^#/, '').trim().toLowerCase();
+            return iNo !== targetClean && iId !== targetClean;
+          }));
+        }
+      }
+      syncOrders();
+    };
+
+    ['order_status_changed', 'order_qc_updated', 'erp:ordersChanged', 'erp:factoryChanged', 'orders-updated'].forEach(ev => window.addEventListener(ev, handleQcSync));
+    return () => ['order_status_changed', 'order_qc_updated', 'erp:ordersChanged', 'erp:factoryChanged', 'orders-updated'].forEach(ev => window.removeEventListener(ev, handleQcSync));
+  }, [syncOrders, setFactory, setOrders]);
+
+  useEffect(() => {
+    if ((!customers || customers.length === 0) && typeof setCustomers === 'function') fetch('/api/customers').then(r => r.json()).then(d => { const l = (d && Array.isArray(d.data)) ? d.data : (Array.isArray(d) ? d : []); if (l.length > 0) setCustomers(l); }).catch(() => {});
+    if ((!products || products.length === 0) && typeof setProducts === 'function') fetch('/api/products').then(r => r.json()).then(d => { const l = (d && Array.isArray(d.data)) ? d.data : (Array.isArray(d) ? d : []); if (l.length > 0) setProducts(l); }).catch(() => {});
+    if ((!employees || employees.length === 0) && typeof setEmployees === 'function') fetch('/api/hr/employees').then(r => r.json()).then(d => { const l = (d && Array.isArray(d.data)) ? d.data : (Array.isArray(d) ? d : []); if (l.length > 0) setEmployees(l); }).catch(() => {});
+  }, [customers, products, employees, setCustomers, setProducts, setEmployees]);
+
+  const bespokeOrders = useMemo(() => utils.getBespokeOrdersList ? utils.getBespokeOrdersList(orders, customers, products) : (orders || []), [orders, customers, products, utils]);
 
   return {
     stages, todayStrIso, activeMainTab, setActiveMainTab, analyticsData, setAnalyticsData,

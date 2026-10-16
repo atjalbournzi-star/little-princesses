@@ -72,11 +72,18 @@ def get_customers(params=None):
 
         cur.execute("""
             SELECT customer_id, 
-                   COALESCE(SUM(total_amount), 0) as total_sales,
+                   COALESCE(SUM(
+                       CASE 
+                           WHEN delivery_payment_mode = 'DIRECT_TO_COURIER' AND delivery_fee > 0 AND total_amount > subtotal AND subtotal > 0 THEN subtotal
+                           ELSE total_amount 
+                       END
+                   ), 0) as total_sales,
                    COALESCE(SUM(paid_amount), 0) as total_paid,
                    COALESCE(SUM(remaining_amount), 0) as total_remaining,
                    MAX(order_no) as latest_order_no,
-                   MAX(payment_method) as latest_pay_method
+                   MAX(payment_method) as latest_pay_method,
+                   MAX(delivery_payment_mode) as latest_delivery_mode,
+                   COALESCE(MAX(delivery_fee), 0) as latest_delivery_fee
             FROM orders
             GROUP BY customer_id;
         """)
@@ -128,6 +135,8 @@ def get_customers(params=None):
             c_remaining = max(0.0, c_sales - c_paid) if c_sales > 0 else c_cur_bal
             c_pay_method = ord_info.get('latest_pay_method') or 'نقد (كاش)'
             c_order_no = ord_info.get('latest_order_no') or f"INV-{cid}"
+            del_mode = ord_info.get('latest_delivery_mode') or 'DIRECT_TO_COURIER'
+            del_fee = float(ord_info.get('latest_delivery_fee') or 0.0)
 
             c['total_sales'] = c_sales
             c['total_paid'] = c_paid
@@ -135,7 +144,13 @@ def get_customers(params=None):
             c['remaining'] = c_remaining
             c['current_balance'] = c_remaining
             c['latest_order_no'] = c_order_no
-            c['ledger'] = {'total_sales': c_sales, 'total_paid': c_paid, 'deposit': c_paid, 'remaining': c_remaining, 'pay_method': c_pay_method}
+            c['delivery_payment_mode'] = del_mode
+            c['delivery_fee'] = del_fee
+            c['ledger'] = {
+                'total_sales': c_sales, 'total_paid': c_paid, 'deposit': c_paid,
+                'remaining': c_remaining, 'pay_method': c_pay_method,
+                'delivery_payment_mode': del_mode, 'delivery': del_fee, 'delivery_fee': del_fee
+            }
             c['measurements'] = c_meas
             c['children'] = c_children
         return customers

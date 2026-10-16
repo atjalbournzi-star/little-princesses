@@ -1,0 +1,70 @@
+/* src/index.css — System-Wide Luxury Micro-Interactions & Haute-Couture ERP Styling */
+
+/* 1. Global Interactive Button & Icon Hover */
+.luxury-btn, 
+button:not(:disabled),
+.interactive-item {
+  transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+              background-color 0.22s ease,
+              border-color 0.22s ease,
+              color 0.22s ease !important;
+}
+
+/* 2. Global Hover Lift (ارتفاع ناعم وملي واحد للأعلى) */
+.luxury-hover:hover,
+button:not(:disabled):not(.no-lift):hover,
+.nav-item:hover,
+.card-interactive:hover {
+  transform: translateY(-2px) !important;
+}
+
+/* 3. Global Luxury Border Sheen & Royal Shadow (توهج ملوكي ناعم وظل عميق) */
+.luxury-hover:hover,
+.nav-item:hover,
+.card-interactive:hover {
+  border-color: rgba(168, 85, 247, 0.45) !important; /* Soft Amethyst Border */
+  box-shadow: 0 8px 20px -4px rgba(147, 51, 234, 0.18), 
+              0 4px 6px -2px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* 4. Active/Hovered Icon Color Shift */
+.nav-item:hover svg,
+.nav-item:hover i,
+.group:hover .interactive-icon,
+button:hover svg {
+  color: #fde047 !important; /* Shifting to refined soft warm gold / amber */
+  filter: drop-shadow(0 0 6px rgba(253, 224, 71, 0.35));
+  transition: all 0.2s ease-in-out;
+}
+
+/* 5. Tactile Press Feedback */
+button:not(:disabled):active,
+.luxury-btn:active {
+  transform: translateY(0px) scale(0.98) !important;
+  box-shadow: 0 2px 6px -1px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* 6. Luxury Card & Container Hover Highlights */
+.luxury-card,
+.card-interactive {
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+              border-color 0.25s ease !important;
+}
+
+.luxury-card:hover,
+.card-interactive:hover {
+  transform: translateY(-2px);
+  border-color: rgba(168, 85, 247, 0.4) !important;
+  box-shadow: 0 10px 25px -5px rgba(147, 51, 234, 0.15),
+              0 4px 8px -2px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* 7. Subtle Glow on Focus & Inputs */
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: rgba(168, 85, 247, 0.6) !important;
+  box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.2) !important;
+}

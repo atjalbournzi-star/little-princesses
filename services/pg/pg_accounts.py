@@ -127,9 +127,9 @@ def reset_clean_chart_of_accounts(payload=None):
         cur.execute("DELETE FROM payments;")
         cur.execute("DELETE FROM expenses;")
         cur.execute("UPDATE chart_of_accounts SET opening_balance = 0.0, current_balance = 0.0;")
-        cur.execute("DELETE FROM chart_of_accounts WHERE account_code LIKE '01.06%' OR id IN ('ACC-000027', 'ACC-957272');")
+        cur.execute("DELETE FROM chart_of_accounts WHERE account_code LIKE '01.06%' OR id IN ('ACC-000027', 'ACC-957272', 'ACC-103') OR account_code = '103';")
         cur.execute("""
-            UPDATE chart_of_accounts SET parent_account_code = '1', parent_account_id = 'ACC-1' WHERE account_code IN ('101', '102', '103', '104', '105', '106');
+            UPDATE chart_of_accounts SET parent_account_code = '1', parent_account_id = 'ACC-1' WHERE account_code IN ('101', '102', '104', '105', '106', '107');
             UPDATE chart_of_accounts SET parent_account_code = '101', parent_account_id = 'ACC-101' WHERE account_code IN ('101.1', '101.2', '101.3');
             UPDATE chart_of_accounts SET parent_account_code = '102', parent_account_id = 'ACC-102' WHERE account_code IN ('102.01', '102.02');
             UPDATE chart_of_accounts SET parent_account_code = '2', parent_account_id = 'ACC-2' WHERE account_code IN ('201', '202');

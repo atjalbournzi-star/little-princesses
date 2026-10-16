@@ -11,13 +11,13 @@ function SupplierQuickAddModal({
   setIsSupplierDropdownOpen,
   fetchSuppliers,
   showToast,
-  inputCls = "w-full h-11 px-3.5 py-2.5 rounded-xl border border-[#E8E5EA] bg-white text-[#25232A] text-xs font-medium placeholder:text-[#6F6B75] focus:bg-white focus:border-[#8F2A87] focus:ring-2 focus:ring-[#F2E7F3] transition-all outline-none",
-  labelCls = "block text-xs font-semibold text-[#25232A] mb-1.5"
+  inputCls = "w-full h-11 px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs font-medium placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-fuchsia-600 focus:ring-2 focus:ring-fuchsia-100 dark:focus:ring-fuchsia-950/40 transition outline-none",
+  labelCls = "block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5"
 }) {
   const [quickSupplierData, setQuickSupplierData] = useState({
     name: '',
     phone: '',
-    city: 'صنعاء',
+    city: '',
     address: ''
   });
   const [isSaving, setIsSaving] = useState(false);
@@ -27,7 +27,7 @@ function SupplierQuickAddModal({
       setQuickSupplierData({
         name: (initialName || '').trim(),
         phone: '',
-        city: 'صنعاء',
+        city: '',
         address: ''
       });
     }
@@ -70,7 +70,7 @@ function SupplierQuickAddModal({
       }
 
       const createdSupp = data.data || payload;
-      showToast(`✅ تم تسجيل المورد (${name}) بنجاح وتعيينه نشطاً`);
+      showToast(`تم تسجيل المورد (${name}) بنجاح`);
       onClose();
 
       if (typeof setSuppliers === 'function') {
@@ -97,26 +97,23 @@ function SupplierQuickAddModal({
 
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl space-y-4 border border-[#E8E5EA]" onClick={e => e.stopPropagation()}>
-        <div className="flex justify-between items-center border-b border-[#E8E5EA] pb-3">
-          <div className="flex items-center gap-2">
-            <span className="w-8 h-8 rounded-xl bg-[#F2E7F3] text-[#8F2A87] flex items-center justify-center font-bold">➕</span>
-            <div>
-              <h3 className="font-bold text-[#25232A] text-sm">إضافة مورد جديد (سريع)</h3>
-              <p className="text-[11px] text-[#6F6B75]">تسجيل المورد واعتماده فوراً في قاعدة البيانات السحابية</p>
-            </div>
+      <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 w-full max-w-lg shadow-2xl space-y-4 border border-slate-200 dark:border-slate-800" onClick={e => e.stopPropagation()}>
+        <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-3">
+          <div>
+            <h3 className="font-bold text-slate-900 dark:text-white text-base">إضافة مورد جديد</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">تسجيل بيانات المورد الجديد واعتماده في النظام</p>
           </div>
-          <button type="button" onClick={onClose} className="text-[#6F6B75] hover:text-[#25232A] font-bold p-1 cursor-pointer">✕</button>
+          <button type="button" onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold cursor-pointer transition">✕</button>
         </div>
 
-        <form onSubmit={handleSave} className="space-y-3.5">
+        <form onSubmit={handleSave} className="space-y-4">
           <div>
             <label className={labelCls}>اسم المورد / المحل *</label>
             <input
               type="text"
               required
               className={inputCls}
-              placeholder="مثال: مؤسسة الأقمشة الفاخرة"
+              placeholder=""
               value={quickSupplierData.name}
               onChange={e => setQuickSupplierData(prev => ({ ...prev, name: e.target.value }))}
             />
@@ -124,16 +121,15 @@ function SupplierQuickAddModal({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className={labelCls}>رقم الهاتف الأساسي * 📱</label>
+              <label className={labelCls}>رقم الهاتف الأساسي *</label>
               <input
                 type="tel"
                 required
                 className={inputCls + " font-mono"}
-                placeholder="مثال: 771234567"
+                placeholder=""
                 value={quickSupplierData.phone}
                 onChange={e => setQuickSupplierData(prev => ({ ...prev, phone: e.target.value }))}
               />
-              <span className="text-[10px] text-[#6F6B75] mt-1 block">يُستخدم لمنع تكرار الموردين والتحقق</span>
             </div>
 
             <div>
@@ -141,7 +137,7 @@ function SupplierQuickAddModal({
               <input
                 type="text"
                 className={inputCls}
-                placeholder="صنعاء"
+                placeholder=""
                 value={quickSupplierData.city}
                 onChange={e => setQuickSupplierData(prev => ({ ...prev, city: e.target.value }))}
               />
@@ -153,26 +149,26 @@ function SupplierQuickAddModal({
             <input
               type="text"
               className={inputCls}
-              placeholder="مثال: شارع التحرير - مجمع الأقمشة - صنعاء"
+              placeholder=""
               value={quickSupplierData.address}
               onChange={e => setQuickSupplierData(prev => ({ ...prev, address: e.target.value }))}
             />
           </div>
 
-          <div className="flex gap-2 pt-3 border-t border-[#E8E5EA]">
-            <button
-              type="submit"
-              disabled={isSaving}
-              className="flex-1 py-3 bg-[#8F2A87] hover:bg-[#73216C] disabled:opacity-50 text-white font-bold rounded-xl transition cursor-pointer shadow-xs"
-            >
-              {isSaving ? 'جاري الحفظ في السحابة...' : 'حفظ واعتماد المورد فوراً ✨'}
-            </button>
+          <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-slate-200 dark:border-slate-800">
             <button
               type="button"
               onClick={onClose}
-              className="px-5 py-3 bg-[#FAFAFB] hover:bg-[#E8E5EA] text-[#25232A] font-bold rounded-xl border border-[#E8E5EA] cursor-pointer"
+              className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold text-xs rounded-xl transition cursor-pointer"
             >
               إلغاء
+            </button>
+            <button
+              type="submit"
+              disabled={isSaving}
+              className="px-6 py-2.5 bg-fuchsia-700 hover:bg-fuchsia-800 disabled:opacity-50 text-white font-bold text-xs rounded-xl transition cursor-pointer shadow-xs"
+            >
+              {isSaving ? 'جاري الحفظ...' : 'حفظ المورد'}
             </button>
           </div>
         </form>

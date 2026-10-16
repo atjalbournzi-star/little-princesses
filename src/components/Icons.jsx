@@ -37,6 +37,8 @@
   Icons.collection = Icons.Tag;
   Icons.Close = Icons.Close || Icons.X;
   Icons.X = Icons.X || Icons.Close;
+  Icons.Printer = Icons.Printer || ui.Printer;
+  Icons.printer = Icons.Printer;
 
   // Safe fallback Proxy: If an unknown icon name is accessed, return a safe component instead of undefined (prevents React #130)
   if (typeof Proxy !== 'undefined') {

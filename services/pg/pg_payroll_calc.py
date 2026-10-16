@@ -11,12 +11,19 @@ def get_payroll(params=None):
         month = params.get('month')
     elif isinstance(params, str):
         month = params
+    if not month:
+        month = datetime.date.today().strftime("%Y-%m")
+
+    try:
+        from .pg_payroll_post import add_payroll_batch
+        calc_recs = calculate_payroll(month)
+        if calc_recs:
+            add_payroll_batch({'records': calc_recs, 'month': month})
+    except Exception as e:
+        logger.warning(f"Auto-sync payroll warning: {e}")
 
     with get_db_cursor() as cur:
-        if month:
-            cur.execute("SELECT * FROM payroll WHERE month = %s ORDER BY created_at DESC;", (month,))
-        else:
-            cur.execute("SELECT * FROM payroll ORDER BY created_at DESC;")
+        cur.execute("SELECT * FROM payroll WHERE month = %s ORDER BY created_at DESC;", (month,))
         rows = cur.fetchall()
         for r in rows:
             if r.get('created_at'):
@@ -101,12 +108,15 @@ def calculate_payroll(payload=None):
                 WHERE (employee_id = %s OR employee_name = %s)
                   AND status = 'Approved'
                   AND paid_at IS NULL
-                  AND (completed_at IS NULL OR to_char(completed_at, 'YYYY-MM') = %s);
-            """, (e_id, e_name, month))
+                  AND (
+                      (order_date IS NOT NULL AND to_char(order_date, 'YYYY-MM') = %s)
+                      OR (order_date IS NULL AND (completed_at IS NULL OR to_char(completed_at, 'YYYY-MM') = %s))
+                  );
+            """, (e_id, e_name, month, month))
             comm_rows = cur.fetchall()
 
             comm_pieces = sum(int(c.get('pieces_count') or 1) for c in comm_rows)
-            comm_total = sum(float(c.get('wage_amount') or 0.0) for c in comm_rows)
+            comm_total = sum(float(c.get('wage_amount') or 0.0) * int(c.get('pieces_count') or 1) for c in comm_rows)
 
             if comm_rows:
                 pieces_stmt = "\n".join([
@@ -115,14 +125,15 @@ def calculate_payroll(payload=None):
                 ])
             elif e_type == 'بالقطعة':
                 cur.execute("""
-                    SELECT production_order_no, stage, due_date, order_id
+                    SELECT production_order_no, stage, due_date, order_id, pieces_count
                     FROM production_orders
-                    WHERE (assigned_tailor_id = %s OR assigned_tailor_id = %s OR notes ILIKE %s)
-                      AND stage IN ('تشطيب', 'جاهز للتسليم', 'تسليم', 'مكتمل', 'Completed')
-                      AND to_char(created_at, 'YYYY-MM') = %s;
-                """, (e_id, e_name, f"%{e_name}%", month))
+                    WHERE (cutter_name = %s OR tailor_name = %s OR assigned_tailor_id = %s
+                           OR embroiderer_name = %s OR finisher_name = %s OR notes ILIKE %s)
+                      AND (stage ILIKE '%%تشطيب%%' OR stage ILIKE '%%جاهز%%' OR stage ILIKE '%%تسليم%%' OR stage ILIKE '%%مكتمل%%' OR stage = 'Completed' OR progress >= 80)
+                      AND (to_char(created_at, 'YYYY-MM') = %s OR to_char(start_date, 'YYYY-MM') = %s);
+                """, (e_name, e_name, e_id, e_name, e_name, f"%{e_name}%", month, month))
                 po_rows = cur.fetchall()
-                comm_pieces = len(po_rows)
+                comm_pieces = sum(max(1, int(r.get('pieces_count') or 1)) for r in po_rows)
                 comm_total = comm_pieces * base_sal
                 if comm_pieces > 0:
                     pieces_stmt = "\n".join([f"- أمر معمل #{r['production_order_no']} (المرحلة: {r['stage']})" for r in po_rows])

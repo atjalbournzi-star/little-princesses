@@ -2,7 +2,7 @@ import datetime
 import logging
 import time
 from .db_pool import get_db_cursor, clean_num, clean_str, generate_id
-from .account_resolver import resolve_exchange_rate, resolve_account_id
+from .account_resolver import resolve_exchange_rate, resolve_account_id, normalize_currency_code
 
 logger = logging.getLogger("LittlePrincesses_PG_Advances")
 
@@ -15,7 +15,7 @@ def add_advance(payload):
     if amount <= 0:
         raise ValueError("مبلغ السلفة يجب أن يكون أكبر من الصفر")
 
-    curr = clean_str(data.get('currency') or 'YER')
+    curr = normalize_currency_code(clean_str(data.get('currency') or 'YER'))
     notes = clean_str(data.get('notes') or f"سلفة نقدية للموظف {emp_name}")
     month = clean_str(data.get('month')) or datetime.date.today().strftime("%Y-%m")
 
@@ -84,6 +84,17 @@ def add_advance(payload):
             SET deductions = deductions + %s
             WHERE (employee_id = %s OR employee_name = %s) AND month = %s;
         """, (amount, emp_id, emp_name, month))
+
+        try:
+            cur.execute("""
+                INSERT INTO employee_advances (
+                    id, employee_id, employee_name, amount, currency, payment_method,
+                    cash_account_id, notes, advance_date, month_deduction, status, created_at
+                ) VALUES (%s, %s, %s, %s, %s, 'cash', %s, %s, CURRENT_DATE, %s, 'active', CURRENT_TIMESTAMP)
+                ON CONFLICT (id) DO NOTHING;
+            """, (f"ADV-{pay_id}", emp_id, emp_name, amount, curr, credit_acc, notes, month))
+        except Exception:
+            pass
 
     logger.info(f"💵 تم صرف وتسجيل سلفة للموظف {emp_name} بمبلغ {amount} سند {pay_no} وقيد {jv_no}")
     return {

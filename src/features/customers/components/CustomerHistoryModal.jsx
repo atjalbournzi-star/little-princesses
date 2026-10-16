@@ -22,9 +22,9 @@ function CustomerHistoryModal({
     if (customer) {
       const leg = customer.ledger || {};
       const measTotal = (customer.measurements || []).reduce((sum, m) => sum + (parseFloat(m.adjusted_price) || 0), 0);
-      const tierPrice = (parseFloat(leg.base_price) > 0)
-        ? parseFloat(leg.base_price)
-        : (measTotal > 0 ? measTotal : (parseFloat(leg.total_sales) > 0 ? parseFloat(leg.total_sales) : (parseFloat(customer.total_sales) || 0)));
+      const tierPrice = (measTotal > 0)
+        ? measTotal
+        : (parseFloat(leg.base_price) > 0 ? parseFloat(leg.base_price) : (parseFloat(leg.total_sales) > 0 ? parseFloat(leg.total_sales) : (parseFloat(customer.total_sales) || 0)));
       const delFee = leg.delivery !== undefined ? String(leg.delivery) : (customer.delivery_fee !== undefined ? String(customer.delivery_fee) : '0');
       const mode = leg.delivery_payment_mode || customer.delivery_payment_mode || 'DIRECT_TO_COURIER';
       setBasePrice(tierPrice > 0 ? String(tierPrice) : '');
@@ -45,23 +45,18 @@ function CustomerHistoryModal({
 
   const handleModeChange = (newMode) => {
     setDeliveryPaymentMode(newMode);
-    const b = parseFloat(basePrice) || 0;
-    const d = parseFloat(delivery) || 0;
-    const updatedTotal = newMode === 'PREPAID_VIA_ATELIER' ? (b + d) : b;
-    setTotalSales(updatedTotal > 0 ? String(updatedTotal) : '');
+    const b = parseFloat(basePrice) || 0, d = parseFloat(delivery) || 0;
+    const ut = newMode === 'PREPAID_VIA_ATELIER' ? (b + d) : b;
+    setTotalSales(ut > 0 ? String(ut) : '');
   };
-
   const handleDeliveryChange = (val) => {
     setDelivery(val);
-    const b = parseFloat(basePrice) || 0;
-    const d = parseFloat(val) || 0;
+    const b = parseFloat(basePrice) || 0, d = parseFloat(val) || 0;
     setTotalSales(deliveryPaymentMode === 'PREPAID_VIA_ATELIER' ? String(b + d) : (b > 0 ? String(b) : ''));
   };
-
   const handleTotalChange = (val) => {
     setTotalSales(val);
-    const t = parseFloat(val) || 0;
-    const d = parseFloat(delivery) || 0;
+    const t = parseFloat(val) || 0, d = parseFloat(delivery) || 0;
     setBasePrice(deliveryPaymentMode === 'PREPAID_VIA_ATELIER' ? String(Math.max(0, t - d)) : String(t));
   };
 
@@ -114,6 +109,7 @@ function CustomerHistoryModal({
         } catch (e) { console.warn('Voucher post fallback:', e); }
       }
       const ledgerPayload = {
+        order_id: ordId, order_no: ordNo,
         total_sales: parseFloat(totalSales) || 0, base_price: parseFloat(basePrice) || 0, total_paid: parseFloat(totalPaid || deposit) || 0,
         total_order_amount: totalOrderAmount, deposit: depAmt, delivery: parseFloat(delivery) || 0, delivery_fee: parseFloat(delivery) || 0,
         delivery_payment_mode: deliveryPaymentMode, remaining: parseFloat(remaining) || 0, currency: voucherCurr, pay_method: payMethod,
@@ -142,17 +138,32 @@ function CustomerHistoryModal({
       <button type="button" onClick={onClose} className="h-7 px-3 text-xs text-slate-400 hover:text-white rounded-lg border border-slate-700 hover:bg-slate-800 transition-colors cursor-pointer">إلغاء</button>
       {onSwitchStep && (
         <button type="button" onClick={() => onSwitchStep(2)} className="h-7 px-3 text-xs text-slate-300 hover:text-white rounded-lg border border-slate-700 hover:bg-slate-800 transition-colors cursor-pointer flex items-center gap-1">
-          <span>السابق: المقاسات</span>
-          <span>➡️</span>
+          <span>السابق: المقاسات</span><span>➡️</span>
         </button>
       )}
     </div>
   );
 
-  const footerLeftButtons = (
+  const hasOrders = customerOrders && customerOrders.length > 0;
+  const footerLeftButtons = hasOrders ? (
+    <div className="flex items-center gap-2">
+      {parseFloat(remaining) > 0 && (
+        <button type="button" onClick={() => {
+          const ord = customerOrders[0];
+          const payAmt = window.prompt(`أدخل مبلغ الدفعة المراد قبضها لحساب الطلب [${ord.order_no}]:`, remaining);
+          if (payAmt && parseFloat(payAmt) > 0) {
+            setDeposit(String((parseFloat(deposit) || 0) + parseFloat(payAmt)));
+            setTimeout(() => handleSave(), 60);
+          }
+        }} className="h-8 px-3.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-sm transition flex items-center gap-1.5 cursor-pointer">
+          <span>💵 تسجيل سند قبض</span>
+        </button>
+      )}
+      <button type="button" onClick={onClose} className="h-8 px-4 bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold rounded-lg transition cursor-pointer">إغلاق ✕</button>
+    </div>
+  ) : (
     <button type="button" onClick={handleSave} disabled={isSaving || isSubmitting} className="h-8 px-4 bg-pink-600 hover:bg-pink-700 text-white text-xs font-bold rounded-lg shadow-md transition cursor-pointer disabled:opacity-60 flex items-center gap-1.5">
-      <span>اعتماد الحفظ وقيد العربون</span>
-      <span>💾</span>
+      <span>اعتماد الحفظ وقيد العربون 💾</span>
     </button>
   );
 
@@ -164,7 +175,6 @@ function CustomerHistoryModal({
       footerRight={footerRightButtons} footerLeft={footerLeftButtons}
     >
       <div className="space-y-2">
-        {/* شريط الإجماليات والمدفوعات والمتبقي مع محدد طريقة دفع التوصيل */}
         {window.CustomerFinancialLedgerBar ? (
           <window.CustomerFinancialLedgerBar
             totalSales={totalSales} handleTotalChange={handleTotalChange}
@@ -173,7 +183,7 @@ function CustomerHistoryModal({
             deliveryPaymentMode={deliveryPaymentMode} handleModeChange={handleModeChange}
             voucherCurr={voucherCurr} setVoucherCurr={setVoucherCurr}
             payMethod={payMethod} setPayMethod={setPayMethod}
-            remaining={remaining}
+            remaining={remaining} isReadOnly={hasOrders}
           />
         ) : null}
 

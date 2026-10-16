@@ -140,3 +140,24 @@ def rework_job_card():
         return jsonify(res), (200 if res.get('success') else 400)
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@atelier_bp.route('/api/quality/feedback', methods=['GET'])
+@atelier_bp.route('/api/feedback', methods=['GET'])
+def get_quality_feedback_route():
+    try:
+        data = pg_service.get_quality_feedback()
+        return jsonify({'success': True, 'data': data}), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e), 'data': []}), 500
+
+
+@atelier_bp.route('/api/quality/feedback', methods=['POST'])
+@atelier_bp.route('/api/feedback', methods=['POST'])
+def add_quality_feedback_route():
+    try:
+        data = request.get_json(silent=True) or {}
+        res = pg_service.add_quality_feedback(data)
+        return jsonify({'success': True, 'data': res}), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400

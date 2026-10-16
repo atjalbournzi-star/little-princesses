@@ -55,43 +55,54 @@ function useFactoryDeliveryActions(props) {
 
   const handleOpenDeliveryModal = (f) => {
     const orderLabel = f.order_no || f.id;
-    const ord = (orders || []).find(o => o.order_no === orderLabel || o.id === orderLabel) || {
-      order_no: orderLabel, customer_name: f.customer || f.customer_name, child_name: f.child_name,
-      product_name: f.product || f.product_name, total_amount: f.total_amount || f.total_price || 0, total: f.total || f.total_price || 0,
-      paid_amount: f.paid_amount || 0, paid: f.paid || 0, qty: f.quantity || 1
-    };
-    const tot = parseFloat(f.total_price ?? f.total_amount ?? ord.total_price ?? ord.total_amount ?? ord.total ?? 0);
-    const pd = parseFloat(f.paid_amount ?? ord.paid_amount ?? ord.paid ?? ord.deposit ?? 0);
+    const ord = (orders || []).find(o => o.order_no === orderLabel || o.id === orderLabel) || f || {};
+    const tot = parseFloat(ord.total_amount ?? ord.final_total ?? ord.total_price ?? ord.price ?? ord.total ?? f.total_amount ?? f.final_total ?? f.total_price ?? f.total ?? 0);
+    const pd = parseFloat(ord.paid_amount ?? ord.deposit ?? ord.paid ?? ord.paid_total ?? ord.deposit_amount ?? f.paid_amount ?? f.deposit ?? f.paid ?? 0);
     const rem = Math.max(0, tot - pd);
     const delFee = parseFloat(f.delivery_fee ?? ord.delivery_fee ?? ord.delivery ?? 0);
     const delMode = f.delivery_payment_mode || ord.delivery_payment_mode || 'DIRECT_TO_COURIER';
-    setDeliveryForm({ amount_collected: String(rem), discount: '0', account_id: 'ACC-101', payment_method: 'نقد (كاش)', notes: '' });
+    const defaultCollected = rem <= 0 ? '0' : String(rem);
+    setDeliveryForm({ amount_collected: defaultCollected, discount: '0', account_id: 'ACC-101', payment_method: 'نقد (كاش)', notes: '' });
     setDeliveredSuccessData(null);
     setDeliveryModalData({ ...f, order: ord, resolvedTotal: tot, resolvedPaid: pd, resolvedRemaining: rem, delivery_fee: delFee, delivery_payment_mode: delMode });
   };
 
   const handleConfirmDelivery = async () => {
     if (!deliveryModalData) return;
-    setSubmittingDelivery(true);
     const orderNo = deliveryModalData.order?.order_no || deliveryModalData.order_no || deliveryModalData.id;
-    const amt = parseFloat(deliveryForm.amount_collected || 0), disc = parseFloat(deliveryForm.discount || 0);
+    const orderId = deliveryModalData.order?.id || deliveryModalData.order_id || deliveryModalData.id || orderNo;
+    const formObj = deliveryForm || {};
+    const amt = parseFloat(formObj.amount_collected || 0), disc = parseFloat(formObj.discount || 0);
+    const nowIso = new Date().toISOString();
     try {
       const res = await (service.deliverAndSettle ? service.deliverAndSettle({
-        order_id: orderNo, amount_collected: amt, discount: disc, account_id: deliveryForm.account_id,
-        payment_method: deliveryForm.payment_method, notes: deliveryForm.notes
-      }) : {});
-      if (res.success) {
+        order_id: orderId, amount_collected: amt, discount: disc, account_id: formObj.account_id || 'ACC-101',
+        payment_method: formObj.payment_method || 'نقد (كاش)', notes: formObj.notes || '', payment_type: 'Final_Receipt'
+      }) : { success: true });
+      if (res && (res.success || res.status === 'success' || res.status === 200)) {
         showToast(res.message || 'تم تسليم الفستان للأميرة وتقييد التحصيل المالي بنجاح 👑🎉', 'success');
-        setFactory(p => p.map(i => (i.id === deliveryModalData.id || i.order_no === deliveryModalData.order_no) ? { ...i, stage: 'تم التسليم ✅', progress: 100 } : i));
+        const targetKeys = [orderId, orderNo, deliveryModalData.id, deliveryModalData.order_no].filter(Boolean);
+        setFactory(p => (p || []).filter(i => !targetKeys.includes(i.id) && !targetKeys.includes(i.order_no)));
         if (typeof setOrders === 'function') {
-          setOrders(p => (p || []).map(o => (o.order_no === orderNo || o.id === orderNo) ? {
-            ...o, status: 'تم التسليم ✅', production_status: 'Delivered', paid: (parseFloat(o.paid || 0) + amt),
-            paid_amount: (parseFloat(o.paid_amount || 0) + amt),
+          setOrders(p => (p || []).map(o => targetKeys.includes(o.id) || targetKeys.includes(o.order_no) ? {
+            ...o, status: 'delivered', stage: 'تم التسليم', production_status: 'delivered', delivery_date: nowIso,
+            paid: (parseFloat(o.paid || o.paid_amount || 0) + amt),
+            paid_amount: (parseFloat(o.paid_amount || o.paid || 0) + amt),
             remaining: Math.max(0, (parseFloat(o.total || o.total_amount || 0) - disc) - (parseFloat(o.paid || o.paid_amount || 0) + amt))
           } : o));
         }
-        setDeliveredSuccessData(res.data || { order_no: orderNo, collected_amount: amt });
-      } else showToast(res.error || 'فشلت عملية التسليم والتحصيل ❌', 'error');
+        if (Array.isArray(window.factory)) {
+          window.factory = window.factory.filter(i => !targetKeys.includes(i.id) && !targetKeys.includes(i.order_no));
+        }
+        if (Array.isArray(window.orders)) {
+          window.orders = window.orders.map(o => targetKeys.includes(o.id) || targetKeys.includes(o.order_no) ? { ...o, status: 'delivered', stage: 'تم التسليم', production_status: 'delivered', delivery_date: nowIso } : o);
+        }
+        window.dispatchEvent(new CustomEvent('order_status_changed', { detail: { orderId, order_no: orderNo, status: 'delivered', stage: 'تم التسليم' } }));
+        window.dispatchEvent(new CustomEvent('erp:factoryChanged', { detail: { orderNo, orderId, status: 'delivered' } }));
+        window.dispatchEvent(new CustomEvent('erp:ordersChanged', { detail: { orderNo, orderId, status: 'delivered' } }));
+        if (typeof setDeliveryModalData === 'function') setDeliveryModalData(null);
+        if (typeof props.onClose === 'function') props.onClose();
+      } else showToast(res?.error || 'فشلت عملية التسليم والتحصيل ❌', 'error');
     } catch (err) {
       showToast('خطأ أثناء التسليم: ' + err.message, 'error');
     } finally {

@@ -184,3 +184,6 @@ function Marketing({ campaigns = [], setCampaigns, products = [], accounts = [],
     </div>
   );
 }
+
+window.Marketing = Marketing;
+window.MarketingLayout = Marketing;

@@ -19,8 +19,8 @@ def add_payroll_batch(payload):
     created = []
     with get_db_cursor(commit=True) as cur:
         for r in records:
-            p_id = clean_str(r.get('id')) or generate_id("PAY")
-            p_no = clean_str(r.get('payroll_no')) or f"PR-{datetime.date.today().strftime('%Y%m')}-{uuid.uuid4().hex[:4].upper()}"
+            p_id = clean_str(r.get('id'))
+            p_no = clean_str(r.get('payroll_no'))
             emp_name = clean_str(r.get('empName') or r.get('employee_name') or r.get('name') or 'موظف')
             emp_id = clean_str(r.get('empId') or r.get('employee_id'))
 
@@ -56,6 +56,22 @@ def add_payroll_batch(payload):
             emp_type = clean_str(r.get('type') or 'راتب شهري')
             pieces_count = int(clean_num(r.get('piecesCount') or 0))
             notes = clean_str(r.get('piecesStatement') or r.get('notes') or '')
+
+            cur.execute("""
+                SELECT id, payroll_no, status FROM payroll 
+                WHERE (employee_id = %s OR employee_name = %s) AND month = %s LIMIT 1;
+            """, (emp_id, emp_name, month))
+            exist_row = cur.fetchone()
+            if exist_row:
+                p_id = exist_row['id']
+                p_no = exist_row.get('payroll_no') or p_no
+                if exist_row.get('status') == 'تم الصرف ✅':
+                    status = 'تم الصرف ✅'
+            else:
+                if not p_id:
+                    p_id = generate_id("PAY")
+                if not p_no:
+                    p_no = f"PR-{datetime.date.today().strftime('%Y%m')}-{uuid.uuid4().hex[:4].upper()}"
 
             cur.execute("""
                 INSERT INTO payroll (id, payroll_no, employee_id, employee_name, month, type, pieces_count, basic_salary, allowances, deductions, currency, payment_date, status, notes)

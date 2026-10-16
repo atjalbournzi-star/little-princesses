@@ -1,6 +1,6 @@
 /**
  * ExpensesTable.jsx
- * جدول استعراض بنود المصاريف التشغيلية والإجراءات المالية
+ * جدول استعراض بنود المصاريف التشغيلية والإجراءات المالية وحالة الاعتماد
  * Little Princesses ERP - Architectural Standards Compliant
  */
 
@@ -8,81 +8,114 @@ function ExpensesTable({
   expenses = [],
   currencyDisplay = "YER ﷼",
   onDeleteExpense,
-  onPrintExpense
+  onPrintExpense,
+  onApproveExpense
 }) {
-  const PrintIcon = (window.Icons && window.Icons.Printer) || (() => <span>🖨️</span>);
+  const PrinterIcon = (window.Icons && window.Icons.Printer) || (({ className = "w-3 h-3" }) => (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2">
+      <polyline points="6 9 6 2 18 2 18 9" />
+      <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+      <rect x="6" y="14" width="12" height="8" />
+    </svg>
+  ));
   const TrashIcon = (window.Icons && window.Icons.Trash) || (() => <span>🗑️</span>);
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-[#E8E5EA]">
+    <div className="overflow-x-auto rounded-xl border border-slate-800 bg-[#111C38] shadow-xs select-none pb-10">
       {(!expenses || expenses.length === 0) ? (
-        <div className="text-center py-12 text-[#6F6B75] text-xs font-medium bg-[#FAFAFB]">
-          <span className="text-2xl block mb-2">💸</span>
+        <div className="text-center py-8 text-slate-400 text-[11px] font-medium bg-[#111C38]">
+          <span className="text-xl block mb-1.5">💸</span>
           <span>لا توجد مصروفات تطابق شروط البحث الحالية</span>
         </div>
       ) : (
-        <table className="w-full text-xs text-right" dir="rtl">
+        <table className="w-full text-right table-auto" dir="rtl">
           <thead>
-            <tr className="bg-[#FAFAFB] text-[#6F6B75] font-semibold border-b border-[#E8E5EA]">
-              <th className="px-4 py-3 text-right">البند / التصنيف</th>
-              <th className="px-4 py-3 text-right">البيان / الشرح</th>
-              <th className="px-4 py-3 text-right">المبلغ</th>
-              <th className="px-4 py-3 text-right">حساب الصرف</th>
-              <th className="px-4 py-3 text-right">طريقة الدفع</th>
-              <th className="px-4 py-3 text-right">التاريخ</th>
-              <th className="px-4 py-3 text-center">إجراءات</th>
+            <tr className="bg-slate-900/70 text-slate-400 font-bold border-b border-slate-800">
+              <th className="py-1 px-1.5 text-right text-[10px] font-bold text-slate-400">البند / التصنيف</th>
+              <th className="py-1 px-1.5 text-right text-[10px] font-bold text-slate-400">البيان / الشرح</th>
+              <th className="py-1 px-1.5 text-right text-[10px] font-bold text-slate-400">المبلغ الصافي</th>
+              <th className="py-1 px-1.5 text-right text-[10px] font-bold text-slate-400">حساب الصرف</th>
+              <th className="py-1 px-1.5 text-right text-[10px] font-bold text-slate-400">طريقة الدفع</th>
+              <th className="py-1 px-1.5 text-center text-[10px] font-bold text-slate-400">حالة الاعتماد</th>
+              <th className="py-1 px-1.5 text-center text-[10px] font-bold text-slate-400">التاريخ</th>
+              <th className="py-1 px-1.5 text-center text-[10px] font-bold text-slate-400">إجراءات</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#E8E5EA] bg-white">
+          <tbody className="divide-y divide-slate-800/60 bg-[#111C38]">
             {expenses.map(e => {
               const rowKey = e.id || e.expense_no || Math.random();
-              const amtNum = parseFloat(e.amount) || 0;
+              const amtNum = parseFloat(e.net_amount || e.amount || 0);
               const currText = e.currency || currencyDisplay;
+              const isDraft = (e.status || '').toLowerCase() === 'draft';
 
               return (
-                <tr key={rowKey} className="hover:bg-[#FAFAFB] transition-colors">
-                  <td className="px-4 py-3 font-bold text-[#25232A]">
+                <tr key={rowKey} className="hover:bg-slate-800/40 transition-colors">
+                  <td className="py-0.5 px-1.5 font-bold text-white text-[11px] leading-tight">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span>{e.exp_category || e.category || 'مصروف تشغيلي'}</span>
                       {e.isVoucher && (
-                        <span className="text-[10px] bg-amber-50 text-amber-700 font-semibold px-2 py-0.5 rounded-full border border-amber-200">
+                        <span className="text-[9px] bg-amber-950/40 text-amber-400 font-bold px-1 py-0.2 rounded border border-amber-600/30">
                           سند صرف
                         </span>
                       )}
                     </div>
                   </td>
 
-                  <td className="px-4 py-3 text-[#6F6B75] max-w-xs truncate" title={e.notes || '—'}>
+                  <td className="py-0.5 px-1.5 text-slate-200 text-[11px] leading-tight max-w-xs truncate" title={e.notes || '—'}>
                     {e.notes || '—'}
                   </td>
 
-                  <td className="px-4 py-3 font-bold font-mono tabular-nums text-[#D64545]">
+                  <td className="py-0.5 px-1.5 font-bold font-mono text-[11px] tabular-nums text-rose-400 leading-tight">
                     {amtNum.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
-                    <span className="text-[10px] font-medium text-[#6F6B75] font-sans">{currText}</span>
+                    <span className="text-[9px] font-sans text-slate-400">{currText}</span>
                   </td>
 
-                  <td className="px-4 py-3 text-[#6F6B75] font-mono text-[11px]">
+                  <td className="py-0.5 px-1.5 text-slate-300 font-mono text-[10px] leading-tight">
                     {e.account_id || e.payment_source || '—'}
                   </td>
 
-                  <td className="px-4 py-3 text-[#6F6B75]">
-                    {e.payment_method || e.pay_method || 'نقدي'}
+                  <td className="py-0.5 px-1.5 text-slate-200 text-[11px] leading-tight">
+                    {e.payment_method || e.pay_method || 'نقد (كاش)'}
                   </td>
 
-                  <td className="px-4 py-3 text-[#6F6B75] font-mono text-[11px]">
-                    {e.date || '—'}
+                  <td className="py-0.5 px-1.5 text-center leading-tight">
+                    {isDraft ? (
+                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                        مسودة 📝
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                        مرحل ومعتمد ✓
+                      </span>
+                    )}
                   </td>
 
-                  <td className="px-4 py-3 text-center">
+                  <td className="py-0.5 px-1.5 text-center text-slate-400 font-mono text-[10px] leading-tight">
+                    {e.date || e.expense_date || '—'}
+                  </td>
+
+                  <td className="py-0.5 px-1.5 text-center leading-tight">
                     <div className="flex items-center justify-center gap-1">
+                      {isDraft && onApproveExpense && (
+                        <button
+                          type="button"
+                          onClick={() => onApproveExpense(e)}
+                          title="اعتماد المصروف وترحيله لدفتر الأستاذ وسندات الصرف"
+                          className="h-5 px-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[10px] font-bold inline-flex items-center gap-0.5 transition shadow-xs cursor-pointer"
+                        >
+                          <span>⚡</span>
+                          <span>اعتماد</span>
+                        </button>
+                      )}
+
                       {onPrintExpense && (
                         <button
                           type="button"
                           onClick={() => onPrintExpense(e)}
                           title="طباعة سند صرف المصروف"
-                          className="w-7 h-7 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-lg text-xs font-bold border border-amber-200 inline-flex items-center justify-center cursor-pointer transition"
+                          className="h-5 px-1.5 bg-slate-800 hover:bg-slate-700 text-amber-400 hover:text-white rounded text-[10px] font-bold border border-slate-700 inline-flex items-center justify-center cursor-pointer transition"
                         >
-                          <PrintIcon className="w-3.5 h-3.5" />
+                          <PrinterIcon className="w-3 h-3" />
                         </button>
                       )}
 
@@ -91,9 +124,9 @@ function ExpensesTable({
                           type="button"
                           onClick={() => onDeleteExpense(e)}
                           title="حذف المصروف وإلغاء القيد المالي"
-                          className="w-7 h-7 bg-rose-50 hover:bg-rose-100 text-[#D64545] rounded-lg text-xs font-bold border border-rose-200 inline-flex items-center justify-center cursor-pointer transition"
+                          className="h-5 px-1.5 bg-slate-800 hover:bg-rose-900/40 text-rose-400 hover:text-rose-300 rounded text-[10px] font-bold border border-slate-700 inline-flex items-center justify-center cursor-pointer transition"
                         >
-                          <TrashIcon className="w-3.5 h-3.5" />
+                          <TrashIcon className="w-3 h-3" />
                         </button>
                       )}
                     </div>
@@ -109,3 +142,4 @@ function ExpensesTable({
 }
 
 window.ExpensesTable = ExpensesTable;
+window.ExpenseTable = ExpensesTable;

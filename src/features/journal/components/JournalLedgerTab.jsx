@@ -1,8 +1,11 @@
 // src/features/journal/components/JournalLedgerTab.jsx
 // General Ledger tab: account filter bar + grouped account cards with transactions table
 
-function JournalLedgerTab({ postingAccounts, ledgerAccount, setLedgerAccount, ledgerDateRange, setLedgerDateRange, ledgerSearch, setLedgerSearch, groupedLedgerAccounts }) {
-  const { inputCls, labelCls } = window.JournalUtils || {};
+function JournalLedgerTab({ postingAccounts, ledgerAccount, setLedgerAccount, ledgerDateRange, setLedgerDateRange, ledgerSearch, setLedgerSearch, groupedLedgerAccounts, isLedgerLoading }) {
+  const ju = window.JournalUtils || {};
+  const inputCls = ju.inputCls || "w-full h-10 px-3 rounded-xl border border-[#E8E5EA] bg-white text-[#25232A] text-xs font-semibold focus:border-[#8F2A87] outline-none transition";
+  const labelCls = ju.labelCls || "block text-[11px] font-bold text-[#6F6B75] mb-1.5";
+  const accountsList = Array.isArray(postingAccounts) ? postingAccounts : [];
 
   return (
     <div className="space-y-6">
@@ -21,13 +24,22 @@ function JournalLedgerTab({ postingAccounts, ledgerAccount, setLedgerAccount, le
           </button>
         </div>
 
-        {/* فلاتر */}
+        {/* فلاتر الحسابات والتواريخ - تظل دائماً ظاهرة ومتاحة للمستخدم في أعلى الشاشة */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
           <div>
-            <label className={labelCls}>تصفية بالحساب</label>
-            <select value={ledgerAccount} onChange={e => setLedgerAccount(e.target.value)} className={inputCls}>
-              <option value="ALL">-- جميع الحسابات --</option>
-              {postingAccounts.map(a => { const code = a.code || a.acc_code || a.id; const rawName = a.name || a.account_name || a.acc_name || ''; const name = (rawName && !rawName.includes('???')) ? rawName : (a.name_en || code); return <option key={code} value={code}>{code} - {name}</option>; })}
+            <label className={labelCls}>اختر الحساب لدفتر الأستاذ (Account Selector)</label>
+            <select
+              value={ledgerAccount || 'ALL'}
+              onChange={e => setLedgerAccount(e.target.value)}
+              className={`${inputCls} font-bold text-[#8F2A87] cursor-pointer`}
+            >
+              <option value="ALL">-- جميع الحسابات (دفتر أستاذ شامل) --</option>
+              {accountsList.map(a => {
+                const code = a.code || a.acc_code || a.id;
+                const rawName = a.name || a.account_name || a.acc_name || '';
+                const name = (rawName && !rawName.includes('???')) ? rawName : (a.name_en || code);
+                return <option key={code} value={code}>{code} - {name}</option>;
+              })}
             </select>
           </div>
           <div>
@@ -40,8 +52,16 @@ function JournalLedgerTab({ postingAccounts, ledgerAccount, setLedgerAccount, le
           </div>
         </div>
 
+        {/* شريط مؤشر التحميل المؤقت - يتوقف فوراً فور اكتمال الجلب دون حجب القائمة */}
+        {isLedgerLoading && (
+          <div className="py-2.5 px-4 bg-[#F2E7F3]/60 border border-[#8F2A87]/20 rounded-xl text-center text-[#8F2A87] text-xs font-bold flex items-center justify-center gap-2">
+            <span className="animate-spin text-base">⏳</span>
+            <span>جاري استرجاع قيود دفتر الأستاذ العام من السيرفر وقاعدة البيانات...</span>
+          </div>
+        )}
+
         {/* بطاقات الحسابات */}
-        {groupedLedgerAccounts.length === 0 ? (
+        {!isLedgerLoading && groupedLedgerAccounts.length === 0 ? (
           <div className="text-center py-12 text-[#6F6B75] text-xs font-medium">لا توجد حركات في دفتر الأستاذ للفترة أو الحساب المختار 📖</div>
         ) : (
           <div className="space-y-6">

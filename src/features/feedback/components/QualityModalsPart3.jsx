@@ -91,7 +91,7 @@ function QualityModalsPart3({
               <div className="flex justify-end gap-2.5 pt-2 border-t border-[#E8E5EA]">
                 <button type="button" onClick={onClose} className="px-5 py-2.5 bg-[#FAFAFB] hover:bg-[#E8E5EA] text-[#25232A] rounded-xl font-bold text-xs border border-[#E8E5EA] cursor-pointer">إلغاء</button>
                 <button type="submit" disabled={isSubmitting} className="px-6 py-2.5 bg-[#D64545] hover:bg-[#B53535] text-white rounded-xl font-bold text-xs shadow-xs cursor-pointer">
-                  {isSubmitting ? 'جاري الحفظ...' : 'حفظ الشكوى في سوبابيز 💾'}
+                  {isSubmitting ? 'جاري الحفظ...' : 'تسجيل وتوثيق الشكوى 📢'}
                 </button>
               </div>
             </form>
@@ -181,7 +181,7 @@ function QualityModalsPart3({
               <div className="flex justify-end gap-2.5 pt-2 border-t border-[#E8E5EA]">
                 <button type="button" onClick={onClose} className="px-5 py-2.5 bg-[#FAFAFB] hover:bg-[#E8E5EA] text-[#25232A] rounded-xl font-bold text-xs border border-[#E8E5EA] cursor-pointer">إلغاء</button>
                 <button type="submit" disabled={isSubmitting} className="px-6 py-2.5 bg-[#6B21A8] hover:bg-[#581C87] text-white rounded-xl font-bold text-xs shadow-xs cursor-pointer">
-                  {isSubmitting ? 'جاري الحفظ...' : 'حفظ المرتجع واحتساب COPQ 💾'}
+                  {isSubmitting ? 'جاري الحفظ...' : 'اعتماد المرتجع واحتساب الأثر 🔄'}
                 </button>
               </div>
             </form>

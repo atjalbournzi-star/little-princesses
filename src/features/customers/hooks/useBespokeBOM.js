@@ -7,11 +7,16 @@
   function resolveTier(measurements, targetMode = 'kids') {
     if (targetMode === 'women_adults') return 'M';
     if (!measurements) return '6-9Y';
+    if (window.MeasurementConverter?.resolveSizeCode) {
+      return window.MeasurementConverter.resolveSizeCode(measurements, targetMode);
+    }
     if (window.OrderPricing?.resolveAgeTier) {
       return window.OrderPricing.resolveAgeTier(measurements, targetMode);
     }
     let len = parseFloat(measurements.dress_length || measurements.total_height || 0);
-    if ((measurements.unit === 'إنش' || measurements.unit === 'inch') && len > 0) len *= 2.54;
+    const uStr = String(measurements.unit || '').trim();
+    const isInch = uStr.includes('إنش') || uStr.includes('انش') || uStr.includes('inch') || uStr.includes('in');
+    if (isInch && len > 0) len *= 2.54;
     if (len <= 0) {
       const age = String(measurements.estimated_age || '');
       if (age.includes('1-2')) return '1-2Y';
@@ -93,9 +98,7 @@
   }
 
   function useBespokeBOM(selectedProduct, measurements, targetMode = 'kids') {
-    return React.useMemo(() => {
-      return deriveBespokeBOM(selectedProduct, measurements, targetMode);
-    }, [selectedProduct, measurements?.dress_length, measurements?.total_height, measurements?.chest_circ, measurements?.unit, measurements?.selected_model, targetMode]);
+    return deriveBespokeBOM(selectedProduct, measurements, targetMode);
   }
 
   window.useBespokeBOM = useBespokeBOM;

@@ -19,6 +19,30 @@ function useCustomersData({ customers = [], setCustomers, orders = [] }) {
     }
   }, [customers, setCustomers]);
 
+  // حساب الرصيد المتبقي بدقة مع استبعاد كلفة التوصيل عند اختيار الدفع للموصل مباشرة
+  const getCustRem = useCallback((c) => {
+    if (!c) return 0;
+    const cid = String(c.customer_id || c.id || '');
+    const cName = String(c.name || c.customer_name || '').trim();
+    const ord = (orders || []).find(o => (o.customer_id && String(o.customer_id) === cid) || (o.customer_name && String(o.customer_name).trim() === cName));
+    const delMode = c.ledger?.delivery_payment_mode || c.delivery_payment_mode || ord?.delivery_payment_mode || 'DIRECT_TO_COURIER';
+    const isPrepaid = delMode === 'PREPAID_VIA_ATELIER';
+    if (ord) {
+      let ordTot = Number(ord.total_price || ord.total_amount || 0);
+      const ordDel = Number(ord.delivery_fee || 0);
+      if (!isPrepaid && ordDel > 0 && ord.subtotal && ordTot > Number(ord.subtotal)) {
+        ordTot = Number(ord.subtotal);
+      }
+      return Math.max(0, ordTot - Number(ord.paid_amount || ord.paid || 0));
+    }
+    const legSales = parseFloat(c.ledger?.total_sales || c.total_sales || 0);
+    const legPaid = parseFloat(c.ledger?.total_paid || c.ledger?.deposit || c.total_paid || c.deposit || 0);
+    const delFee = isPrepaid ? parseFloat(c.ledger?.delivery || c.ledger?.delivery_fee || c.delivery_fee || 0) : 0;
+    const legTotal = legSales + delFee;
+    if (legTotal > 0) return Math.max(0, legTotal - legPaid);
+    return parseFloat(c.ledger?.remaining ?? c.remaining ?? c.current_balance ?? 0);
+  }, [orders]);
+
   // فلترة وترتيب قائمة العملاء
   const filteredCustomers = useMemo(() => {
     const list = Array.isArray(customers) ? customers : [];
@@ -46,15 +70,6 @@ function useCustomersData({ customers = [], setCustomers, orders = [] }) {
       return matchesSearch && matchesCategory;
     });
 
-    const getCustRem = (c) => {
-      if (!c) return 0;
-      const cid = String(c.customer_id || c.id || '');
-      const cName = String(c.name || c.customer_name || '').trim();
-      const ord = (orders || []).find(o => (o.customer_id && String(o.customer_id) === cid) || (o.customer_name && String(o.customer_name).trim() === cName));
-      if (ord) return Math.max(0, Number(ord.total_price || ord.total_amount || 0) - Number(ord.paid_amount || 0));
-      return parseFloat(c.ledger?.remaining ?? c.remaining ?? c.current_balance ?? 0);
-    };
-
     return filtered.sort((a, b) => {
       if (sortBy === 'name') {
         return String(a.name || '').localeCompare(String(b.name || ''), 'ar');
@@ -72,7 +87,7 @@ function useCustomersData({ customers = [], setCustomers, orders = [] }) {
       const dateB = new Date(b.reg_date || b.created_at || 0).getTime();
       return (dateB || 0) - (dateA || 0);
     });
-  }, [customers, search, categoryFilter, sortBy, orders]);
+  }, [customers, search, categoryFilter, sortBy, orders, getCustRem]);
 
   // إحصائيات لوحة العملاء الفورية
   const stats = useMemo(() => {
@@ -82,15 +97,6 @@ function useCustomersData({ customers = [], setCustomers, orders = [] }) {
     let newCount = 0;
     let vipCount = 0;
     let totalReceivables = 0;
-
-    const getCustRem = (c) => {
-      if (!c) return 0;
-      const cid = String(c.customer_id || c.id || '');
-      const cName = String(c.name || c.customer_name || '').trim();
-      const ord = (orders || []).find(o => (o.customer_id && String(o.customer_id) === cid) || (o.customer_name && String(o.customer_name).trim() === cName));
-      if (ord) return Math.max(0, Number(ord.total_price || ord.total_amount || 0) - Number(ord.paid_amount || 0));
-      return parseFloat(c.ledger?.remaining ?? c.remaining ?? c.current_balance ?? 0);
-    };
 
     list.forEach(c => {
       const cat = c.category || 'جديد';

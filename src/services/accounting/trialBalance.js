@@ -33,11 +33,13 @@
 
     var entries = Array.isArray(journalEntries) ? journalEntries : [];
 
+    var startDate = (dateRange && dateRange.start) ? String(dateRange.start).split('T')[0].split(' ')[0].trim() : '';
+    var endDate = (dateRange && dateRange.end) ? String(dateRange.end).split('T')[0].split(' ')[0].trim() : '';
+
     entries.forEach(function(j) {
-      var entryDate = (j.date || j.entry_date || '').split('T')[0];
-      var isPrior = Boolean(dateRange && dateRange.start && entryDate < dateRange.start);
-      var isInPeriod = (!dateRange || !dateRange.start || entryDate >= dateRange.start) &&
-                       (!dateRange || !dateRange.end || entryDate <= dateRange.end);
+      var entryDate = String(j.date || j.entry_date || '').split('T')[0].split(' ')[0].trim();
+      var isPrior = Boolean(startDate && entryDate && entryDate < startDate);
+      var isInPeriod = (!startDate || entryDate >= startDate) && (!endDate || entryDate <= endDate);
       if (!isPrior && !isInPeriod) return;
 
       var curr = j.currency || 'YER';
@@ -122,17 +124,25 @@
     var grandDebit = 0, grandCredit = 0, grandDebitBal = 0, grandCreditBal = 0, grandOpening = 0;
 
     rows.forEach(function(r) {
-      var net = (r.total_debit_base - r.total_credit_base);
-      var finalNet = (r.nature === 'credit') ? (r.opening_balance_base - net) : (r.opening_balance_base + net);
+      var isCredit = String(r.nature || '').toLowerCase() === 'credit';
+      var openDeb = (!isCredit && r.opening_balance_base > 0) ? r.opening_balance_base : 0;
+      var openCrd = (isCredit && r.opening_balance_base > 0) ? r.opening_balance_base : 0;
 
-      if (r.nature === 'debit') {
-        if (finalNet >= 0) { r.debit_balance_base = finalNet; r.credit_balance_base = 0; }
-        else { r.debit_balance_base = 0; r.credit_balance_base = Math.abs(finalNet); }
+      var totalDeb = openDeb + r.total_debit_base;
+      var totalCrd = openCrd + r.total_credit_base;
+      var netDiff = totalDeb - totalCrd;
+
+      if (netDiff > 0.0001) {
+        r.debit_balance_base = Math.round(netDiff * 100) / 100;
+        r.credit_balance_base = 0;
+      } else if (netDiff < -0.0001) {
+        r.debit_balance_base = 0;
+        r.credit_balance_base = Math.round(Math.abs(netDiff) * 100) / 100;
       } else {
-        if (finalNet >= 0) { r.credit_balance_base = finalNet; r.debit_balance_base = 0; }
-        else { r.credit_balance_base = 0; r.debit_balance_base = Math.abs(finalNet); }
+        r.debit_balance_base = 0;
+        r.credit_balance_base = 0;
       }
-      r.net_balance_base = finalNet;
+      r.net_balance_base = isCredit ? (totalCrd - totalDeb) : (totalDeb - totalCrd);
 
       grandDebit += r.total_debit_base; grandCredit += r.total_credit_base;
       grandDebitBal += r.debit_balance_base; grandCreditBal += r.credit_balance_base;

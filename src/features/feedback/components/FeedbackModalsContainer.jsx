@@ -15,6 +15,8 @@ function FeedbackModalsContainer({
   customers = [],
   orders = [],
   products = [],
+  employees = [],
+  purchases = [],
   feedbackForm,
   setFeedbackForm,
   handleCreateFeedback,
@@ -76,7 +78,11 @@ function FeedbackModalsContainer({
         <ModalsPart1
           activeModalType={activeModalType}
           onClose={() => setActiveModalType(null)}
+          orders={orders}
           products={products}
+          customers={customers}
+          employees={employees}
+          purchases={purchases}
           masterEvalForm={masterEvalForm}
           setMasterEvalForm={setMasterEvalForm}
           onSubmitMasterEval={handleCreateMasterEvaluation}

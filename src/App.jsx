@@ -126,16 +126,18 @@ function App() {
             showToast={showToast}
             {...appData}
           />
-          <footer className="py-1 px-4 text-[10px] text-slate-500 dark:text-slate-400 border-t border-slate-200/60 dark:border-slate-800/60 flex items-center justify-between shrink-0 select-none">
-            <div className="flex items-center gap-1.5 truncate">
-              <span className="font-bold text-[#B0005A]">{(typeof window !== 'undefined' && window.BrandService) ? window.BrandService.getProfile().name : 'نظام الإدارة المتكامل الذكي'}</span>
-              <span>•</span>
-              <span className="truncate">{(typeof window !== 'undefined' && window.BrandService) ? window.BrandService.getProfile().tagline : 'نظام تخطيط وإدارة موارد المؤسسات الموحد'}</span>
-            </div>
-            <span className="text-[9.5px] font-mono font-semibold text-slate-400 shrink-0">
-              Enterprise SaaS Edition
-            </span>
-          </footer>
+          {activeTab !== 'orders' && activeTab !== 'hr' && (
+            <footer className="py-1 px-4 text-[10px] text-slate-500 dark:text-slate-400 border-t border-slate-200/60 dark:border-slate-800/60 flex items-center justify-between shrink-0 select-none">
+              <div className="flex items-center gap-1.5 truncate">
+                <span className="font-bold text-[#B0005A]">{(typeof window !== 'undefined' && window.BrandService) ? window.BrandService.getProfile().name : 'نظام الإدارة المتكامل الذكي'}</span>
+                <span>•</span>
+                <span className="truncate">{(typeof window !== 'undefined' && window.BrandService) ? window.BrandService.getProfile().tagline : 'نظام تخطيط وإدارة موارد المؤسسات الموحد'}</span>
+              </div>
+              <span className="text-[9.5px] font-mono font-semibold text-slate-400 shrink-0">
+                Enterprise SaaS Edition
+              </span>
+            </footer>
+          )}
         </AppLayoutComp>
       ) : (
         <div className="flex h-screen w-screen overflow-hidden bg-slate-50 dark:bg-[#0B132B] text-slate-900 dark:text-slate-100" dir="rtl">

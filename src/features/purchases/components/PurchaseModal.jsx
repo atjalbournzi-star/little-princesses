@@ -66,7 +66,7 @@ function PurchaseModal({
             <div className="grid grid-cols-2 gap-3.5">
               <div className="col-span-2">
                 <label className={labelCls}>اسم الصنف / القماش *</label>
-                <input type="text" className={inputCls} placeholder="أدخل اسم الصنف" value={editRecord.item || ''} onChange={e => handleEditRecordChange('item', e.target.value)} />
+                <input type="text" className={inputCls} placeholder="" value={editRecord.item || ''} onChange={e => handleEditRecordChange('item', e.target.value)} />
               </div>
               <div>
                 <label className={labelCls}>وحدة القياس</label>
@@ -84,7 +84,7 @@ function PurchaseModal({
               </div>
               <div>
                 <label className={labelCls}>الخصم والتخفيض</label>
-                <input type="number" step="0.01" min="0" className={inputCls + " text-center font-mono font-bold text-[#D64545]"} placeholder="0.00" value={editRecord.discount || ''} onChange={e => handleEditRecordChange('discount', e.target.value)} />
+                <input type="number" step="0.01" min="0" className={inputCls + " text-center font-mono font-bold text-[#D64545]"} placeholder="" value={editRecord.discount || ''} onChange={e => handleEditRecordChange('discount', e.target.value)} />
               </div>
               <div>
                 <label className={labelCls}>الإجمالي</label>
@@ -100,7 +100,7 @@ function PurchaseModal({
               </div>
               <div>
                 <label className={labelCls}>رقم الحوالة</label>
-                <input type="text" className={inputCls} placeholder="TRF-12345" value={editRecord.transfer_no || ''} onChange={e => handleEditRecordChange('transfer_no', e.target.value)} />
+                <input type="text" className={inputCls} placeholder="" value={editRecord.transfer_no || ''} onChange={e => handleEditRecordChange('transfer_no', e.target.value)} />
               </div>
               <div>
                 <label className={labelCls}>حساب الدفع</label>
@@ -144,7 +144,7 @@ function PurchaseModal({
               </div>
               <div className="col-span-2">
                 <label className={labelCls}>الملاحظات والبيان 📝</label>
-                <input type="text" className={inputCls} placeholder="ملاحظات وتفاصيل الفاتورة" value={editRecord.notes || ''} onChange={e => handleEditRecordChange('notes', e.target.value)} />
+                <input type="text" className={inputCls} placeholder="" value={editRecord.notes || ''} onChange={e => handleEditRecordChange('notes', e.target.value)} />
               </div>
             </div>
             <div className="flex gap-2 pt-3 border-t border-[#E8E5EA]">

@@ -56,9 +56,16 @@ function CustomerTable({
           {customers.map((c, idx) => {
             const custId = c.customer_id || c.id || `CUST-${idx + 1001}`;
             const custOrder = (orders || []).find(o => String(o.customer_id) === String(custId) || String(o.customer_id) === String(c.id) || (o.customer_name && String(o.customer_name).trim() === String(c.name || c.customer_name).trim()));
-            const ordTotal = custOrder ? Number(custOrder.total_price || custOrder.total_amount || custOrder.total || 0) : 0;
+            const delMode = c.ledger?.delivery_payment_mode || c.delivery_payment_mode || custOrder?.delivery_payment_mode || 'DIRECT_TO_COURIER';
+            const isPrepaidDel = delMode === 'PREPAID_VIA_ATELIER';
+            const delFee = isPrepaidDel ? parseFloat(c.ledger?.delivery || c.ledger?.delivery_fee || c.delivery_fee || custOrder?.delivery_fee || 0) : 0;
+            let ordTotal = custOrder ? Number(custOrder.total_price || custOrder.total_amount || custOrder.total || 0) : 0;
+            const ordDelFee = Number(custOrder?.delivery_fee || 0);
+            if (!isPrepaidDel && ordDelFee > 0 && custOrder?.subtotal && ordTotal > Number(custOrder.subtotal)) {
+              ordTotal = Number(custOrder.subtotal);
+            }
             const ordPaid = custOrder ? Number(custOrder.paid_amount || custOrder.paid || custOrder.deposit || 0) : 0;
-            const legTotal = parseFloat(c.ledger?.total_sales || c.total_sales || 0) + parseFloat(c.ledger?.delivery || c.ledger?.delivery_fee || c.delivery_fee || 0);
+            const legTotal = parseFloat(c.ledger?.total_sales || c.total_sales || 0) + delFee;
             const legPaid = parseFloat(c.ledger?.total_paid || c.ledger?.deposit || c.total_paid || c.deposit || 0);
             const trueTotal = ordTotal > 0 ? ordTotal : legTotal;
             const truePaid = Math.max(ordPaid, legPaid);
@@ -132,7 +139,8 @@ function CustomerTable({
                 {/* أزرار الإجراءات الموحدة (مغروزة ومثبتة أقصى اليسار) */}
                 <td className="sticky left-0 z-20 bg-[#111C38] group-hover:bg-slate-800/80 border-l border-slate-800 h-7 max-h-7 py-0.5 px-1.5 text-center w-28 whitespace-nowrap">
                   <div className="flex items-center gap-1 justify-center">
-                    <button type="button" onClick={() => onEditCustomer ? onEditCustomer(c) : (onOpenMeasurements && onOpenMeasurements(c))} className="w-5 h-5 flex items-center justify-center p-1 rounded hover:bg-slate-700 text-xs transition cursor-pointer" title="تعديل بيانات العميل (الخطوة 1)">✏️</button>
+                    <button type="button" onClick={() => onEditCustomer && onEditCustomer(c)} className="w-5 h-5 flex items-center justify-center p-1 rounded hover:bg-slate-700 text-xs transition cursor-pointer" title="تعديل بيانات العميل (الخطوة 1)">✏️</button>
+                    <button type="button" onClick={() => onOpenMeasurements && onOpenMeasurements(c)} className="w-5 h-5 flex items-center justify-center p-1 rounded hover:bg-slate-700 text-xs transition cursor-pointer" title="فتح سجل المقاسات والتفصيل (الخطوة 2)">📏</button>
                     <button type="button" onClick={() => onOpenHistory && onOpenHistory(c)} className="w-5 h-5 flex items-center justify-center p-1 rounded hover:bg-slate-700 text-xs transition cursor-pointer" title="الحساب المالي والعربون (الخطوة 3)">💳</button>
                     <button type="button" onClick={() => onPrintUnified ? onPrintUnified(c) : (onPrintInvoice && onPrintInvoice(c))} className="w-5 h-5 flex items-center justify-center p-1 rounded hover:bg-slate-700 text-xs transition cursor-pointer" title="مركز الطباعة">🖨️</button>
                     <button 

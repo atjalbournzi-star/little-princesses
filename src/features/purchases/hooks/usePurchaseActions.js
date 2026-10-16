@@ -1,6 +1,6 @@
 const { useState, useCallback } = React;
 
-function usePurchaseActions({ headerData, setHeaderData, emptyHeader, billItems, setBillItems, emptyItem, setItemData, setEditingIndex, setSupplierSearch, fetchSuppliers, purchases, setPurchases, inventory, setInventory, accounts, setAccounts, vouchers, setVouchers, journal, setJournal, showToast, defaultCurrency, defaultPayType, todayStrIso, genBillNo, discountVal, grandTotal }) {
+function usePurchaseActions({ headerData, setHeaderData, emptyHeader, billItems, setBillItems, emptyItem, setItemData, setEditingIndex, setSupplierSearch, fetchSuppliers, purchases, setPurchases, inventory, setInventory, accounts, setAccounts, vouchers, setVouchers, journal, setJournal, showToast, defaultCurrency, defaultPayType, todayStrIso, genBillNo, discountVal, grandTotal, rawItemsSum: propRawItemsSum }) {
   const [isSaving, setIsSaving] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
 
@@ -16,14 +16,27 @@ function usePurchaseActions({ headerData, setHeaderData, emptyHeader, billItems,
 
     try {
       const targetWh = headerData.warehouse_id || 'WH-MAIN';
+      const fCost = parseFloat(headerData.freight_cost) || 0;
+      const tFees = parseFloat(headerData.transfer_fees) || 0;
+      const shippingFees = fCost + tFees;
+      const discountAmount = parseFloat(discountVal !== undefined ? discountVal : (headerData.discount || 0)) || 0;
+      const rawItemsSum = (typeof propRawItemsSum === 'number' && propRawItemsSum > 0) ? propRawItemsSum : (billItems || []).reduce((sum, item) => {
+        const qty = Number(item.quantity || item.qty || 0);
+        const price = Number(item.unit_price || item.price || item.cost || 0);
+        return sum + (qty * price);
+      }, 0);
+      const netTotal = Math.max(0, rawItemsSum - discountAmount + shippingFees);
+      const invoiceGrandTotal = (typeof grandTotal === 'number' && grandTotal > 0) ? grandTotal : netTotal;
+
       const payload = {
         bill_no: billNo, supplier_id: headerData.supplier_id || '', supplier: headerData.supplier,
-        supplier_phone: headerData.supplier_phone || '', created_by: 'admin', discount: discountVal,
+        supplier_phone: headerData.supplier_phone || '', created_by: 'admin', discount: discountAmount,
         notes: headerData.notes || '', pay_type: headerData.pay_type || defaultPayType,
         payment_source: headerData.payment_source || '', transfer_no: headerData.transfer_no || '',
         currency: headerData.currency || defaultCurrency, date: headerData.date || todayStrIso,
-        warehouse_id: targetWh, freight_cost: parseFloat(headerData.freight_cost) || 0,
-        transfer_fees: parseFloat(headerData.transfer_fees) || 0, receipt_url: headerData.receipt_url || '',
+        warehouse_id: targetWh, branch_id: targetWh, location: targetWh, freight_cost: fCost,
+        shipping_cost: fCost, transfer_fees: tFees, transfer_fee: tFees, original_amount: rawItemsSum,
+        grand_total: invoiceGrandTotal, net_amount: invoiceGrandTotal, receipt_url: headerData.receipt_url || '',
         invoice_image_url: headerData.invoice_image_url || '',
         items: billItems.map(itm => ({ item_name: itm.item, unit: itm.unit || 'متر', qty: parseFloat(itm.qty) || 0, cost: parseFloat(itm.price) || 0 }))
       };
@@ -39,14 +52,14 @@ function usePurchaseActions({ headerData, setHeaderData, emptyHeader, billItems,
         const newPur = {
           id: savedPur.id || `PUR-${Date.now()}`, bill_no: billNo, purchase_no: billNo,
           supplier_id: headerData.supplier_id || '', supplier: headerData.supplier, supplier_name: headerData.supplier,
-          supplier_phone: headerData.supplier_phone || '', discount: discountVal, notes: headerData.notes || '',
+          supplier_phone: headerData.supplier_phone || '', discount: discountAmount, notes: headerData.notes || '',
           warehouse_id: targetWh, item_name: billItems.map(i => i.item).join(' + '), unit: billItems[0].unit || 'متر',
           qty: billItems.reduce((acc, c) => acc + (parseFloat(c.qty) || 0), 0),
-          price: billItems.length === 1 ? (parseFloat(billItems[0].price) || 0) : Math.round((grandTotal / (billItems.reduce((acc, c) => acc + (parseFloat(c.qty) || 0), 0) || 1)) * 100) / 100,
-          total: grandTotal, grand_total_yer: grandTotal * purRate, currency: headerData.currency || defaultCurrency,
+          price: billItems.length === 1 ? (parseFloat(billItems[0].price) || 0) : Math.round((invoiceGrandTotal / (billItems.reduce((acc, c) => acc + (parseFloat(c.qty) || 0), 0) || 1)) * 100) / 100,
+          total: invoiceGrandTotal, grand_total_yer: invoiceGrandTotal * purRate, currency: headerData.currency || defaultCurrency,
           pay_type: headerData.pay_type || defaultPayType, payment_source: headerData.payment_source || '',
           date: headerData.date || todayStrIso, transfer_no: headerData.transfer_no || '',
-          freight_cost: parseFloat(headerData.freight_cost) || 0, transfer_fees: parseFloat(headerData.transfer_fees) || 0,
+          freight_cost: fCost, transfer_fees: tFees,
           receipt_url: headerData.receipt_url || '', invoice_image_url: headerData.invoice_image_url || '',
           payment_status: headerData.pay_type !== 'آجل' ? 'مدفوع' : 'غير مدفوع', status: 'تم الاستلام',
           items: billItems.map((itm, idx) => ({ id: `PITM-${Date.now()}-${idx}`, item_name: itm.item, unit: itm.unit || 'متر', qty: parseFloat(itm.qty) || 0, cost: parseFloat(itm.price) || 0, total: (parseFloat(itm.qty) || 0) * (parseFloat(itm.price) || 0), warehouse_id: targetWh }))
@@ -73,13 +86,13 @@ function usePurchaseActions({ headerData, setHeaderData, emptyHeader, billItems,
         });
       }
 
-      const purBaseObj = window.CurrencyService ? window.CurrencyService.toBase(grandTotal, purCurrCode, purRate) : { base_amount: grandTotal, exchange_rate: purRate };
+      const purBaseObj = window.CurrencyService ? window.CurrencyService.toBase(invoiceGrandTotal, purCurrCode, purRate) : { base_amount: invoiceGrandTotal, exchange_rate: purRate };
       if (setVouchers && headerData.pay_type !== 'آجل') {
-        setVouchers(prev => [{ id: `VOUCH-${Date.now()}`, voucher_no: `PV-${billNo}`, voucher_type: 'سند صرف', party_name: headerData.supplier, supplier_id: headerData.supplier, amount: grandTotal, currency: purCurrCode, exchange_rate: purRate, base_amount: purBaseObj.base_amount, pay_method: headerData.pay_type || defaultPayType, payment_source: headerData.payment_source || '1111 - الصندوق الرئيسي', transfer_no: headerData.transfer_no || '', image_path: headerData.receipt_url || '', receipt_url: headerData.receipt_url || '', date_created: headerData.date || todayStrIso, date: headerData.date || todayStrIso, statement: `سند صرف مشتريات للفاتورة ${billNo} - المورد: ${headerData.supplier}`, notes: `سند صرف مشتريات للفاتورة ${billNo}` }, ...(prev || [])]);
+        setVouchers(prev => [{ id: `VOUCH-${Date.now()}`, voucher_no: `PV-${billNo}`, voucher_type: 'سند صرف', party_name: headerData.supplier, supplier_id: headerData.supplier, amount: invoiceGrandTotal, currency: purCurrCode, exchange_rate: purRate, base_amount: purBaseObj.base_amount, pay_method: headerData.pay_type || defaultPayType, payment_source: headerData.payment_source || '1111 - الصندوق الرئيسي', transfer_no: headerData.transfer_no || '', image_path: headerData.receipt_url || '', receipt_url: headerData.receipt_url || '', date_created: headerData.date || todayStrIso, date: headerData.date || todayStrIso, statement: `سند صرف مشتريات للفاتورة ${billNo} - المورد: ${headerData.supplier}`, notes: `سند صرف مشتريات للفاتورة ${billNo}` }, ...(prev || [])]);
       }
 
       if (setJournal) {
-        setJournal(prev => [{ id: Date.now() + 2, transaction_id: `TX-PUR-${billNo}`, entry_no: `JV-PUR-${billNo}`, debit: 'ACC-105', credit: headerData.pay_type !== 'آجل' ? (headerData.payment_source ? headerData.payment_source.split(' - ')[0] : 'ACC-101-1') : 'ACC-201', amount: grandTotal, currency: purCurrCode, exchange_rate: purRate, base_amount: purBaseObj.base_amount, ref_type: 'PURCHASE', ref_id: billNo, date: headerData.date || todayStrIso, notes: `قيد مشتريات الفاتورة ${billNo} - المورد: ${headerData.supplier}` }, ...(prev || [])]);
+        setJournal(prev => [{ id: Date.now() + 2, transaction_id: `TX-PUR-${billNo}`, entry_no: `JV-PUR-${billNo}`, debit: 'ACC-105', credit: headerData.pay_type !== 'آجل' ? (headerData.payment_source ? headerData.payment_source.split(' - ')[0] : 'ACC-101-1') : 'ACC-201', amount: invoiceGrandTotal, currency: purCurrCode, exchange_rate: purRate, base_amount: purBaseObj.base_amount, ref_type: 'PURCHASE', ref_id: billNo, date: headerData.date || todayStrIso, notes: `قيد مشتريات الفاتورة ${billNo} - المورد: ${headerData.supplier}` }, ...(prev || [])]);
       }
 
       if (setAccounts) {
@@ -88,23 +101,21 @@ function usePurchaseActions({ headerData, setHeaderData, emptyHeader, billItems,
           const paySourceCode = headerData.payment_source ? headerData.payment_source.split(' - ')[0] : '101';
           if (headerData.pay_type !== 'آجل' && code === paySourceCode) {
             const curBal = parseFloat(acc.balance || acc.current_balance || 0);
-            return { ...acc, balance: curBal - grandTotal, current_balance: curBal - grandTotal };
+            return { ...acc, balance: curBal - invoiceGrandTotal, current_balance: curBal - invoiceGrandTotal };
           }
           if (headerData.pay_type === 'آجل' && (code === '201' || code === '2101' || code === 'ACC-201')) {
             const curBal = parseFloat(acc.balance || acc.current_balance || 0);
-            return { ...acc, balance: curBal + grandTotal, current_balance: curBal + grandTotal };
+            return { ...acc, balance: curBal + invoiceGrandTotal, current_balance: curBal + invoiceGrandTotal };
           }
           return acc;
         }));
       }
 
       try {
-        const freshListRes = await fetch('/api/purchases');
-        const freshListData = await freshListRes.json();
-        if (freshListData && Array.isArray(freshListData.data) && typeof setPurchases === 'function') setPurchases(freshListData.data);
-        const freshInvRes = await fetch('/api/inventory');
-        const freshInvData = await freshInvRes.json();
-        if (freshInvData && Array.isArray(freshInvData.data) && typeof setInventory === 'function') setInventory(freshInvData.data);
+        const [flRes, fiRes] = await Promise.all([fetch('/api/purchases'), fetch('/api/inventory')]);
+        const [flData, fiData] = await Promise.all([flRes.json(), fiRes.json()]);
+        if (flData && Array.isArray(flData.data) && typeof setPurchases === 'function') setPurchases(flData.data);
+        if (fiData && Array.isArray(fiData.data) && typeof setInventory === 'function') setInventory(fiData.data);
       } catch (e) { console.warn('Refresh error:', e); }
 
       showToast(`✅ تم حفظ الفاتورة ${billNo} وتوريد الأصناف للمخزون وترحيل القيود وسندات الصرف بنجاح 📦✨`);
@@ -114,7 +125,7 @@ function usePurchaseActions({ headerData, setHeaderData, emptyHeader, billItems,
       fetchSuppliers();
     } catch(err) {
       console.error(err);
-      showToast('خطأ أثناء الحفظ ⚠️ يرجى المحاولة مرة أخرى', 'error');
+      showToast('خطأ أثناء الحفظ ⚠️ ' + (err.message || 'يرجى المحاولة مرة أخرى'), 'error');
     } finally {
       setIsSaving(false);
     }

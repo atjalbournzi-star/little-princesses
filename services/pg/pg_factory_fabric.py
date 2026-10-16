@@ -30,6 +30,19 @@ def deduct_fabric(cur, fabric_id, fabric_name, cut_qty, cut_unit, order_label, c
     if not inv_row:
         return ""
 
+    # حماية منع تكرار الخصم لنفس أمر التشغيل (Idempotency Guard)
+    if order_label:
+        cur.execute("""
+            SELECT id FROM inventory_transactions
+            WHERE reference_type = 'production_orders'
+              AND reference_id = %s
+              AND inventory_id = %s
+              AND transaction_type = 'PRODUCTION_CONSUMPTION'
+            LIMIT 1;
+        """, (order_label, inv_row['id']))
+        if cur.fetchone():
+            return f"تم اقتطاع قماش ({inv_row['name']}) مسبقاً لهذا الطلب"
+
     old_q = float(inv_row['quantity'] or 0.0)
     u_cost = float(inv_row['unit_cost'] or 0.0)
     stock_unit = clean_str(inv_row.get('unit') or 'وار')

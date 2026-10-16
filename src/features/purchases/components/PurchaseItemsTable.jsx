@@ -7,13 +7,15 @@ function PurchaseItemsTable({
   billItems,
   setBillItems,
   headerData,
+  setHeaderData,
+  rawItemsSum,
   grandTotal,
   isSaving,
   handleSaveFullBill,
   showToast,
   UNITS = ['متر', 'وار (ياردة)', 'سم', 'حبة (قطعة)', 'رول (طاقة)'],
-  inputCls = "w-full h-11 px-3.5 py-2.5 rounded-xl border border-[#E8E5EA] bg-white text-[#25232A] text-xs font-medium placeholder:text-[#6F6B75] focus:bg-white focus:border-[#8F2A87] focus:ring-2 focus:ring-[#F2E7F3] transition-all outline-none",
-  labelCls = "block text-xs font-semibold text-[#25232A] mb-1.5"
+  inputCls = "w-full h-11 px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 text-slate-900 dark:text-white text-xs font-medium placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-fuchsia-600 focus:ring-2 focus:ring-fuchsia-100 dark:focus:ring-fuchsia-950/40 transition outline-none",
+  labelCls = "block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5"
 }) {
   const handleQtyChange = (val) => {
     const q = parseFloat(val) || 0, p = parseFloat(itemData.price) || 0;
@@ -52,61 +54,69 @@ function PurchaseItemsTable({
     setItemData(emptyItem());
   };
 
+  const currentSubtotal = rawItemsSum || billItems.reduce((acc, it) => acc + (parseFloat(it.total) || 0), 0);
+
   return (
     <div className="space-y-4">
       {/* نموذج الصنف */}
-      <form onSubmit={handleAddOrUpdateItem} className="p-5 bg-[#FAFAFB] border border-[#E8E5EA] rounded-2xl space-y-3.5">
-        <div className="flex justify-between items-center border-b border-[#E8E5EA] pb-2">
-          <span className="font-bold text-[#25232A]">{editingIndex !== null ? '✏️ تعديل بيانات الصنف' : '➕ إضافة صنف جديد للفاتورة'}</span>
+      <form onSubmit={handleAddOrUpdateItem} className="p-4 bg-slate-50/80 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-2xl space-y-3">
+        <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-2">
+          <span className="font-bold text-xs text-slate-800 dark:text-slate-200">
+            {editingIndex !== null ? 'تعديل بيانات الصنف' : 'إضافة صنف للفاتورة'}
+          </span>
           {editingIndex !== null && (
-            <button type="button" onClick={() => { setEditingIndex(null); setItemData(emptyItem()); }} className="text-[#D64545] font-bold underline cursor-pointer">
-              إلغاء
+            <button type="button" onClick={() => { setEditingIndex(null); setItemData(emptyItem()); }} className="text-xs text-rose-600 hover:text-rose-700 dark:text-rose-400 font-semibold underline cursor-pointer">
+              إلغاء التعديل
             </button>
           )}
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-6 gap-3 items-end">
-          <div className="col-span-2 sm:col-span-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-12 gap-2.5 items-end">
+          <div className="col-span-2 sm:col-span-3 lg:col-span-3">
             <label className={labelCls}>اسم الصنف / القماش *</label>
             <input type="text" required className={inputCls} placeholder="" value={itemData.item} onChange={e => setItemData(p => ({ ...p, item: e.target.value }))} />
           </div>
-          <div>
+          <div className="col-span-1 sm:col-span-1 lg:col-span-2">
             <label className={labelCls}>وحدة القياس</label>
             <select className={inputCls} value={itemData.unit} onChange={e => setItemData(p => ({ ...p, unit: e.target.value }))}>
               {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
             </select>
           </div>
-          <div>
+          <div className="col-span-1 sm:col-span-1 lg:col-span-1">
             <label className={labelCls}>الكمية</label>
             <input type="number" step="0.01" min="0" className={inputCls + " text-center font-mono font-bold"} placeholder="" value={itemData.qty} onChange={e => handleQtyChange(e.target.value)} />
           </div>
-          <div>
+          <div className="col-span-1 sm:col-span-1 lg:col-span-2">
             <label className={labelCls}>السعر الإفرادي</label>
-            <input type="number" step="0.01" min="0" className={inputCls + " text-center font-mono font-bold text-[#8F2A87]"} placeholder="" value={itemData.price} onChange={e => handlePriceChange(e.target.value)} />
+            <input type="number" step="0.01" min="0" className={inputCls + " text-center font-mono font-bold text-fuchsia-700 dark:text-fuchsia-400"} placeholder="" value={itemData.price} onChange={e => handlePriceChange(e.target.value)} />
           </div>
-          <div>
+          <div className="col-span-1 sm:col-span-1 lg:col-span-2">
             <label className={labelCls}>الإجمالي</label>
-            <input type="number" step="0.01" min="0" className={inputCls + " text-center font-mono font-bold text-[#007F8C] bg-[#E2F5F7]"} placeholder="" value={itemData.total} onChange={e => handleTotalChange(e.target.value)} />
+            <input type="number" step="0.01" min="0" className={inputCls + " text-center font-mono font-bold text-teal-700 dark:text-teal-400 bg-teal-50/50 dark:bg-teal-950/20"} placeholder="" value={itemData.total} onChange={e => handleTotalChange(e.target.value)} />
+          </div>
+          <div className="col-span-2 sm:col-span-1 lg:col-span-2">
+            <button
+              type="submit"
+              className={`w-full h-11 px-3 font-bold text-xs rounded-xl transition shadow-xs flex items-center justify-center cursor-pointer ${editingIndex !== null ? 'bg-amber-600 hover:bg-amber-700 text-white' : 'bg-fuchsia-700 hover:bg-fuchsia-800 text-white'}`}
+            >
+              {editingIndex !== null ? 'تحديث الصنف' : 'إضافة الصنف'}
+            </button>
           </div>
         </div>
-        <button
-          type="submit"
-          className={`w-full py-3 font-bold text-xs rounded-xl transition shadow-xs cursor-pointer ${editingIndex !== null ? 'bg-[#F28A00] hover:bg-[#D97706] text-white' : 'bg-[#8F2A87] hover:bg-[#73216C] text-white'}`}
-        >
-          {editingIndex !== null ? '💾 تحديث الصنف' : '➕ إضافة الصنف إلى الفاتورة'}
-        </button>
       </form>
 
-      {/* مسودة الأصناف وزر الحفظ النهائي */}
+      {/* مسودة الأصناف وبطاقة التسويات والملخص المالي */}
       {billItems.length > 0 && (
-        <div className="space-y-3">
+        <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <span className="font-bold text-[#25232A]">📋 أصناف الفاتورة الحالية ({billItems.length} صنف)</span>
-            <span className="font-bold text-[#8F2A87] font-mono">إجمالي الفاتورة: {grandTotal.toLocaleString('en-US')} {headerData.currency}</span>
+            <span className="font-bold text-xs text-slate-800 dark:text-slate-200">أصناف الفاتورة الحالية ({billItems.length} صنف)</span>
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+              مجموع الأصناف: <strong className="font-mono text-slate-800 dark:text-slate-200">{currentSubtotal.toLocaleString('en-US')}</strong> {headerData.currency}
+            </span>
           </div>
-          <div className="overflow-x-auto rounded-xl border border-[#E8E5EA]">
+          <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
             <table className="w-full text-right text-xs">
               <thead>
-                <tr className="bg-[#FAFAFB] text-[#6F6B75] font-semibold border-b border-[#E8E5EA]">
+                <tr className="bg-slate-50 dark:bg-slate-900/60 text-slate-600 dark:text-slate-400 font-semibold border-b border-slate-200 dark:border-slate-800">
                   <th className="p-3">#</th>
                   <th className="p-3">الصنف</th>
                   <th className="p-3 text-center">الوحدة</th>
@@ -116,31 +126,65 @@ function PurchaseItemsTable({
                   <th className="p-3 text-center">إجراءات</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#E8E5EA] bg-white">
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
                 {billItems.map((bi, idx) => (
-                  <tr key={idx} className={editingIndex === idx ? 'bg-[#FFF1DC]' : 'hover:bg-[#FAFAFB]'}>
-                    <td className="p-3 text-[#6F6B75]">{idx + 1}</td>
-                    <td className="p-3 font-bold text-[#25232A]">{bi.item}</td>
-                    <td className="p-3 text-center"><span className="bg-[#F2E7F3] text-[#8F2A87] px-2 py-0.5 rounded-md text-[10.5px] font-semibold">{bi.unit}</span></td>
-                    <td className="p-3 text-center font-bold font-mono">{bi.qty}</td>
-                    <td className="p-3 text-center text-[#8F2A87] font-bold font-mono">{bi.price} {headerData.currency}</td>
-                    <td className="p-3 text-center font-bold font-mono text-[#007F8C]">{parseFloat(bi.total).toLocaleString('en-US')} {headerData.currency}</td>
+                  <tr key={idx} className={editingIndex === idx ? 'bg-amber-50/60 dark:bg-amber-950/20' : 'hover:bg-slate-50/60 dark:hover:bg-slate-800/40'}>
+                    <td className="p-3 text-slate-400">{idx + 1}</td>
+                    <td className="p-3 font-bold text-slate-800 dark:text-slate-200">{bi.item}</td>
+                    <td className="p-3 text-center"><span className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2 py-0.5 rounded-md text-[10.5px] font-semibold">{bi.unit}</span></td>
+                    <td className="p-3 text-center font-bold font-mono text-slate-800 dark:text-slate-200">{bi.qty}</td>
+                    <td className="p-3 text-center text-fuchsia-700 dark:text-fuchsia-400 font-bold font-mono">{bi.price} {headerData.currency}</td>
+                    <td className="p-3 text-center font-bold font-mono text-teal-700 dark:text-teal-400">{parseFloat(bi.total).toLocaleString('en-US')} {headerData.currency}</td>
                     <td className="p-3 text-center space-x-1 space-x-reverse">
-                      <button type="button" onClick={() => { setItemData({ item: bi.item, unit: bi.unit || 'متر', qty: String(bi.qty), price: String(bi.price), total: String(bi.total) }); setEditingIndex(idx); }} className="w-7 h-7 bg-[#FAFAFB] hover:bg-[#E8E5EA] text-[#25232A] rounded-lg font-bold border border-[#E8E5EA] cursor-pointer">✏️</button>
-                      <button type="button" onClick={() => { setBillItems(prev => prev.filter((_, i) => i !== idx)); if (editingIndex === idx) { setEditingIndex(null); setItemData(emptyItem()); } }} className="w-7 h-7 bg-rose-50 hover:bg-rose-100 text-[#D64545] rounded-lg font-bold border border-rose-200 cursor-pointer">🗑️</button>
+                      <button type="button" onClick={() => { setItemData({ item: bi.item, unit: bi.unit || 'متر', qty: String(bi.qty), price: String(bi.price), total: String(bi.total) }); setEditingIndex(idx); }} className="w-7 h-7 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-bold transition cursor-pointer" title="تعديل">✏️</button>
+                      <button type="button" onClick={() => { setBillItems(prev => prev.filter((_, i) => i !== idx)); if (editingIndex === idx) { setEditingIndex(null); setItemData(emptyItem()); } }} className="w-7 h-7 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-400 rounded-lg text-xs font-bold transition cursor-pointer" title="حذف">🗑️</button>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+
+          {/* بطاقة ملخص الإجماليات والتسويات المالية */}
+          <div className="p-4 bg-slate-50/80 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-2xl space-y-3">
+            <div className="text-xs font-bold text-slate-700 dark:text-slate-300">التسويات المالية للفاتورة</div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className={labelCls}>الخصم التجاري ({headerData.currency})</label>
+                <input type="number" step="0.01" min="0" className={inputCls} placeholder="" value={headerData.discount || ''} onChange={e => setHeaderData && setHeaderData(p => ({ ...p, discount: e.target.value }))} />
+              </div>
+              <div>
+                <label className={labelCls}>تكلفة الشحن والنقل ({headerData.currency})</label>
+                <input type="number" step="0.01" min="0" className={inputCls} placeholder="" value={headerData.freight_cost || ''} onChange={e => setHeaderData && setHeaderData(p => ({ ...p, freight_cost: e.target.value }))} />
+              </div>
+              <div>
+                <label className={labelCls}>رسوم التحويل ({headerData.currency})</label>
+                <input type="number" step="0.01" min="0" className={inputCls} placeholder="" value={headerData.transfer_fees || ''} onChange={e => setHeaderData && setHeaderData(p => ({ ...p, transfer_fees: e.target.value }))} />
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-200 dark:border-slate-800 text-xs">
+              <div className="flex flex-wrap items-center gap-4 text-slate-600 dark:text-slate-400">
+                <span>المجموع: <strong className="font-mono text-slate-800 dark:text-slate-200">{currentSubtotal.toLocaleString('en-US')}</strong> {headerData.currency}</span>
+                <span>الخصم: <strong className="font-mono text-amber-600 dark:text-amber-400">{(parseFloat(headerData.discount) || 0).toLocaleString('en-US')}</strong> {headerData.currency}</span>
+                <span>تكاليف إضافية: <strong className="font-mono text-slate-800 dark:text-slate-200">{((parseFloat(headerData.freight_cost) || 0) + (parseFloat(headerData.transfer_fees) || 0)).toLocaleString('en-US')}</strong> {headerData.currency}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-slate-700 dark:text-slate-300">الصافي الإجمالي:</span>
+                <span className="text-base font-extrabold font-mono text-fuchsia-700 dark:text-fuchsia-400">
+                  {grandTotal.toLocaleString('en-US')} {headerData.currency}
+                </span>
+              </div>
+            </div>
+          </div>
+
           <button
             type="button"
             onClick={handleSaveFullBill}
             disabled={isSaving}
-            className={`w-full py-3.5 ${isSaving ? 'bg-gray-400 cursor-not-allowed' : 'bg-[#009FAE] hover:bg-[#007F8C] cursor-pointer'} text-white font-bold text-xs rounded-xl shadow-xs transition`}
+            className={`w-full py-3.5 ${isSaving ? 'bg-slate-400 cursor-not-allowed' : 'bg-teal-700 hover:bg-teal-800 cursor-pointer'} text-white font-bold text-xs rounded-xl shadow-xs transition`}
           >
-            {isSaving ? '⏳ جاري حفظ الفاتورة وتوريد الأصناف للمخزون...' : `☁️ حفظ الفاتورة وتوريد الأصناف للمخزون (${billItems.length} أصناف) — الإجمالي: ${grandTotal.toLocaleString('en-US')} ${headerData.currency}`}
+            {isSaving ? 'جاري حفظ الفاتورة وتوريد الأصناف للمخزون...' : `حفظ الفاتورة وتوريد الأصناف (${billItems.length} صنف) — الإجمالي: ${grandTotal.toLocaleString('en-US')} ${headerData.currency}`}
           </button>
         </div>
       )}

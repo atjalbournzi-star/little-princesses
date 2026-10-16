@@ -1,94 +1,152 @@
 /**
  * ExpensesHeader.jsx
- * بطاقات المؤشرات المالية العليا وإجراءات المصاريف
+ * شريط الإجراءات المدمج والمؤشرات المالية للمصروفات التشغيلية
  * Little Princesses ERP - Architectural Standards Compliant
  */
 
-function ExpensesHeader({ stats = {}, currencyDisplay = "YER ﷼", isSyncing = false, onRefresh, onOpenAddModal }) {
+function ExpensesHeader({
+  stats = {},
+  filteredCount = 0,
+  currencyDisplay = "YER ﷼",
+  isSyncing = false,
+  onRefresh,
+  onExportExcel,
+  onPrint,
+  onOpenAddModal
+}) {
   const RefreshIcon = (window.Icons && window.Icons.Refresh) || (() => <span>🔄</span>);
   const PlusIcon = (window.Icons && window.Icons.Plus) || (() => <span>+</span>);
 
+  const totalAmt = stats.total || 0;
+  const todayAmt = stats.todayTotal || 0;
+  const monthAmt = stats.monthTotal || 0;
+  const totalCount = filteredCount || stats.count || 0;
+
   return (
-    <div className="space-y-4">
-      {/* Top Action Bar */}
-      <div className="bg-white rounded-2xl border border-[#E8E5EA] p-4 shadow-[0_2px_12px_rgba(0,0,0,0.02)] flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-xl bg-[#FFF1DC] text-[#C97300] flex items-center justify-center text-lg font-bold border border-[#FFE4B9]">
-            💸
-          </div>
-          <div>
-            <h2 className="text-base font-bold text-[#25232A]">إدارة المصاريف التشغيلية</h2>
-            <p className="text-xs text-[#6F6B75] font-normal">تسجيل ومتابعة مصروفات الإيجار والكهرباء والتشغيل مع ترحيل السندات والقيود</p>
-          </div>
+    <div className="space-y-1.5 select-none" dir="rtl">
+      {/* 1. Ultra-Compact Single-Row Action Header */}
+      <div className="h-8 mb-1.5 shrink-0 flex items-center justify-between gap-2 px-1">
+        {/* Right: Main Title with Count Pill */}
+        <div className="text-xs font-bold text-white flex items-center gap-1.5 shrink-0">
+          <span className="text-xs">💸</span>
+          <span>المصروفات التشغيلية</span>
+          <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded-full bg-[#111C38] text-amber-400 border border-slate-700">
+            {totalCount} بند
+          </span>
         </div>
 
-        <div className="flex items-center gap-2.5 w-full sm:w-auto">
+        {/* Left: Actions Group */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {/* Refresh Action */}
           <button
             type="button"
             onClick={onRefresh}
             disabled={isSyncing}
-            className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-[#FAFAFB] hover:bg-[#F2F1F4] border border-[#E8E5EA] text-xs font-bold text-[#25232A] cursor-pointer transition"
-            title="تحديث البيانات من السيرفر وقوقل شيتس"
+            className="h-6.5 px-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-md text-[11px] flex items-center gap-1 border border-slate-700 transition cursor-pointer"
+            title="تحديث سجل المصروفات"
           >
-            <RefreshIcon className={`w-3.5 h-3.5 text-[#6F6B75] ${isSyncing ? 'animate-spin' : ''}`} />
-            <span>{isSyncing ? 'جاري التحديث...' : 'تحديث السجل 🔄'}</span>
+            <RefreshIcon className={`w-3 h-3 ${isSyncing ? "animate-spin" : ""}`} />
+            <span className="hidden sm:inline">{isSyncing ? "جاري التحديث..." : "تحديث السجل"}</span>
           </button>
 
+          {/* Export to Excel Action */}
+          {onExportExcel && (
+            <button
+              type="button"
+              onClick={onExportExcel}
+              className="h-6.5 px-2 bg-slate-800 hover:bg-slate-700 text-emerald-400 hover:text-emerald-300 rounded-md text-[11px] flex items-center gap-1 border border-slate-700 transition cursor-pointer"
+              title="تصدير السجل المفلتر إلى ملف Excel (.xlsx)"
+            >
+              <span>📊</span>
+              <span>تصدير Excel</span>
+            </button>
+          )}
+
+          {/* Print Action */}
+          {onPrint && (
+            <button
+              type="button"
+              onClick={onPrint}
+              className="h-6.5 px-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-md text-[11px] flex items-center gap-1 border border-slate-700 transition cursor-pointer"
+              title="طباعة كشف المصروفات الحالي"
+            >
+              <span>🖨️</span>
+              <span>طباعة الكشف</span>
+            </button>
+          )}
+
+          {/* Primary New Expense Action */}
           <button
             type="button"
             onClick={onOpenAddModal}
-            className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl font-bold text-xs text-white bg-[#F28A00] hover:bg-[#D97706] transition shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+            className="h-6.5 px-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-md text-[11px] font-bold shadow-xs flex items-center gap-1 transition cursor-pointer"
           >
-            <PlusIcon className="w-4 h-4" />
-            <span>تسجيل مصروف جديد 💸</span>
+            <PlusIcon className="w-3 h-3" />
+            <span>تسجيل مصروف جديد</span>
           </button>
         </div>
       </div>
 
-      {/* Financial KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-2xl border border-[#E8E5EA] p-4.5 shadow-[0_2px_12px_rgba(0,0,0,0.02)] transition hover:shadow-md">
-          <div className="flex items-center justify-between text-[#6F6B75] text-xs font-semibold mb-2">
-            <span>إجمالي المصروفات التراكمية</span>
-            <span className="p-1.5 rounded-lg bg-rose-50 text-rose-600">📊</span>
+      {/* 2. Ultra-Compact Financial KPI Cards Strip (h-12 py-1 px-2.5) */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <div className="h-12 py-1 px-2.5 bg-[#111C38] rounded-lg border border-slate-800 shadow-xs flex flex-col justify-between">
+          <div className="text-[10px] text-slate-400 font-medium flex items-center justify-between leading-none">
+            <span>إجمالي المصروفات</span>
+            <span className="text-[10px]">📊</span>
           </div>
-          <div className="text-xl font-bold font-mono text-[#D64545] tabular-nums">
-            {(stats.total || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          <div className="flex items-center justify-between gap-1">
+            <span className="text-xs font-mono font-bold text-white tabular-nums">
+              {totalAmt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+            <span className="text-[9px] px-1 py-0.2 rounded bg-slate-800/80 text-amber-400 border border-slate-700/60 font-mono">
+              {currencyDisplay}
+            </span>
           </div>
-          <div className="text-[11px] text-[#6F6B75] mt-1 font-medium">{currencyDisplay}</div>
         </div>
 
-        <div className="bg-white rounded-2xl border border-[#E8E5EA] p-4.5 shadow-[0_2px_12px_rgba(0,0,0,0.02)] transition hover:shadow-md">
-          <div className="flex items-center justify-between text-[#6F6B75] text-xs font-semibold mb-2">
+        <div className="h-12 py-1 px-2.5 bg-[#111C38] rounded-lg border border-slate-800 shadow-xs flex flex-col justify-between">
+          <div className="text-[10px] text-slate-400 font-medium flex items-center justify-between leading-none">
             <span>مصروفات اليوم</span>
-            <span className="p-1.5 rounded-lg bg-amber-50 text-amber-600">📅</span>
+            <span className="text-[10px]">📅</span>
           </div>
-          <div className="text-xl font-bold font-mono text-[#C97300] tabular-nums">
-            {(stats.todayTotal || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          <div className="flex items-center justify-between gap-1">
+            <span className="text-xs font-mono font-bold text-white tabular-nums">
+              {todayAmt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+            <span className="text-[9px] px-1 py-0.2 rounded bg-slate-800/80 text-amber-400 border border-slate-700/60 font-mono">
+              {currencyDisplay}
+            </span>
           </div>
-          <div className="text-[11px] text-[#6F6B75] mt-1 font-medium">{currencyDisplay}</div>
         </div>
 
-        <div className="bg-white rounded-2xl border border-[#E8E5EA] p-4.5 shadow-[0_2px_12px_rgba(0,0,0,0.02)] transition hover:shadow-md">
-          <div className="flex items-center justify-between text-[#6F6B75] text-xs font-semibold mb-2">
-            <span>مصروفات الشهر الجاري</span>
-            <span className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600">📆</span>
+        <div className="h-12 py-1 px-2.5 bg-[#111C38] rounded-lg border border-slate-800 shadow-xs flex flex-col justify-between">
+          <div className="text-[10px] text-slate-400 font-medium flex items-center justify-between leading-none">
+            <span>مصروفات الشهر</span>
+            <span className="text-[10px]">📆</span>
           </div>
-          <div className="text-xl font-bold font-mono text-indigo-700 tabular-nums">
-            {(stats.monthTotal || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          <div className="flex items-center justify-between gap-1">
+            <span className="text-xs font-mono font-bold text-white tabular-nums">
+              {monthAmt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+            <span className="text-[9px] px-1 py-0.2 rounded bg-slate-800/80 text-amber-400 border border-slate-700/60 font-mono">
+              {currencyDisplay}
+            </span>
           </div>
-          <div className="text-[11px] text-[#6F6B75] mt-1 font-medium">{currencyDisplay}</div>
         </div>
 
-        <div className="bg-white rounded-2xl border border-[#E8E5EA] p-4.5 shadow-[0_2px_12px_rgba(0,0,0,0.02)] transition hover:shadow-md">
-          <div className="flex items-center justify-between text-[#6F6B75] text-xs font-semibold mb-2">
-            <span>إجمالي البنود المسجلة</span>
-            <span className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600">📑</span>
+        <div className="h-12 py-1 px-2.5 bg-[#111C38] rounded-lg border border-slate-800 shadow-xs flex flex-col justify-between">
+          <div className="text-[10px] text-slate-400 font-medium flex items-center justify-between leading-none">
+            <span>إجمالي البنود</span>
+            <span className="text-[10px]">📑</span>
           </div>
-          <div className="text-xl font-bold font-mono text-[#25232A] tabular-nums">
-            {stats.count || 0}
+          <div className="flex items-center justify-between gap-1">
+            <span className="text-xs font-mono font-bold text-white tabular-nums">
+              {totalCount}
+            </span>
+            <span className="text-[9px] px-1 py-0.2 rounded bg-slate-800/80 text-slate-300 border border-slate-700/60 font-sans">
+              سند وبند
+            </span>
           </div>
-          <div className="text-[11px] text-[#6F6B75] mt-1 font-medium">سند وبند مصروف</div>
         </div>
       </div>
     </div>

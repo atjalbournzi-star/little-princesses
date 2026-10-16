@@ -90,20 +90,10 @@ function CustomerModal({
 
   const footerRightButtons = (
     <div className="flex items-center gap-2">
-      <button type="button" onClick={onClose} className="h-7 px-3 text-xs text-slate-400 hover:text-white rounded-lg border border-slate-700 hover:bg-slate-800 transition-colors cursor-pointer">
-        إلغاء
-      </button>
+      <button type="button" onClick={onClose} className="h-7 px-3 text-xs text-slate-400 hover:text-white rounded-lg border border-slate-700 hover:bg-slate-800 transition-colors cursor-pointer">إلغاء</button>
       {customer && onDeleteCustomer && (
-        <button 
-          type="button" 
-          onClick={() => onDeleteCustomer(customer)} 
-          className="h-7 px-2.5 text-[11px] font-bold text-red-400 hover:text-white hover:bg-red-600/80 border border-red-500/40 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
-          title="حذف العميل"
-        >
-          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2">
-            <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" />
-          </svg>
-          <span>حذف العميل</span>
+        <button type="button" onClick={() => onDeleteCustomer(customer)} className="h-7 px-2.5 text-[11px] font-bold text-red-400 hover:text-white hover:bg-red-600/80 border border-red-500/40 rounded-lg transition-colors flex items-center gap-1 cursor-pointer" title="حذف العميل">
+          <span>🗑️ حذف العميل</span>
         </button>
       )}
     </div>

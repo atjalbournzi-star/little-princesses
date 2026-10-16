@@ -5,7 +5,6 @@ const { useState, useRef } = React;
 
 function ProductImageUploader({ imageUrl = "", setImageUrl }) {
   const [isDragging, setIsDragging] = useState(false);
-  const [showUrlInput, setShowUrlInput] = useState(false);
   const fileInputRef = useRef(null);
 
   const processFile = (file) => {
@@ -45,31 +44,7 @@ function ProductImageUploader({ imageUrl = "", setImageUrl }) {
   };
 
   return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <label className="block text-xs font-semibold text-[#25232A] dark:text-slate-300">
-          صورة الموديل / الفستان:
-        </label>
-        <button
-          type="button"
-          onClick={() => setShowUrlInput(!showUrlInput)}
-          className="text-[11px] text-[#8F2A87] dark:text-purple-400 hover:underline cursor-pointer"
-        >
-          {showUrlInput ? "إخفاء رابط الصورة ✕" : "أو إدخال رابط مباشر 🔗"}
-        </button>
-      </div>
-
-      {showUrlInput && (
-        <input
-          type="url"
-          value={imageUrl}
-          onChange={(e) => setImageUrl(e.target.value)}
-          placeholder="https://example.com/dress.jpg"
-          className="w-full h-9 px-3 rounded-xl border border-[#E8E5EA] dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-[#25232A] dark:text-slate-100 outline-none focus:border-[#8F2A87]"
-        />
-      )}
-
-      {/* منطقة السحب والإفلات أو المعاينة المصغرة */}
+    <div className="w-full">
       <input
         ref={fileInputRef}
         type="file"
@@ -79,34 +54,34 @@ function ProductImageUploader({ imageUrl = "", setImageUrl }) {
       />
 
       {imageUrl ? (
-        <div className="flex items-center gap-3 p-3 bg-white dark:bg-slate-900 rounded-xl border border-[#E8E5EA] dark:border-slate-700 shadow-2xs">
-          <div className="w-16 h-16 rounded-xl border border-[#E5CEE7] dark:border-purple-800/40 overflow-hidden bg-slate-100 dark:bg-slate-800 shrink-0 shadow-xs">
+        <div className="h-14 p-1.5 bg-slate-900/90 rounded-lg border border-slate-700 flex items-center justify-between gap-2 shadow-xs">
+          <div className="h-11 w-11 rounded border border-slate-700/80 bg-slate-950 flex items-center justify-center overflow-hidden shrink-0">
             <img
               src={imageUrl}
               alt="معاينة الموديل"
-              className="w-full h-full object-cover"
+              className="h-full w-full object-contain object-center"
             />
           </div>
           <div className="flex-1 min-w-0">
-            <span className="text-xs font-bold text-[#25232A] dark:text-slate-100 block">
-              ✅ تم تجهيز صورة الفستان
+            <span className="text-xs font-bold text-white block truncate">
+              تم تحميل صورة الموديل بنجاح ✅
             </span>
-            <span className="text-[10.5px] text-[#6F6B75] dark:text-slate-400 block truncate">
-              جاهزة للعرض في الكتالوج والتكت
+            <span className="text-[9.5px] text-slate-400 block truncate">
+              جاهزة للعرض الكامل في الكتالوج والتكت
             </span>
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-[#F2E7F3] dark:hover:bg-purple-950/40 text-xs font-bold text-[#8F2A87] dark:text-purple-300 transition cursor-pointer"
+              className="h-6 px-2 rounded bg-slate-800 hover:bg-slate-700 text-[10px] font-bold text-slate-200 transition cursor-pointer"
             >
               🔄 تغيير
             </button>
             <button
               type="button"
               onClick={() => setImageUrl("")}
-              className="px-2.5 py-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 text-xs font-bold text-rose-600 dark:text-rose-400 transition cursor-pointer"
+              className="h-6 px-1.5 rounded bg-rose-950/40 hover:bg-rose-900/60 text-[10px] font-bold text-rose-300 transition cursor-pointer"
             >
               🗑️ حذف
             </button>
@@ -118,18 +93,15 @@ function ProductImageUploader({ imageUrl = "", setImageUrl }) {
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onClick={() => fileInputRef.current?.click()}
-          className={`p-4 border-2 border-dashed rounded-xl transition text-center cursor-pointer flex flex-col items-center justify-center gap-1.5 ${
+          className={`h-14 w-full border border-dashed rounded-lg flex items-center justify-center gap-2 transition cursor-pointer select-none ${
             isDragging
-              ? "border-[#8F2A87] bg-[#F2E7F3]/50 dark:bg-purple-950/30"
-              : "border-[#E8E5EA] dark:border-slate-700 bg-[#FAFAFB] dark:bg-slate-900/60 hover:border-[#8F2A87] dark:hover:border-purple-600"
+              ? "border-pink-500 bg-pink-950/20 text-white"
+              : "border-slate-700 bg-slate-900/50 hover:border-pink-500 text-slate-300"
           }`}
         >
-          <span className="text-2xl">📸</span>
-          <div className="text-xs font-bold text-[#25232A] dark:text-slate-200">
-            اسحبي صورة الفستان هنا أو <span className="text-[#8F2A87] dark:text-purple-400 underline">تصفحي جهازك</span>
-          </div>
-          <span className="text-[10.5px] text-[#6F6B75] dark:text-slate-400">
-            يدعم صور JPG, PNG, WEBP (معاينة فورية قبل الحفظ)
+          <span className="text-sm">📸</span>
+          <span className="text-xs text-slate-300">
+            اسحب صورة الفستان أو <span className="text-pink-400 underline font-bold">تصفح</span>
           </span>
         </div>
       )}

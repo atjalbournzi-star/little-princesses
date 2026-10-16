@@ -2,7 +2,7 @@
 
 function ReportsAuditFooter({ brandProfile }) {
   return (
-    <div className="mt-8 pt-6 border-t-2 border-dashed border-[#E8E5EA]">
+    <div className="hidden print:block mt-8 pt-6 border-t-2 border-dashed border-[#E8E5EA]">
       <div className="bg-white rounded-2xl border border-[#E8E5EA] p-6 shadow-2xs">
         <div className="text-center mb-6">
           <h4 className="text-xs font-bold text-[#25232A]">صندوق الاعتماد والتدقيق المالي الرسمي 🏛️</h4>

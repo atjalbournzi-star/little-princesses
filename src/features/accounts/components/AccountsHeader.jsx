@@ -1,125 +1,152 @@
-// AccountsHeader.jsx - رأس صفحة دليل الحسابات: بطاقات المؤشرات وأزرار العمليات الرئيسية
-// يعتمد على: cleanCode (accountHelpers.js)
+// AccountsHeader.jsx - شريط الأدوات الموحد والمدمج لدليل وشجرة الحسابات (Unified Compact Toolbar)
+// Dark Theme Ready | Architectural Standard Compliant (< 220 lines)
 
 function AccountsHeader({
-  accountsWithRollupBalances,
-  isSyncing, isResetting,
-  onSync, onReset, onAddPartner, onAddExpense, onAddMain, onAuditLog,
-  currency, currDef, isBaseCurrency
+  searchTerm, setSearchTerm,
+  filterType, onFilterTypeChange,
+  maxDepthFilter, onMaxDepthChange,
+  viewMode, setViewMode,
+  onExpandAll, onCollapseAll,
+  onAddAccount, onAddMain, onAuditLog,
+  accountsCount = 0, groupCount = 0, postingCount = 0
 }) {
-  // ── حساب مؤشرات الملخص المالي ──────────────────────────────────────────────
-  const totalAssets = accountsWithRollupBalances
-    .filter(a => a.account_type === 'أصول' && !a.hasChildren && a.level >= 4)
-    .reduce((sum, a) => sum + (parseFloat(a.balance) || 0), 0);
-
-  const totalLiabilities = accountsWithRollupBalances
-    .filter(a => a.account_type === 'خصوم' && !a.hasChildren && a.level >= 4)
-    .reduce((sum, a) => sum + (parseFloat(a.balance) || 0), 0);
-
-  const totalEquity = accountsWithRollupBalances
-    .filter(a => a.account_type === 'حقوق ملكية' && !a.hasChildren && a.level >= 4)
-    .reduce((sum, a) => sum + (parseFloat(a.balance) || 0), 0);
-
-  const totalAccounts = accountsWithRollupBalances.length;
-
-  const fmt = (val) => {
-    const v = isBaseCurrency ? val : (window.CurrencyService ? window.CurrencyService.fromBase(val, currency) : val);
-    return Number(v).toLocaleString('en-US', { minimumFractionDigits: isBaseCurrency ? 0 : (currDef.decimals || 2), maximumFractionDigits: (currDef.decimals !== undefined ? currDef.decimals : 2) });
-  };
-
-  const kpiCards = [
-    { label: 'إجمالي الأصول', value: fmt(totalAssets), icon: '🏦', color: 'bg-[#E2F5F7] text-[#007F8C]', border: 'border-[#C5ECF0]' },
-    { label: 'إجمالي الالتزامات', value: fmt(totalLiabilities), icon: '📋', color: 'bg-[#FFF1DC] text-[#C97300]', border: 'border-[#FFE4B9]' },
-    { label: 'حقوق الملكية', value: fmt(totalEquity), icon: '⚖️', color: 'bg-[#F2E7F3] text-[#8F2A87]', border: 'border-[#E5CEE7]' },
-    { label: 'عدد الحسابات', value: totalAccounts, icon: '📊', color: 'bg-[#FAFAFB] text-[#25232A]', border: 'border-[#E8E5EA]' },
-  ];
+  const handleAdd = onAddAccount || onAddMain;
 
   return (
-    <div className="bg-white rounded-2xl border border-[#E8E5EA] shadow-[0_2px_12px_rgba(0,0,0,0.02)] overflow-hidden">
-      {/* الترويسة الرئيسية مع الأزرار */}
-      <div className="p-6 border-b border-[#E8E5EA] flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gradient-to-r from-white via-[#FAFAFB] to-white">
-        <div className="flex items-center gap-3.5">
-          <div className="w-12 h-12 rounded-2xl bg-[#F2E7F3] text-[#8F2A87] border border-[#E5CEE7] flex items-center justify-center text-xl font-bold shadow-xs">
-            <Icons.Accounts className="w-6 h-6" />
+    <div className="bg-white dark:bg-[#1E1B24] rounded-2xl border border-[#E8E5EA] dark:border-[#2D2A36] p-2.5 sm:p-3 shadow-2xs transition-colors">
+      <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-2.5">
+
+        {/* ── الجانب الأيمن: حقل البحث المرن المتمدد + فلاتر المستويات والأنواع بعرض محمي ── */}
+        <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 flex-1 min-w-0">
+          <div className="relative flex-1 min-w-[180px]">
+            <span className="absolute right-3 top-2.5 text-[#6F6B75] dark:text-[#A09CA6] text-xs pointer-events-none">🔍</span>
+            <input
+              type="text"
+              placeholder="بحث بالكود، الاسم، أو النوع..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="w-full bg-[#FAFAFB] dark:bg-[#25222E] border border-[#E8E5EA] dark:border-[#332F3D] text-[#25232A] dark:text-[#E2DFE7] placeholder-[#6F6B75] dark:placeholder-[#7E7A87] rounded-xl pr-8 pl-6 py-1 text-xs font-medium focus:bg-white dark:focus:bg-[#2A2634] focus:border-[#8F2A87] outline-none h-9 transition"
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm('')}
+                className="absolute left-2.5 top-2 text-[#6F6B75] hover:text-[#25232A] dark:hover:text-white text-xs font-bold cursor-pointer"
+                title="تفريغ البحث"
+              >
+                ✕
+              </button>
+            )}
           </div>
-          <div>
-            <h1 className="text-base md:text-lg font-bold text-[#25232A]">
-              الدليل المحاسبي وشجرة الحسابات (Chart of Accounts)
-            </h1>
-            <p className="text-xs text-[#6F6B75] mt-0.5">
-              شجرة محاسبية هرمية مرنة مع الترقيم التلقائي وإدارة الأرصدة التجميعية
-            </p>
+
+          <div className="w-full sm:w-auto min-w-[145px] shrink-0">
+            <select
+              value={maxDepthFilter}
+              onChange={e => onMaxDepthChange(e.target.value)}
+              className="w-full bg-[#FAFAFB] dark:bg-[#25222E] border border-[#E8E5EA] dark:border-[#332F3D] text-[#25232A] dark:text-[#E2DFE7] rounded-xl px-2.5 py-1 text-xs font-medium focus:border-[#8F2A87] outline-none h-9 cursor-pointer transition"
+              title="تصفية مستوى التفرع الشجري"
+            >
+              <option value="ALL">عرض كل المستويات</option>
+              <option value="1">المستوى 1 (الرئيسي)</option>
+              <option value="2">حتى المستوى 2 (العام)</option>
+              <option value="3">حتى المستوى 3 (المساعد)</option>
+              <option value="4">حتى المستوى 4 (الفرعي)</option>
+            </select>
+          </div>
+
+          <div className="w-full sm:w-auto min-w-[125px] shrink-0">
+            <select
+              value={filterType}
+              onChange={e => onFilterTypeChange(e.target.value)}
+              className="w-full bg-[#FAFAFB] dark:bg-[#25222E] border border-[#E8E5EA] dark:border-[#332F3D] text-[#25232A] dark:text-[#E2DFE7] rounded-xl px-2.5 py-1 text-xs font-medium focus:border-[#8F2A87] outline-none h-9 cursor-pointer transition"
+              title="تصفية حسب نوع الحساب"
+            >
+              <option value="ALL">جميع الأنواع</option>
+              <option value="أصول">الأصول</option>
+              <option value="خصوم">الخصوم</option>
+              <option value="حقوق ملكية">حقوق الملكية</option>
+              <option value="إيرادات">الإيرادات</option>
+              <option value="مصروفات">المصروفات</option>
+            </select>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            onClick={onReset}
-            disabled={isResetting}
-            className="bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold px-3 py-2.5 rounded-xl border border-rose-200 flex items-center gap-1.5 text-xs cursor-pointer transition shadow-xs disabled:opacity-50"
-            title="تصفير ومسح الحسابات والمبالغ التجريبية"
-          >
-            <span>{isResetting ? '⏳ جاري التصفير...' : '🧹 تصفير دليل الحسابات'}</span>
-          </button>
+        {/* ── المنتصف والأيسر: أزرار العرض المدمجة + طي/فتح + سجل التعديلات + إضافة حساب ── */}
+        <div className="flex flex-wrap sm:flex-nowrap items-center justify-between sm:justify-end gap-2 shrink-0">
+          <div className="flex items-center bg-[#F4F3F6] dark:bg-[#25222E] p-0.5 rounded-xl border border-[#E8E5EA] dark:border-[#322E3C] shrink-0 h-9">
+            <button
+              type="button"
+              onClick={() => setViewMode('tree')}
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                viewMode === 'tree'
+                  ? 'bg-white dark:bg-[#1E1B24] text-[#8F2A87] dark:text-[#E5CEE7] shadow-2xs font-extrabold'
+                  : 'text-[#6F6B75] dark:text-[#A09CA6] hover:text-[#25232A] dark:hover:text-white'
+              }`}
+              title="عرض الهيكل الشجري الهرمي"
+            >
+              <span>🌳</span>
+              <span>عرض شجري</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('table')}
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                viewMode === 'table'
+                  ? 'bg-white dark:bg-[#1E1B24] text-[#8F2A87] dark:text-[#E5CEE7] shadow-2xs font-extrabold'
+                  : 'text-[#6F6B75] dark:text-[#A09CA6] hover:text-[#25232A] dark:hover:text-white'
+              }`}
+              title="عرض جدول حسابات الحركة"
+            >
+              <span>📋</span>
+              <span>عرض جدولي</span>
+            </button>
+          </div>
+
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={onExpandAll}
+              title="فتح جميع الفروع الشجرية"
+              className="h-9 px-2.5 bg-[#FAFAFB] dark:bg-[#25222E] hover:bg-[#E8E5EA] dark:hover:bg-[#2E2A38] text-[#25232A] dark:text-[#E2DFE7] rounded-xl text-xs font-bold border border-[#E8E5EA] dark:border-[#322E3C] flex items-center gap-1 transition cursor-pointer"
+            >
+              <span>📂</span>
+              <span className="hidden xl:inline">فتح الكل</span>
+            </button>
+            <button
+              type="button"
+              onClick={onCollapseAll}
+              title="طي جميع الفروع الشجرية"
+              className="h-9 px-2.5 bg-[#FAFAFB] dark:bg-[#25222E] hover:bg-[#E8E5EA] dark:hover:bg-[#2E2A38] text-[#25232A] dark:text-[#E2DFE7] rounded-xl text-xs font-bold border border-[#E8E5EA] dark:border-[#322E3C] flex items-center gap-1 transition cursor-pointer"
+            >
+              <span>📁</span>
+              <span className="hidden xl:inline">إغلاق الكل</span>
+            </button>
+          </div>
 
           <button
-            onClick={onSync}
-            disabled={isSyncing}
-            className="bg-[#FAFAFB] hover:bg-[#E8E5EA] text-[#8F2A87] font-bold px-3.5 py-2.5 rounded-xl border border-[#E8E5EA] flex items-center gap-1.5 text-xs cursor-pointer transition shadow-xs disabled:opacity-50"
-          >
-            <span className={isSyncing ? "animate-spin" : ""}>🔄</span>
-            <span>{isSyncing ? 'جاري المزامنة...' : 'مزامنة دليل الحسابات مع السحابة ☁️'}</span>
-          </button>
-
-          <button
-            onClick={onAddPartner}
-            className="bg-[#E2F5F7] hover:bg-[#C5ECF0] text-[#007F8C] border border-[#C5ECF0] font-bold px-3.5 py-2.5 rounded-xl shadow-xs flex items-center gap-1.5 text-xs cursor-pointer transition"
-            title="إضافة حساب شريك جديد تحت رأس المال المباشر (301.xx) بتسلسل تلقائي"
-          >
-            <span>🤝</span> + إضافة شريك (رأس مال)
-          </button>
-
-          <button
-            onClick={onAddExpense}
-            className="bg-[#FFF1DC] hover:bg-[#FFE4B9] text-[#C97300] border border-[#FFE4B9] font-bold px-4 py-2.5 rounded-xl shadow-xs flex items-center gap-2 text-xs cursor-pointer transition"
-            title="إضافة بند مصروف تشغيلي جديد تحت قسم المصروفات في شجرة الحسابات"
-          >
-            <span>💸</span> + بند مصروف جديد
-          </button>
-
-          <button
-            onClick={onAddMain}
-            className="bg-[#B0005A] hover:bg-[#8E0049] text-white font-bold px-4 py-2.5 rounded-xl shadow-xs flex items-center gap-2 text-xs cursor-pointer"
-          >
-            <span>+</span> إضافة حساب رئيسي
-          </button>
-
-          <button
+            type="button"
             onClick={onAuditLog}
-            className="bg-[#FAFAFB] hover:bg-[#E8E5EA] text-[#25232A] font-bold px-3.5 py-2.5 rounded-xl border border-[#E8E5EA] flex items-center gap-1.5 text-xs cursor-pointer"
+            title="سجل التعديلات المحاسبية وتتبع الحركات"
+            className="w-9 h-9 rounded-xl bg-[#FAFAFB] dark:bg-[#25222E] hover:bg-[#E8E5EA] dark:hover:bg-[#2E2A38] text-[#6F6B75] dark:text-[#A09CA6] hover:text-[#25232A] dark:hover:text-white border border-[#E8E5EA] dark:border-[#322E3C] flex items-center justify-center text-sm transition cursor-pointer shrink-0"
           >
-            📋 سجل التعديلات
+            🕒
+          </button>
+
+          <button
+            type="button"
+            onClick={handleAdd}
+            className="h-9 bg-[#8F2A87] hover:bg-[#782271] text-white font-bold px-3.5 rounded-xl shadow-xs flex items-center gap-1.5 text-xs transition cursor-pointer shrink-0"
+            title="إضافة حساب رئيسي أو فرعي جديد"
+          >
+            <span className="text-sm font-extrabold">+</span>
+            <span>إضافة حساب</span>
           </button>
         </div>
-      </div>
 
-      {/* بطاقات مؤشرات الملخص المالي */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-0 divide-x divide-x-reverse divide-[#E8E5EA]">
-        {kpiCards.map((kpi, i) => (
-          <div key={i} className="p-4 text-right">
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-lg">{kpi.icon}</span>
-              <span className={`text-[10px] px-2 py-0.5 rounded-md font-bold border ${kpi.color} ${kpi.border}`}>
-                {kpi.label}
-              </span>
-            </div>
-            <div className="font-mono font-extrabold text-sm text-[#25232A] tabular-nums text-left">
-              {kpi.value}
-              {i < 3 && <span className="text-[10px] text-[#6F6B75] font-normal mr-1">{currDef.display}</span>}
-            </div>
-          </div>
-        ))}
       </div>
     </div>
   );
 }
+
+window.AccountsHeader = AccountsHeader;
+window.AccountsToolbar = AccountsHeader;

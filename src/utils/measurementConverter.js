@@ -11,21 +11,36 @@ const extractLengthValue = (spec = {}) => {
   ) || 0;
 };
 
-const resolveDressLengthInches = (input) => {
-  let val = 0;
-  if (typeof input === 'number') val = input;
-  else if (typeof input === 'string') val = parseFloat(input) || 0;
-  else if (input && typeof input === 'object') val = extractLengthValue(input);
-  if (val <= 0) return 26; // Default standard length for 6-9Y
-  return val > 40 ? (val / 2.54) : val;
+const resolveNormalizedLength = (input) => {
+  let val = 0, unitStr = '';
+  if (typeof input === 'number') {
+    val = input;
+    unitStr = val > 45 ? 'سم' : 'إنش';
+  } else if (typeof input === 'string') {
+    val = parseFloat(input) || 0;
+    unitStr = val > 45 ? 'سم' : 'إنش';
+  } else if (input && typeof input === 'object') {
+    val = extractLengthValue(input);
+    unitStr = String(input.unit || input.target_unit || (val > 45 ? 'سم' : 'إنش')).trim();
+  }
+  if (val <= 0) return { inches: 26, cm: 66.04, rawVal: 26, unit: 'إنش' };
+
+  const isInch = unitStr.includes('إنش') || unitStr.includes('انش') || unitStr.includes('inch') || unitStr.includes('in');
+  const inches = isInch ? val : (val / 2.54);
+  const cm = isInch ? (val * 2.54) : val;
+  return { inches, cm, rawVal: val, unit: isInch ? 'إنش' : 'سم' };
 };
+
+const resolveDressLengthInches = (input) => resolveNormalizedLength(input).inches;
+const resolveDressLengthCm = (input) => resolveNormalizedLength(input).cm;
 
 const resolveSizeCode = (input, targetSegment = 'kids') => {
   if (targetSegment === 'women_adults') return 'M';
-  const inches = resolveDressLengthInches(input);
-  if (inches <= 19) return '1-2Y';
-  if (inches <= 24) return '3-5Y';
-  if (inches <= 29) return '6-9Y';
+  const norm = resolveNormalizedLength(input);
+  const cm = norm.cm;
+  if (cm <= 55) return '1-2Y';
+  if (cm <= 75) return '3-5Y';
+  if (cm <= 95) return '6-9Y';
   return '10-13Y';
 };
 
@@ -146,7 +161,9 @@ const buildBomItems = (product = {}, sizeCode = '6-9Y', lengthInInches = 26, qua
 
 const MeasurementConverter = {
   extractLengthValue,
+  resolveNormalizedLength,
   resolveDressLengthInches,
+  resolveDressLengthCm,
   resolveSizeCode,
   resolveUnitPrice,
   isTulleFabric,

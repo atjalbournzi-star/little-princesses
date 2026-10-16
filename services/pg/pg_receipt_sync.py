@@ -21,7 +21,7 @@ def sync_advance_receipt(cur, data):
     cash_acc = clean_str(data.get('account_id') or data.get('cash_acc'))
     if not cash_acc:
         cash_acc = 'ACC-101-2' if 'SAR' in curr.upper() else ('ACC-101-3' if 'USD' in curr.upper() else 'ACC-101-1')
-        if any(k in pay_m for k in ['كريمي', 'بنك', 'حوالة']): cash_acc = 'ACC-103'
+        if any(k in pay_m for k in ['كريمي', 'بنك', 'حوالة']): cash_acc = 'ACC-102-2'
     tgt_acc = 'ACC-202'
 
     custom_id = clean_str(data.get('id') or data.get('payment_id'))

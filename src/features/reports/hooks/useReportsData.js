@@ -80,25 +80,68 @@ function useReportsData({ orders = [], expenses = [], vouchers = [], journal = [
     return { currentAssets, totalCurrentAssets, fixedAssets, totalFixedAssets, totalAssets, currentLiabilities, totalLiabilities, equityAccounts, totalEquityAccounts, periodProfit, totalEquity, totalLiabilitiesAndEquity, isBalanced: diff < 0.05, diff };
   }, [liveAccountsMap, pnlData.netProfit, getAccountCategory]);
 
-  const trialBalanceData = useMemo(() => {
-    if (typeof window !== 'undefined' && window.AccountingEngine?.generateTrialBalance) {
-      const tb = window.AccountingEngine.generateTrialBalance(journal, accounts, dateRange);
-      const rows = (tb.rows || []).map(r => ({
-        ...r,
-        opening_target: window.CurrencyService ? window.CurrencyService.fromBase(r.opening_balance_base, targetCode) : r.opening_balance_base,
-        total_debit_target: window.CurrencyService ? window.CurrencyService.fromBase(r.total_debit_base, targetCode) : r.total_debit_base,
-        total_credit_target: window.CurrencyService ? window.CurrencyService.fromBase(r.total_credit_base, targetCode) : r.total_credit_base,
-        debit_balance_target: window.CurrencyService ? window.CurrencyService.fromBase(r.debit_balance_base, targetCode) : r.debit_balance_base,
-        credit_balance_target: window.CurrencyService ? window.CurrencyService.fromBase(r.credit_balance_base, targetCode) : r.credit_balance_base
-      }));
-      const grandOpening = rows.reduce((s, r) => s + r.opening_target, 0), grandDebit = rows.reduce((s, r) => s + r.total_debit_target, 0), grandCredit = rows.reduce((s, r) => s + r.total_credit_target, 0);
-      const grandDebitBal = rows.reduce((s, r) => s + r.debit_balance_target, 0), grandCreditBal = rows.reduce((s, r) => s + r.credit_balance_target, 0);
-      return { rows, grandOpening, grandDebit, grandCredit, grandDebitBal, grandCreditBal, isBalanced: Math.abs(grandDebit - grandCredit) < 0.05 && Math.abs(grandDebitBal - grandCreditBal) < 0.05 };
+  const [serverTB, setServerTB] = useState(null);
+  const [isTBLoading, setIsTBLoading] = useState(false);
+  const [serverGL, setServerGL] = useState(null);
+  const [isGLLoading, setIsGLLoading] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    if (activeTab === 'financial' && (financialSubTab === 'trial_balance' || financialSubTab === 'balance_sheet')) {
+      setIsTBLoading(true);
+      const qStart = dateRange.start ? `?start_date=${encodeURIComponent(dateRange.start)}` : '';
+      const qEnd = dateRange.end ? `${qStart ? '&' : '?'}end_date=${encodeURIComponent(dateRange.end)}` : '';
+      fetch(`/api/reports/trial-balance${qStart}${qEnd}`)
+        .then(r => r.json())
+        .then(res => { if (active && res && res.success && res.data) setServerTB(res.data); })
+        .catch(err => console.warn("TB fetch error:", err))
+        .finally(() => { if (active) setIsTBLoading(false); });
     }
-    return { rows: [], grandOpening: 0, grandDebit: 0, grandCredit: 0, grandDebitBal: 0, grandCreditBal: 0, isBalanced: true };
-  }, [journal, accounts, dateRange, targetCode]);
+    return () => { active = false; };
+  }, [activeTab, financialSubTab, dateRange]);
+
+  useEffect(() => {
+    let active = true;
+    if (activeTab === 'financial' && financialSubTab === 'general_ledger' && selectedLedgerAcc) {
+      setIsGLLoading(true);
+      const qAcc = encodeURIComponent(selectedLedgerAcc);
+      const qStart = dateRange.start ? `&start_date=${encodeURIComponent(dateRange.start)}` : '';
+      const qEnd = dateRange.end ? `&end_date=${encodeURIComponent(dateRange.end)}` : '';
+      fetch(`/api/reports/general-ledger?account=${qAcc}${qStart}${qEnd}`)
+        .then(r => r.json())
+        .then(res => { if (active && res && res.success && res.data) setServerGL(Array.isArray(res.data.rows) ? res.data.rows : []); })
+        .catch(err => console.warn("GL fetch error:", err))
+        .finally(() => setIsGLLoading(false));
+    } else {
+      setIsGLLoading(false);
+    }
+    return () => { active = false; setIsGLLoading(false); };
+  }, [activeTab, financialSubTab, selectedLedgerAcc, dateRange]);
+
+  const trialBalanceData = useMemo(() => {
+    const rawTB = serverTB || (window.AccountingEngine?.generateTrialBalance ? window.AccountingEngine.generateTrialBalance(journal, accounts, dateRange) : { rows: [] });
+    const rows = (rawTB.rows || []).map(r => ({
+      ...r,
+      opening_target: window.CurrencyService ? window.CurrencyService.fromBase(r.opening_balance_base || 0, targetCode) : (r.opening_balance_base || 0),
+      total_debit_target: window.CurrencyService ? window.CurrencyService.fromBase(r.total_debit_base || 0, targetCode) : (r.total_debit_base || 0),
+      total_credit_target: window.CurrencyService ? window.CurrencyService.fromBase(r.total_credit_base || 0, targetCode) : (r.total_credit_base || 0),
+      debit_balance_target: window.CurrencyService ? window.CurrencyService.fromBase(r.debit_balance_base || 0, targetCode) : (r.debit_balance_base || 0),
+      credit_balance_target: window.CurrencyService ? window.CurrencyService.fromBase(r.credit_balance_base || 0, targetCode) : (r.credit_balance_base || 0)
+    }));
+    const grandOpening = rows.reduce((s, r) => s + r.opening_target, 0), grandDebit = rows.reduce((s, r) => s + r.total_debit_target, 0), grandCredit = rows.reduce((s, r) => s + r.total_credit_target, 0);
+    const grandDebitBal = rows.reduce((s, r) => s + r.debit_balance_target, 0), grandCreditBal = rows.reduce((s, r) => s + r.credit_balance_target, 0);
+    return { rows, grandOpening, grandDebit, grandCredit, grandDebitBal, grandCreditBal, isBalanced: Math.abs(grandDebit - grandCredit) < 0.05 && Math.abs(grandDebitBal - grandCreditBal) < 0.05 };
+  }, [serverTB, journal, accounts, dateRange, targetCode]);
 
   const generalLedgerRows = useMemo(() => {
+    if (serverGL !== null) {
+      return serverGL.map(r => ({
+        ...r,
+        debit_target: window.CurrencyService ? window.CurrencyService.fromBase(r.debit_base || 0, targetCode) : (r.debit_base || 0),
+        credit_target: window.CurrencyService ? window.CurrencyService.fromBase(r.credit_base || 0, targetCode) : (r.credit_base || 0),
+        running_target: window.CurrencyService ? window.CurrencyService.fromBase(r.running_balance_base !== undefined ? r.running_balance_base : (r.running_target || 0), targetCode) : (r.running_balance_base || 0)
+      }));
+    }
     if (typeof window !== 'undefined' && window.AccountingEngine?.generateGeneralLedger) {
       return window.AccountingEngine.generateGeneralLedger(journal, accounts, selectedLedgerAcc, dateRange).map(r => ({
         ...r,
@@ -108,14 +151,14 @@ function useReportsData({ orders = [], expenses = [], vouchers = [], journal = [
       }));
     }
     return [];
-  }, [journal, accounts, selectedLedgerAcc, dateRange, targetCode]);
+  }, [serverGL, journal, accounts, selectedLedgerAcc, dateRange, targetCode]);
 
   const cashBankReconciliation = useMemo(() => {
     if (u.buildCashBankReconciliation && u.filterCashBankAccounts) {
       const cashAccs = u.filterCashBankAccounts(accounts, cleanCode, getAccountCategory);
       return u.buildCashBankReconciliation(cashAccs, trialBalanceData?.rows || [], liveAccountsMap, targetCode, cleanCode);
     }
-    const cashAccs = (accounts || []).filter(a => !a.is_group && ['101', '102', '103'].some(p => cleanCode(a.code || a.id).startsWith(p)) && !cleanCode(a.code || a.id).startsWith('5'));
+    const cashAccs = (accounts || []).filter(a => !a.is_group && ['101', '102'].some(p => cleanCode(a.code || a.id).startsWith(p)) && !cleanCode(a.code || a.id).startsWith('5'));
     return cashAccs.map(acc => ({ id: acc.id, code: cleanCode(acc.code || acc.id), name: acc.name, nativeCurr: 'YER', rate: 1, openingTarget: 0, debitTarget: 0, creditTarget: 0, closingLedgerTarget: parseFloat(acc.current_balance) || 0, chartBalanceTarget: parseFloat(acc.current_balance) || 0, closingNative: parseFloat(acc.current_balance) || 0, diff: 0, isMatched: true }));
   }, [accounts, trialBalanceData, liveAccountsMap, targetCode, cleanCode, getAccountCategory, u]);
 
@@ -162,7 +205,8 @@ function useReportsData({ orders = [], expenses = [], vouchers = [], journal = [
     statementType, setStatementType, selectedPartyId, setSelectedPartyId,
     targetCode, toReportAmount, fmtMoney, filteredJournal, liveAccountsMap,
     pnlData, balanceSheetData, trialBalanceData, generalLedgerRows, cashBankReconciliation,
-    statementData, dailySalesData, modelProfitabilityData, productionStats, inventoryStats
+    statementData, dailySalesData, modelProfitabilityData, productionStats, inventoryStats,
+    isTBLoading, isGLLoading
   };
 }
 

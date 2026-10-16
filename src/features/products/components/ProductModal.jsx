@@ -18,136 +18,165 @@ function ProductModal({
     modelName,
     isSaving,
     handleSaveProduct,
-    computedTotalCost,
-    computedProfit,
-    pricesMatrix = {},
-    activeModelCurrencyLabel
+    computedTotalCost = 0,
+    computedProfit = 0,
+    activeModelCurrencyLabel = "YER"
   } = actions;
 
-  const BasicInfoComp = window.ProductBasicInfoForm || null;
-  const BomComp = window.ProductBomMatrix || null;
-  const CostingComp = window.ProductCostingMatrix || null;
-  const PricingComp = window.ProductPricingMatrix || null;
+  const BasicInfoComp = window.ProductBasicInfoForm || window.BOMBasicInfo || null;
+  const BomComp = window.ProductBomMatrix || window.BOMFabricTree || null;
+  const CostingComp = window.ProductCostingMatrix || window.BOMOperations || null;
+  const PricingComp = window.ProductPricingMatrix || window.BOMPricing || null;
+  const FooterComp = window.BOMFooter || window.ProductFooter || null;
 
-  const tabs = [
-    { id: "basic", label: "البيانات والمواصفات", icon: "📋" },
-    { id: "bom", label: "شجرة الخامات (BOM)", icon: "🧵" },
-    { id: "costing", label: "مراحل التشغيل والتكلفة", icon: "🏭" },
-    { id: "pricing", label: "التسعير والأرباح", icon: "💎" }
-  ];
+  const stepMap = { basic: 1, bom: 2, costing: 3, pricing: 4, 1: 1, 2: 2, 3: 3, 4: 4 };
+  const step = stepMap[activeTab] || 1;
+  const setStep = (s) => {
+    const tabMap = { 1: "basic", 2: "bom", 3: "costing", 4: "pricing" };
+    if (setActiveTab) setActiveTab(tabMap[s] || s);
+  };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/70 backdrop-blur-xs animate-fadeIn overflow-y-auto" dir="rtl">
-      <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-[#E8E5EA] dark:border-slate-800 shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden my-auto text-right">
+    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[48px] pb-2 px-3 bg-black/70 backdrop-blur-sm select-none" dir="rtl">
+      <div className="w-full max-w-4xl max-h-[calc(100vh-3.4rem)] h-[425px] flex flex-col justify-between bg-[#111C38] border border-slate-700 rounded-2xl shadow-2xl overflow-hidden shrink-0">
         
-        {/* رأس النافذة المنبثقة */}
-        <div className="p-4 sm:p-5 border-b border-[#E8E5EA] dark:border-slate-800 flex items-center justify-between bg-gradient-to-r from-[#FAFAFB] via-white to-[#FAFAFB] dark:from-slate-900/80 dark:via-[#0f172a] dark:to-slate-900/80 shrink-0">
-          <div className="flex items-center gap-3">
-            <span className="w-10 h-10 rounded-xl bg-[#F2E7F3] dark:bg-purple-950/60 text-[#8F2A87] dark:text-purple-300 border border-[#E5CEE7] dark:border-purple-800/40 flex items-center justify-center text-xl font-bold shadow-2xs">
-              🧮
-            </span>
-            <div>
-              <h2 className="text-sm sm:text-base font-bold text-[#25232A] dark:text-slate-100">
-                {editId ? `تعديل الموديل: ${modelName || 'بدون اسم'}` : "تسجيل موديل جديد وهندسة التكاليف (BOM Studio)"}
-              </h2>
-              <span className="text-[11px] text-[#6F6B75] dark:text-slate-400">
-                مواصفات الفستان، استهلاك الخامات، أجور الورشة، والتسعير التجاري
-              </span>
+        {/* Row 1 (Top Bar - h-9): شريط العنوان وزر الإغلاق والأدوات السياقية */}
+        <div className="h-9 px-4 border-b border-slate-800 flex items-center justify-between shrink-0 bg-[#0F172A]">
+          <div className="flex items-center gap-2 min-w-0">
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white cursor-pointer transition-colors shrink-0 text-xs font-bold"
+              title="إغلاق النافذة"
+            >
+              ✕
+            </button>
+            <div className="text-xs font-bold text-white flex items-center gap-1.5 truncate">
+              <span className="text-purple-400 text-xs">🧮</span>
+              <span>{editId ? `تعديل الموديل: ${modelName || 'بدون اسم'}` : "تسجيل موديل جديد وهندسة التكاليف (BOM)"}</span>
             </div>
+            {actions.smartCode && (
+              <span className="text-[11px] font-mono font-bold text-pink-300 bg-slate-800/90 px-2 py-0.5 rounded border border-slate-700 shrink-0">
+                [{actions.smartCode}]
+              </span>
+            )}
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-[#6F6B75] dark:text-slate-300 flex items-center justify-center transition cursor-pointer"
-          >
-            ✕
-          </button>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-[10.5px] font-mono font-bold text-pink-400 bg-pink-950/40 px-2 py-0.5 rounded border border-pink-800/40">
+              {activeModelCurrencyLabel}
+            </span>
+          </div>
         </div>
 
-        {/* شريط تبويبات الأبعاد الأربعة */}
-        <div className="flex items-center border-b border-[#E8E5EA] dark:border-slate-800 bg-[#FAFAFB] dark:bg-slate-900/70 px-4 overflow-x-auto shrink-0 scrollbar-none">
-          {tabs.map(t => (
+        {/* Row 2 (Stepper Bar - h-9 py-1): شريط التبويب المستقل بمسافات وهوامش فاخرة تفصل الكلمات عن خط الترويسة */}
+        <div className="h-9 py-1 bg-slate-900/60 border-b border-slate-800 flex justify-center items-center shrink-0">
+          <div dir="rtl" className="flex items-center gap-1.5 sm:gap-2">
             <button
-              key={t.id}
               type="button"
-              onClick={() => setActiveTab(t.id)}
-              className={`py-3 px-3.5 text-xs font-bold border-b-2 transition flex items-center gap-2 whitespace-nowrap cursor-pointer ${
-                activeTab === t.id
-                  ? 'border-[#8F2A87] text-[#8F2A87] dark:text-purple-400 dark:border-purple-400 bg-white/70 dark:bg-slate-800/50'
-                  : 'border-transparent text-[#6F6B75] dark:text-slate-400 hover:text-[#25232A] dark:hover:text-slate-200'
+              onClick={() => setStep(1)}
+              className={`text-xs px-3 py-1 rounded-md font-bold transition-all cursor-pointer ${
+                step === 1 ? 'bg-pink-600 text-white shadow' : 'text-slate-400 hover:text-white'
               }`}
             >
-              <span>{t.icon}</span>
-              <span>{t.label}</span>
+              1. البيانات والمواصفات
             </button>
-          ))}
+            <span className="text-slate-600 text-xs">←</span>
+            <button
+              type="button"
+              onClick={() => setStep(2)}
+              className={`text-xs px-3 py-1 rounded-md font-bold transition-all cursor-pointer ${
+                step === 2 ? 'bg-pink-600 text-white shadow' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              2. شجرة الخامات (BOM)
+            </button>
+            <span className="text-slate-600 text-xs">←</span>
+            <button
+              type="button"
+              onClick={() => setStep(3)}
+              className={`text-xs px-3 py-1 rounded-md font-bold transition-all cursor-pointer ${
+                step === 3 ? 'bg-pink-600 text-white shadow' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              3. مراحل التشغيل والتكلفة
+            </button>
+            <span className="text-slate-600 text-xs">←</span>
+            <button
+              type="button"
+              onClick={() => setStep(4)}
+              className={`text-xs px-3 py-1 rounded-md font-bold transition-all cursor-pointer ${
+                step === 4 ? 'bg-pink-600 text-white shadow' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              4. التسعير والأرباح
+            </button>
+          </div>
         </div>
 
-        {/* جسم النافذة ومحتوى التبويب النشط */}
-        <form onSubmit={handleSaveProduct} className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1">
-          {activeTab === "basic" && BasicInfoComp && (
-            <BasicInfoComp
-              actions={actions}
-              availableCategories={availableCategories}
-              availableCollections={availableCollections}
+        {/* جسم النافذة والفوتر المرتفع الثابت */}
+        <form onSubmit={handleSaveProduct} className="flex-1 flex flex-col justify-between overflow-hidden min-h-0">
+          <div className="flex-1 flex flex-col overflow-hidden min-h-0 p-1.5">
+            {step === 1 && BasicInfoComp && (
+              <BasicInfoComp
+                actions={actions}
+                availableCategories={availableCategories}
+                availableCollections={availableCollections}
+              />
+            )}
+
+            {step === 2 && BomComp && (
+              <BomComp
+                actions={actions}
+                inventory={inventory}
+              />
+            )}
+
+            {step === 3 && CostingComp && (
+              <CostingComp
+                actions={actions}
+              />
+            )}
+
+            {step === 4 && PricingComp && (
+              <PricingComp
+                actions={actions}
+              />
+            )}
+          </div>
+
+          {/* شريط الإجراءات والملخص المالي السفلي المرتفع */}
+          {FooterComp ? (
+            <FooterComp
+              onClose={onClose}
+              isSaving={isSaving}
+              editId={editId}
+              totalCost={computedTotalCost}
+              expectedProfit={computedProfit}
+              currencyLabel={activeModelCurrencyLabel}
             />
-          )}
-
-          {activeTab === "bom" && BomComp && (
-            <BomComp
-              actions={actions}
-              inventory={inventory}
-            />
-          )}
-
-          {activeTab === "costing" && CostingComp && (
-            <CostingComp
-              actions={actions}
-            />
-          )}
-
-          {activeTab === "pricing" && PricingComp && (
-            <PricingComp
-              actions={actions}
-            />
-          )}
-
-          {/* شريط الإجراءات والملخص المالي السفلي */}
-          <div className="pt-3 border-t border-[#E8E5EA] dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 bg-[#FAFAFB] dark:bg-slate-900/50 -mx-4 -mb-4 p-4 mt-4">
-            <div className="flex items-center gap-3 text-xs w-full sm:w-auto justify-between sm:justify-start">
-              <div className="flex items-center gap-1.5">
-                <span className="text-[#6F6B75] dark:text-slate-400">التكلفة الإجمالية:</span>
-                <span className="font-mono font-bold text-[#007F8C] dark:text-cyan-400">
-                  {computedTotalCost.toFixed(1)} {activeModelCurrencyLabel}
-                </span>
-              </div>
-              <span className="text-slate-300 dark:text-slate-700">|</span>
-              <div className="flex items-center gap-1.5">
-                <span className="text-[#6F6B75] dark:text-slate-400">الربح المتوقع:</span>
-                <span className="font-mono font-bold text-[#8F2A87] dark:text-purple-300">
-                  +{computedProfit.toFixed(1)} {activeModelCurrencyLabel}
-                </span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+          ) : (
+            <div className="h-9 min-h-[36px] px-3 border-t border-slate-800 bg-[#0F172A] flex items-center justify-between shrink-0">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2.5 rounded-xl border border-[#E8E5EA] dark:border-slate-700 text-xs font-bold text-[#6F6B75] dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                className="h-6.5 px-3 text-xs text-slate-400 hover:text-white rounded-lg border border-slate-700/60"
               >
                 إلغاء
               </button>
+              <div className="text-[10.5px] font-semibold text-slate-300">
+                التكلفة: <span className="text-white font-mono font-bold">{computedTotalCost.toFixed(1)} {activeModelCurrencyLabel}</span> | الربح المتوقع: <span className="text-emerald-400 font-mono font-bold">{computedProfit.toFixed(1)} {activeModelCurrencyLabel}</span>
+              </div>
               <button
                 type="submit"
                 disabled={isSaving}
-                className="px-6 py-2.5 rounded-xl bg-[#8F2A87] hover:bg-[#73216C] text-white text-xs font-bold transition shadow-xs cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                className="h-7 px-3.5 text-xs font-bold bg-pink-600 hover:bg-pink-700 text-white rounded-lg shadow flex items-center gap-1"
               >
                 <span>{isSaving ? "⏳" : "💾"}</span>
-                <span>{isSaving ? "جارٍ الحفظ..." : (editId ? "حفظ تعديلات الموديل" : "حفظ الموديل والتكلفة سحابياً")}</span>
+                <span>{isSaving ? "جارٍ الحفظ..." : (editId ? "حفظ التعديلات" : "اعتماد وحفظ الموديل")}</span>
               </button>
             </div>
-          </div>
+          )}
         </form>
       </div>
     </div>
@@ -155,3 +184,4 @@ function ProductModal({
 }
 
 window.ProductModal = ProductModal;
+window.BOMModalLayout = ProductModal;

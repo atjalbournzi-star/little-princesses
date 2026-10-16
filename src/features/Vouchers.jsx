@@ -6,21 +6,24 @@ function Vouchers({
   orders = [], setOrders, currency, expenses = [], setExpenses,
   purchases = [], employees = []
 }) {
-  const useData = window.useVouchersData || (() => ({}));
-  const useOps = window.useVoucherOperations || (() => ({}));
+  const useData = window.useVouchersData || (typeof useVouchersData !== 'undefined' ? useVouchersData : null) || (() => ({}));
+  const useOps = window.useVoucherOperations || (typeof useVoucherOperations !== 'undefined' ? useVoucherOperations : null) || (() => ({}));
 
   const {
-    currencyDisplay, activeTargetCurr, search, setSearch,
-    typeFilter, setTypeFilter, isRefreshing,
-    partnerAccounts, getCleanPartnerName, findPartnerAccount,
-    normalizeVoucher, filteredVouchers, totals, refreshVouchers
-  } = useData({ vouchers, setVouchers, accounts, setAccounts, currency });
+    currencyDisplay = "YER ﷼", activeTargetCurr = "YER", search = '', setSearch = () => {},
+    typeFilter = 'الكل', setTypeFilter = () => {}, isRefreshing = false, loading = false,
+    partnerAccounts = [], getCleanPartnerName = (a) => '', findPartnerAccount = () => null,
+    normalizeVoucher = (v) => v, filteredVouchers = [],
+    totals = { receipts: 0, payments: 0, net: 0, count: 0 },
+    stats = { totalCount: 0, totalIn: 0, totalOut: 0, netCash: 0 },
+    refreshVouchers = () => {}
+  } = useData({ vouchers, setVouchers, accounts, setAccounts, currency }) || {};
 
   const {
-    reversingVoucher, reversalReason, setReversalReason, isReversing,
-    handleOpenReverseModal, handleConfirmReverse, handleDeleteVoucher,
-    isSubmittingVoucher, handleSaveNewVoucher, handleSendWhatsAppNotification
-  } = useOps({ setVouchers, setJournal, setAccounts, setExpenses, setOrders, setCustomers, showToast });
+    reversingVoucher = null, reversalReason = '', setReversalReason = () => {}, isReversing = false,
+    handleOpenReverseModal = () => {}, handleConfirmReverse = () => {}, handleDeleteVoucher = () => {},
+    isSubmittingVoucher = false, handleSaveNewVoucher = () => {}, handleSendWhatsAppNotification = () => {}
+  } = useOps({ setVouchers, setJournal, setAccounts, setExpenses, setOrders, setCustomers, showToast }) || {};
 
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -28,21 +31,22 @@ function Vouchers({
   const [viewVoucher, setViewVoucher] = useState(null);
   const [printVoucher, setPrintVoucher] = useState(null);
 
-  const Header = window.VouchersHeader;
-  const FilterBar = window.VouchersFilterBar;
-  const Table = window.VouchersTable;
-  const ReceiptModal = window.ReceiptVoucherModal;
-  const PaymentModal = window.PaymentVoucherModal;
-  const JournalModal = window.JournalVoucherModal;
-  const ViewModal = window.VoucherViewModal;
-  const ReversalModal = window.VoucherReversalModal;
+  const Header = window.VouchersHeader || (typeof VouchersHeader !== 'undefined' ? VouchersHeader : null);
+  const FilterBar = window.VouchersFilterBar || (typeof VouchersFilterBar !== 'undefined' ? VouchersFilterBar : null);
+  const Table = window.VouchersTable || (typeof VouchersTable !== 'undefined' ? VouchersTable : null);
+  const ReceiptModal = window.ReceiptVoucherModal || (typeof ReceiptVoucherModal !== 'undefined' ? ReceiptVoucherModal : null);
+  const PaymentModal = window.PaymentVoucherModal || (typeof PaymentVoucherModal !== 'undefined' ? PaymentVoucherModal : null);
+  const JournalModal = window.JournalVoucherModal || (typeof JournalVoucherModal !== 'undefined' ? JournalVoucherModal : null);
+  const ViewModal = window.VoucherViewModal || (typeof VoucherViewModal !== 'undefined' ? VoucherViewModal : null);
+  const ReversalModal = window.VoucherReversalModal || (typeof VoucherReversalModal !== 'undefined' ? VoucherReversalModal : null);
 
   return (
     <div className="space-y-6 animate-fadeIn text-right" dir="rtl">
       {Header && (
         <Header
           totals={totals}
-          vouchersCount={(vouchers || []).length}
+          stats={stats}
+          vouchersCount={totals?.count || stats?.totalCount || (filteredVouchers || []).length}
           onOpenReceiptModal={() => setShowReceiptModal(true)}
           onOpenPaymentModal={() => setShowPaymentModal(true)}
           onOpenCompoundModal={() => setShowCompoundModal(true)}
@@ -50,25 +54,30 @@ function Vouchers({
         />
       )}
 
-      <div className="bg-white rounded-2xl border border-[#E8E5EA] shadow-[0_2px_12px_rgba(0,0,0,0.02)] overflow-hidden p-6 space-y-4">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-[0_2px_12px_rgba(0,0,0,0.02)] overflow-hidden p-6 space-y-4">
         {FilterBar && (
           <FilterBar
             search={search} setSearch={setSearch}
             typeFilter={typeFilter} setTypeFilter={setTypeFilter}
             isRefreshing={isRefreshing} onRefresh={refreshVouchers}
-            filteredCount={filteredVouchers.length}
+            filteredCount={(filteredVouchers || []).length}
           />
         )}
 
-        {Table && (
+        {loading && (!filteredVouchers || filteredVouchers.length === 0) ? (
+          <div className="flex flex-col items-center justify-center py-16 text-center text-slate-400">
+            <div className="w-8 h-8 border-3 border-teal-500/30 border-t-teal-600 rounded-full animate-spin mb-3"></div>
+            <p className="text-xs font-semibold">جاري تحميل السندات والمعاملات المالية...</p>
+          </div>
+        ) : Table ? (
           <Table
-            vouchers={filteredVouchers} accounts={accounts}
+            vouchers={filteredVouchers || []} accounts={accounts}
             activeTargetCurr={activeTargetCurr} currencyDisplay={currencyDisplay}
             onViewVoucher={setViewVoucher}
             onOpenReverseModal={v => handleOpenReverseModal(v, normalizeVoucher)}
             onSendWhatsApp={v => handleSendWhatsAppNotification(v, customers)}
           />
-        )}
+        ) : null}
       </div>
 
       {ReceiptModal && (
@@ -132,3 +141,5 @@ function Vouchers({
 }
 
 window.Vouchers = Vouchers;
+window.FinancialVouchersTab = Vouchers;
+window.VouchersTab = Vouchers;

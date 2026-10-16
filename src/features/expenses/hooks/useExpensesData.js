@@ -13,15 +13,29 @@ function useExpensesData({ expenses = [], setExpenses, accounts = [], vouchers =
   const fetchFreshExpenses = useCallback(async () => {
     setIsSyncing(true);
     try {
-      if (window.expenseAPI && window.expenseAPI.getExpenses) {
-        const data = await window.expenseAPI.getExpenses();
-        if (Array.isArray(data) && setExpenses) setExpenses(data);
+      let data = null;
+      if (window.expenseAPI && typeof window.expenseAPI.getExpenses === 'function') {
+        data = await window.expenseAPI.getExpenses();
       } else {
         const res = await fetch('/api/finance/expenses').then(r => r.json());
-        if (res && res.data && setExpenses) setExpenses(res.data);
+        if (res && res.success && Array.isArray(res.data)) data = res.data;
+      }
+
+      if (Array.isArray(data) && data.length > 0) {
+        if (setExpenses) setExpenses(data);
+        try { localStorage.setItem('erp_sb_expense_transactions', JSON.stringify(data)); } catch (_) {}
+        return;
+      }
+
+      const sb = typeof window !== 'undefined' ? (window.supabaseClient || window.supabase) : null;
+      if (sb) {
+        const { data: sbData, error } = await sb.from('expense_transactions').select('*').order('date', { ascending: false });
+        if (!error && Array.isArray(sbData) && sbData.length > 0) {
+          if (setExpenses) setExpenses(sbData);
+        }
       }
     } catch (e) {
-      console.warn("fetchFreshExpenses error:", e);
+      console.warn("fetchFreshExpenses notice:", e);
     } finally {
       setIsSyncing(false);
     }
@@ -79,15 +93,16 @@ function useExpensesData({ expenses = [], setExpenses, accounts = [], vouchers =
       const cat = String(item.exp_category || item.category || '').toLowerCase();
       const notes = String(item.notes || '').toLowerCase();
       const no = String(item.expense_no || item.id || '').toLowerCase();
-      const acc = String(item.account_id || item.payment_source || '').toLowerCase();
+      const acc = String(item.account_id || item.payment_source || item.source_account_id || item.source_acc || '').toLowerCase();
       const q = search.trim().toLowerCase();
 
       if (q && !cat.includes(q) && !notes.includes(q) && !no.includes(q) && !acc.includes(q)) return false;
       if (categoryFilter !== 'الكل' && !cat.includes(categoryFilter.toLowerCase())) return false;
       if (accountFilter !== 'الكل' && !acc.includes(accountFilter.toLowerCase())) return false;
 
-      if (dateFilter === 'today' && item.date !== todayStr) return false;
-      if (dateFilter === 'month' && !String(item.date || '').startsWith(currMonthStr)) return false;
+      const itemDate = String(item.date || item.expense_date || '');
+      if (dateFilter === 'today' && itemDate !== todayStr) return false;
+      if (dateFilter === 'month' && !itemDate.startsWith(currMonthStr)) return false;
 
       return true;
     });
@@ -104,10 +119,11 @@ function useExpensesData({ expenses = [], setExpenses, accounts = [], vouchers =
     let pendingCount = 0;
 
     (allDisplayedExpenses || []).forEach(e => {
-      const amt = parseFloat(e.amount) || 0;
+      const amt = parseFloat(e.net_amount || e.amount) || 0;
+      const dStr = String(e.date || e.expense_date || '');
       total += amt;
-      if (e.date === todayStr) todayTotal += amt;
-      if (String(e.date || '').startsWith(currMonthStr)) monthTotal += amt;
+      if (dStr === todayStr) todayTotal += amt;
+      if (dStr.startsWith(currMonthStr)) monthTotal += amt;
       if (e.status === 'pending' || e.status === 'draft') pendingCount++;
     });
 

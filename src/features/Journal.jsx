@@ -16,12 +16,15 @@ function Journal({
     ledgerAccount, setLedgerAccount,
     ledgerDateRange, setLedgerDateRange,
     ledgerSearch, setLedgerSearch,
-    postingAccounts, groupedLedgerAccounts, trialBalance
+    postingAccounts, groupedLedgerAccounts, trialBalance,
+    isLedgerLoading, isTrialLoading
   } = (window.useJournalData || (() => ({
     ledgerAccount: 'ALL', setLedgerAccount: () => {},
     ledgerDateRange: { start: '', end: '' }, setLedgerDateRange: () => {},
     ledgerSearch: '', setLedgerSearch: () => {},
-    postingAccounts: [], groupedLedgerAccounts: [], trialBalance: { rows: [], grand_total_debit: 0, grand_total_credit: 0, is_balanced: true, diff: 0 }
+    postingAccounts: [], groupedLedgerAccounts: [],
+    trialBalance: { rows: [], grand_total_debit: 0, grand_total_credit: 0, is_balanced: true, diff: 0 },
+    isLedgerLoading: false, isTrialLoading: false
   })))({ journal, accounts });
 
   const {
@@ -90,12 +93,16 @@ function Journal({
           ledgerSearch={ledgerSearch}
           setLedgerSearch={setLedgerSearch}
           groupedLedgerAccounts={groupedLedgerAccounts}
+          isLedgerLoading={isLedgerLoading}
         />
       )}
 
       {/* ── التبويب الثالث: ميزان المراجعة ── */}
       {activeSubTab === 'trial_balance' && (
-        <JournalTrialBalComp trialBalance={trialBalance} />
+        <JournalTrialBalComp
+          trialBalance={trialBalance}
+          isTrialLoading={isTrialLoading}
+        />
       )}
 
       {/* ── Modal: تعديل القيد ── */}

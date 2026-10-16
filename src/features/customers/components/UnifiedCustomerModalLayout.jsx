@@ -17,11 +17,11 @@ function UnifiedCustomerModalLayout({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/60 backdrop-blur-sm select-none"
+      className="fixed inset-0 z-50 flex items-start justify-center pt-[48px] pb-2 px-3 bg-black/60 backdrop-blur-sm select-none"
       dir="rtl"
     >
       {/* 1. Outer Dialog Box - محدد بأقصى ارتفاع لمنع تجاوز الشاشة */}
-      <div className="w-full max-w-4xl max-h-[82vh] flex flex-col bg-[#111C38] border border-slate-700 rounded-2xl shadow-2xl overflow-hidden my-auto">
+      <div className="w-full max-w-4xl max-h-[calc(100vh-3.4rem)] flex flex-col bg-[#111C38] border border-slate-700 rounded-2xl shadow-2xl overflow-hidden shrink-0">
         
         {/* Row 1 (Top Bar - h-9): شريط العنوان وزر الإغلاق والأدوات السياقية */}
         <div className="h-9 px-4 border-b border-slate-800 flex items-center justify-between shrink-0 bg-[#0F172A]">

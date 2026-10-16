@@ -24,7 +24,7 @@
       return (a.id || 0) - (b.id || 0);
     });
 
-    var targetAcc = filterAccountId ? findAcc(accList, filterAccountId, filterAccountId) : null;
+    var targetAcc = (filterAccountId && filterAccountId !== 'ALL') ? findAcc(accList, filterAccountId, filterAccountId) : null;
     var targetNature = targetAcc ? getNature(targetAcc) : 'debit';
     var targetAccCode = targetAcc ? String(targetAcc.code || targetAcc.account_code || targetAcc.id) : String(filterAccountId || '');
     var targetAccName = targetAcc ? (targetAcc.name || targetAcc.account_name || targetAcc.name_ar || targetAccCode) : targetAccCode;
@@ -33,11 +33,25 @@
     var openingBalanceOrig = openingBalanceBase;
     var ledgerRows = [];
 
+    var startDate = (dateRange && dateRange.start) ? String(dateRange.start).split('T')[0].split(' ')[0].trim() : '';
+    var endDate = (dateRange && dateRange.end) ? String(dateRange.end).split('T')[0].split(' ')[0].trim() : '';
+
+    function isAccountMatch(code, raw, obj) {
+      if (!filterAccountId || filterAccountId === 'ALL') return true;
+      var fStr = String(filterAccountId).trim();
+      var fClean = fStr.replace(/^ACC[-_]?/i, '');
+      var cClean = String(code || '').replace(/^ACC[-_]?/i, '');
+      var rClean = String(raw || '').replace(/^ACC[-_]?/i, '');
+      if (code === fStr || raw === fStr || cClean === fClean || rClean === fClean) return true;
+      if (targetAcc && obj && (obj.id === targetAcc.id || String(obj.code || obj.account_code) === String(targetAcc.code || targetAcc.account_code))) return true;
+      if (targetAccCode && (code === targetAccCode || cClean === String(targetAccCode).replace(/^ACC[-_]?/i, ''))) return true;
+      return false;
+    }
+
     sorted.forEach(function(j) {
-      var entryDate = (j.date || j.entry_date || '').split('T')[0];
-      var isPrior = Boolean(dateRange && dateRange.start && entryDate < dateRange.start);
-      var isInPeriod = (!dateRange || !dateRange.start || entryDate >= dateRange.start) &&
-                       (!dateRange || !dateRange.end || entryDate <= dateRange.end);
+      var entryDate = String(j.date || j.entry_date || '').split('T')[0].split(' ')[0].trim();
+      var isPrior = Boolean(startDate && entryDate && entryDate < startDate);
+      var isInPeriod = (!startDate || entryDate >= startDate) && (!endDate || entryDate <= endDate);
 
       if (!isPrior && !isInPeriod) return;
 
@@ -58,7 +72,7 @@
           var dBase = l.debit_base !== undefined ? (parseFloat(l.debit_base) || 0) : (dOrig * rate);
           var cBase = l.credit_base !== undefined ? (parseFloat(l.credit_base) || 0) : (cOrig * rate);
 
-          var isMatch = !filterAccountId || aCode === targetAccCode || accRaw === String(filterAccountId) || (targetAcc && (accObj && accObj.id === targetAcc.id));
+          var isMatch = isAccountMatch(aCode, accRaw, accObj);
           if (!isMatch) return;
 
           if (isPrior) {
@@ -94,12 +108,12 @@
         var cFinalName = creditAccObj ? (creditAccObj.name || creditAccObj.account_name || creditAccObj.acc_name || cFinalCode) : cRaw.replace(cCode + ' - ', '').trim();
         var dNature = debitAccObj ? getNature(debitAccObj) : 'debit', cNature = creditAccObj ? getNature(creditAccObj) : 'credit';
 
-        var isDebitMatch = !filterAccountId || dFinalCode === targetAccCode || dRaw === String(filterAccountId) || (targetAcc && debitAccObj && debitAccObj.id === targetAcc.id);
-        var isCreditMatch = !filterAccountId || cFinalCode === targetAccCode || cRaw === String(filterAccountId) || (targetAcc && creditAccObj && creditAccObj.id === targetAcc.id);
+        var isDebitMatch = isAccountMatch(dFinalCode, dRaw, debitAccObj);
+        var isCreditMatch = isAccountMatch(cFinalCode, cRaw, creditAccObj);
 
         if (isPrior) {
           if (isDebitMatch) { if (targetNature === 'credit') { openingBalanceBase -= baseAmount; openingBalanceOrig -= amount; } else { openingBalanceBase += baseAmount; openingBalanceOrig += amount; } }
-          if (isCreditMatch) { if (targetNature === 'credit') { openingBalanceBase += baseAmount; openingBalanceOrig += amount; } else { openingBalanceBase -= baseAmount; openingBalanceOrig -= amount; } }
+          if (isCreditMatch) { if (targetNature === 'credit') { openingBalanceBase += baseAmount; openingBalanceOrig += amount; } else { openingBalanceBase -= baseAmount; openingBalanceOrig += amount; } }
         } else if (isInPeriod) {
           if (isDebitMatch) {
             ledgerRows.push({
@@ -123,19 +137,20 @@
       }
     });
 
-    if (filterAccountId && dateRange && dateRange.start) {
+    if (filterAccountId && filterAccountId !== 'ALL' && startDate) {
       ledgerRows.unshift({
-        id: 'OPENING-' + targetAccCode, journal_id: 'OPENING', entry_no: 'رصيد سابق', date: dateRange.start,
+        id: 'OPENING-' + targetAccCode, journal_id: 'OPENING', entry_no: 'رصيد سابق', date: startDate,
         account_code: targetAccCode, account_name: targetAccName, account_nature: targetNature,
         side: targetNature === 'credit' ? 'credit' : 'debit',
         debit_orig: 0, credit_orig: 0, debit_base: 0, credit_base: 0, currency: 'YER', exchange_rate: 1.0,
-        ref_type: 'رصيد افتتاحي / سابق', ref_id: '', notes: 'الرصيد السابق / الافتتاحي حتى تاريخ ' + dateRange.start,
+        ref_type: 'رصيد افتتاحي / سابق', ref_id: '', notes: 'الرصيد السابق / الافتتاحي حتى تاريخ ' + startDate,
         running_balance_base: openingBalanceBase, running_balance_orig: openingBalanceOrig, is_opening: true
       });
     }
 
-    var runningBase = (filterAccountId && dateRange && dateRange.start) ? openingBalanceBase : 0;
-    var runningOrig = (filterAccountId && dateRange && dateRange.start) ? openingBalanceOrig : 0;
+    var runningBase = (filterAccountId && filterAccountId !== 'ALL' && startDate) ? openingBalanceBase : 0;
+    var runningOrig = (filterAccountId && filterAccountId !== 'ALL' && startDate) ? openingBalanceOrig : 0;
+
 
     ledgerRows.forEach(function(row) {
       if (row.is_opening) {

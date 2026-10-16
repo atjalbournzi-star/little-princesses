@@ -1,7 +1,7 @@
 # services/pg/pg_orders_write.py
 # Order creation, item line attachment, inventory auto-deduction, payments, and double entry posting
 
-from .db_pool import get_db_cursor, clean_str, clean_num, generate_id, today_str
+from .db_pool import get_db_cursor, clean_str, clean_num, generate_id, today_str, generate_sequential_order_no
 from .pg_receipt_sync import sync_advance_receipt
 
 
@@ -46,6 +46,9 @@ def add_order(payload):
     p_name = clean_str(data.get('product_name'))
 
     with get_db_cursor(commit=True) as cur:
+        if not order_no or order_no.startswith('ORD-CUST-') or order_no == order_id:
+            order_no = generate_sequential_order_no(cur, order_date)
+
         if not prod_id and p_name:
             cur.execute("SELECT id FROM products WHERE model_name = %s LIMIT 1;", (p_name,))
             p_row = cur.fetchone()
@@ -97,7 +100,7 @@ def add_order(payload):
 
         # Cash Account & Payment Receipt
         cash_acc = 'ACC-101-2' if 'SAR' in curr.upper() else ('ACC-101-3' if 'USD' in curr.upper() else 'ACC-101-1')
-        if any(k in pay_method for k in ['كريمي', 'بنك', 'حوالة']): cash_acc = 'ACC-103'
+        if any(k in pay_method for k in ['كريمي', 'بنك', 'حوالة']): cash_acc = 'ACC-102-2'
 
         if paid_amt > 0:
             sync_advance_receipt(cur, {

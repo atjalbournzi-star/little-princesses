@@ -23,7 +23,7 @@
         fetch("/api/vouchers").then(r => r.json()).then(d => ({ data: (d && Array.isArray(d.data)) ? d.data : (Array.isArray(d) ? d : []) })).catch(() => ({ data: [] })),
         fetch("/api/expenses").then(r => r.json()).then(d => ({ data: (d && Array.isArray(d.data)) ? d.data : (Array.isArray(d) ? d : []) })).catch(() => ({ data: [] })),
         fetch("/api/journal").then(r => r.json()).then(d => ({ data: (d && Array.isArray(d.data)) ? d.data : (Array.isArray(d) ? d : []) })).catch(() => ({ data: [] })),
-        fetch("/api/quality/feedback").then(r => r.json()).catch(() => callGAS("getFeedback")),
+        fetch("/api/quality/feedback").then(r => (r.ok ? r.json() : { success: false, data: [] })).catch(() => ({ success: false, data: [] })),
         fetch("/api/hr/employees").then(r => r.json()).catch(() => callGAS("getEmployees")),
         fetch("/api/hr/payroll").then(r => r.json()).catch(() => callGAS("getPayroll")),
         fetch("/api/marketing/campaigns").then(r => r.json()).catch(() => (window.marketingAPI ? window.marketingAPI.getCampaigns() : { data: [] }))
@@ -35,7 +35,12 @@
         else if (Array.isArray(aRes.value) && aRes.value.length > 0) accountsData = aRes.value;
       }
       if (!accountsData || accountsData.length === 0) {
-        accountsData = (typeof INITIAL_ACCOUNTS !== 'undefined' ? INITIAL_ACCOUNTS : []);
+        accountsData = (typeof INITIAL_ACCOUNTS !== 'undefined' ? [...INITIAL_ACCOUNTS] : []);
+      } else if (typeof INITIAL_ACCOUNTS !== 'undefined' && Array.isArray(INITIAL_ACCOUNTS) && accountsData.length < 5) {
+        const existingCodes = new Set(accountsData.map(a => String(a.code || a.account_code || a.id)));
+        INITIAL_ACCOUNTS.forEach(initAcc => {
+          if (!existingCodes.has(String(initAcc.code || initAcc.id))) accountsData.push(initAcc);
+        });
       }
 
       let inventoryData = [];

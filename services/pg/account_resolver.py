@@ -5,8 +5,22 @@ import re
 from .db_pool import clean_str, clean_num
 
 
+def normalize_currency_code(currency_code):
+    if not currency_code:
+        return 'YER'
+    c = str(currency_code).upper().strip()
+    if 'SAR' in c or 'سعود' in c:
+        return 'SAR'
+    if 'USD' in c or 'دولار' in c or '$' in c:
+        return 'USD'
+    if 'YER' in c or 'يمن' in c or '﷼' in c:
+        return 'YER'
+    clean = re.sub(r'[^A-Z]', '', c)
+    return clean[:3] if clean else 'YER'
+
+
 def resolve_exchange_rate(cur, currency_code, provided_rate=1.0):
-    curr = clean_str(currency_code or 'YER').upper()
+    curr = normalize_currency_code(currency_code)
     if curr == 'YER':
         return 1.0
     rate = clean_num(provided_rate or 0.0)
@@ -73,7 +87,7 @@ def resolve_account_id(cur, acc_input, default_id="ACC-101-1", currency=None):
     if any(k in low for k in ['سعودي', 'sar', '101.2', '101-2']): return 'ACC-101-2'
     if any(k in low for k in ['دولار', 'usd', '101.3', '101-3']): return 'ACC-101-3'
     if any(k in low for k in ['يمني', 'yer', '101.1', '101-1']): return 'ACC-101-1'
-    if 'كريمي' in low or '103' in low: return 'ACC-103'
+    if 'كريمي' in low or '102.02' in low or '102-2' in low or '103' in low: return 'ACC-102-2'
     if any(k in low for k in ['رئيسي', '101', 'خزينة', '1111']): return 'ACC-101-1'
     if any(k in low for k in ['5121', '501', 'رواتب', 'راتب', 'أجور']): return 'ACC-501'
     if any(k in low for k in ['1141', '107', 'سلف', 'سلفة']): return 'ACC-107'

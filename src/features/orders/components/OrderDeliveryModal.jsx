@@ -7,7 +7,8 @@ function OrderDeliveryModal({
   customers = [],
   currencyDisplay = "YER ريال",
   onConfirmDelivery,
-  submittingDelivery
+  submittingDelivery,
+  accounts = []
 }) {
   if (!order) return null;
 
@@ -17,10 +18,37 @@ function OrderDeliveryModal({
   const delFee = parseFloat(order.delivery_fee || order.delivery || 0);
   const delMode = order.delivery_payment_mode || 'DIRECT_TO_COURIER';
 
+  const [fetchedAccounts, setFetchedAccounts] = useState([]);
+
+  React.useEffect(() => {
+    if ((!accounts || !accounts.length) && (!window.accounts || !window.accounts.length)) {
+      fetch('/api/accounts/list').then(r => r.json()).then(d => {
+        const list = (d && Array.isArray(d.data)) ? d.data : (Array.isArray(d) ? d : []);
+        if (list.length) setFetchedAccounts(list);
+      }).catch(() => {});
+    }
+  }, [accounts]);
+
+  const rawAccs = (accounts && accounts.length) ? accounts : (window.accounts || window.chartOfAccounts || fetchedAccounts);
+  const treasuryAccounts = React.useMemo(() => {
+    if (!rawAccs || !rawAccs.length) return [];
+    const filtered = rawAccs.filter(a => {
+      if (a.is_group === true || a.is_group === 'true') return false;
+      const cat = String(a.account_category || a.category || '').toLowerCase();
+      const type = String(a.account_type || a.type || '').toLowerCase();
+      const code = String(a.account_code || a.code || a.id || '');
+      const name = String(a.account_name || a.name || '');
+      return (cat.includes('خزين') || cat.includes('صندوق') || cat.includes('بنك') || cat.includes('نقدي') || cat.includes('cash') || cat.includes('bank') || type.includes('asset') || type.includes('أصول') || code.startsWith('101') || code.startsWith('102') || code.startsWith('103') || code.startsWith('1') || code.startsWith('ACC-1') || name.includes('صندوق') || name.includes('خزينة') || name.includes('بنك') || name.includes('كاش') || name.includes('الكريمي'));
+    });
+    return filtered.length ? filtered : rawAccs.filter(a => !a.is_group);
+  }, [rawAccs]);
+
+  const defaultAccId = (treasuryAccounts[0] && (treasuryAccounts[0].id || treasuryAccounts[0].account_code)) || 'ACC-101';
+
   const [deliveryForm, setDeliveryForm] = useState({
     amount_collected: String(rem),
     discount: '0',
-    account_id: 'ACC-101',
+    account_id: defaultAccId,
     payment_method: 'نقد (كاش)',
     notes: ''
   });
@@ -139,9 +167,18 @@ function OrderDeliveryModal({
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className={labelCls}>حساب الخزينة *</label>
-                <select className={inputCls} value={deliveryForm.account_id} onChange={e => setDeliveryForm({ ...deliveryForm, account_id: e.target.value })}>
-                  <option value="ACC-101">ACC-101 (الصندوق الرئيسي - كاش)</option>
-                  <option value="ACC-103">ACC-103 (بنك الكريمي - تحويل)</option>
+                <select className={inputCls} value={deliveryForm.account_id || defaultAccId} onChange={e => setDeliveryForm({ ...deliveryForm, account_id: e.target.value })}>
+                  {treasuryAccounts.length > 0 ? treasuryAccounts.map(acc => {
+                    const val = acc.id || acc.account_code || acc.code;
+                    const codeStr = acc.account_code || acc.code || acc.id;
+                    const nameStr = acc.account_name || acc.name || codeStr;
+                    return <option key={val} value={val}>{codeStr} - {nameStr}{acc.currency ? ` (${acc.currency})` : ''}</option>;
+                  }) : (
+                    <>
+                      <option value="ACC-101">ACC-101 (الصندوق الرئيسي - كاش)</option>
+                      <option value="ACC-102-2">ACC-102-2 (102.02 - بنك الكريمي / المحافظ)</option>
+                    </>
+                  )}
                 </select>
               </div>
               <div>

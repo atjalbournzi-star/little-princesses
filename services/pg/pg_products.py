@@ -60,6 +60,7 @@ def get_products(params=None):
             r['tailor_wage'] = meta.get('tailor_wage', 0.0)
             r['embroiderer_wage'] = meta.get('embroiderer_wage', 0.0)
             r['finisher_wage'] = meta.get('finisher_wage', 0.0)
+            r['packaging_cost'] = float(r.get('packaging_cost') or meta.get('packaging_cost') or 0.0)
             r['barcode'] = meta.get('barcode') or r['barcode']
             r['colors'] = meta.get('colors', [])
             r['sizes'] = meta.get('sizes', [])
@@ -114,11 +115,12 @@ def add_product(payload):
             "barcode": barcode,
             "target_segment": target_segment,
             "colors": data.get('colors') or raw_meta.get('colors') or [],
-            "sizes": data.get('sizes') or raw_meta.get('sizes') or [],
+            "sizes": data.get('sizes') or raw_meta.get('sizes') or (list(pm.keys()) if isinstance(pm, dict) and pm else []),
             "cutter_wage": cutter_wage or clean_num(raw_meta.get('cutter_wage')),
             "tailor_wage": tailor_wage or clean_num(raw_meta.get('tailor_wage')),
             "embroiderer_wage": embroiderer_wage or clean_num(raw_meta.get('embroiderer_wage')),
-            "finisher_wage": finisher_wage or clean_num(raw_meta.get('finisher_wage'))
+            "finisher_wage": finisher_wage or clean_num(raw_meta.get('finisher_wage')),
+            "packaging_cost": packaging_cost or clean_num(raw_meta.get('packaging_cost'))
         }
     }
     bm_json = json.dumps(bm_payload, ensure_ascii=False)

@@ -8,7 +8,7 @@ const SEGMENTS = {
     icon: '👧',
     sizes: ['1-2Y', '3-5Y', '6-9Y', '10-13Y'],
     sizeLabels: { '1-2Y': '1-2 سنة', '3-5Y': '3-5 سنوات', '6-9Y': '6-9 سنوات', '10-13Y': '10-13 سنة' },
-    defaultMeters: { '1-2Y': 1.0, '3-5Y': 1.5, '6-9Y': 2.0, '10-13Y': 2.5 },
+    defaultMeters: { '1-2Y': '', '3-5Y': '', '6-9Y': '', '10-13Y': '' },
     referenceSize: '6-9Y'
   },
   women_adults: {
@@ -17,7 +17,7 @@ const SEGMENTS = {
     icon: '👗',
     sizes: ['XS', 'S', 'M', 'L', 'XL', 'XXL'],
     sizeLabels: { 'XS': 'XS (34)', 'S': 'S (36)', 'M': 'M (38)', 'L': 'L (40)', 'XL': 'XL (42)', 'XXL': 'XXL (44)' },
-    defaultMeters: { 'XS': 2.5, 'S': 3.0, 'M': 3.5, 'L': 4.0, 'XL': 4.5, 'XXL': 5.0 },
+    defaultMeters: { 'XS': '', 'S': '', 'M': '', 'L': '', 'XL': '', 'XXL': '' },
     referenceSize: 'M'
   },
   custom_free: {
@@ -26,28 +26,25 @@ const SEGMENTS = {
     icon: '✂️',
     sizes: ['تفصيل حر'],
     sizeLabels: { 'تفصيل حر': 'مقاس حر / تفصيل حر' },
-    defaultMeters: { 'تفصيل حر': 3.0 },
+    defaultMeters: { 'تفصيل حر': '' },
     referenceSize: 'تفصيل حر'
   }
 };
 
 const DEFAULT_AGE_CHART = [
-  { id: 1, age: '1-2 سنوات', min: '45', max: '55' },
-  { id: 2, age: '2-3 سنوات', min: '55', max: '65' },
-  { id: 3, age: '4-5 سنوات', min: '65', max: '75' },
-  { id: 4, age: '6-7 سنوات', min: '75', max: '85' },
-  { id: 5, age: '8-10 سنوات', min: '85', max: '100' },
-  { id: 6, age: '10-12 سنة', min: '100', max: '115' },
-  { id: 7, age: '12-14 سنة', min: '115', max: '130' }
+  { id: 1, size: '1-2Y', age: '1-2 سنة', chest: '', waist: '', length: '', min: '', max: '' },
+  { id: 2, size: '3-5Y', age: '3-5 سنوات', chest: '', waist: '', length: '', min: '', max: '' },
+  { id: 3, size: '6-9Y', age: '6-9 سنوات', chest: '', waist: '', length: '', min: '', max: '' },
+  { id: 4, size: '10-13Y', age: '10-13 سنة', chest: '', waist: '', length: '', min: '', max: '' }
 ];
 
 const DEFAULT_WOMEN_SIZE_CHART = [
-  { id: 1, size: 'XS', label: 'XS (34)', chest: 82, waist: 64, length: 135 },
-  { id: 2, size: 'S', label: 'S (36)', chest: 88, waist: 70, length: 138 },
-  { id: 3, size: 'M', label: 'M (38)', chest: 94, waist: 76, length: 140 },
-  { id: 4, size: 'L', label: 'L (40)', chest: 102, waist: 84, length: 142 },
-  { id: 5, size: 'XL', label: 'XL (42)', chest: 110, waist: 92, length: 145 },
-  { id: 6, size: 'XXL', label: 'XXL (44)', chest: 118, waist: 100, length: 145 }
+  { id: 1, size: 'XS', label: 'XS (34)', chest: '', waist: '', length: '' },
+  { id: 2, size: 'S', label: 'S (36)', chest: '', waist: '', length: '' },
+  { id: 3, size: 'M', label: 'M (38)', chest: '', waist: '', length: '' },
+  { id: 4, size: 'L', label: 'L (40)', chest: '', waist: '', length: '' },
+  { id: 5, size: 'XL', label: 'XL (42)', chest: '', waist: '', length: '' },
+  { id: 6, size: 'XXL', label: 'XXL (44)', chest: '', waist: '', length: '' }
 ];
 
 const DEFAULT_BRACKETS = ['1-2Y', '3-5Y', '6-9Y', '10-13Y'];
@@ -86,7 +83,7 @@ const getSegmentSizes = (segment = 'kids') => (SEGMENTS[segment] || SEGMENTS.kid
 const createDefaultFabricRow = (currency = 'YER', segment = 'kids') => {
   const seg = SEGMENTS[segment] || SEGMENTS.kids;
   const brackets = {};
-  seg.sizes.forEach(sz => { brackets[sz] = seg.defaultMeters[sz] || 2.0; });
+  seg.sizes.forEach(sz => { brackets[sz] = ""; });
   return { id: Date.now(), inventory_id: "", name: "", unit: "متر", currency, brackets, cost: 0 };
 };
 
@@ -96,7 +93,7 @@ const calculateCostsPerBracket = (fabricsList = [], segment = 'kids', activeMode
   seg.sizes.forEach(sz => {
     result[sz] = fabricsList.reduce((acc, f) => {
       const br = f.brackets || {};
-      const meters = parseFloat(br[sz] ?? (sz === '6-9Y' ? br['6-9 سنوات'] : 0) ?? f.meters ?? 0);
+      const meters = parseFloat(br[sz] ?? (sz === '6-9Y' ? br['6-9 سنوات'] : 0) ?? f.meters ?? 0) || 0;
       const unitCost = getFabricCostInModelCurrency(f, activeModelCurrency);
       return acc + (meters * unitCost);
     }, 0);
@@ -181,7 +178,17 @@ const buildProductPayload = (d) => {
     base_price: parseFloat(d.pricesMatrix[d.refSize] || Object.values(d.pricesMatrix)[0] || 0),
     price_matrix: d.pricesMatrix, currency: d.activeModelCurrencyLabel, profit: d.computedProfit,
     calc_date: d.calcDate, sizes: d.selectedSizes, colors: d.selectedColors,
-    bom: buildBomArray(d.fabricsList, d.targetSegment), age_chart: d.ageChart
+    bom: {
+      items: buildBomArray(d.fabricsList, d.targetSegment),
+      meta: {
+        sizes: d.selectedSizes || (d.pricesMatrix ? Object.keys(d.pricesMatrix) : []),
+        colors: d.selectedColors || [], barcode: smartVal, target_segment: d.targetSegment,
+        cutter_wage: parseFloat(d.cutterWage || 0), tailor_wage: parseFloat(d.tailorWage || 0),
+        embroiderer_wage: parseFloat(d.embroidWage || 0), finisher_wage: parseFloat(d.finisherWage || 0),
+        packaging_cost: parseFloat(d.packagingCost || 0)
+      }
+    },
+    age_chart: d.ageChart
   };
 };
 
