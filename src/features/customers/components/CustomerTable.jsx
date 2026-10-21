@@ -55,7 +55,8 @@ function CustomerTable({
         <tbody className="divide-y divide-slate-800/60">
           {customers.map((c, idx) => {
             const custId = c.customer_id || c.id || `CUST-${idx + 1001}`;
-            const custOrder = (orders || []).find(o => String(o.customer_id) === String(custId) || String(o.customer_id) === String(c.id) || (o.customer_name && String(o.customer_name).trim() === String(c.name || c.customer_name).trim()));
+            const cOrders = (orders || []).filter(o => (o.customer_id && (String(o.customer_id) === String(custId) || String(o.customer_id) === String(c.id))) || (o.customer_name && String(o.customer_name).trim() === String(c.name || c.customer_name).trim()));
+            const custOrder = cOrders[0] || null;
             const delMode = c.ledger?.delivery_payment_mode || c.delivery_payment_mode || custOrder?.delivery_payment_mode || 'DIRECT_TO_COURIER';
             const isPrepaidDel = delMode === 'PREPAID_VIA_ATELIER';
             const delFee = isPrepaidDel ? parseFloat(c.ledger?.delivery || c.ledger?.delivery_fee || c.delivery_fee || custOrder?.delivery_fee || 0) : 0;
@@ -72,6 +73,8 @@ function CustomerTable({
             const rem = trueTotal > 0 ? Math.max(0, trueTotal - truePaid) : parseFloat(c.ledger?.remaining ?? c.remaining ?? c.current_balance ?? 0);
             const measurementsList = Array.isArray(c.measurements) ? c.measurements : [];
             const childrenList = Array.isArray(c.children) ? c.children : [];
+            const hasReadyOrder = cOrders.some(o => o.stage === 'جاهز للتسليم 📦' || o.status === 'ready_for_delivery' || o.status === 'ready' || o.production_status === 'ready' || o.stage === 'ready');
+            const shouldPulseDebt = rem > 0 && hasReadyOrder;
 
             return (
               <tr key={custId} className="h-7 max-h-7 border-b border-slate-800/60 hover:bg-slate-800/40 transition-colors group">
@@ -110,14 +113,14 @@ function CustomerTable({
                   {measurementsList.length > 0 ? (
                     <div className="flex items-center gap-1 overflow-hidden truncate">
                       {measurementsList.slice(0, 2).map((m, mIdx) => (
-                        <span key={m.id || mIdx} className="text-[10px] py-0.2 px-1.5 bg-[#0B132B] border border-slate-700/60 rounded text-slate-200 font-medium truncate shrink-0 max-w-[100px]" title={`${m.child_name || 'الأميرة'}: ${m.selected_model || ''}`}>
-                          👑 {m.child_name || 'الأميرة'}
+                        <span key={m.id || mIdx} className="text-[10px] py-0.2 px-1.5 bg-[#0B132B] border border-slate-700/60 rounded text-slate-200 font-medium truncate shrink-0 max-w-[100px]" title={`${m.child_name || ''}: ${m.selected_model || ''}`}>
+                          👑 {m.child_name || ''}
                         </span>
                       ))}
                       {measurementsList.length > 2 && <span className="text-[9.5px] text-purple-300 font-mono font-bold">+{measurementsList.length - 2}</span>}
                     </div>
-                  ) : childrenList.length > 0 ? (
-                    <span className="text-[10px] text-slate-400 truncate">👧 {childrenList[0]?.child_name || 'الأميرة'}</span>
+                  ) : (childrenList.length > 0 && childrenList[0]?.child_name) ? (
+                    <span className="text-[10px] text-slate-400 truncate">👧 {childrenList[0].child_name}</span>
                   ) : (
                     <span className="text-slate-500 text-[10px]">—</span>
                   )}
@@ -126,13 +129,23 @@ function CustomerTable({
                 {/* الرصيد المتبقي (نقر لفتح الخطوة 3) */}
                 <td onClick={() => onOpenHistory && onOpenHistory(c)} className="h-7 max-h-7 py-0.5 px-2 whitespace-nowrap cursor-pointer hover:opacity-80 transition" title="فتح الحساب المالي (الخطوة 3)">
                   <div className="flex items-center justify-center">
-                    <span className={`text-[10px] font-mono font-bold px-1.5 py-0.2 rounded border ${
-                      rem > 0
-                        ? 'bg-amber-950/60 text-amber-300 border-amber-600/60'
-                        : 'bg-emerald-950/60 text-emerald-300 border-emerald-600/60'
-                    }`}>
-                      {rem > 0 ? `${rem.toLocaleString('en-US')} ${currency.symbol || ''}` : 'مسدد ✅'}
-                    </span>
+                    {rem > 0 ? (
+                      <span className={`text-[10px] font-mono font-bold px-1.5 py-0.2 rounded border ${
+                        shouldPulseDebt
+                          ? 'bg-amber-500/25 text-amber-300 border-amber-500/80 animate-pulse ring-1 ring-amber-500/40 shadow-xs'
+                          : 'bg-amber-950/60 text-amber-300 border-amber-600/60'
+                      }`}>
+                        {rem.toLocaleString('en-US')} {currency.symbol || ''}
+                      </span>
+                    ) : (trueTotal > 0 && rem === 0) ? (
+                      <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded border bg-emerald-950/60 text-emerald-300 border-emerald-600/60">
+                        مسدد ✅
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded border bg-slate-900/60 text-slate-400 border-slate-700/60">
+                        —
+                      </span>
+                    )}
                   </div>
                 </td>
 
@@ -141,7 +154,7 @@ function CustomerTable({
                   <div className="flex items-center gap-1 justify-center">
                     <button type="button" onClick={() => onEditCustomer && onEditCustomer(c)} className="w-5 h-5 flex items-center justify-center p-1 rounded hover:bg-slate-700 text-xs transition cursor-pointer" title="تعديل بيانات العميل (الخطوة 1)">✏️</button>
                     <button type="button" onClick={() => onOpenMeasurements && onOpenMeasurements(c)} className="w-5 h-5 flex items-center justify-center p-1 rounded hover:bg-slate-700 text-xs transition cursor-pointer" title="فتح سجل المقاسات والتفصيل (الخطوة 2)">📏</button>
-                    <button type="button" onClick={() => onOpenHistory && onOpenHistory(c)} className="w-5 h-5 flex items-center justify-center p-1 rounded hover:bg-slate-700 text-xs transition cursor-pointer" title="الحساب المالي والعربون (الخطوة 3)">💳</button>
+                    <button type="button" onClick={() => onOpenHistory && onOpenHistory(c)} className={`w-5 h-5 flex items-center justify-center p-1 rounded hover:bg-slate-700 text-xs transition cursor-pointer ${shouldPulseDebt ? 'bg-amber-500/30 text-amber-200 border border-amber-500/70 animate-pulse shadow-xs' : ''}`} title="الحساب المالي والعربون (الخطوة 3)">💳</button>
                     <button type="button" onClick={() => onPrintUnified ? onPrintUnified(c) : (onPrintInvoice && onPrintInvoice(c))} className="w-5 h-5 flex items-center justify-center p-1 rounded hover:bg-slate-700 text-xs transition cursor-pointer" title="مركز الطباعة">🖨️</button>
                     <button 
                       type="button"

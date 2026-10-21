@@ -1,4 +1,4 @@
-﻿// src/features/inventory/components/WarehouseAddModal.jsx
+// src/features/inventory/components/WarehouseAddModal.jsx
 // نافذة إضافة مستودع جديد وربطه بشجرة الحسابات والوحدات المختلفة
 
 const { useState } = React;
@@ -82,7 +82,7 @@ function WarehouseAddModal({ isOpen, onClose, onWarehouseAdded, showToast }) {
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
           <div>
             <label className={labelCls}>اسم المستودع <span className="text-[#D64545]">*</span></label>
-            <input className={inputCls} placeholder="مثال: مستودع الفرع الثاني" value={name}
+            <input className={inputCls} placeholder="" value={name}
               onChange={e => setName(e.target.value)} disabled={isSubmitting} autoFocus />
           </div>
 
@@ -90,7 +90,7 @@ function WarehouseAddModal({ isOpen, onClose, onWarehouseAdded, showToast }) {
             <label className={labelCls}>رمز المستودع (كود) <span className="text-[#D64545]">*</span></label>
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-[#007F8C] bg-[#E2F5F7] border border-[#C5ECF0] rounded-lg px-2 py-2.5 whitespace-nowrap">WH-</span>
-              <input className={inputCls + (codeError ? ' border-[#D64545]' : '')} placeholder="مثال: BRANCH2" value={code}
+              <input className={inputCls + (codeError ? ' border-[#D64545]' : '')} placeholder="" value={code}
                 onChange={e => handleCodeChange(e.target.value)} disabled={isSubmitting} />
             </div>
             {codeError && <p className="text-[10px] text-[#D64545] mt-1">{codeError}</p>}
@@ -99,7 +99,7 @@ function WarehouseAddModal({ isOpen, onClose, onWarehouseAdded, showToast }) {
 
           <div>
             <label className={labelCls}>الموقع / العنوان (اختياري)</label>
-            <input className={inputCls} placeholder="مثال: الطابق الثاني - المبنى الشمالي" value={location}
+            <input className={inputCls} placeholder="" value={location}
               onChange={e => setLocation(e.target.value)} disabled={isSubmitting} />
           </div>
 

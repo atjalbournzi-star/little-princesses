@@ -8,6 +8,8 @@ function ProductionBoard({
   stockInflowLoading = {},
   setQcModalData,
   advanceToNextStage,
+  handleFastTrackQc,
+  actionLoadingId,
   handleStockInflow,
   handleReverseStockInflow,
   handleOpenDeliveryModal,
@@ -19,11 +21,10 @@ function ProductionBoard({
   handleDeleteOrder
 }) {
   const CardComponent = window.ProductionCard || (typeof ProductionCard !== 'undefined' ? ProductionCard : null);
-
   const safeList = Array.isArray(filteredFactory) ? filteredFactory.filter(Boolean) : [];
 
   return (
-    <div className="flex-1 min-h-0 overflow-auto custom-scrollbar rounded-xl border border-slate-800/80 bg-slate-900/80 text-right text-xs shadow-lg shadow-black/20">
+    <div className="flex-1 min-h-[300px] overflow-auto custom-scrollbar rounded-xl border border-slate-800/80 bg-slate-900/80 text-right text-xs shadow-lg shadow-black/20">
       <table className="w-full border-collapse">
         <thead className="sticky top-0 z-10 bg-slate-950/95 backdrop-blur-md text-slate-300 border-b border-slate-800/90 shadow-sm">
           <tr>
@@ -54,6 +55,8 @@ function ProductionBoard({
                   stockInflowLoading={stockInflowLoading}
                   setQcModalData={setQcModalData}
                   advanceToNextStage={advanceToNextStage}
+                  handleFastTrackQc={handleFastTrackQc}
+                  actionLoadingId={actionLoadingId}
                   handleStockInflow={handleStockInflow}
                   handleReverseStockInflow={handleReverseStockInflow}
                   handleOpenDeliveryModal={handleOpenDeliveryModal}
@@ -86,4 +89,3 @@ function ProductionBoard({
 }
 
 window.ProductionBoard = ProductionBoard;
-

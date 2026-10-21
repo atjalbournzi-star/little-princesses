@@ -189,7 +189,8 @@ def list_products():
         return jsonify({'success': False, 'error': str(e), 'data': []}), 500
 
 
-@inventory_bp.route('/api/products', methods=['POST'])
+@inventory_bp.route('/api/products', methods=['POST', 'PUT', 'PATCH'])
+@inventory_bp.route('/api/products/update', methods=['POST', 'PUT', 'PATCH'])
 @inventory_bp.route('/api/products/bom', methods=['POST'])
 def save_product():
     try:

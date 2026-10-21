@@ -113,19 +113,16 @@ function getSmartModelMatch(m, productsList = []) {
   let finalPrice = conv ? conv.resolveUnitPrice(matchedProduct, tierCode) : (window.OrderPricing ? window.OrderPricing.resolveProductTierPrice(matchedProduct, tierCode) : parseFloat(matchedProduct.sell_price || 0));
 
   const jumbo = getJumboFactor(m);
-  if (jumbo.factor > 1) finalPrice = finalPrice * jumbo.factor;
 
   let fabricMeters = 0, fabricsBreakdown = [];
   if (matchedProduct.bom && Array.isArray(matchedProduct.bom) && matchedProduct.bom.length > 0) {
     fabricsBreakdown = matchedProduct.bom.map(f => {
       let bM = parseFloat((f.brackets && (f.brackets[broadBracket] || f.brackets['6-7Y'] || f.brackets['6-9Y'])) || f.meters || 0);
-      if (jumbo.factor > 1) bM = parseFloat((bM * jumbo.factor).toFixed(2));
       return { name: f.fabric_name || f.name || f.material_name || 'قماش', meters: bM, unit: f.unit || f.uom || 'متر' };
     });
     fabricMeters = fabricsBreakdown[0]?.meters || 0;
   } else {
     fabricMeters = parseFloat(matchedProduct.yards_used || (tier === 'toddler' ? 1.5 : (tier === 'kids' ? 2.5 : 3.5)));
-    if (jumbo.factor > 1) fabricMeters = fabricMeters * jumbo.factor;
     fabricsBreakdown = [{ name: matchedProduct.fabric_name || 'تفتة تركي', meters: fabricMeters, unit: 'متر' }];
   }
 

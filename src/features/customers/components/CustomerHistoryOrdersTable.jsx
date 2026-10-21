@@ -26,11 +26,11 @@ function CustomerHistoryOrdersTable({ customerOrders = [], voucherCurr = 'YER' }
                 <tr key={o.id || o.order_no} className="h-6 max-h-6 hover:bg-slate-800/40 text-[10px] text-white">
                   <td className="px-2 py-0.5 font-mono font-bold text-pink-400">{o.order_no || ('ORD-' + o.id)}</td>
                   <td className="px-2 py-0.5 font-mono text-slate-400 text-[9.5px]">{o.order_date || o.created_at || '—'}</td>
-                  <td className="px-2 py-0.5 font-semibold text-white">{o.product_name || o.product || 'فستان مناسبات'}</td>
-                  <td className="px-2 py-0.5 text-slate-300">{o.child_name || 'الأميرة'}</td>
+                  <td className="px-2 py-0.5 font-semibold text-white">{o.product_name || o.product || '—'}</td>
+                  <td className="px-2 py-0.5 text-slate-300">{o.child_name || '—'}</td>
                   <td className="px-2 py-0.5 font-mono font-bold text-center text-white">{parseFloat(o.total || o.total_amount || 0).toLocaleString()} {voucherCurr}</td>
                   <td className="px-2 py-0.5 font-mono text-emerald-400 font-bold text-center">{parseFloat(o.paid || o.paid_amount || 0).toLocaleString()} {voucherCurr}</td>
-                  <td className="px-2 py-0.5 text-center"><span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-blue-950/60 text-blue-300 border border-blue-800/40">{o.status || 'قيد التنفيذ'}</span></td>
+                  <td className="px-2 py-0.5 text-center"><span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-blue-950/60 text-blue-300 border border-blue-800/40">{o.status || '—'}</span></td>
                 </tr>
               ))}
             </tbody>

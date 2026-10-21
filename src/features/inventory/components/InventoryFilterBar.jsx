@@ -15,11 +15,7 @@ function InventoryFilterBar({
   counts = {}
 }) {
   const u = window.inventoryUtils || {};
-  const warehouses = u.WAREHOUSES || [
-    { id: 'WH-MAIN', code: 'WH-MAIN', name: 'المستودع الرئيسي' },
-    { id: 'WH-WORKSHOP', code: 'WH-WORKSHOP', name: 'معمل وورشة الخياطة' },
-    { id: 'WH-SHOWROOM', code: 'WH-SHOWROOM', name: 'معرض وصالة التسليم' }
-  ];
+  const warehouses = Array.isArray(u.WAREHOUSES) ? u.WAREHOUSES : [];
   const categories = u.INVENTORY_CATEGORIES || ['أقمشة', 'بطانات', 'كلف وتطريز', 'إكسسوارات', 'فساتين جاهزة'];
 
   return (
@@ -100,7 +96,7 @@ function InventoryFilterBar({
             value={search}
             onChange={e => setSearch(e.target.value)}
             className="pl-3 pr-8 h-10 rounded-xl border border-[#E8E5EA] bg-[#FAFAFB] text-xs font-medium w-full focus:bg-white focus:border-[#009FAE] outline-none"
-            placeholder="بحث باسم الصنف، الرمز، المورد، أو الموقع..."
+            placeholder=""
           />
           <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#6F6B75] text-xs pointer-events-none">🔍</span>
         </div>

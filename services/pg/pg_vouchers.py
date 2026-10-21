@@ -3,6 +3,7 @@
 from .db_pool import get_db_cursor, clean_str, clean_num, generate_id, today_str
 from .account_resolver import resolve_exchange_rate, resolve_account_id
 from .pg_vouchers_query import get_vouchers, get_voucher_card_data
+from .pg_financial_sync import sync_customer_order_from_voucher
 
 
 def add_voucher(payload):
@@ -67,6 +68,9 @@ def add_voucher(payload):
                     cur.execute("UPDATE customers SET current_balance = current_balance + %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s;", (old_amt, existing_v['customer_id']))
                 elif existing_v.get('payment_type') == 'Payment' and existing_v.get('supplier_id'):
                     cur.execute("UPDATE suppliers SET current_balance = current_balance + %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s;", (old_amt, existing_v['supplier_id']))
+        elif not pay_no or pay_no == pay_id or pay_no.startswith('RV-CUST-') or pay_no.startswith('REC-') or pay_no.startswith('PAY-'):
+            from .pg_account_code import generate_sequential_voucher_no
+            pay_no = generate_sequential_voucher_no(cur, p_type, p_date)
 
         query = """
             INSERT INTO payments (
@@ -89,6 +93,7 @@ def add_voucher(payload):
         if amt > 0:
             if p_type == 'Receipt' and cust_id:
                 cur.execute("UPDATE customers SET current_balance = current_balance - %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s;", (amt, cust_id))
+                sync_customer_order_from_voucher(cur, cust_id, voucher_amount=amt, voucher_id=pay_id, voucher_no=pay_no, notes=notes, pay_method=pay_method, p_date=p_date)
             elif p_type == 'Payment' and supp_id:
                 cur.execute("UPDATE suppliers SET current_balance = current_balance - %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s;", (amt, supp_id))
 
@@ -151,6 +156,7 @@ def reverse_voucher(payload):
             cur.execute("UPDATE payments SET status = 'reversed', notes = COALESCE(notes, '') || %s WHERE id = %s;", (f" | [ملغى بقيد عكسي {rev_entry_no}: {reason}]", p_row['id']))
             if amt > 0 and p_row.get('payment_type') == 'Receipt' and p_row.get('customer_id'):
                 cur.execute("UPDATE customers SET current_balance = current_balance + %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s;", (amt, p_row['customer_id']))
+                sync_customer_order_from_voucher(cur, p_row['customer_id'])
             elif amt > 0 and p_row.get('payment_type') == 'Payment' and p_row.get('supplier_id'):
                 cur.execute("UPDATE suppliers SET current_balance = current_balance + %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s;", (amt, p_row['supplier_id']))
 

@@ -23,8 +23,7 @@ function ProductsFilterBar({
           type="text"
           value={search}
           onChange={e => setSearch(e.target.value)}
-          className="w-full h-6 pl-5 pr-6 rounded-md border border-slate-700 bg-slate-900 text-xs font-medium text-white placeholder:text-slate-400 outline-none focus:border-pink-500"
-          placeholder="بحث بالاسم، الكود، الباركود، القماش..."
+          className="w-full h-6 pl-5 pr-6 rounded-md border border-slate-700 bg-slate-900 text-xs font-medium text-white outline-none focus:border-pink-500"
         />
         <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-xs text-slate-400 pointer-events-none">🔍</span>
         {search && (

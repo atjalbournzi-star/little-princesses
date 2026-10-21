@@ -37,7 +37,7 @@ function Feedback({
   const ModalsContainer = window.FeedbackModalsContainer;
 
   return (
-    <div className="space-y-6 animate-fadeIn text-right" dir="rtl">
+    <div className="space-y-3.5 animate-fadeIn text-right" dir="rtl">
       {Header && (
         <Header
           metrics={data.metrics} purchases={purchases} currencyDisplay={data.currencyDisplay}
@@ -66,64 +66,35 @@ function Feedback({
         />
       )}
 
+      {/* 1. التبويب الأول: محطة الفحص الفني */}
       {data.activeTab === 'qc_station' && (
         window.QualityAssurance ? (
           <window.QualityAssurance 
-            orders={orders} 
-            setOrders={setOrders} 
-            factory={factory} 
-            setFactory={setFactory} 
-            employees={employees} 
-            showToast={showToast} 
-            currency={currency} 
+            orders={orders} setOrders={setOrders} factory={factory} setFactory={setFactory} 
+            employees={employees} customers={customers} showToast={showToast} currency={currency} 
           />
         ) : (
           <div className="p-8 text-center text-slate-400">جاري تحميل محطة الفحص الفني للأزياء...</div>
         )
       )}
 
-      {data.activeTab === 'executive' && ExecTab && (
-        <ExecTab productQualityProfiles={data.productQualityProfiles} metrics={data.metrics} currencyDisplay={data.currencyDisplay} />
-      )}
-
-      {data.activeTab === 'feedback' && List && (
-        <List feedback={feedback} onOpenFeedbackModal={() => data.setActiveModalType('feedback')} onViewFeedbackDetail={setDetailFeedbackItem} />
-      )}
-
-      {(data.activeTab === 'products' || data.activeTab === 'fabrics') && ProfilesTab && (
-        <ProfilesTab activeTab={data.activeTab} productQualityProfiles={data.productQualityProfiles} fabricQualityProfiles={data.fabricQualityProfiles} />
-      )}
-
-      {(data.activeTab === 'designers' || data.activeTab === 'tailors' || data.activeTab === 'departments') && TeamTab && (
-        <TeamTab activeTab={data.activeTab} designerQualityProfiles={data.designerQualityProfiles} tailorQualityProfiles={data.tailorQualityProfiles} departmentQualityScores={data.departmentQualityScores} />
-      )}
-
-      {(data.activeTab === 'inspections' || data.activeTab === 'defects') && OpsViews && (
+      {/* 2. التبويب الثاني: سجل عمليات الفحص والعيوب */}
+      {data.activeTab === 'inspections' && OpsViews && (
         <OpsViews
-          activeTab={data.activeTab} inspections={data.inspections} defects={data.defects} currencyDisplay={data.currencyDisplay}
+          activeTab="inspections" inspections={data.inspections} defects={data.defects} currencyDisplay={data.currencyDisplay}
           onOpenModal={data.setActiveModalType}
           onOpenCertModal={insp => { data.setSelectedCert(insp); data.setActiveModalType('certificate'); }}
         />
       )}
 
-      {(data.activeTab === 'complaints' || data.activeTab === 'returns') && ComplaintsTab && (
-        <ComplaintsTab
-          activeTab={data.activeTab} complaints={data.complaints} returns={data.returns} currencyDisplay={data.currencyDisplay}
-          onOpenModal={data.setActiveModalType}
-          onUpdateComplaintStatus={actions.handleUpdateComplaintStatus}
-          onUpdateReturnStatus={actions.handleUpdateReturnStatus}
-        />
+      {/* 3. التبويب الثالث: أداء الكادر ومراحل الورشة */}
+      {data.activeTab === 'team' && TeamTab && (
+        <TeamTab activeTab="team" tailorQualityProfiles={data.tailorQualityProfiles} departmentQualityScores={data.departmentQualityScores} />
       )}
 
-      {data.activeTab === 'capa' && CapaTab && (
-        <CapaTab correctiveActions={data.correctiveActions} onOpenModal={data.setActiveModalType} onUpdateCAPAStatus={actions.handleUpdateCAPAStatus} />
-      )}
-
-      {(data.activeTab === 'standards' || data.activeTab === 'master_ledger') && StandardsTab && (
-        <StandardsTab
-          activeTab={data.activeTab} checkpoints={data.checkpoints} qualitySettings={data.qualitySettings}
-          masterEvaluations={data.masterEvaluations} onOpenModal={data.setActiveModalType}
-        />
+      {/* 4. التبويب الرابع: جودة الخامات والموردين */}
+      {data.activeTab === 'materials' && ProfilesTab && (
+        <ProfilesTab activeTab="materials" fabricQualityProfiles={data.fabricQualityProfiles} />
       )}
 
       {ModalsContainer && (

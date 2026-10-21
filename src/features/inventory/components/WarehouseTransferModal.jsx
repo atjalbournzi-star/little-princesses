@@ -21,11 +21,7 @@ function WarehouseTransferModal({
   const getItemName = u.getItemName || (i => i?.item_name || i?.name || '');
   const getItemQty = u.getItemQty || (i => parseFloat(i?.qty || i?.quantity || 0) || 0);
   const getItemUnit = u.getItemUnit || (i => i?.unit || 'متر');
-  const warehouses = u.WAREHOUSES || [
-    { id: 'WH-MAIN', code: 'WH-MAIN', name: 'المستودع الرئيسي' },
-    { id: 'WH-WORKSHOP', code: 'WH-WORKSHOP', name: 'معمل وورشة الخياطة' },
-    { id: 'WH-SHOWROOM', code: 'WH-SHOWROOM', name: 'معرض وصالة التسليم' }
-  ];
+  const warehouses = Array.isArray(u.WAREHOUSES) ? u.WAREHOUSES : [];
 
   const unit = getItemUnit(transferringItem);
   const curQty = u.getItemWarehouseStock
@@ -110,7 +106,7 @@ function WarehouseTransferModal({
               min="0.1"
               max={curQty}
               required
-              placeholder={`أقصى حد: ${curQty}`}
+              placeholder=""
               value={transferQty}
               onChange={e => setTransferQty(e.target.value)}
               className="w-full h-11 px-3.5 rounded-xl border border-[#E8E5EA] bg-[#FAFAFB] text-xs font-mono font-bold focus:bg-white focus:border-[#009FAE] outline-none"
@@ -122,7 +118,7 @@ function WarehouseTransferModal({
             <label className="block font-bold text-[#25232A] mb-1">ملاحظات ورقم إذن المناقلة:</label>
             <input
               type="text"
-              placeholder="مثال: نقل أقمشة لبدء تفصيل دفعة جديدة بالورشة..."
+              placeholder=""
               value={transferNotes}
               onChange={e => setTransferNotes(e.target.value)}
               className="w-full h-11 px-3.5 rounded-xl border border-[#E8E5EA] bg-[#FAFAFB] text-xs font-medium focus:bg-white focus:border-[#009FAE] outline-none"

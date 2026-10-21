@@ -6,12 +6,21 @@ const FACTORY_STAGES = [
   'جاهز للتسليم 📦'
 ];
 
+// احتساب نسبة الإنجاز تناسبياً بناءً على عدد المراحل المنجزة فعلياً (تبدأ من 0% وتكتمل عند 100%)
 const STAGE_PROGRESS = {
-  'القص والتحضير ✂️': 20,
-  'مرحلة الخياطة 🪡': 40,
-  'التطريز والشك ✨': 60,
-  'الفحص والتشطيب النهائي 🔍': 80,
+  'القص والتحضير ✂️': 0,
+  'مرحلة الخياطة 🪡': 25,
+  'التطريز والشك ✨': 50,
+  'الفحص والتشطيب النهائي 🔍': 75,
   'جاهز للتسليم 📦': 100
+};
+
+const calculateDynamicProgress = (stage) => {
+  if (STAGE_PROGRESS[stage] !== undefined) return STAGE_PROGRESS[stage];
+  const idx = FACTORY_STAGES.indexOf(stage);
+  if (idx <= 0) return 0;
+  if (idx >= FACTORY_STAGES.length - 1 || stage === 'جاهز للتسليم 📦' || stage === 'تم التسليم ✅') return 100;
+  return Math.round((idx / (FACTORY_STAGES.length - 1)) * 100);
 };
 
 const addDays = (dateStr, days) => {
@@ -121,7 +130,8 @@ const preparePrintData = (f, orders = [], customers = [], products = []) => {
   const c = (customers || []).find(cust => { const cName = (cust.name || cust.customer_name || '').trim(); return cName === targetCust || targetCust.includes(cName) || (cName && cName.length > 3 && targetCust.includes(cName)); });
   const targetChild = (ord.child_name && ord.child_name !== targetCust) ? ord.child_name : (f.child_name && f.child_name !== targetCust ? f.child_name : '');
   const childMeas = (targetChild && c?.measurements?.find(m => m.child_name === targetChild)) || c?.measurements?.find(m => m.child_name && m.child_name !== targetCust) || c?.measurements?.[0];
-  const resolvedChildName = targetChild || childMeas?.child_name || ord.child_name || f.child_name || 'هنادي', targetProdName = (ord.product_name || f.product || f.product_name || '').trim(), targetProdId = ord.product_id || f.product_id;
+  const resolvedChildName = targetChild || childMeas?.child_name || ord.child_name || f.child_name || '';
+  const targetProdName = (ord.product_name || f.product || f.product_name || '').trim(), targetProdId = ord.product_id || f.product_id;
   const prod = (products || []).find(p => (targetProdId && (String(p.id) === String(targetProdId) || String(p.product_id) === String(targetProdId))) || p.name === targetProdName || p.model_name === targetProdName || (targetProdName && p.name && targetProdName.includes(p.name)) || (targetProdName && p.model_name && targetProdName.includes(p.model_name)));
   return { order: { ...ord, child_name: resolvedChildName, product_name: ord.product_name || f.product || f.product_name, product_id: targetProdId || prod?.id, qty: f.quantity || ord.qty || ord.quantity || 1, quantity: f.quantity || ord.quantity || ord.qty || 1 }, customer: c, measurements: childMeas, product: prod, products: products };
 };
@@ -130,9 +140,13 @@ const getBespokeOrdersList = (orders = [], customers = [], products = []) => {
   const result = [], seen = new Set();
   (orders || []).forEach(o => {
     if (!o) return;
-    const num = o.order_no || o.id || (o.customer_id ? `ORD-${o.customer_id}` : `ORD-${Date.now()}`), cid = o.customer_id || '';
+    const num = o.order_no || o.id, cid = o.customer_id || '';
+    if (!num) return;
     const cust = (customers || []).find(c => (cid && String(c.id || c.customer_id) === String(cid)) || (c.name && o.customer_name && (c.name === o.customer_name || c.name.includes(o.customer_name) || o.customer_name.includes(c.name))));
-    const ch = o.child_name || cust?.children?.[0]?.child_name || cust?.measurements?.[0]?.child_name || 'الأميرة', cName = o.customer_name || cust?.name || cust?.customer_name || 'عميلة كريمة', pName = o.product_name || o.product || cust?.measurements?.[0]?.selected_model || cust?.measurements?.[0]?.model_name || cust?.measurements?.[0]?.profile_name || 'فستان الأميرات';
+    const cName = o.customer_name || cust?.name || cust?.customer_name || '';
+    if (cName.includes('تجربة') || cName === 'Test Cust') return;
+    const ch = o.child_name || cust?.children?.[0]?.child_name || cust?.measurements?.[0]?.child_name || '';
+    const pName = o.product_name || o.product || cust?.measurements?.[0]?.selected_model || cust?.measurements?.[0]?.model_name || cust?.measurements?.[0]?.profile_name || '';
     const matchedProd = (products || []).find(p => (o.product_id && String(p.id) === String(o.product_id)) || p.model_name === pName || p.name === pName || (pName && ((p.model_name && pName.includes(p.model_name)) || (p.name && pName.includes(p.name)))));
     const meas = o.measurements || o.measurements_spec || cust?.measurements?.find(m => m.child_name === ch) || cust?.measurements?.[0] || {};
     const tot = parseFloat(o.total_amount ?? o.total ?? o.grand_total ?? o.price ?? cust?.ledger?.total_sales ?? cust?.total_sales ?? 0), pd = parseFloat(o.paid_amount ?? o.paid ?? o.deposit ?? cust?.ledger?.total_paid ?? cust?.ledger?.deposit ?? cust?.deposit ?? 0), code = o.order_no || o.id || 'ORD';
@@ -141,17 +155,17 @@ const getBespokeOrdersList = (orders = [], customers = [], products = []) => {
   });
   (customers || []).forEach(c => {
     if (!c) return;
-    const cid = String(c.id || c.customer_id || ''), cName = c.name || c.customer_name || 'عميلة كريمة';
-    if (cid && seen.has(cid)) return;
+    const cid = String(c.id || c.customer_id || ''), cName = c.name || c.customer_name || '';
+    if (!cName || cName.includes('تجربة') || cName === 'Test Cust' || (cid && seen.has(cid))) return;
     const measList = Array.isArray(c.measurements) && c.measurements.length > 0 ? c.measurements : null;
     if (measList) {
-      measList.forEach((m, idx) => {
-        const num = m.order_no || m.id || (cid ? `ORD-${cid}-${idx + 1}` : `ORD-${Date.now()}`);
-        if (seen.has(String(num)) || seen.has(String(m.id))) return;
+      measList.forEach(m => {
+        const num = m.order_no || m.id;
+        if (!num || seen.has(String(num))) return;
         seen.add(String(num));
-        const ch = m.child_name || c.child_name || c.children?.[0]?.child_name || 'الأميرة', pName = m.selected_model || m.model_name || m.profile_name || 'فستان تفصيل فاخر';
+        const ch = m.child_name || c.child_name || c.children?.[0]?.child_name || '', pName = m.selected_model || m.model_name || m.profile_name || '';
         const matchedProd = (products || []).find(p => (m.product_id && String(p.id) === String(m.product_id)) || p.model_name === pName || p.name === pName);
-        const tot = parseFloat(m.total_price || m.price || (idx === 0 ? (c.ledger?.total_sales || c.total_sales || 0) : 0)), pd = parseFloat(m.deposit || m.paid || (idx === 0 ? (c.ledger?.total_paid || c.deposit || 0) : 0));
+        const tot = parseFloat(m.total_price || m.price || 0), pd = parseFloat(m.deposit || m.paid || 0);
         result.push({ id: num, order_no: num, display_code: num, customer_id: cid, customer_name: cName, customer: cName, child_name: ch, product_name: pName, product: pName, product_id: m.product_id || matchedProd?.id || '', delivery_date: m.delivery_date || c.delivery_date || '', due_date: m.delivery_date || c.delivery_date || '', measurements_spec: m, image_url: m.image_url || matchedProd?.image_url || matchedProd?.image || '', total_amount: tot, paid_amount: pd, remaining_amount: Math.max(0, tot - pd), currency: m.currency || c.ledger?.currency || 'YER' });
       });
     }
@@ -159,8 +173,39 @@ const getBespokeOrdersList = (orders = [], customers = [], products = []) => {
   return result;
 };
 
+// فلترة وتنظيف لوحة التتبع من السجلات اليتيمة واقتصار العرض على العملاء الفعليين
+const filterRealFactoryOrders = (factory = [], customers = [], orders = [], search = '', stageFilter = 'الكل') => {
+  const list = Array.isArray(factory) ? factory : [], searchStr = (search || '').toLowerCase().trim();
+  const activeCustomers = (customers || []).filter(c => c && (c.id || c.name || c.customer_name));
+  const realCustIds = new Set(activeCustomers.map(c => String(c.id || c.customer_id || '').toLowerCase().trim()).filter(Boolean));
+  const realCustNames = new Set(activeCustomers.map(c => String(c.name || c.customer_name || '').toLowerCase().trim()).filter(Boolean));
+  const realOrdersMap = new Map();
+  (orders || []).forEach(o => {
+    const ocId = String(o?.customer_id || '').toLowerCase().trim(), ocName = String(o?.customer_name || o?.customer || '').toLowerCase().trim();
+    if ((ocId && realCustIds.has(ocId)) || (ocName && realCustNames.has(ocName))) {
+      const oNo = String(o.order_no || o.id || '').toLowerCase().trim();
+      if (oNo) realOrdersMap.set(oNo, o);
+    }
+  });
+
+  return list.filter(f => {
+    if (!f) return false;
+    const isDelivered = f?.status === 'delivered' || f?.stage === 'تم التسليم' || f?.stage === 'تم التسليم ✅' || f?.production_status === 'delivered';
+    const fCustId = String(f.customer_id || '').toLowerCase().trim(), fCustName = String(f.customer || f.customer_name || f.client || f.client?.name || '').toLowerCase().trim(), fOrderNo = String(f.order_no || f.id || '').toLowerCase().trim();
+    if (!fCustName && !fCustId && !fOrderNo) return false;
+
+    const isRTW = f?.production_type === 'ready_to_wear' || f?.production_type === 'stock' || (fOrderNo.startsWith('rtw') || fOrderNo.startsWith('stock'));
+    const isMatched = (fCustId && realCustIds.has(fCustId)) || (fCustName && realCustNames.has(fCustName)) || (fOrderNo && realOrdersMap.has(fOrderNo));
+    if ((realCustIds.size > 0 || realCustNames.size > 0) && !isRTW && !isMatched) return false;
+
+    const matchSearch = !searchStr || fOrderNo.includes(searchStr) || fCustName.includes(searchStr) || (f?.child_name || '').toString().toLowerCase().includes(searchStr) || (f?.product || f?.product_name || '').toString().toLowerCase().includes(searchStr) || (f?.tailor || f?.tailor_name || '').toString().toLowerCase().includes(searchStr);
+    const matchStage = stageFilter === 'الكل' ? !isDelivered : f?.stage === stageFilter;
+    return matchSearch && matchStage;
+  });
+};
+
 window.FactoryUtils = {
-  FACTORY_STAGES, STAGE_PROGRESS, addDays, autoDistributeMilestones,
-  calculateMetersForModel, getDaysLeft, sendWhatsAppToTailor,
-  sendWhatsAppDeliveryGreeting, preparePrintData, getBespokeOrdersList
+  FACTORY_STAGES, STAGE_PROGRESS, calculateDynamicProgress, filterRealFactoryOrders,
+  addDays, autoDistributeMilestones, calculateMetersForModel, getDaysLeft,
+  sendWhatsAppToTailor, sendWhatsAppDeliveryGreeting, preparePrintData, getBespokeOrdersList
 };

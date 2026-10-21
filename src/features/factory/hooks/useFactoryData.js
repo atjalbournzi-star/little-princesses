@@ -15,47 +15,32 @@ function useFactoryData({
   const todayStrIso = typeof TODAY_STR_ISO !== 'undefined' ? TODAY_STR_ISO : (window.TODAY_STR_ISO || new Date().toISOString().slice(0, 10));
 
   const [activeMainTab, setActiveMainTab] = useState('pipeline');
-  const [analyticsData, setAnalyticsData] = useState(null);
-  const [loadingAnalytics, setLoadingAnalytics] = useState(false);
+  const [analyticsData, setAnalyticsData] = useState(null), [loadingAnalytics, setLoadingAnalytics] = useState(false);
   const [stockInflowLoading, setStockInflowLoading] = useState({});
   const [deliveryModalData, setDeliveryModalData] = useState(null);
-  const [deliveryForm, setDeliveryForm] = useState({
-    amount_collected: '', discount: '0', account_id: 'ACC-101', payment_method: 'نقد (كاش)', notes: ''
-  });
-  const [submittingDelivery, setSubmittingDelivery] = useState(false);
-  const [deliveredSuccessData, setDeliveredSuccessData] = useState(null);
-  const [alterationsList, setAlterationsList] = useState([]);
-  const [loadingAlterations, setLoadingAlterations] = useState(false);
-  const [scanProgressModalOpen, setScanProgressModalOpen] = useState(false);
-  const [scanBarcodeQuery, setScanBarcodeQuery] = useState('');
-  const [scannedProgressJob, setScannedProgressJob] = useState(null);
-  const [advancingScanProgress, setAdvancingScanProgress] = useState(false);
-  const [selectedJobCustomer, setSelectedJobCustomer] = useState(null);
-  const [printModalData, setPrintModalData] = useState(null);
-  const [jobTicketData, setJobTicketData] = useState(null);
-  const [modelPreviewData, setModelPreviewData] = useState(null);
-  const [qcModalData, setQcModalData] = useState(null);
-  const [stageFilter, setStageFilter] = useState('الكل');
-  const [search, setSearch] = useState('');
+  const [deliveryForm, setDeliveryForm] = useState({ amount_collected: '', discount: '0', account_id: 'ACC-101', payment_method: 'نقد (كاش)', notes: '' });
+  const [submittingDelivery, setSubmittingDelivery] = useState(false), [deliveredSuccessData, setDeliveredSuccessData] = useState(null);
+  const [alterationsList, setAlterationsList] = useState([]), [loadingAlterations, setLoadingAlterations] = useState(false);
+  const [scanProgressModalOpen, setScanProgressModalOpen] = useState(false), [scanBarcodeQuery, setScanBarcodeQuery] = useState('');
+  const [scannedProgressJob, setScannedProgressJob] = useState(null), [advancingScanProgress, setAdvancingScanProgress] = useState(false);
+  const [selectedJobCustomer, setSelectedJobCustomer] = useState(null), [printModalData, setPrintModalData] = useState(null);
+  const [jobTicketData, setJobTicketData] = useState(null), [modelPreviewData, setModelPreviewData] = useState(null), [qcModalData, setQcModalData] = useState(null);
+  const [stageFilter, setStageFilter] = useState('الكل'), [search, setSearch] = useState('');
 
   const [form, setForm] = useState({
-    order_no: '', customer: '', child_name: '', product: '', product_id: '', quantity: 1, tailor: '', stage: stages[0], progress: '20',
-    start_date: todayStrIso, due_date: '', cutting_due_date: '', sewing_due_date: '', embroidery_due_date: '', finishing_due_date: '',
-    cutter_name: '', cutter_wage: '200', tailor_name: '', tailor_wage: '500',
-    embroiderer_name: '', embroiderer_wage: '200', finisher_name: '', finisher_wage: '100',
+    order_no: '', customer: '', child_name: '', product: '', product_id: '', quantity: '', tailor: '', stage: stages[0], progress: '0',
+    start_date: todayStrIso, due_date: '', cutting_due_date: '', sewing_due_date: '', embroidery_due_date: '', finishing_due_date: '', packaging_due_date: '',
+    cutter_name: '', cutter_wage: '', tailor_name: '', tailor_wage: '',
+    embroiderer_name: '', embroiderer_wage: '', finisher_name: '', finisher_wage: '', packager_name: '', packager_wage: '',
     fabric_name: '', cut_meters: '', cut_unit: 'متر', deduct_inventory: true,
-    production_type: 'bespoke', target_segment: 'kids', size_code: '6-9Y', measurements_spec: {}
+    production_type: 'bespoke', target_segment: 'kids', size_code: '6-9Y', measurements_spec: {},
+    total_amount: 0, paid_amount: 0, remaining_amount: 0, currency: 'YER'
   });
 
   const fabricInventory = useMemo(() => {
     return (inventory || []).filter(item => {
-      const cat = (item.category || '').toLowerCase(), type = (item.type || '').toLowerCase();
-      const unit = (item.unit || '').toLowerCase(), name = (item.name || item.item_name || '').toLowerCase();
-      return cat.includes('أقمش') || cat.includes('قماش') || cat.includes('خام') ||
-             type.includes('fabric') || unit.includes('متر') || unit.includes('وار') ||
-             unit.includes('يارد') || name.includes('تل') || name.includes('تفتة') ||
-             name.includes('حرير') || name.includes('اوركنزا') || name.includes('شيفون') ||
-             name.includes('صدفة') || name.includes('بطان');
+      const s = `${item.category || ''} ${item.type || ''} ${item.unit || ''} ${item.name || item.item_name || ''}`.toLowerCase();
+      return ['أقمش', 'قماش', 'خام', 'fabric', 'متر', 'وار', 'يارد', 'تل', 'تفتة', 'حرير', 'اوركنزا', 'شيفون', 'صدفة', 'بطان'].some(k => s.includes(k));
     });
   }, [inventory]);
 
@@ -107,48 +92,49 @@ function useFactoryData({
       const targetDue = targetJob.delivery_date || targetJob.due_date || targetJob.delivery_date_iso || targetJob.target_date || (utils.addDays ? utils.addDays(todayStrIso, 4) : '');
       const autoM = utils.autoDistributeMilestones ? utils.autoDistributeMilestones(todayStrIso, targetDue) : {};
       setForm(prev => ({
-        ...prev,
-        order_no: targetJob.order_no || `JOB-${targetJob.customer_id || 'CUST'}-${Date.now().toString().slice(-4)}`,
-        customer: targetJob.customer_name || targetJob.customer || '',
-        child_name: targetJob.child_name || '',
-        product: targetJob.product || targetJob.product_name || '',
-        product_id: targetJob.product_id || '',
-        quantity: targetJob.quantity || 1,
-        tailor: prev.tailor || (employees?.find(emp => emp.status === 'نشط' && emp.role === 'خياط')?.name || employees?.find(emp => emp.status === 'نشط')?.name || ''),
-        stage: stages[0], progress: '20', start_date: todayStrIso,
-        due_date: targetDue,
-        cutting_due_date: targetJob.cutting_due_date || autoM.cutting || '',
-        sewing_due_date: targetJob.sewing_due_date || autoM.sewing || '',
-        embroidery_due_date: targetJob.embroidery_due_date || autoM.embroidery || '',
-        finishing_due_date: targetJob.finishing_due_date || autoM.finishing || '',
-        fabric_name: autoCalc.fabric, cut_meters: String(autoCalc.meters), deduct_inventory: true,
-        production_type: 'bespoke',
-        measurements_spec: targetJob.measurements || prev.measurements_spec || {},
-        total_amount: tjTot, total_price: tjTot,
-        paid_amount: tjPd, advance_paid: tjPd, deposit: tjPd,
-        remaining_amount: tjRem, remaining_balance: tjRem, remaining: tjRem,
-        currency: targetJob.currency || 'YER'
+        ...prev, order_no: targetJob.order_no || `JOB-${targetJob.customer_id || 'CUST'}-${Date.now().toString().slice(-4)}`,
+        customer: targetJob.customer_name || targetJob.customer || '', child_name: targetJob.child_name || '',
+        product: targetJob.product || targetJob.product_name || '', product_id: targetJob.product_id || '', quantity: targetJob.quantity || 1, tailor: prev.tailor || targetJob.tailor || '',
+        stage: stages[0], progress: targetJob.progress ? String(targetJob.progress) : '0', start_date: todayStrIso, due_date: targetDue,
+        cutting_due_date: targetJob.cutting_due_date || autoM.cutting || '', sewing_due_date: targetJob.sewing_due_date || autoM.sewing || '',
+        embroidery_due_date: targetJob.embroidery_due_date || autoM.embroidery || '', finishing_due_date: targetJob.finishing_due_date || autoM.finishing || '',
+        fabric_name: autoCalc.fabric, cut_meters: String(autoCalc.meters), deduct_inventory: true, production_type: 'bespoke',
+        measurements_spec: targetJob.measurements || prev.measurements_spec || {}, total_amount: tjTot, total_price: tjTot,
+        paid_amount: tjPd, advance_paid: tjPd, deposit: tjPd, remaining_amount: tjRem, remaining_balance: tjRem, remaining: tjRem, currency: targetJob.currency || 'YER'
       }));
       if (typeof onClearTargetJob === 'function') onClearTargetJob();
     }
   }, [targetJob, utils, products, customers, fabricInventory, employees, stages, todayStrIso, onClearTargetJob]);
 
   const filteredFactory = useMemo(() => {
-    const list = Array.isArray(factory) ? factory : [];
-    const searchStr = (search || '').toLowerCase().trim();
-    return list.filter(f => {
-      if (!f) return false;
-      const isDelivered = f?.status === 'delivered' || f?.stage === 'تم التسليم' || f?.stage === 'تم التسليم ✅' || f?.production_status === 'delivered' || f?.production_status === 'Delivered';
-      const matchSearch = !searchStr ||
-        (f?.order_no || f?.id || '').toString().toLowerCase().includes(searchStr) ||
-        (f?.customer || f?.customer_name || f?.client || f?.client?.name || '').toString().toLowerCase().includes(searchStr) ||
-        (f?.child_name || '').toString().toLowerCase().includes(searchStr) ||
-        (f?.product || f?.product_name || f?.items?.[0]?.name || '').toString().toLowerCase().includes(searchStr) ||
-        (f?.tailor || f?.tailor_name || '').toString().toLowerCase().includes(searchStr);
-      const matchStage = stageFilter === 'الكل' ? !isDelivered : f?.stage === stageFilter;
-      return matchSearch && matchStage;
-    });
-  }, [factory, search, stageFilter]);
+    return utils.filterRealFactoryOrders
+      ? utils.filterRealFactoryOrders(factory, customers, orders, search, stageFilter)
+      : (Array.isArray(factory) ? factory : []);
+  }, [factory, customers, orders, search, stageFilter, utils]);
+
+  useEffect(() => {
+    if (customers?.length > 0 && Array.isArray(factory) && factory.length > 0 && typeof setFactory === 'function') {
+      const activeCusts = customers.filter(c => c && (c.id || c.name || c.customer_name));
+      const cIds = new Set(activeCusts.map(c => String(c.id || c.customer_id || '').toLowerCase().trim()).filter(Boolean));
+      const cNames = new Set(activeCusts.map(c => String(c.name || c.customer_name || '').toLowerCase().trim()).filter(Boolean));
+      const hasOrphan = factory.some(f => {
+        if (!f) return false;
+        const fNo = String(f.order_no || f.id || '').toLowerCase().trim();
+        if (f?.production_type === 'ready_to_wear' || f?.production_type === 'stock' || fNo.startsWith('rtw') || fNo.startsWith('stock')) return false;
+        const fid = String(f.customer_id || '').toLowerCase().trim(), fnm = String(f.customer || f.customer_name || '').toLowerCase().trim();
+        return !((fid && cIds.has(fid)) || (fnm && cNames.has(fnm)));
+      });
+      if (hasOrphan) {
+        setFactory(p => (p || []).filter(f => {
+          if (!f) return false;
+          const fNo = String(f.order_no || f.id || '').toLowerCase().trim();
+          if (f?.production_type === 'ready_to_wear' || f?.production_type === 'stock' || fNo.startsWith('rtw') || fNo.startsWith('stock')) return true;
+          const fid = String(f.customer_id || '').toLowerCase().trim(), fnm = String(f.customer || f.customer_name || '').toLowerCase().trim();
+          return (fid && cIds.has(fid)) || (fnm && cNames.has(fnm));
+        }));
+      }
+    }
+  }, [customers, factory.length, setFactory]);
 
   const syncOrders = useCallback(() => {
     if (typeof setOrders === 'function') {
@@ -171,7 +157,7 @@ function useFactoryData({
           setFactory(prev => {
             let found = false;
             const nextList = (prev || []).map(item => isMatch(item) ? (found = true, { ...item, ...readyState }) : item);
-            if (!found) nextList.unshift({ id: detail.order_no || targetClean, order_no: targetClean, customer: detail.customer_name || 'عميلة كريمة', child_name: detail.child_name || 'الأميرة', product: detail.product_name || 'فستان كوتور', tailor: detail.tailor_name || 'بشرى', ...readyState });
+            if (!found) nextList.unshift({ id: detail.order_no || targetClean, order_no: targetClean, customer: detail.customer_name || '', child_name: detail.child_name || '', product: detail.product_name || '', tailor: detail.tailor_name || '', ...readyState });
             return nextList;
           });
         }

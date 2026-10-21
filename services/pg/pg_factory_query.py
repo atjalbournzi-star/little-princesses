@@ -35,12 +35,11 @@ def _sync_missing_production_orders():
         with get_db_cursor(commit=True) as cur:
             cur.execute("""
                 INSERT INTO production_orders (
-                    id, production_order_no, order_id, product_id, product_name,
-                    child_name, stage, start_date, due_date, progress, status, notes
+                    id, production_order_no, order_id, customer_id, customer_name, product_id, product_name,
+                    child_name, stage, start_date, due_date, progress, status, total_amount, deposit_amount, remaining_amount, notes
                 )
-                SELECT 'PRD-' || o.id, 'PO-' || o.order_no, o.id, o.product_id,
-                       COALESCE(p.model_name, 'فستان أميرات'),
-                       COALESCE(ch.child_name, 'الأميرة'),
+                SELECT 'PRD-' || o.id, 'PO-' || o.order_no, o.id, o.customer_id, c.name, o.product_id,
+                       COALESCE(p.model_name, ''), COALESCE(ch.child_name, ''),
                        CASE 
                            WHEN o.production_status ILIKE '%cut%' THEN 'القص والتحضير ✂️'
                            WHEN o.production_status ILIKE '%sew%' THEN 'مرحلة الخياطة 🪡'
@@ -49,8 +48,7 @@ def _sync_missing_production_orders():
                            WHEN o.production_status ILIKE '%ready%' THEN 'جاهز للتسليم 📦'
                            ELSE 'القص والتحضير ✂️'
                        END,
-                       COALESCE(o.order_date, CURRENT_DATE),
-                       COALESCE(o.delivery_date, CURRENT_DATE + 5),
+                       COALESCE(o.order_date, CURRENT_DATE), COALESCE(o.delivery_date, CURRENT_DATE + 5),
                        CASE 
                            WHEN o.production_status ILIKE '%cut%' THEN 20
                            WHEN o.production_status ILIKE '%sew%' THEN 40
@@ -60,11 +58,14 @@ def _sync_missing_production_orders():
                            ELSE 20
                        END,
                        CASE WHEN o.production_status ILIKE '%ready%' THEN 'Completed' ELSE 'In Progress' END,
-                       COALESCE(o.notes, 'تفصيل وتطريز فاخر')
+                       COALESCE(o.total_amount, 0), COALESCE(o.paid_amount, 0), GREATEST(0, COALESCE(o.total_amount, 0) - COALESCE(o.paid_amount, 0)),
+                       COALESCE(o.notes, '')
                 FROM orders o
+                LEFT JOIN customers c ON o.customer_id = c.id
                 LEFT JOIN products p ON o.product_id = p.id
                 LEFT JOIN children ch ON o.child_id = ch.id
-                WHERE NOT EXISTS (
+                WHERE (c.name IS NULL OR (c.name NOT LIKE '%تجربة%' AND c.name != 'Test Cust'))
+                  AND NOT EXISTS (
                     SELECT 1 FROM production_orders po
                     WHERE po.order_id = o.id OR po.production_order_no = 'PO-' || o.order_no
                 );
@@ -100,27 +101,22 @@ def _format_factory_row(r, emp_phones):
     ch_name = d.get('child_name') or ''
     notes_str = d.get('notes') or ''
 
-    if 'للطفلة ' in notes_str and (not ch_name or ch_name == 'الأميرة'):
+    if 'للطفلة ' in notes_str and not ch_name:
         try:
             ext_ch = notes_str.split('للطفلة ')[1].split('(')[0].split(' - ')[0].split(')')[0].strip()
-            if ext_ch:
-                ch_name = ext_ch
-        except Exception:
-            pass
+            if ext_ch: ch_name = ext_ch
+        except Exception: pass
 
-    d['customer_name'] = c_name
+    d['customer_name'] = d.get('customer_name') or c_name
     d['child_name'] = ch_name
-    d['customer'] = c_name
+    d['customer'] = d['customer_name']
     d['product'] = d.get('product_name') or ''
     d['quantity'] = float(d.get('quantity') or 1.0)
 
     tailor = d.get('assigned_tailor_id') or ''
     if not tailor and 'الخياط:' in notes_str:
         parts = notes_str.split('الخياط:')
-        if len(parts) > 1:
-            tailor = parts[1].split('|')[0].strip()
-    if not tailor:
-        tailor = 'المعلم سليم (خياط أول)'
+        if len(parts) > 1: tailor = parts[1].split('|')[0].strip()
     d['tailor'] = tailor
 
     t_phone = emp_phones.get(tailor.strip()) or ''
@@ -130,7 +126,6 @@ def _format_factory_row(r, emp_phones):
                 t_phone = ephone
                 break
     d['tailor_phone'] = t_phone
-
     d['tailor_wage'] = float(d.get('tailor_wage') or 0.0)
     d['tailor_status'] = d.get('tailor_status') or 'pending'
     d['is_on_time'] = bool(d.get('is_on_time', True))
@@ -148,12 +143,18 @@ def _format_factory_row(r, emp_phones):
     d['embroiderer_wage'] = float(d.get('embroiderer_wage') or 0.0)
     d['finisher_name'] = d.get('finisher_name') or ''
     d['finisher_wage'] = float(d.get('finisher_wage') or 0.0)
+    d['packager_name'] = d.get('packager_name') or ''
+    d['packager_wage'] = float(d.get('packager_wage') or 0.0)
+    d['packager_id'] = d.get('packager_id') or ''
+    d['total_amount'] = float(d.get('total_amount') or 0.0)
+    d['deposit_amount'] = float(d.get('deposit_amount') or 0.0)
+    d['remaining_amount'] = float(d.get('remaining_amount') or 0.0)
+    d['fabrics_data'] = d.get('fabrics_data') or []
     d['pieces_count'] = int(d.get('pieces_count') or d.get('quantity') or 1)
     d['size_code'] = d.get('size_code') or ''
-    d['product_image'] = d.get('product_image') or ''
-    d['production_type'] = d.get('production_type') or (
-        'ready_to_wear' if (d.get('production_type') == 'ready_to_wear' or 'إنتاج مخزني' in ch_name or 'RTW-' in str(d.get('order_no') or '')) else 'bespoke'
-    )
+    d['product_image'] = d.get('product_image') or d.get('model_image') or ''
+    d['selected_color'] = d.get('selected_color') or d.get('color') or ''
+    d['production_type'] = d.get('production_type') or ('ready_to_wear' if (d.get('production_type') == 'ready_to_wear' or 'إنتاج مخزني' in ch_name or 'RTW-' in str(d.get('order_no') or '')) else 'bespoke')
 
     raw_stage = str(d.get('stage') or 'القص والتحضير ✂️')
     norm_stage = raw_stage
@@ -171,10 +172,12 @@ def get_factory(params=None):
 
     query = """
         SELECT po.*, 
-               COALESCE(c.name, '') as customer_name,
+               COALESCE(NULLIF(po.customer_name, ''), c.name, '') as customer_name,
                COALESCE(c.phone, '') as customer_phone,
-               COALESCE(p.model_name, po.product_name, 'موديل راقي') as product_name,
-               COALESCE(p.image_url, '') as product_image,
+               COALESCE(p.model_name, po.product_name, '') as product_name,
+               COALESCE(po.product_image, po.model_image, p.image_url, '') as product_image,
+               COALESCE(po.selected_color, po.color, '') as selected_color,
+               COALESCE(po.model_id, po.product_id, '') as model_id,
                COALESCE(
                    NULLIF(po.child_name, ''), 
                    ch.child_name, 
@@ -182,8 +185,11 @@ def get_factory(params=None):
                    (SELECT m.child_name FROM measurements m WHERE m.customer_id = o.customer_id AND m.model_name = p.model_name LIMIT 1),
                    (SELECT m.child_name FROM measurements m WHERE m.customer_id = o.customer_id ORDER BY m.created_at DESC LIMIT 1),
                    (SELECT ch2.child_name FROM children ch2 WHERE ch2.customer_id = o.customer_id ORDER BY ch2.created_at DESC LIMIT 1),
-                   'الأميرة'
+                   ''
                ) as child_name,
+               COALESCE(po.total_amount, o.total_amount, 0) as total_amount,
+               COALESCE(po.deposit_amount, o.paid_amount, 0) as deposit_amount,
+               COALESCE(po.remaining_amount, GREATEST(0, COALESCE(o.total_amount, 0) - COALESCE(o.paid_amount, 0)), 0) as remaining_amount,
                COALESCE(po.due_date, o.delivery_date) as due_date,
                po.start_date,
                COALESCE(o.quantity, 1) as quantity
@@ -192,6 +198,8 @@ def get_factory(params=None):
         LEFT JOIN customers c ON o.customer_id = c.id
         LEFT JOIN products p ON COALESCE(po.product_id, o.product_id) = p.id
         LEFT JOIN children ch ON o.child_id = ch.id
+        WHERE (po.order_id IS NOT NULL OR po.production_type = 'ready_to_wear')
+          AND (c.name IS NULL OR (c.name NOT LIKE '%تجربة%' AND c.name != 'Test Cust'))
         ORDER BY po.created_at DESC;
     """
     rows = execute_query(query, fetch_all=True)

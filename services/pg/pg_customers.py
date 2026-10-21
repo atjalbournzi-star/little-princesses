@@ -11,7 +11,8 @@ def get_customers(params=None):
     with get_db_cursor() as cur:
         cur.execute("""
             SELECT id, id as customer_id, name, name as customer_name, phone, phone_alt, platform, handle, category, city, street,
-                   children_count, current_balance, notes, status, created_at, updated_at
+                   children_count, current_balance, total_amount, deposit_amount, paid_amount, remaining_amount,
+                   notes, status, selected_color, model_id, model_image, created_at, updated_at
             FROM customers
             ORDER BY created_at DESC;
         """)
@@ -21,7 +22,8 @@ def get_customers(params=None):
             SELECT id, customer_id, child_id, child_name, date, measurement_date, unit,
                    total_len, dress_len, chest_len, skirt_len, sleeve_len,
                    chest_circ, waist_circ, shoulder_w, armpit_circ, neck_circ,
-                   model_name, model_img, comfort_profile, notes
+                   model_name, model_img, model_image, image_url, model_id, product_id,
+                   selected_color, color, dress_color, comfort_profile, notes
             FROM measurements;
         """)
         all_meas = cur.fetchall()
@@ -39,7 +41,13 @@ def get_customers(params=None):
             m['shoulder_width'] = m.get('shoulder_w')
             m['armhole_circ'] = m.get('armpit_circ') or ''
             m['selected_model'] = m.get('model_name') or ''
-            m['model_image'] = m.get('model_img') or ''
+            m['model_id'] = m.get('model_id') or m.get('product_id') or ''
+            m['product_id'] = m['model_id']
+            m['selected_color'] = m.get('selected_color') or m.get('dress_color') or m.get('color') or ''
+            m['dress_color'] = m['selected_color']
+            m['color'] = m['selected_color']
+            m['model_image'] = m.get('model_image') or m.get('model_img') or m.get('image_url') or ''
+            m['model_img'] = m['model_image']
             m['sewing_notes'] = m.get('notes')
             m['event_date'] = str(m.get('date') or '')
 
@@ -127,11 +135,13 @@ def get_customers(params=None):
 
             cid = c.get('id')
             ord_info = orders_agg.get(cid, {})
-            c_sales = float(ord_info.get('total_sales') or 0.0)
+            c_sales = float(ord_info.get('total_sales') or c.get('total_amount') or 0.0)
             c_paid_orders = float(ord_info.get('total_paid') or 0.0)
             c_paid_vouchers = payments_agg.get(cid, 0.0)
-            c_paid = max(c_paid_orders, c_paid_vouchers)
-            c_cur_bal = float(c.get('current_balance') or 0.0)
+            c_paid_field = float(c.get('paid_amount') or c.get('deposit_amount') or 0.0)
+            c_paid = max(c_paid_orders, c_paid_vouchers, c_paid_field)
+            c_dep = float(c.get('deposit_amount') or c_paid)
+            c_cur_bal = float(c.get('current_balance') or c.get('remaining_amount') or 0.0)
             c_remaining = max(0.0, c_sales - c_paid) if c_sales > 0 else c_cur_bal
             c_pay_method = ord_info.get('latest_pay_method') or 'نقد (كاش)'
             c_order_no = ord_info.get('latest_order_no') or f"INV-{cid}"
@@ -139,17 +149,24 @@ def get_customers(params=None):
             del_fee = float(ord_info.get('latest_delivery_fee') or 0.0)
 
             c['total_sales'] = c_sales
+            c['total_amount'] = c_sales
             c['total_paid'] = c_paid
-            c['deposit'] = c_paid
+            c['paid_amount'] = c_paid
+            c['deposit'] = c_dep
+            c['deposit_amount'] = c_dep
             c['remaining'] = c_remaining
+            c['remaining_amount'] = c_remaining
             c['current_balance'] = c_remaining
             c['latest_order_no'] = c_order_no
             c['delivery_payment_mode'] = del_mode
             c['delivery_fee'] = del_fee
             c['ledger'] = {
-                'total_sales': c_sales, 'total_paid': c_paid, 'deposit': c_paid,
-                'remaining': c_remaining, 'pay_method': c_pay_method,
-                'delivery_payment_mode': del_mode, 'delivery': del_fee, 'delivery_fee': del_fee
+                'total_sales': c_sales, 'total_amount': c_sales,
+                'total_paid': c_paid, 'paid_amount': c_paid,
+                'deposit': c_dep, 'deposit_amount': c_dep,
+                'remaining': c_remaining, 'remaining_amount': c_remaining,
+                'pay_method': c_pay_method, 'delivery_payment_mode': del_mode,
+                'delivery': del_fee, 'delivery_fee': del_fee
             }
             c['measurements'] = c_meas
             c['children'] = c_children

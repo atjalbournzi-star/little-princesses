@@ -120,19 +120,23 @@ function useVouchersData({ vouchers = [], setVouchers, accounts = [], setAccount
         const jList = (jRes && Array.isArray(jRes.data)) ? jRes.data : (Array.isArray(jRes) ? jRes : []);
         const exKeys = new Set(combined.map(v => String(v.v_no || v.voucher_no || v.payment_no || v.id || '').trim()));
         jList.forEach(j => {
-          const jno = String(j.entry_no || j.id || '').trim(), ref = String(j.ref_id || '').trim();
-          if (jno && !exKeys.has(jno) && (!ref || !exKeys.has(ref))) {
-            combined.push({
-              id: j.id || jno, v_no: jno, v_type: 'قيد يومية', isReceipt: false, isPayment: false,
-              party: jno.includes('PUR') ? 'مورد مشتريات' : (j.description || 'قيد محاسبي'),
-              amount: parseFloat(j.amount) || 0, currency: j.currency || 'YER', exchange_rate: 1,
-              base_amount: parseFloat(j.amount) || 0, pay_method: 'قيد تسوية',
-              date: j.date || new Date().toISOString().slice(0, 10),
-              notes: j.description || 'قيد محاسبي آلي', account: j.credit || 'ACC-201',
-              target_account: j.debit || 'ACC-105', status: 'Posted'
-            });
-            exKeys.add(jno);
-          }
+          const jno = String(j.entry_no || j.id || '').trim(), ref = String(j.ref_id || '').trim(), rType = String(j.ref_type || '').trim();
+          if (!jno || jno.startsWith('AUTO-VCH') || jno.startsWith('JV-PUR') || jno.startsWith('JV-PAY') || jno.startsWith('JV-ORD') || ['Payment', 'Receipt', 'Purchase', 'Order'].includes(rType)) return;
+          if (exKeys.has(jno) || (ref && exKeys.has(ref)) || exKeys.has(jno.replace(/^AUTO-VCH-/, ''))) return;
+          const amt = parseFloat(j.amount || j.total_amount) || 0;
+          const jCurr = window.CurrencyService ? window.CurrencyService.normalizeCode(j.currency || 'YER') : (j.currency || 'YER');
+          const jRate = parseFloat(j.exchange_rate) || (window.CurrencyService ? window.CurrencyService.getRate(jCurr) : 1.0);
+          const baseAmt = parseFloat(j.base_amount) || (amt * jRate);
+          combined.push({
+            id: j.id || jno, v_no: jno, v_type: 'قيد يومية', isReceipt: false, isPayment: false,
+            party: j.description || 'قيد محاسبي يدوي',
+            amount: amt, currency: jCurr, exchange_rate: jRate,
+            base_amount: baseAmt, pay_method: 'قيد تسوية',
+            date: j.date || new Date().toISOString().slice(0, 10),
+            notes: j.description || 'قيد محاسبي يدوي', account: j.credit || 'ACC-201',
+            target_account: j.debit || 'ACC-105', status: 'Posted'
+          });
+          exKeys.add(jno);
         });
       } catch (je) { console.warn("Journal check warning:", je); }
       if (typeof window.callGAS === 'function') {

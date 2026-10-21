@@ -119,6 +119,9 @@ def get_vouchers(params=None):
         jid = j.get('id')
         eno = clean_str(j.get('entry_no') or jid)
         ref_id = clean_str(j.get('ref_id') or '')
+        r_type = clean_str(j.get('ref_type') or '')
+        if eno.startswith(('AUTO-VCH', 'JV-PUR', 'JV-PAY', 'JV-ORD')) or r_type in ('Payment', 'Receipt', 'Purchase', 'Order'):
+            continue
         if eno in seen_refs or jid in seen_refs or ref_id in seen_refs:
             continue
         clean_v_no = eno.replace('AUTO-VCH-', '').replace('JV-AUTO-VCH-', '')

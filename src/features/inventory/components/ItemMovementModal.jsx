@@ -75,7 +75,7 @@ function ItemMovementModal({
             </div>
             <div>
               <span className="text-[10.5px] text-[#6F6B75] block">الموقع الحالي:</span>
-              <span className="font-bold text-xs text-[#6F6B75]">{item.location || 'المستودع الرئيسي'}</span>
+              <span className="font-bold text-xs text-[#6F6B75]">{item.location || item.warehouse_name || '—'}</span>
             </div>
           </div>
 

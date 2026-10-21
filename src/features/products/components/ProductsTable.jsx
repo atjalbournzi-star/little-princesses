@@ -9,14 +9,14 @@ function ProductsTable({
   currencyLabel = "YER ﷼"
 }) {
   const columns = [
-    { key: 'sku', label: 'الكود / SKU', width: 'w-[22%]', align: 'text-right' },
-    { key: 'image', label: 'الصورة', width: 'w-[5%]', align: 'text-center' },
-    { key: 'name', label: 'اسم الموديل', width: 'w-[21%]', align: 'text-right' },
-    { key: 'collection', label: 'التشكيلة', width: 'w-[11%]', align: 'text-center' },
-    { key: 'category', label: 'التصنيف', width: 'w-[15%]', align: 'text-center' },
+    { key: 'sku', label: 'الكود / SKU', width: 'w-[15%]', align: 'text-right' },
+    { key: 'image', label: 'الصورة', width: 'w-[6%]', align: 'text-center' },
+    { key: 'name', label: 'اسم الموديل', width: 'w-[22%]', align: 'text-right' },
+    { key: 'colors', label: 'الألوان المعتمدة', width: 'w-[14%]', align: 'text-center' },
+    { key: 'collection', label: 'التشكيلة', width: 'w-[10%]', align: 'text-center' },
     { key: 'bom', label: 'الخامات (BOM)', width: 'w-[10%]', align: 'text-center' },
-    { key: 'yards', label: 'الأمتار', width: 'w-[8%]', align: 'text-center' },
-    { key: 'fabric', label: 'القماش', width: 'w-[8%]', align: 'text-center' }
+    { key: 'cost', label: 'التكلفة', width: 'w-[9%]', align: 'text-center' },
+    { key: 'actions', label: 'الإجراءات', width: 'w-[14%]', align: 'text-center' }
   ];
 
   if (!products || products.length === 0) {
@@ -48,6 +48,8 @@ function ProductsTable({
             const seg = p.target_segment || 'kids';
             const segLabel = seg === 'women_adults' ? '👗 نسائي' : (seg === 'custom_free' ? '✂️ تفصيل' : '👧 أطفال');
             const cleanName = (p.name || '').replace(/\[.*?\]/g, '').trim() || p.name || 'موديل راقي';
+            const pImage = p.image_url || p.image || p.image_data || '';
+            const pColors = Array.isArray(p.colors) && p.colors.length ? p.colors : (Array.isArray(p.approved_colors) ? p.approved_colors : []);
 
             return (
               <tr
@@ -56,55 +58,44 @@ function ProductsTable({
                 title="انقر لتعديل مواصفات الموديل (BOM)"
                 className="h-7.5 max-h-7.5 border-b border-slate-800/60 hover:bg-slate-800/30 text-[11px] font-medium text-white transition-colors group cursor-pointer"
               >
-                {/* 1. الكود / SKU (22%) */}
-                <td className="w-[22%] py-0.5 px-2 font-mono text-[10.5px] font-medium text-slate-300 tracking-tight whitespace-nowrap truncate">
-                  <div className="flex items-center justify-between">
-                    <span className="font-mono text-[10.5px] font-medium text-slate-300 tracking-tight truncate select-all" title={p.sku || p.code || `LP-${p.id}`}>
-                      {p.sku || p.code || `LP-${String(p.id).padStart(4, '0')}`}
-                    </span>
-                    <div className="hidden group-hover:flex items-center gap-1 shrink-0 ml-1">
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); onShowQr && onShowQr(p); }}
-                        className="w-4.5 h-4.5 rounded bg-slate-800 hover:bg-purple-950 text-slate-300 hover:text-purple-300 flex items-center justify-center text-[9px] cursor-pointer"
-                        title="تكت QR"
-                      >
-                        🏷️
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); onDelete && onDelete(p.id); }}
-                        className="w-4.5 h-4.5 rounded bg-slate-800 hover:bg-rose-950 text-slate-400 hover:text-rose-400 flex items-center justify-center text-[9px] cursor-pointer"
-                        title="حذف"
-                      >
-                        🗑️
-                      </button>
-                    </div>
-                  </div>
+                {/* 1. الكود / SKU (15%) */}
+                <td className="w-[15%] py-0.5 px-2 font-mono text-[10.5px] font-medium text-slate-300 tracking-tight whitespace-nowrap truncate select-all" title={p.sku || p.code || `LP-${p.id}`}>
+                  {p.sku || p.code || `LP-${String(p.id).padStart(4, '0')}`}
                 </td>
 
-                {/* 2. الصورة (5%) */}
-                <td className="w-[5%] py-0.5 px-1 text-center whitespace-nowrap">
+                {/* 2. الصورة (6%) */}
+                <td className="w-[6%] py-0.5 px-1 text-center whitespace-nowrap">
                   <div className="w-7 h-7 rounded-md bg-slate-800/90 border border-slate-700/80 flex items-center justify-center text-slate-400 group-hover:text-pink-400 mx-auto transition-colors overflow-hidden">
-                    {p.image_url ? (
-                      <img src={p.image_url} alt="" className="w-full h-full object-cover" />
+                    {pImage ? (
+                      <img src={pImage} alt="" className="w-full h-full object-cover" />
                     ) : (
-                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M12 2a2.5 2.5 0 0 0-2.5 2.5c0 .7.3 1.3.8 1.8L2 14v1a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-1l-8.3-7.7a2.5 2.5 0 0 0 .8-1.8A2.5 2.5 0 0 0 12 2z"/>
-                      </svg>
+                      <span className="text-xs">👗</span>
                     )}
                   </div>
                 </td>
 
-                {/* 3. اسم الموديل (21%) */}
-                <td className="w-[21%] py-0.5 px-2 text-right whitespace-nowrap truncate" title={cleanName}>
+                {/* 3. اسم الموديل (22%) */}
+                <td className="w-[22%] py-0.5 px-2 text-right whitespace-nowrap truncate" title={cleanName}>
                   <span className="font-bold text-white text-[11.5px] leading-tight truncate block">
                     {cleanName}
                   </span>
                 </td>
 
-                {/* 4. التشكيلة (11%) */}
-                <td className="w-[11%] py-0.5 px-1 text-center whitespace-nowrap truncate">
+                {/* 4. الألوان المعتمدة (14%) */}
+                <td className="w-[14%] py-0.5 px-1 text-center whitespace-nowrap truncate">
+                  {pColors.length > 0 ? (
+                    <div className="flex items-center justify-center gap-1 overflow-hidden" title={pColors.join('، ')}>
+                      <span className="text-[9.5px] px-1.5 py-0.2 rounded font-medium bg-pink-500/15 text-pink-300 border border-pink-500/30 truncate max-w-[95px]">
+                        🎨 {pColors.slice(0, 2).join('، ')}{pColors.length > 2 ? ` (+${pColors.length - 2})` : ''}
+                      </span>
+                    </div>
+                  ) : (
+                    <span className="text-slate-500 text-[10px]">—</span>
+                  )}
+                </td>
+
+                {/* 5. التشكيلة (10%) */}
+                <td className="w-[10%] py-0.5 px-1 text-center whitespace-nowrap truncate">
                   {p.collection ? (
                     <span className="bg-amber-950/40 text-amber-300 border border-amber-800/40 px-1.5 py-0.2 rounded text-[10px] font-medium inline-block truncate max-w-full">
                       🏷️ {p.collection}
@@ -112,18 +103,6 @@ function ProductsTable({
                   ) : (
                     <span className="text-slate-500 text-[10px]">—</span>
                   )}
-                </td>
-
-                {/* 5. التصنيف (15%) */}
-                <td className="w-[15%] py-0.5 px-1 text-center whitespace-nowrap">
-                  <div className="flex items-center justify-center gap-1 overflow-hidden">
-                    <span className="text-[9.5px] px-1.5 py-0.5 rounded font-medium bg-purple-500/15 text-purple-300 border border-purple-500/30 flex items-center gap-1 whitespace-nowrap truncate max-w-[105px]" title={p.category || 'عام'}>
-                      {p.category || 'عام'}
-                    </span>
-                    <span className="text-[9.5px] px-1.5 py-0.5 rounded font-medium bg-slate-800/80 text-slate-300 border border-slate-700/60 flex items-center gap-1 whitespace-nowrap shrink-0">
-                      {segLabel}
-                    </span>
-                  </div>
                 </td>
 
                 {/* 6. الخامات BOM (10%) */}
@@ -141,14 +120,40 @@ function ProductsTable({
                   )}
                 </td>
 
-                {/* 7. الأمتار (8%) */}
-                <td className="w-[8%] py-0.5 px-1 text-center font-mono text-[11px] text-white font-bold whitespace-nowrap">
-                  {(parseFloat(p.yards_used) || 0).toFixed(1)} م
+                {/* 7. التكلفة (9%) */}
+                <td className="w-[9%] py-0.5 px-1 text-center font-mono text-[11px] text-white font-bold whitespace-nowrap">
+                  {(parseFloat(p.total_cost || p.cost_price || p.fabric_cost) || 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}
                 </td>
 
-                {/* 8. القماش (8%) */}
-                <td className="w-[8%] py-0.5 px-1 text-center font-mono text-[11px] text-white font-bold whitespace-nowrap">
-                  {(parseFloat(p.fabric_cost) || 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                {/* 8. الإجراءات (14%) */}
+                <td className="w-[14%] py-0.5 px-1 text-center whitespace-nowrap">
+                  <div className="flex items-center justify-center gap-1">
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); onEdit && onEdit(p); }}
+                      className="h-6 px-1.5 rounded bg-pink-950/70 hover:bg-pink-900 text-pink-300 border border-pink-700/60 flex items-center gap-0.5 text-[10px] font-bold cursor-pointer transition shadow-2xs"
+                      title="تعديل الموديل"
+                    >
+                      <span>✏️</span>
+                      <span>تعديل</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); onShowQr && onShowQr(p); }}
+                      className="w-6 h-6 rounded bg-slate-800 hover:bg-purple-950 text-slate-300 hover:text-purple-300 border border-slate-700 flex items-center justify-center text-[10px] cursor-pointer"
+                      title="تكت QR"
+                    >
+                      🏷️
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); onDelete && onDelete(p.id); }}
+                      className="w-6 h-6 rounded bg-slate-800 hover:bg-rose-950 text-slate-400 hover:text-rose-400 border border-slate-700 flex items-center justify-center text-[10px] cursor-pointer"
+                      title="حذف"
+                    >
+                      🗑️
+                    </button>
+                  </div>
                 </td>
               </tr>
             );

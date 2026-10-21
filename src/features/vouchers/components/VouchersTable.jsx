@@ -56,7 +56,9 @@ function VouchersTable({
 
             const vCurr = window.CurrencyService ? window.CurrencyService.normalizeCode(v.currency) : (v.currency || 'YER');
             const isSameCurr = vCurr === activeTargetCurr;
-            const convertedAmt = window.CurrencyService ? window.CurrencyService.convert(v.amount, vCurr, activeTargetCurr, v.exchange_rate) : v.amount;
+            const convertedAmt = (activeTargetCurr === 'YER' && parseFloat(v.base_amount) > 0)
+              ? parseFloat(v.base_amount)
+              : (window.CurrencyService ? window.CurrencyService.convert(v.amount, vCurr, activeTargetCurr, v.exchange_rate) : v.amount);
             const isReversed = v.status === 'reversed';
 
             return (

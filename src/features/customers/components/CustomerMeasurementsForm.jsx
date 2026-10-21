@@ -1,9 +1,9 @@
 // src/features/customers/components/CustomerMeasurementsForm.jsx
-// نموذج مدخلات المقاسات الفنية واختيار الموديل والأقمشة لنمطي الأطفال والكبار
+// نموذج مدخلات المقاسات الفنية واختيار الموديل والألوان المعتمدة لنمطي الأطفال والكبار
 
 function CustomerMeasurementsForm({
   currM, activeChildIdx, targetMode, uniqueModels, activeFields,
-  inputCls, labelCls, onUpdate, onSelectModel
+  inputCls, labelCls, onUpdate, onSelectModel, selectedProduct
 }) {
   const isAdult = targetMode === 'women_adults';
   const KIDS_FIELDS = [
@@ -17,31 +17,102 @@ function CustomerMeasurementsForm({
     ['arm_circ', 'دوران الذراع'], ['bust_drop', 'نزول الصدر']
   ];
   const fieldsToRender = isAdult ? ADULT_FIELDS : KIDS_FIELDS;
+  const modelImg = currM.model_image || currM.model_img || selectedProduct?.image_url || selectedProduct?.image || selectedProduct?.image_data;
+  
+  const rawColors = selectedProduct?.colors || selectedProduct?.approved_colors || [];
+  let approvedColors = [];
+  if (Array.isArray(rawColors)) {
+    approvedColors = rawColors;
+  } else if (typeof rawColors === 'string') {
+    try {
+      const parsed = JSON.parse(rawColors);
+      if (Array.isArray(parsed)) approvedColors = parsed;
+      else if (typeof parsed === 'string' && parsed.trim()) approvedColors = [parsed.trim()];
+    } catch (e) {
+      if (rawColors.includes(',')) approvedColors = rawColors.split(',').map(s => s.trim()).filter(Boolean);
+      else if (rawColors.trim()) approvedColors = [rawColors.trim()];
+    }
+  }
+
+  const selectedCol = currM.dress_color || currM.selected_color || '';
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 select-none" dir="rtl">
       {/* Model & Basic Data */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 p-2 bg-[#0F172A] rounded-xl border border-slate-800">
         <div>
           <label className="block text-[10px] font-semibold text-slate-300 mb-0.5">{isAdult ? 'اسم السيدة / العميلة *' : 'اسم الطفلة (الأميرة) *'}</label>
-          <input value={currM.child_name || ''} onChange={e => onUpdate(activeChildIdx, 'child_name', e.target.value)} className="w-full h-7 px-2 text-xs font-bold bg-[#111C38] border border-slate-700 rounded-lg text-white outline-none focus:border-pink-500" placeholder={isAdult ? "اسم السيدة..." : "اسم الطفلة..."} />
+          <input value={currM.child_name || ''} onChange={e => onUpdate(activeChildIdx, 'child_name', e.target.value)} className="w-full h-7 px-2 text-xs font-bold bg-[#111C38] border border-slate-700 rounded-lg text-white outline-none focus:border-pink-500" />
         </div>
         <div>
           <label className="block text-[10px] font-semibold text-slate-300 mb-0.5">الموديل من الكتالوج</label>
-          <select value={currM.selected_model || ''} onChange={e => onSelectModel(e.target.value)} className="w-full h-7 px-2 text-xs font-bold bg-[#111C38] border border-slate-700 rounded-lg text-white outline-none focus:border-pink-500 cursor-pointer">
-            <option value="">-- اختر الموديل --</option>
-            {uniqueModels.map(n => <option key={n} value={n}>{n}</option>)}
-          </select>
+          <div className="flex items-center gap-1.5">
+            {modelImg && (
+              <div className="w-7 h-7 rounded-md bg-slate-800 border border-slate-700 overflow-hidden shrink-0">
+                <img src={modelImg} alt="" className="w-full h-full object-cover" />
+              </div>
+            )}
+            <select value={currM.selected_model || ''} onChange={e => onSelectModel(e.target.value)} className="w-full h-7 px-2 text-xs font-bold bg-[#111C38] border border-slate-700 rounded-lg text-white outline-none focus:border-pink-500 cursor-pointer">
+              <option value="">-- اختر الموديل --</option>
+              {uniqueModels.map(n => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </div>
         </div>
         <div>
-          <label className="block text-[10px] font-semibold text-slate-300 mb-0.5">اللون / تفضيل الخامة</label>
-          <input value={currM.dress_color || ''} onChange={e => onUpdate(activeChildIdx, 'dress_color', e.target.value)} className="w-full h-7 px-2 text-xs font-bold bg-[#111C38] border border-slate-700 rounded-lg text-white outline-none focus:border-pink-500" placeholder="مثال: زهري ملكي، كريب..." />
+          <label className="block text-[10px] font-semibold text-slate-300 mb-0.5">اللون المختار للطلب</label>
+          <select
+            value={selectedCol}
+            onChange={e => {
+              const val = e.target.value;
+              onUpdate(activeChildIdx, 'dress_color', val);
+              onUpdate(activeChildIdx, 'selected_color', val);
+              onUpdate(activeChildIdx, 'color', val);
+            }}
+            className="w-full h-7 px-2 text-xs font-bold bg-[#111C38] border border-slate-700 rounded-lg text-white outline-none focus:border-pink-500 cursor-pointer"
+          >
+            <option value="">-- اختر اللون المعتمد --</option>
+            {approvedColors.map(c => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+            {selectedCol && !approvedColors.includes(selectedCol) && (
+              <option value={selectedCol}>{selectedCol}</option>
+            )}
+          </select>
         </div>
         <div>
           <label className="block text-[10px] font-semibold text-slate-300 mb-0.5">تاريخ المناسبة والتسليم</label>
           <input type="date" lang="en-GB" dir="ltr" value={currM.event_date || ''} onChange={e => onUpdate(activeChildIdx, 'event_date', e.target.value)} className="w-full h-7 px-2 text-xs font-bold bg-[#111C38] border border-slate-700 rounded-lg text-white outline-none focus:border-pink-500" />
         </div>
       </div>
+
+      {/* شريط الألوان المعتمدة للموديل إن وجدت */}
+      {approvedColors.length > 0 && (
+        <div className="flex items-center gap-1.5 flex-wrap p-1.5 bg-[#0B132B] rounded-lg border border-slate-800 text-[10.5px]">
+          <span className="font-bold text-pink-300 shrink-0">🎨 ألوان الموديل المعتمدة:</span>
+          {approvedColors.map(col => {
+            const isSel = String(selectedCol).trim() === String(col).trim();
+            return (
+              <button
+                key={col}
+                type="button"
+                onClick={() => {
+                  onUpdate(activeChildIdx, 'dress_color', col);
+                  onUpdate(activeChildIdx, 'selected_color', col);
+                  onUpdate(activeChildIdx, 'color', col);
+                }}
+                className={`h-6 px-2.5 rounded-md text-[10px] font-bold transition cursor-pointer flex items-center gap-1 ${
+                  isSel
+                    ? 'bg-pink-600 text-white shadow ring-2 ring-pink-400 font-extrabold'
+                    : 'bg-slate-800 text-slate-300 hover:text-white border border-slate-700'
+                }`}
+              >
+                <span>{col}</span>
+                {isSel && <span>✓</span>}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Micro-Dimension 5x2 Grid */}
       <div className={`grid grid-cols-2 ${isAdult ? 'sm:grid-cols-4' : 'sm:grid-cols-5'} gap-1.5`}>
@@ -64,7 +135,6 @@ function CustomerMeasurementsForm({
                 value={val ?? ''}
                 onChange={e => onUpdate(activeChildIdx, f, e.target.value)}
                 className="h-5 w-full text-center text-xs font-bold text-white bg-transparent outline-none focus:border-pink-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                placeholder="—"
               />
             </div>
           );
@@ -92,7 +162,7 @@ function CustomerMeasurementsForm({
         </div>
         <div className="p-1.5 bg-[#0F172A] rounded-xl border border-slate-800">
           <label className="block text-[10.5px] font-bold text-slate-200 mb-1">🧵 تعليمات التشغيل والقص للمعمل:</label>
-          <textarea rows={2} value={currM.sewing_notes || ''} onChange={e => onUpdate(activeChildIdx, 'sewing_notes', e.target.value)} className="w-full h-11 p-1.5 text-xs font-medium bg-[#111C38] border border-slate-700 rounded-lg text-white outline-none focus:border-pink-500 resize-none" placeholder="ملاحظات تفصيلية للمشغل..." />
+          <textarea rows={2} value={currM.sewing_notes || ''} onChange={e => onUpdate(activeChildIdx, 'sewing_notes', e.target.value)} className="w-full h-11 p-1.5 text-xs font-medium bg-[#111C38] border border-slate-700 rounded-lg text-white outline-none focus:border-pink-500 resize-none" />
         </div>
       </div>
     </div>

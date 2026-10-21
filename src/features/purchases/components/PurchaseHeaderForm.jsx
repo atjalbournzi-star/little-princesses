@@ -42,12 +42,18 @@ function PurchaseHeaderForm({
       {/* 3. المستودع المستلم */}
       <div>
         <label className={labelCls}>المستودع المستلم *</label>
-        <select className={inputCls + " font-bold text-teal-700 dark:text-teal-400 bg-teal-50/20"} value={headerData.warehouse_id || 'WH-MAIN'} onChange={e => setHeaderData(p => ({ ...p, warehouse_id: e.target.value }))}>
-          {(window.inventoryUtils?.WAREHOUSES || [
-            { id: 'WH-MAIN', name: 'المستودع الرئيسي' },
-            { id: 'WH-WORKSHOP', name: 'معمل وورشة الخياطة' },
-            { id: 'WH-SHOWROOM', name: 'معرض وصالة التسليم' }
-          ]).map(w => <option key={w.id} value={w.id}>{w.name} ({w.id})</option>)}
+        <select
+          className={inputCls + " font-bold text-teal-700 dark:text-teal-400 bg-teal-50/20"}
+          value={headerData.warehouse_id || ''}
+          onChange={e => setHeaderData(p => ({ ...p, warehouse_id: e.target.value }))}
+          required
+        >
+          <option value="">-- اختر المستودع المستلم --</option>
+          {(Array.isArray(window.inventoryUtils?.WAREHOUSES) ? window.inventoryUtils.WAREHOUSES : []).map(w => (
+            <option key={w.id || w.code} value={w.id || w.code}>
+              {w.name} ({w.code || w.id})
+            </option>
+          ))}
         </select>
       </div>
 

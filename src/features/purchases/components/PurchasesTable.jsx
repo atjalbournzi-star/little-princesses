@@ -75,6 +75,11 @@ function PurchasesTable({ filteredPurchases = [], handleOpenEdit, handleDeleteRe
                   <div className="font-mono text-[11px] text-[#6F6B75] mt-0.5 flex items-center gap-1">
                     <span>📅</span><span>{dateDisplay}</span>
                   </div>
+                  {p.warehouse_id && (
+                    <div className="text-[10px] text-teal-700 font-semibold mt-0.5 flex items-center gap-1">
+                      <span>🏢</span><span>{window.inventoryUtils ? window.inventoryUtils.getWarehouseName(p.warehouse_id) : p.warehouse_id}</span>
+                    </div>
+                  )}
                 </td>
 
                 {/* 2. المورد وبيانات التواصل */}
@@ -129,14 +134,14 @@ function PurchasesTable({ filteredPurchases = [], handleOpenEdit, handleDeleteRe
                   )}
                   {(freight + fees) > 0 && (
                     <div className={`text-[10.5px] font-mono text-[#C97300] font-bold ${discountAmt > 0 ? 'mt-1' : ''}`}>
-                      🚚 +{(freight + fees).toLocaleString('en-US')} ﷼
+                      🚚 +{(freight + fees).toLocaleString('en-US')} {currCode}
                     </div>
                   )}
                   {discountAmt <= 0 && (freight + fees) <= 0 && <span className="text-[#6F6B75]">—</span>}
                 </td>
 
                 {/* 5. الصافي الإجمالي (YER) */}
-                <td className="px-4 py-3 text-center whitespace-nowrap bg-[#E2F5F7]/25">
+                <td className="px-4 py-3 text-center whitespace-nowrap">
                   <div className="font-extrabold font-mono text-sm text-[#007F8C]">
                     {grandTotalYER > 0 ? `${grandTotalYER.toLocaleString('en-US', { minimumFractionDigits: 2 })} ﷼` : '0.00 ﷼'}
                   </div>

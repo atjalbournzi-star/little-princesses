@@ -1,137 +1,99 @@
 // src/features/feedback/components/FeedbackTeamTab.jsx
-// جداول تقييم المصممين، الخياطين، ومراحل خط الإنتاج والأقسام
+// جداول أداء الكادر ومراحل الورشة والأقسام
 
 function FeedbackTeamTab({
-  activeTab,
-  designerQualityProfiles = [],
+  activeTab = 'team',
   tailorQualityProfiles = [],
   departmentQualityScores = []
 }) {
   return (
-    <div className="space-y-6">
-      {/* 1. تبويب تقييم المصممين */}
-      {activeTab === 'designers' && (
-        <div className="bg-white rounded-2xl border border-[#E8E5EA] shadow-[0_2px_12px_rgba(0,0,0,0.02)] p-6 space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-[#E8E5EA]">
-            <div>
-              <h3 className="font-bold text-sm text-[#25232A]">تقييم أداء المصممين (Designer Quality Intelligence)</h3>
-              <p className="text-xs text-[#6F6B75] mt-0.5">تقييم موضوعي مبني على قبول التصاميم، المبيعات، ومعدل رضا العميلات وتكرار الشراء</p>
-            </div>
-          </div>
-
-          <div className="overflow-x-auto rounded-xl border border-[#E8E5EA]">
-            <table className="w-full text-right text-xs">
-              <thead>
-                <tr className="bg-[#FAFAFB] text-[#6F6B75] font-semibold border-b border-[#E8E5EA]">
-                  <th className="p-3">اسم المصمم / الاستوديو</th>
-                  <th className="p-3 text-center">عدد التصاميم المعتمدة</th>
-                  <th className="p-3 text-center">إجمالي المبيعات</th>
-                  <th className="p-3 text-center">معدل العيوب والتعديل</th>
-                  <th className="p-3 text-center">تقييم العميلات</th>
-                  <th className="p-3 text-center">درجة المصمم</th>
-                  <th className="p-3 text-center">العينة والثقة</th>
-                  <th className="p-3 text-center">الحالة</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#E8E5EA] bg-white">
-                {designerQualityProfiles.length === 0 ? (
-                  <tr><td colSpan="8" className="p-10 text-center text-[#6F6B75]">لا توجد بيانات أو مصممين مسجلين بعد 🎨</td></tr>
-                ) : (
-                  designerQualityProfiles.map(des => (
-                    <tr key={des.id} className="hover:bg-[#FAFAFB] transition-colors">
-                      <td className="p-3 font-bold text-[#25232A]">{des.name}</td>
-                      <td className="p-3 text-center font-mono font-bold">{des.modelsDesigned}</td>
-                      <td className="p-3 text-center font-mono font-bold text-[#25232A]">{des.totalSales}</td>
-                      <td className="p-3 text-center font-mono font-bold text-[#D64545]">{des.defectRate}%</td>
-                      <td className="p-3 text-center font-bold text-[#F28A00]">{des.customerRating}</td>
-                      <td className="p-3 text-center font-mono font-bold text-[#8F2A87]">{des.designerScore}</td>
-                      <td className="p-3 text-center font-mono text-[11px] text-[#6F6B75]">{des.sampleSize} حالة ({des.confidence})</td>
-                      <td className="p-3 text-center font-semibold text-[11px]">{des.status}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* 2. تبويب تقييم الخياطين والمعمل */}
-      {activeTab === 'tailors' && (
-        <div className="bg-white rounded-2xl border border-[#E8E5EA] shadow-[0_2px_12px_rgba(0,0,0,0.02)] p-6 space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-[#E8E5EA]">
-            <div>
-              <h3 className="font-bold text-sm text-[#25232A]">تقييم أداء الخياطين وفرق الإنتاج (Tailor Quality Intelligence)</h3>
-              <p className="text-xs text-[#6F6B75] mt-0.5">تقييم مهني دقيق مبني على دقة الخياطة، نسبة النجاح الفوري، واحتياجات التدريب</p>
-            </div>
-          </div>
-
-          <div className="overflow-x-auto rounded-xl border border-[#E8E5EA]">
-            <table className="w-full text-right text-xs">
-              <thead>
-                <tr className="bg-[#FAFAFB] text-[#6F6B75] font-semibold border-b border-[#E8E5EA]">
-                  <th className="p-3">اسم الخياط / الفريق</th>
-                  <th className="p-3 text-center">القطع المنفذة</th>
-                  <th className="p-3 text-center">العيوب المسجلة</th>
-                  <th className="p-3 text-center">معدل العيوب</th>
-                  <th className="p-3 text-center">نسبة النجاح الفوري (FPY)</th>
-                  <th className="p-3 text-center">درجة الخياطة</th>
-                  <th className="p-3 text-center">العينة والثقة</th>
-                  <th className="p-3 text-center">توصية التدريب</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#E8E5EA] bg-white">
-                {tailorQualityProfiles.length === 0 ? (
-                  <tr><td colSpan="8" className="p-10 text-center text-[#6F6B75]">لا توجد بيانات لفرق الخياطة أو طلبيات بالمعمل بعد ✂️</td></tr>
-                ) : (
-                  tailorQualityProfiles.map(t => (
-                    <tr key={t.id} className="hover:bg-[#FAFAFB] transition-colors">
-                      <td className="p-3 font-bold text-[#25232A]">{t.name}</td>
-                      <td className="p-3 text-center font-mono font-bold">{t.completedOrders}</td>
-                      <td className="p-3 text-center font-mono font-bold text-[#D64545]">{t.defectsCount}</td>
-                      <td className="p-3 text-center font-mono font-bold text-[#D64545]">{t.defectRate}%</td>
-                      <td className="p-3 text-center font-mono font-bold text-[#007F8C]">{t.firstPassYield}</td>
-                      <td className="p-3 text-center font-mono font-bold text-[#8F2A87]">
-                        {t.qualityScore !== null ? `${t.qualityScore} / 100` : '--'}
-                      </td>
-                      <td className="p-3 text-center font-mono text-[11px] text-[#6F6B75]">{t.sampleSize} حالة ({t.confidence})</td>
-                      <td className="p-3 text-center font-semibold text-[11px]">{t.trainingAlert}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* 3. تبويب تقييم الأقسام والـ Pipeline */}
-      {activeTab === 'departments' && (
-        <div className="bg-white rounded-2xl border border-[#E8E5EA] p-6 shadow-[0_2px_12px_rgba(0,0,0,0.02)] space-y-4">
-          <h3 className="font-bold text-sm text-[#25232A] border-b border-[#E8E5EA] pb-3">
-            🏢 تقييم وموثوقية الأقسام ومراحل خط الإنتاج (Quality Pipeline & Departments)
+    <div className="space-y-4 select-none text-right" dir="rtl">
+      {/* 1. بطاقات تقييم مراحل خط الإنتاج والأقسام الخمسة */}
+      {departmentQualityScores.length > 0 && (
+        <div className="bg-[#111C38] rounded-2xl border border-slate-700/80 p-4 shadow-xl space-y-3">
+          <h3 className="font-bold text-xs text-white border-b border-slate-700/80 pb-2.5 flex items-center gap-1.5">
+            <span>🏢</span>
+            <span>مراحل خط الإنتاج والأقسام (Quality Pipeline & Stages)</span>
           </h3>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {departmentQualityScores.map((dept, idx) => (
-              <div key={idx} className="p-4 rounded-xl border border-[#E8E5EA] bg-[#FAFAFB] space-y-3">
+              <div key={idx} className="p-3.5 rounded-xl border border-slate-700/70 bg-[#0B132B]/70 space-y-2.5 shadow-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-xl">{dept.icon}</span>
-                  <span className="font-mono font-bold text-sm text-[#B0005A]">{dept.score} / 100</span>
+                  <span className="font-mono font-bold text-xs text-pink-400 bg-pink-500/10 px-2 py-0.5 rounded-md border border-pink-500/20">{dept.score}</span>
                 </div>
                 <div>
-                  <h4 className="font-bold text-xs text-[#25232A]">{dept.name}</h4>
-                  <p className="text-[11px] text-[#6F6B75] mt-0.5">حجم العينة: {dept.sampleSize}</p>
+                  <h4 className="font-bold text-xs text-white">{dept.name}</h4>
+                  <p className="text-[10.5px] text-slate-400 mt-0.5">حجم العينة: {dept.sampleSize}</p>
                 </div>
-                <div className="pt-2 border-t border-[#E8E5EA] flex justify-between items-center text-xs">
-                  <span className="text-[#6F6B75]">الملاحظات النشطة: {dept.activeIssues}</span>
-                  <span className="font-bold text-[11px]">{dept.status}</span>
+                <div className="pt-2 border-t border-slate-800 flex justify-between items-center text-[10.5px]">
+                  <span className="text-slate-400">ملاحظات: {dept.activeIssues}</span>
+                  <span className="font-bold text-emerald-400">{dept.status}</span>
                 </div>
               </div>
             ))}
           </div>
         </div>
       )}
+
+      {/* 2. جدول تقييم أداء كادر المشغل والمراحل الخمس */}
+      <div className="bg-[#111C38] rounded-2xl border border-slate-700/80 shadow-xl p-4 space-y-3">
+        <div className="flex items-center justify-between pb-2.5 border-b border-slate-700/80">
+          <div>
+            <h3 className="font-bold text-xs text-white flex items-center gap-1.5">
+              <span>👥</span>
+              <span>تقييم أداء كادر المشغل والمراحل الخمس (Staff & Tailors Intelligence)</span>
+            </h3>
+            <p className="text-[11px] text-slate-400 mt-0.5">مربوط ديناميكياً بموظفي المراحل الخمس الفعليين في جدول الموارد البشرية</p>
+          </div>
+          <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-md bg-[#0B132B] text-cyan-400 border border-slate-700">
+            {tailorQualityProfiles.length} موظف
+          </span>
+        </div>
+
+        <div className="overflow-x-auto rounded-xl border border-slate-700/60 custom-scrollbar">
+          <table className="w-full text-right text-xs">
+            <thead className="bg-[#0B132B] text-slate-300 font-bold border-b border-slate-700/80">
+              <tr>
+                <th className="py-2.5 px-3">اسم الفني / التخصص</th>
+                <th className="py-2.5 px-3 text-center">القطع المنفذة</th>
+                <th className="py-2.5 px-3 text-center">العيوب المسجلة</th>
+                <th className="py-2.5 px-3 text-center">معدل العيوب</th>
+                <th className="py-2.5 px-3 text-center">نسبة النجاح الفوري (FPY)</th>
+                <th className="py-2.5 px-3 text-center">درجة الجودة</th>
+                <th className="py-2.5 px-3 text-center">العينة والثقة</th>
+                <th className="py-2.5 px-3 text-center">التوصية التشغيلية</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800/70">
+              {tailorQualityProfiles.length === 0 ? (
+                <tr>
+                  <td colSpan="8" className="py-8 text-center text-slate-400 bg-[#0B132B]/60">
+                    <span className="block text-xl mb-1">✂️</span>
+                    لا توجد بيانات تشغيلية مسجلة لكادر المعمل حالياً
+                  </td>
+                </tr>
+              ) : (
+                tailorQualityProfiles.map(t => (
+                  <tr key={t.id} className="hover:bg-slate-800/40 transition">
+                    <td className="py-2 px-3 font-bold text-white">{t.name}</td>
+                    <td className="py-2 px-3 text-center font-mono font-bold text-slate-200">{t.completedOrders}</td>
+                    <td className="py-2 px-3 text-center font-mono font-bold text-rose-400">{t.defectsCount}</td>
+                    <td className="py-2 px-3 text-center font-mono font-bold text-amber-400">{t.defectRate}%</td>
+                    <td className="py-2 px-3 text-center font-mono font-bold text-emerald-400">{t.firstPassYield}</td>
+                    <td className="py-2 px-3 text-center font-mono font-bold text-pink-400">
+                      {t.qualityScore !== null ? `${t.qualityScore} / 100` : '--'}
+                    </td>
+                    <td className="py-2 px-3 text-center font-mono text-[11px] text-slate-400">{t.sampleSize} حالة ({t.confidence})</td>
+                    <td className="py-2 px-3 text-center font-semibold text-[11px] text-slate-300">{t.trainingAlert}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }

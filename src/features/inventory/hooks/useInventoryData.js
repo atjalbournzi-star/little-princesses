@@ -76,7 +76,7 @@ function useInventoryData({ inventory = [], setInventory, purchases = [], showTo
       const code = String(item.item_code || item.code || item.id || '');
       const category = item.category || 'أقمشة وخامات';
       const supplier = item.supplier_id || item.supplier || item.supplier_name || '';
-      const location = item.location || 'المستودع الرئيسي';
+      const location = item.location || item.warehouse_name || '';
       const isDress = isReadyDress(item);
 
       // فلترة التبويب الرئيسي

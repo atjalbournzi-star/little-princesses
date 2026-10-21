@@ -1,8 +1,8 @@
 // src/features/feedback/components/FeedbackFilterBar.jsx
-// شريط التبويبات الـ 14 وفلاتر البحث والتصنيف
+// شريط التبويبات التشغيلية الأربعة الرئيسية وفلاتر البحث
 
 function FeedbackFilterBar({
-  activeTab = 'executive',
+  activeTab = 'qc_station',
   setActiveTab,
   search = '',
   setSearch,
@@ -10,63 +10,53 @@ function FeedbackFilterBar({
   setFilterStatus
 }) {
   const tabs = [
-    { id: 'qc_station', label: '👑 محطة الفحص الفني (QC Station)' },
-    { id: 'executive', label: '🧠 الذكاء التنفيذي' },
-    { id: 'products', label: '👗 موثوقية الموديلات' },
-    { id: 'fabrics', label: '🧵 تقييم الأقمشة والخامات' },
-    { id: 'designers', label: '🎨 تقييم المصممين' },
-    { id: 'tailors', label: '✂️ تقييم الخياطين والمعمل' },
-    { id: 'departments', label: '🏢 تقييم الأقسام والـ Pipeline' },
-    { id: 'inspections', label: '🔍 عمليات الفحص' },
-    { id: 'defects', label: '⚠️ العيوب والتكاليف' },
-    { id: 'feedback', label: '⭐ تقييمات العملاء' },
-    { id: 'complaints', label: '📢 سجل الشكاوى' },
-    { id: 'returns', label: '🔄 المرتجعات و COPQ' },
-    { id: 'capa', label: '🛡️ خطط التصحيح CAPA' },
-    { id: 'standards', label: '⚙️ معايير الفحص والمستهدفات' },
-    { id: 'master_ledger', label: '📑 سجل الجودة والتقارير' }
+    { id: 'qc_station', icon: '👑', label: 'محطة الفحص الفني' },
+    { id: 'inspections', icon: '🔍', label: 'سجل عمليات الفحص والعيوب' },
+    { id: 'team', icon: '👥', label: 'أداء الكادر ومراحل الورشة' },
+    { id: 'materials', icon: '🧵', label: 'جودة الخامات والموردين' }
   ];
 
   return (
-    <div className="space-y-3">
-      {/* التبويبات الأربعة عشر */}
-      <div className="flex gap-2 border-b border-[#E8E5EA] pb-2 overflow-x-auto no-scrollbar">
+    <div className="space-y-2.5">
+      {/* التبويبات الأربعة الرئيسية بكامل العرض بدون أي قص أو تزاحم */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 border-b border-slate-700/80 pb-2.5">
         {tabs.map(t => (
           <button
             key={t.id}
+            type="button"
             onClick={() => setActiveTab(t.id)}
-            className={`px-4 py-2.5 rounded-xl font-bold text-xs transition-all whitespace-nowrap cursor-pointer ${
+            className={`py-2 px-3 rounded-xl font-bold text-xs transition-all cursor-pointer flex items-center justify-center gap-2 text-center whitespace-nowrap shadow-xs ${
               activeTab === t.id 
-                ? 'bg-[#B0005A] text-white shadow-xs' 
-                : 'bg-white text-[#6F6B75] hover:bg-[#FAFAFB] border border-[#E8E5EA]'
+                ? 'bg-pink-600 text-white ring-2 ring-pink-500/40 shadow-pink-600/20' 
+                : 'bg-[#111C38] text-slate-300 hover:bg-[#1E293B] hover:text-white border border-slate-700/80'
             }`}
           >
-            {t.label}
+            <span className="text-sm shrink-0 leading-none">{t.icon}</span>
+            <span className="truncate">{t.label}</span>
           </button>
         ))}
       </div>
 
-      {/* شريط البحث وفلاتر الملاحظات إن وجدت */}
-      {setSearch && (
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-3 rounded-xl border border-[#E8E5EA]">
+      {/* شريط البحث الموحد للجداول النشطة الأخرى (مستثنى من محطة الفحص لوجود شريطه المدمج الخاص) */}
+      {setSearch && activeTab !== 'qc_station' && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-[#111C38] p-3 rounded-xl border border-slate-700/80 shadow-md">
           <div className="relative w-full sm:w-80">
             <input
               type="text"
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="البحث في السجلات والتقييمات والموديلات..."
-              className="w-full h-9.5 pr-8 pl-3 rounded-lg border border-[#E8E5EA] bg-[#FAFAFB] text-xs focus:bg-white focus:border-[#B0005A] outline-none transition"
+              className="w-full h-8.5 pr-8 pl-3 rounded-lg border border-slate-700/80 bg-[#0B132B] text-white text-xs focus:border-pink-500 outline-none transition"
             />
-            <span className="absolute right-2.5 top-2.5 text-[#6F6B75] text-xs">🔍</span>
+            <span className="absolute right-2.5 top-2 text-slate-400 text-xs">🔍</span>
           </div>
 
           {setFilterStatus && (
             <div className="flex items-center gap-2 self-end sm:self-auto">
-              <span className="text-xs text-[#6F6B75]">الحالة:</span>
+              <span className="text-xs text-slate-400 font-medium">الحالة:</span>
               <select
                 value={filterStatus}
                 onChange={e => setFilterStatus(e.target.value)}
-                className="h-9 px-2.5 rounded-lg border border-[#E8E5EA] bg-[#FAFAFB] text-xs text-[#25232A] outline-none"
+                className="h-8.5 px-2.5 rounded-lg border border-slate-700/80 bg-[#0B132B] text-xs text-slate-200 outline-none"
               >
                 <option value="all">جميع الحالات</option>
                 <option value="active">نشط / معتمد</option>

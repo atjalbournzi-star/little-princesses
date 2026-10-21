@@ -29,7 +29,7 @@ def generate_sequential_order_no(cur, order_date_str=None):
     dt = clean_str(order_date_str) or today_str()
     parts = dt.split('-')
     prefix = f"ORD-{parts[0]}-{parts[1]}{parts[2]}-" if len(parts) >= 3 else f"ORD-{today_str().replace('-', '')[:8]}-"
-    cur.execute("SELECT order_no FROM orders WHERE order_no LIKE %s ORDER BY order_no DESC LIMIT 1;", (f"{prefix}%",))
+    cur.execute("SELECT order_no FROM orders WHERE order_no LIKE %s ORDER BY LENGTH(order_no) DESC, order_no DESC LIMIT 1;", (f"{prefix}%",))
     row = cur.fetchone()
     if row and row.get('order_no'):
         try:
@@ -99,13 +99,80 @@ def ensure_base_system_seed():
                 ('currency_precision', '2', 'finance', 'دقة المنازل العشرية للعملة')
                 ON CONFLICT (key) DO NOTHING;
             """)
-            # 5. Products & Orders schema support (target segment, barcode, delivery payment mode)
+            # 5. Products, Orders & Atelier schema synchronization (colors, images, and model IDs)
             try:
                 cur.execute("""
                     ALTER TABLE products ADD COLUMN IF NOT EXISTS target_segment VARCHAR(50) DEFAULT 'kids';
                     ALTER TABLE products ADD COLUMN IF NOT EXISTS barcode VARCHAR(100);
+                    ALTER TABLE products ADD COLUMN IF NOT EXISTS colors JSONB DEFAULT '[]'::jsonb;
+                    ALTER TABLE products ADD COLUMN IF NOT EXISTS approved_colors JSONB DEFAULT '[]'::jsonb;
+                    ALTER TABLE products ADD COLUMN IF NOT EXISTS image TEXT;
+                    ALTER TABLE products ADD COLUMN IF NOT EXISTS image_data TEXT;
+                    ALTER TABLE products ADD COLUMN IF NOT EXISTS image_url TEXT;
+                    ALTER TABLE measurements ADD COLUMN IF NOT EXISTS model_id VARCHAR(100);
+                    ALTER TABLE measurements ADD COLUMN IF NOT EXISTS product_id VARCHAR(100);
+                    ALTER TABLE measurements ADD COLUMN IF NOT EXISTS selected_color VARCHAR(100);
+                    ALTER TABLE measurements ADD COLUMN IF NOT EXISTS color VARCHAR(100);
+                    ALTER TABLE measurements ADD COLUMN IF NOT EXISTS dress_color VARCHAR(100);
+                    ALTER TABLE measurements ADD COLUMN IF NOT EXISTS model_image TEXT;
+                    ALTER TABLE measurements ADD COLUMN IF NOT EXISTS model_img TEXT;
+                    ALTER TABLE measurements ADD COLUMN IF NOT EXISTS image_url TEXT;
+                    ALTER TABLE customers ADD COLUMN IF NOT EXISTS selected_color VARCHAR(100);
+                    ALTER TABLE customers ADD COLUMN IF NOT EXISTS model_id VARCHAR(100);
+                    ALTER TABLE customers ADD COLUMN IF NOT EXISTS model_image TEXT;
+                    ALTER TABLE customers ADD COLUMN IF NOT EXISTS total_amount NUMERIC(14, 2) DEFAULT 0.00;
+                    ALTER TABLE customers ADD COLUMN IF NOT EXISTS deposit_amount NUMERIC(14, 2) DEFAULT 0.00;
+                    ALTER TABLE customers ADD COLUMN IF NOT EXISTS paid_amount NUMERIC(14, 2) DEFAULT 0.00;
+                    ALTER TABLE customers ADD COLUMN IF NOT EXISTS remaining_amount NUMERIC(14, 2) DEFAULT 0.00;
+                    ALTER TABLE measurements ADD COLUMN IF NOT EXISTS fabrics_data JSONB DEFAULT '[]'::jsonb;
+                    ALTER TABLE measurements ADD COLUMN IF NOT EXISTS total_amount NUMERIC(14, 2) DEFAULT 0.00;
+                    ALTER TABLE measurements ADD COLUMN IF NOT EXISTS price NUMERIC(14, 2) DEFAULT 0.00;
                     ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_fee NUMERIC(12, 2) DEFAULT 0.00;
                     ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_payment_mode VARCHAR(30) DEFAULT 'DIRECT_TO_COURIER';
+                    ALTER TABLE orders ADD COLUMN IF NOT EXISTS model_id VARCHAR(100);
+                    ALTER TABLE orders ADD COLUMN IF NOT EXISTS selected_color VARCHAR(100);
+                    ALTER TABLE orders ADD COLUMN IF NOT EXISTS color VARCHAR(100);
+                    ALTER TABLE orders ADD COLUMN IF NOT EXISTS model_image TEXT;
+                    ALTER TABLE orders ADD COLUMN IF NOT EXISTS image_url TEXT;
+                    ALTER TABLE orders ADD COLUMN IF NOT EXISTS deposit_amount NUMERIC(14, 2) DEFAULT 0.00;
+                    ALTER TABLE orders ADD COLUMN IF NOT EXISTS fabrics_data JSONB DEFAULT '[]'::jsonb;
+                    ALTER TABLE order_items ADD COLUMN IF NOT EXISTS model_id VARCHAR(100);
+                    ALTER TABLE order_items ADD COLUMN IF NOT EXISTS selected_color VARCHAR(100);
+                    ALTER TABLE order_items ADD COLUMN IF NOT EXISTS color VARCHAR(100);
+                    ALTER TABLE order_items ADD COLUMN IF NOT EXISTS model_image TEXT;
+                    ALTER TABLE order_items ADD COLUMN IF NOT EXISTS image_url TEXT;
+                    ALTER TABLE order_items ADD COLUMN IF NOT EXISTS product_name VARCHAR(255);
+                    ALTER TABLE order_items ADD COLUMN IF NOT EXISTS fabrics_data JSONB DEFAULT '[]'::jsonb;
+                    ALTER TABLE order_items ADD COLUMN IF NOT EXISTS measurement_id VARCHAR(64);
+                    ALTER TABLE order_stages ADD COLUMN IF NOT EXISTS order_id VARCHAR(64);
+                    ALTER TABLE order_stages ADD COLUMN IF NOT EXISTS order_item_id VARCHAR(64);
+                    ALTER TABLE order_stages ADD COLUMN IF NOT EXISTS wage NUMERIC(12, 2) DEFAULT 0.00;
+                    ALTER TABLE order_stages ADD COLUMN IF NOT EXISTS rate NUMERIC(12, 2) DEFAULT 0.00;
+                    ALTER TABLE order_stages ADD COLUMN IF NOT EXISTS stage_fee NUMERIC(12, 2) DEFAULT 0.00;
+                    ALTER TABLE order_stages ADD COLUMN IF NOT EXISTS status VARCHAR(30) DEFAULT 'Pending';
+                    ALTER TABLE order_items ADD COLUMN IF NOT EXISTS total_amount NUMERIC(14, 2) DEFAULT 0.00;
+                    ALTER TABLE order_items ADD COLUMN IF NOT EXISTS paid_amount NUMERIC(14, 2) DEFAULT 0.00;
+                    ALTER TABLE order_items ADD COLUMN IF NOT EXISTS remaining_amount NUMERIC(14, 2) DEFAULT 0.00;
+                    ALTER TABLE production_orders ADD COLUMN IF NOT EXISTS customer_id VARCHAR(100);
+                    ALTER TABLE production_orders ADD COLUMN IF NOT EXISTS customer_name VARCHAR(255);
+                    ALTER TABLE production_orders ADD COLUMN IF NOT EXISTS measurements_spec JSONB DEFAULT '{}'::jsonb;
+                    ALTER TABLE production_orders ADD COLUMN IF NOT EXISTS total_amount NUMERIC(14, 2) DEFAULT 0.00;
+                    ALTER TABLE production_orders ADD COLUMN IF NOT EXISTS deposit_amount NUMERIC(14, 2) DEFAULT 0.00;
+                    ALTER TABLE production_orders ADD COLUMN IF NOT EXISTS remaining_amount NUMERIC(14, 2) DEFAULT 0.00;
+                    ALTER TABLE production_orders ADD COLUMN IF NOT EXISTS cutter_id VARCHAR(100);
+                    ALTER TABLE production_orders ADD COLUMN IF NOT EXISTS tailor_id VARCHAR(100);
+                    ALTER TABLE production_orders ADD COLUMN IF NOT EXISTS embroiderer_id VARCHAR(100);
+                    ALTER TABLE production_orders ADD COLUMN IF NOT EXISTS finisher_id VARCHAR(100);
+                    ALTER TABLE production_orders ADD COLUMN IF NOT EXISTS packager_id VARCHAR(100);
+                    ALTER TABLE production_orders ADD COLUMN IF NOT EXISTS packager_name VARCHAR(255);
+                    ALTER TABLE production_orders ADD COLUMN IF NOT EXISTS packager_wage NUMERIC(12, 2) DEFAULT 0.00;
+                    ALTER TABLE production_orders ADD COLUMN IF NOT EXISTS packaging_due_date DATE;
+                    ALTER TABLE production_orders ADD COLUMN IF NOT EXISTS fabrics_data JSONB DEFAULT '[]'::jsonb;
+                    ALTER TABLE production_orders ADD COLUMN IF NOT EXISTS model_id VARCHAR(100);
+                    ALTER TABLE production_orders ADD COLUMN IF NOT EXISTS selected_color VARCHAR(100);
+                    ALTER TABLE production_orders ADD COLUMN IF NOT EXISTS color VARCHAR(100);
+                    ALTER TABLE production_orders ADD COLUMN IF NOT EXISTS model_image TEXT;
+                    ALTER TABLE production_orders ADD COLUMN IF NOT EXISTS product_image TEXT;
                 """)
             except Exception as e_col:
                 logger.warning(f"⚠️ Products/orders schema check notice: {e_col}")

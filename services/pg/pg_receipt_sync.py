@@ -45,27 +45,31 @@ def sync_advance_receipt(cur, data):
             cur.execute("DELETE FROM payments WHERE id = %s;", (ex_pay['id'],))
         return None
 
+    from .pg_account_code import generate_sequential_voucher_no
     if ex_pay:
         pay_id = ex_pay['id']
-        pay_no = ex_pay.get('payment_no') or custom_no or f"RV-{pay_id}"
-
+        pay_no = ex_pay.get('payment_no') or custom_no
+        if not pay_no or pay_no.startswith('REC-') or pay_no.startswith('RV-CUST-') or pay_no.startswith('RV-PAY-'):
+            pay_no = generate_sequential_voucher_no(cur, 'Receipt', p_date)
 
         cur.execute("""
-            UPDATE payments SET amount = %s, currency = %s, exchange_rate = %s, base_amount = %s,
+            UPDATE payments SET payment_no = %s, amount = %s, currency = %s, exchange_rate = %s, base_amount = %s,
                 payment_method = %s, account_id = %s, target_account_id = %s, date = %s,
                 notes = %s, party_name = %s, customer_id = COALESCE(%s, customer_id),
                 order_id = COALESCE(%s, order_id), status = 'Confirmed'
             WHERE id = %s RETURNING *;
-        """, (amt, curr, rate, base_amt, pay_m, cash_acc, tgt_acc, p_date, notes, p_name, cust_id, order_id, pay_id))
+        """, (pay_no, amt, curr, rate, base_amt, pay_m, cash_acc, tgt_acc, p_date, notes, p_name, cust_id, order_id, pay_id))
         res = dict(cur.fetchone())
     else:
         pay_id = custom_id or (f"PAY-{order_id}" if order_id else (f"PAY-{cust_id}" if cust_id else generate_id("PAY")))
-        pay_no = custom_no or (f"REC-{order_no}" if order_no else (f"RV-{cust_id}" if cust_id else f"RV-{pay_id}"))
+        pay_no = custom_no
+        if not pay_no or pay_no.startswith('REC-') or pay_no.startswith('RV-CUST-') or pay_no.startswith('RV-PAY-'):
+            pay_no = generate_sequential_voucher_no(cur, 'Receipt', p_date)
         cur.execute("""
             INSERT INTO payments (id, payment_no, customer_id, order_id, payment_type, amount, currency,
                 exchange_rate, base_amount, payment_method, account_id, target_account_id, date, status, notes, party_name)
             VALUES (%s, %s, %s, %s, 'Receipt', %s, %s, %s, %s, %s, %s, %s, %s, 'Confirmed', %s, %s)
-            ON CONFLICT (id) DO UPDATE SET amount = EXCLUDED.amount, base_amount = EXCLUDED.base_amount, account_id = EXCLUDED.account_id,
+            ON CONFLICT (id) DO UPDATE SET payment_no = EXCLUDED.payment_no, amount = EXCLUDED.amount, base_amount = EXCLUDED.base_amount, account_id = EXCLUDED.account_id,
                 target_account_id = EXCLUDED.target_account_id, notes = EXCLUDED.notes, party_name = EXCLUDED.party_name
             RETURNING *;
         """, (pay_id, pay_no, cust_id, order_id, amt, curr, rate, base_amt, pay_m, cash_acc, tgt_acc, p_date, notes, p_name))
@@ -89,6 +93,12 @@ def sync_advance_receipt(cur, data):
                 (generate_id("JVL"), jv_id, cash_acc, f"مدين - عربون عميلة {p_name} ({pay_no})", amt, base_amt))
     cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, %s, %s, 0.0, %s, 0.0, %s);",
                 (generate_id("JVL"), jv_id, tgt_acc, f"دائن - أمانات وعرابين فساتين ({p_name})", amt, base_amt))
+    if cust_id:
+        try:
+            from .pg_financial_sync import sync_customer_order_from_voucher
+            sync_customer_order_from_voucher(cur, cust_id, voucher_amount=amt, voucher_id=pay_id, voucher_no=pay_no, notes=notes, pay_method=pay_m, p_date=p_date)
+        except Exception as ex:
+            logger.warning(f"Financial sync notice: {ex}")
     return res
 
 
@@ -130,9 +140,17 @@ def recalculate_advance_deposits(cur):
         cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, 'ACC-202', %s, 0.0, %s, 0.0, %s);",
                     (generate_id("JVL"), j_id, f"دائن - أمانات وعرابين فساتين ({p_name})", amt, b_amt))
 
+    distinct_custs = {r['customer_id'] for r in rows if r.get('customer_id')}
+    from .pg_financial_sync import sync_customer_order_from_voucher
+    for cid in distinct_custs:
+        try:
+            sync_customer_order_from_voucher(cur, cid)
+        except Exception as e_sync:
+            logger.warning(f"Advance sync warning for {cid}: {e_sync}")
+
     cur.execute("UPDATE chart_of_accounts SET current_balance = %s WHERE id = 'ACC-202' OR account_code = '202';", (tot_adv,))
     logger.info(f"✅ تم تصحيح رصيد حساب 202 في شجرة الحسابات: {tot_adv:,.2f} YER ({len(rows)} سندات)")
-    return {"total_advances": tot_adv, "count": len(rows)}
+    return {"total_advances": tot_adv, "count": len(rows), "synced_customers": len(distinct_custs)}
 
 
 def recalculate_advance_deposits_action(payload=None):

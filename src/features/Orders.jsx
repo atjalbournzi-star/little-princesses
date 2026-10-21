@@ -89,14 +89,17 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
       const ordCurr = window.CurrencyService ? window.CurrencyService.normalizeCode(currencyDisplay) : 'YER';
       const ordRate = window.CurrencyService ? window.CurrencyService.getRate(ordCurr) : 1.0;
       let actualPaid = posParams.posPaymentMethod === 'آجل / جزئي' ? (posParams.posCashReceived !== '' ? Math.min(posParams.posReceivedNum, posParams.posNetTotal) : 0) : posParams.posNetTotal;
+      const selCust = (customers || []).find(c => (window.getCustomerName ? window.getCustomerName(c) : c.name) === posParams.posCustomerName);
+      const selChld = selCust?.measurements?.find(m => m.child_name === posParams.posChildName);
       const posPayload = {
-        id: newId, order_no: ordNo, customer_name: posParams.posCustomerName, child_name: posParams.posChildName || 'الأميرة',
+        id: newId, order_no: ordNo, customer_id: selCust?.customer_id || selCust?.id || 'CUST-GENERAL',
+        customer_name: posParams.posCustomerName, child_id: selChld?.child_id || selChld?.id || null, child_name: posParams.posChildName || 'الأميرة',
         product_name: posParams.cart.length === 1 ? posParams.cart[0].product_name : `سلة كاشير (${posParams.cart.length} أصناف)`,
         qty: posParams.cart.reduce((s, i) => s + (i.qty || 1), 0), subtotal: posParams.posSubtotal, discount: posParams.posDiscountNum,
         total_amount: posParams.posNetTotal, total: posParams.posNetTotal, paid_amount: actualPaid, paid: actualPaid,
         remaining: Math.max(0, posParams.posNetTotal - actualPaid), payment_method: posParams.posPaymentMethod, currency: ordCurr, exchange_rate: ordRate,
         order_date: TODAY_STR_ISO, delivery_date: TODAY_STR_ISO, status: 'جاهز للتسليم 🛍️', production_status: 'جاهز للتسليم 🛍️',
-        items: posParams.cart.map(i => ({ product_id: i.product_id, product_name: i.product_name, quantity: i.qty, unit_price: i.unit_price, total_price: i.total_price }))
+        items: posParams.cart.map(i => ({ product_id: i.product_id, product_name: i.product_name, quantity: i.qty, unit_price: i.unit_price, total_price: i.total_price, selected_color: i.selected_color || i.color || '' }))
       };
       setOrders && setOrders([posPayload, ...(orders || [])]);
       if (window.salesAPI?.createOrder) await window.salesAPI.createOrder(posPayload);

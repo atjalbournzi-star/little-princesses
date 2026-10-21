@@ -85,7 +85,6 @@ function ProductPricingMatrix({
                   type="number"
                   value={pricesMatrix[sz] || ""}
                   onChange={e => handlePriceChange(sz, e.target.value)}
-                  placeholder="0"
                   className="h-7 w-full text-center font-mono font-black text-sm text-pink-300 bg-slate-900 border-2 border-pink-500/40 rounded-lg outline-none focus:border-pink-500 shadow-inner"
                 />
               </div>

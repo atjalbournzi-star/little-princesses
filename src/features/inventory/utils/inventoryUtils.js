@@ -1,17 +1,8 @@
 // src/features/inventory/utils/inventoryUtils.js
 // دوال نقية مساعدة وثوابت معيارية لمنظومة المخزون والمستودعات
 
-const WAREHOUSES = [
-  { id: 'WH-MAIN', code: 'WH-MAIN', name: 'المستودع الرئيسي' },
-  { id: 'WH-WORKSHOP', code: 'WH-WORKSHOP', name: 'معمل وورشة الخياطة' },
-  { id: 'WH-SHOWROOM', code: 'WH-SHOWROOM', name: 'معرض وصالة التسليم' }
-];
-
-const WAREHOUSE_LOCATIONS = [
-  'المستودع الرئيسي',
-  'معمل وورشة الخياطة',
-  'معرض وصالة التسليم'
-];
+const WAREHOUSES = [];
+const WAREHOUSE_LOCATIONS = [];
 
 const INVENTORY_CATEGORIES = [
   'أقمشة',
@@ -27,20 +18,26 @@ async function refreshWarehouses() {
     const res = await fetch('/api/warehouses').then(r => r.json());
     if (res?.success && Array.isArray(res.data)) {
       WAREHOUSES.length = 0;
-      res.data.forEach(w => WAREHOUSES.push({ id: w.id, code: w.code, name: w.name, location: w.location }));
+      WAREHOUSE_LOCATIONS.length = 0;
+      res.data.forEach(w => {
+        if (w.is_active !== false) {
+          WAREHOUSES.push({ id: w.id, code: w.code, name: w.name, location: w.location });
+          if (w.name) WAREHOUSE_LOCATIONS.push(w.name);
+        }
+      });
     }
   } catch (e) { /* silent fallback */ }
+  return WAREHOUSES;
+}
+
+if (typeof window !== 'undefined') {
+  refreshWarehouses();
 }
 
 function getWarehouseName(whId) {
+  if (!whId) return '';
   const live = WAREHOUSES.find(w => w.id === whId || w.code === whId);
-  if (live) return live.name;
-  const map = {
-    'WH-MAIN': 'المستودع الرئيسي',
-    'WH-WORKSHOP': 'معمل وورشة الخياطة',
-    'WH-SHOWROOM': 'معرض وصالة التسليم'
-  };
-  return map[whId] || whId || 'المستودع الرئيسي';
+  return live ? live.name : whId;
 }
 
 function getItemWarehouseStock(item, whId) {
@@ -124,7 +121,8 @@ function getInitialInventoryForm(currency) {
     total_value: '',
     currency: currency?.code || 'YER',
     supply_date: new Date().toISOString().split('T')[0],
-    location: 'المستودع الرئيسي',
+    location: '',
+    warehouse_id: '',
     reorder_level: 5
   };
 }

@@ -46,7 +46,7 @@ function Factory(props) {
     <div className="h-[calc(100vh-3.8rem)] max-h-[calc(100vh-3.8rem)] flex flex-col gap-2 p-2 bg-[#0B132B] select-none text-right overflow-hidden" dir="rtl">
       {Header && (
         <Header
-          factory={factory} stages={stages} activeMainTab={activeMainTab}
+          factory={filteredFactory || factory} stages={stages} activeMainTab={activeMainTab}
           setActiveMainTab={setActiveMainTab} alterationsList={alterationsList}
           fetchAlterations={fetchAlterations} onOpenScanModal={() => setScanProgressModalOpen(true)}
           showOrderForm={showOrderForm} setShowOrderForm={setShowOrderForm}
@@ -55,9 +55,9 @@ function Factory(props) {
       )}
 
       {activeMainTab === 'pipeline' && (
-        <div className="flex-1 min-h-0 flex flex-col gap-2 overflow-hidden">
+        <div className="flex-1 min-h-0 flex flex-col gap-2.5 overflow-y-auto custom-scrollbar pb-6 pr-0.5">
           {AssignModal && (
-            <div className="shrink-0 overflow-y-auto max-h-[48vh] custom-scrollbar">
+            <div className="shrink-0 rounded-xl">
               <AssignModal
                 form={form} setForm={setForm} orders={bespokeOrders || orders} employees={employees}
                 customers={customers} products={products} fabricInventory={fabricInventory} stages={stages}
@@ -73,10 +73,10 @@ function Factory(props) {
             </div>
           )}
 
-          <div className="flex-1 min-h-0 flex flex-col bg-[#111C38] p-2.5 rounded-xl border border-slate-800 shadow-xs overflow-hidden">
+          <div className="min-h-[380px] flex flex-col bg-[#111C38] p-2.5 rounded-xl border border-slate-800 shadow-xs shrink-0">
             {FilterBar && (
               <FilterBar
-                filteredCount={filteredFactory?.length || 0} totalCount={factory.length}
+                filteredCount={filteredFactory?.length || 0} totalCount={(filteredFactory || factory).length}
                 stageFilter={stageFilter} setStageFilter={setStageFilter} stages={stages}
                 search={search} setSearch={setSearch}
               />
@@ -85,6 +85,7 @@ function Factory(props) {
               <Board
                 filteredFactory={filteredFactory || []} stockInflowLoading={stockInflowLoading}
                 setQcModalData={setQcModalData} advanceToNextStage={actions.advanceToNextStage}
+                handleFastTrackQc={actions.handleFastTrackQc} actionLoadingId={actions.actionLoadingId}
                 handleStockInflow={actions.handleReceiveStockInflow} handleReverseStockInflow={actions.handleReverseStockInflow}
                 handleOpenDeliveryModal={actions.handleOpenDeliveryModal} handleReverseDelivery={actions.handleReverseDelivery}
                 handleOpenPrintModal={actions.handleOpenPrintModal}

@@ -2,14 +2,20 @@
 # Customer creation, profile updating, and integrated financial/production settlement
 
 import time
+import json
 from .db_pool import get_db_cursor, clean_str, clean_num, generate_id, logger, today_str, generate_sequential_order_no
 from .pg_receipt_sync import sync_advance_receipt
 
 
 def _save_meas_and_children(cur, cust_id, meas_list):
     for m in meas_list:
-        chld_name = clean_str(m.get('child_name') or m.get('name') or 'طفلة')
-        chld_id = clean_str(m.get('child_id')) or generate_id("CHLD")
+        chld_name = clean_str(m.get('child_name') or m.get('name') or '')
+        chld_id = clean_str(m.get('child_id'))
+        if not chld_id and chld_name:
+            cur.execute("SELECT id FROM children WHERE customer_id = %s AND child_name = %s LIMIT 1;", (cust_id, chld_name))
+            ex_ch = cur.fetchone()
+            if ex_ch: chld_id = ex_ch['id']
+        if not chld_id: chld_id = generate_id("CHLD")
         m['child_id'] = chld_id
         cur.execute("""
             INSERT INTO children (id, customer_id, child_name, notes)
@@ -19,7 +25,16 @@ def _save_meas_and_children(cur, cust_id, meas_list):
 
         m_ev = clean_str(m.get('event_date') or m.get('date') or '') or None
         m_ms = clean_str(m.get('meas_date') or m.get('measurement_date') or '') or None
-        meas_id = clean_str(m.get('id')) or generate_id("MEAS")
+        m_mod_id = clean_str(m.get('model_id') or m.get('product_id') or '') or None
+
+        meas_id = clean_str(m.get('id') or m.get('measurement_id'))
+        if not meas_id and cust_id and chld_id:
+            cur.execute("SELECT id FROM measurements WHERE customer_id = %s AND child_id = %s ORDER BY created_at DESC LIMIT 1;", (cust_id, chld_id))
+            ex_m = cur.fetchone()
+            if ex_m: meas_id = ex_m['id']
+        if not meas_id: meas_id = generate_id("MEAS")
+        m['id'] = meas_id
+        m['measurement_id'] = meas_id
 
         unit_raw = clean_str(m.get('unit') or 'cm').lower()
         is_inch = any(k in unit_raw for k in ['إنش', 'انش', 'inch', 'in'])
@@ -35,152 +50,64 @@ def _save_meas_and_children(cur, cust_id, meas_list):
         norm_info = f"[معياري: {std_dress_cm}سم / {std_dress_in}إنش]"
         notes_final = f"{notes_orig} | {norm_info}".strip(" |") if norm_info not in notes_orig else notes_orig
 
+        m_mod_name = clean_str(m.get('model_name') or m.get('selected_model') or '')
+        m_mod_id = clean_str(m.get('model_id') or m.get('product_id') or '') or None
+        m_color = clean_str(m.get('selected_color') or m.get('color') or m.get('dress_color') or '')
+        m_img = clean_str(m.get('model_image') or m.get('model_img') or m.get('image_url') or '')
+        if m_img.startswith('data:image/') and len(m_img) > 500 and m_mod_id:
+            cur.execute("SELECT image_url FROM products WHERE id = %s LIMIT 1;", (m_mod_id,))
+            p_img_row = cur.fetchone()
+            if p_img_row and p_img_row.get('image_url'):
+                m_img = p_img_row['image_url']
+        m['model_image'] = m_img
+
+        raw_fbr = m.get('fabrics_breakdown') or m.get('bom_items') or m.get('fabrics_data') or []
+        m_fabrics = json.dumps(raw_fbr, ensure_ascii=False)
+        m['fabrics_data'] = raw_fbr
+        m_price = clean_num(m.get('adjusted_price') or m.get('price') or 0.0)
+
         cur.execute("""
             INSERT INTO measurements (
                 id, customer_id, child_id, child_name, unit, total_len, dress_len,
                 chest_len, skirt_len, sleeve_len, chest_circ, waist_circ, shoulder_w,
-                armpit_circ, neck_circ, model_name, comfort_profile, notes, date, measurement_date
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, COALESCE(%s::date, CURRENT_DATE), COALESCE(%s::date, CURRENT_DATE))
+                armpit_circ, neck_circ, model_name, model_id, product_id,
+                selected_color, color, dress_color, model_image, model_img, image_url,
+                comfort_profile, notes, date, measurement_date, fabrics_data, price, total_amount
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, COALESCE(%s::date, CURRENT_DATE), COALESCE(%s::date, CURRENT_DATE), %s::jsonb, %s, %s)
             ON CONFLICT (id) DO UPDATE SET
                 child_name = EXCLUDED.child_name, unit = EXCLUDED.unit, total_len = EXCLUDED.total_len, dress_len = EXCLUDED.dress_len,
-                notes = EXCLUDED.notes, date = COALESCE(EXCLUDED.date, measurements.date),
+                chest_len = EXCLUDED.chest_len, skirt_len = EXCLUDED.skirt_len, sleeve_len = EXCLUDED.sleeve_len,
+                chest_circ = EXCLUDED.chest_circ, waist_circ = EXCLUDED.waist_circ, shoulder_w = EXCLUDED.shoulder_w,
+                armpit_circ = EXCLUDED.armpit_circ, neck_circ = EXCLUDED.neck_circ, model_name = EXCLUDED.model_name,
+                model_id = EXCLUDED.model_id, product_id = EXCLUDED.product_id,
+                selected_color = EXCLUDED.selected_color, color = EXCLUDED.color, dress_color = EXCLUDED.dress_color,
+                model_image = EXCLUDED.model_image, model_img = EXCLUDED.model_img, image_url = EXCLUDED.image_url,
+                comfort_profile = EXCLUDED.comfort_profile, notes = EXCLUDED.notes,
+                fabrics_data = EXCLUDED.fabrics_data, price = EXCLUDED.price, total_amount = EXCLUDED.total_amount,
+                date = COALESCE(EXCLUDED.date, measurements.date),
                 measurement_date = COALESCE(EXCLUDED.measurement_date, measurements.measurement_date), updated_at = CURRENT_TIMESTAMP;
         """, (
             meas_id, cust_id, chld_id, chld_name, unit_clean, total_len, dress_len,
             clean_num(m.get('chest_length') or m.get('chest_len')), clean_num(m.get('skirt_length') or m.get('skirt_len')),
             clean_num(m.get('sleeve_length') or m.get('sleeve_len')), clean_num(m.get('chest_circ')), clean_num(m.get('waist_circ')),
             clean_num(m.get('shoulder_width') or m.get('shoulder_w')), clean_num(m.get('armpit_circ')), clean_num(m.get('neck_circ')),
-            clean_str(m.get('model_name') or m.get('selected_model')), clean_str(m.get('comfort_profile')), notes_final, m_ev, m_ms
+            m_mod_name, m_mod_id, m_mod_id, m_color, m_color, m_color, m_img, m_img, m_img,
+            clean_str(m.get('comfort_profile')), notes_final, m_ev, m_ms, m_fabrics, m_price, m_price
         ))
 
 
-def _save_customer_financials(cur, cust_id, name, data, meas_list, is_existing=False):
-    ledger_data = data.get('ledger') or {}
-    raw_sales = ledger_data.get('total_sales') if ledger_data.get('total_sales') is not None else data.get('total_sales')
-    raw_deposit = ledger_data.get('deposit') if ledger_data.get('deposit') is not None else (data.get('deposit') or ledger_data.get('total_paid') or data.get('total_paid'))
-    raw_del = ledger_data.get('delivery') if ledger_data.get('delivery') is not None else (ledger_data.get('delivery_fee') or data.get('delivery_fee') or data.get('delivery'))
-    raw_rem = ledger_data.get('remaining') if ledger_data.get('remaining') is not None else data.get('remaining')
+from .pg_customer_financials import save_customer_financials as _save_customer_financials
 
-    total_sales = clean_num(raw_sales or 0.0)
-    deposit = clean_num(raw_deposit or 0.0)
-    delivery_fee = clean_num(raw_del or 0.0)
-
-    if total_sales <= 0 and meas_list and not is_existing:
-        c_sum = sum(clean_num(m.get('adjusted_price') or m.get('price') or 0.0) for m in meas_list)
-        if c_sum > 0: total_sales = c_sum
-
-    del_mode = clean_str(ledger_data.get('delivery_payment_mode') or data.get('delivery_payment_mode') or 'DIRECT_TO_COURIER')
-    is_prepaid = (del_mode == 'PREPAID_VIA_ATELIER')
-    total_order_amount = total_sales + (delivery_fee if is_prepaid else 0.0)
-    remaining = clean_num(raw_rem if raw_rem is not None else max(0.0, total_order_amount - deposit))
-    pay_method = clean_str(ledger_data.get('pay_method') or data.get('pay_method') or data.get('payment_method') or 'نقد (كاش)')
-    curr = clean_str(data.get('currency') or 'YER').replace('﷼', '').replace('$', '').strip() or 'YER'
-    cur.execute("UPDATE customers SET current_balance = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s;", (remaining, cust_id))
-
-    first_m = meas_list[0] if meas_list else {}
-    first_model = clean_str(first_m.get('model_name') or first_m.get('selected_model') or 'تفصيل فستان فاخر')
-    first_chld_id = clean_str(first_m.get('child_id')) or None
-    if first_chld_id:
-        cur.execute("SELECT id FROM children WHERE id = %s LIMIT 1;", (first_chld_id,))
-        if not cur.fetchone(): first_chld_id = None
-    first_chld_name = clean_str(first_m.get('child_name')) or 'الأميرة'
-
-    prod_id = None
-    if first_model:
-        cur.execute("SELECT id FROM products WHERE model_name = %s OR id = %s OR model_name ILIKE %s LIMIT 1;", (first_model, first_model, f"%{first_model}%"))
-        p_row = cur.fetchone()
-        if p_row: prod_id = p_row['id']
-    if not prod_id:
-        cur.execute("SELECT id FROM products ORDER BY created_at ASC LIMIT 1;")
-        fallback_p = cur.fetchone()
-        prod_id = fallback_p['id'] if fallback_p else 'PROD-CUSTOM-001'
-
-    req_ord_id = clean_str(data.get('order_id') or data.get('id_order'))
-    req_ord_no = clean_str(data.get('order_no'))
-    ex_order = None
-    if req_ord_id or req_ord_no:
-        cur.execute("SELECT id, order_no FROM orders WHERE id = %s OR order_no = %s LIMIT 1;", (req_ord_id or req_ord_no, req_ord_no or req_ord_id))
-        ex_order = cur.fetchone()
-    elif is_existing:
-        cur.execute("SELECT id, order_no, paid_amount, total_amount FROM orders WHERE customer_id = %s ORDER BY created_at DESC LIMIT 1;", (cust_id,))
-        ex_order = cur.fetchone()
-
-    m_ev = clean_str(first_m.get('event_date') or first_m.get('date') or '') or None
-    m_ms = clean_str(first_m.get('meas_date') or first_m.get('measurement_date') or '') or None
-
-    actual_order_id = ex_order['id'] if ex_order else (generate_id("ORD") if (not is_existing or data.get('create_new_order')) else None)
-    order_no = ex_order['order_no'] if ex_order else (generate_sequential_order_no(cur, m_ms or today_str()) if actual_order_id else None)
-    order_status = 'Paid' if remaining <= 0 and total_sales > 0 else ('Partial' if deposit > 0 else 'Unpaid')
-    order_notes = clean_str(data.get('notes') or f"طلب تفصيل للطفلة {first_chld_name} ({first_model})")
-
-    if ex_order and (deposit > 0 or total_sales > 0):
-        cur.execute("""
-            UPDATE orders SET product_id = COALESCE(%s, product_id), child_id = COALESCE(%s, child_id),
-                delivery_date = COALESCE(%s::date, delivery_date), order_date = COALESCE(%s::date, order_date),
-                subtotal = CASE WHEN %s > 0 THEN %s ELSE subtotal END,
-                total_amount = CASE WHEN %s > 0 THEN %s ELSE total_amount END,
-                paid_amount = CASE WHEN %s > 0 THEN paid_amount + %s ELSE paid_amount END,
-                payment_status = %s, payment_method = %s, currency = %s,
-                delivery_fee = %s, delivery_payment_mode = %s, updated_at = CURRENT_TIMESTAMP
-            WHERE id = %s;
-        """, (prod_id, first_chld_id, m_ev, m_ms, total_sales, total_sales, total_order_amount, total_order_amount, deposit, deposit, order_status, pay_method, curr, delivery_fee, del_mode, ex_order['id']))
-    elif not is_existing and (total_sales > 0 or deposit > 0 or meas_list):
-        cur.execute("""
-            INSERT INTO orders (
-                id, order_no, customer_id, child_id, product_id, quantity, order_date, delivery_date,
-                currency, exchange_rate, subtotal, discount, tax, total_amount, paid_amount, base_amount,
-                payment_status, production_status, payment_method, delivery_fee, delivery_payment_mode, status, notes
-            ) VALUES (
-                %s, %s, %s, %s, %s, 1.0, COALESCE(%s::date, CURRENT_DATE), %s::date, %s, 1.0, %s, 0.0, 0.0,
-                %s, %s, %s, %s, 'Cutting', %s, %s, %s, 'Active', %s
-            );
-        """, (actual_order_id, order_no, cust_id, first_chld_id, prod_id, m_ms, m_ev, curr, total_sales, total_order_amount, deposit, total_order_amount, order_status, pay_method, delivery_fee, del_mode, order_notes))
-        if meas_list:
-            for m_item in meas_list:
-                m_mod = clean_str(m_item.get('model_name') or m_item.get('selected_model'))
-                m_ch = clean_str(m_item.get('child_name') or first_chld_name)
-                cur.execute("""
-                    INSERT INTO production_orders (id, production_order_no, order_id, product_id, product_name, child_name, stage, progress, status, notes)
-                    VALUES (%s, %s, %s, %s, %s, %s, 'القص والتحضير ✂️', 20, 'In Progress', %s)
-                    ON CONFLICT (production_order_no) DO UPDATE SET product_name = EXCLUDED.product_name, child_name = EXCLUDED.child_name, notes = EXCLUDED.notes;
-                """, (generate_id("PRD"), f"PO-{order_no}", actual_order_id, prod_id, m_mod or 'فستان مخصص', m_ch, f"أمر تفصيل للعميلة {name} (طلب {order_no})"))
-
-    cash_acc = 'ACC-101-2' if curr == 'SAR' else ('ACC-101-3' if curr == 'USD' else 'ACC-101-1')
-
-    if total_sales > 0 and not is_existing and order_no:
-        inv_jv_no = f"AUTO-INV-{order_no}"
-        cur.execute("""
-            INSERT INTO journal_entries (id, entry_no, entry_date, description, debit_account_id, credit_account_id, amount, total_amount, base_amount, ref_type, ref_id, currency, exchange_rate, status, notes)
-            VALUES (%s, %s, CURRENT_DATE, %s, 'ACC-104', 'ACC-401', %s, %s, %s, 'Invoice', %s, %s, 1.0, 'Posted', %s)
-            ON CONFLICT (entry_no) DO UPDATE SET amount = EXCLUDED.amount, total_amount = EXCLUDED.total_amount, base_amount = EXCLUDED.base_amount, currency = EXCLUDED.currency, description = EXCLUDED.description, notes = EXCLUDED.notes;
-        """, (f"JV-INV-{order_no}", inv_jv_no, f"فاتورة مبيعات وتفصيل - العميلة {name} ({first_model})", total_sales, total_sales, total_sales, actual_order_id, curr, f"إثبات مبيعات تفصيل للعميلة {name} (طلب {order_no})"))
-
-    if deposit > 0 and (actual_order_id or order_no or is_existing):
-        sync_advance_receipt(cur, {
-            'order_id': actual_order_id or f"ORD-{cust_id}",
-            'order_no': order_no or f"ORD-{cust_id}",
-            'customer_id': cust_id,
-            'party_name': name,
-            'amount': deposit,
-            'currency': curr,
-            'exchange_rate': 1.0,
-            'base_amount': deposit,
-            'payment_method': pay_method,
-            'account_id': cash_acc,
-            'notes': f"سند قبض مبيعات - العميلة {name} ({first_model})"
-        })
-
-    return total_sales, deposit, remaining, pay_method, order_no, delivery_fee, total_order_amount, del_mode
 
 
 def add_customer(payload):
     data = payload.get('data') or payload
     cust_id = clean_str(data.get('id') or data.get('customer_id')) or generate_id("CUST")
-    name = clean_str(data.get('name') or data.get('customer_name') or 'عميل جديد')
-    phone = clean_str(data.get('phone') or data.get('phone_number')) or f"967-{int(time.time() % 100000000)}"
+    name = clean_str(data.get('name') or data.get('customer_name') or '')
+    phone = clean_str(data.get('phone') or data.get('phone_number') or '')
     phone_alt = clean_str(data.get('phone_alt') or data.get('alternative_phone'))
-    platform, handle = clean_str(data.get('platform') or 'Walk-in'), clean_str(data.get('handle') or '')
-    category, city = clean_str(data.get('category') or 'VIP'), clean_str(data.get('city') or 'صنعاء')
+    platform, handle = clean_str(data.get('platform') or ''), clean_str(data.get('handle') or '')
+    category, city = clean_str(data.get('category') or ''), clean_str(data.get('city') or '')
     street, notes = clean_str(data.get('street') or ''), clean_str(data.get('notes') or '')
     children_cnt = int(clean_num(data.get('children_count') or 0))
 

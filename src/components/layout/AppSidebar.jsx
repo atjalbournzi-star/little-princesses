@@ -65,7 +65,7 @@ function AppSidebar({
       <div className={`h-11 py-1 flex items-center border-b border-slate-200 dark:border-slate-800 flex-shrink-0 ${isCollapsed ? 'justify-center px-1.5' : 'justify-between px-3 gap-2'}`}>
         <div className="flex items-center gap-2 min-w-0">
           <button type="button" onClick={toggleSidebar} className="w-7 h-7 rounded-lg bg-gradient-to-tr from-[#B0005A] via-[#8F2A87] to-[#F28A00] flex items-center justify-center text-white text-xs shadow-xs shrink-0 cursor-pointer hover:scale-105 transition-transform" title={isCollapsed ? 'توسيع القائمة' : 'طي القائمة'}>🏢</button>
-          {!isCollapsed && (<div className="flex flex-col min-w-0 overflow-hidden"><span className="text-xs font-bold text-slate-900 dark:text-white truncate leading-tight">{brandProfile.shortName || 'ERP Master'}</span><span className="text-[10px] font-semibold text-pink-600 dark:text-pink-400 truncate leading-tight">{brandProfile.name || 'الأميرات الصغيرات'}</span></div>)}
+          {!isCollapsed && (<div className="flex flex-col min-w-0 flex-1"><span className="text-xs font-bold text-slate-900 dark:text-white leading-tight">{brandProfile.shortName || 'ERP Master'}</span><span className="text-[11px] font-semibold text-pink-600 dark:text-pink-400 whitespace-normal leading-tight">{brandProfile.name || 'الأميرات الصغيرات'}</span></div>)}
         </div>
         {!isCollapsed && (<button type="button" onClick={toggleSidebar} className="p-1 rounded-md text-slate-400 hover:text-slate-700 dark:text-white dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer shrink-0" title="طي القائمة الجانبية"><span className="text-xs font-bold">⇤</span></button>)}
       </div>

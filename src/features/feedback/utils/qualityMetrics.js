@@ -34,10 +34,10 @@ function calculateQualityMetrics({
   const passedInspections = timeInspections.filter(i => (i.inspection_result || i.Inspection_Result) === 'PASS').length;
   const firstPassYield = totalInspectionsCount > 0 ? ((passedInspections / totalInspectionsCount) * 100).toFixed(1) : null;
 
-  const totalBaseUnits = totalOrdersCount || totalFactoryCount || totalInspectionsCount || 0;
+  const totalBaseUnits = totalInspectionsCount || 0;
   const defectRate = totalBaseUnits > 0
     ? ((totalDefectsCount / totalBaseUnits) * 100).toFixed(1)
-    : (totalDefectsCount === 0 && totalBaseUnits === 0 ? null : '0.0');
+    : null;
 
   let promoters = 0, passives = 0, detractors = 0, ratingSum = 0;
   timeFeedback.forEach(f => {
@@ -65,8 +65,24 @@ function calculateQualityMetrics({
   const totalSalesRev = timeOrders.reduce((sum, o) => sum + (parseFloat(o.total) || 0), 0);
   const copqPercentage = totalSalesRev > 0 ? ((totalCOPQ / totalSalesRev) * 100).toFixed(1) : '0.0';
 
-  const totalPurchasesCount = timePurchases.length;
-  const supplierAcceptanceRate = totalPurchasesCount > 0 ? 98.5 : null;
+  // احتساب مؤشر جودة الموردين بناءً على فحوصات الخامات وتقييمات التوريد الفعلية حصراً (دون أي أرقام ثابتة)
+  const supplierInspections = timeInspections.filter(i => {
+    const type = String(i.inspection_type || i.stage || '').toLowerCase();
+    return type.includes('supplier') || type.includes('incoming') || type.includes('خامات') || type.includes('توريد');
+  });
+  const supplierEvals = timeEvaluations.filter(e => {
+    const target = String(e.target_type || e.eval_type || e.category || '').toLowerCase();
+    return target.includes('supplier') || target.includes('مورد');
+  });
+
+  const totalSupplierRecords = supplierInspections.length + supplierEvals.length;
+  let supplierAcceptanceRate = null;
+  if (totalSupplierRecords > 0) {
+    const passedCount = supplierInspections.filter(i => (i.inspection_result || i.Inspection_Result) === 'PASS').length;
+    const evalScoreSum = supplierEvals.reduce((sum, e) => sum + (Number(e.score || e.rating || 0) * (e.rating ? 20 : 1)), 0);
+    const totalScore = (passedCount * 100) + evalScoreSum;
+    supplierAcceptanceRate = Math.round(totalScore / totalSupplierRecords);
+  }
 
   let oqs = null;
   let prodScore = null, reliabScore = null, custScore = null, suppScore = null, sizingFitScore = null;
@@ -81,7 +97,7 @@ function calculateQualityMetrics({
     suppScore = Math.round(supplierAcceptanceRate);
   }
 
-  if (totalOrdersCount > 0 || totalFeedbackCount > 0 || totalInspectionsCount > 0 || totalEvalsCount > 0) {
+  if (totalInspectionsCount > 0) {
     const p = prodScore !== null ? prodScore : 100;
     const r = reliabScore !== null ? reliabScore : 100;
     const c = custScore !== null ? custScore : 100;
@@ -94,7 +110,7 @@ function calculateQualityMetrics({
     oqs, prodScore, reliabScore, custScore, suppScore, sizingFitScore,
     defectRate, firstPassYield, csat, nps, totalCOPQ, copqPercentage,
     totalOrdersCount, totalFactoryCount, totalFeedbackCount, totalInspectionsCount,
-    totalDefectsCount, totalComplaintsCount, totalReturnsCount, totalEvalsCount,
+    totalDefectsCount, totalComplaintsCount, totalReturnsCount, totalEvalsCount, totalSupplierRecords,
     reworkCost, wasteCost, returnCost, directMaintenance,
     rawDefects: timeDefects, rawInspections: timeInspections, rawFeedback: timeFeedback,
     rawComplaints: timeComplaints, rawReturns: timeReturns, rawEvaluations: timeEvaluations,

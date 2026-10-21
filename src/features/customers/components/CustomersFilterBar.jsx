@@ -22,8 +22,7 @@ function CustomersFilterBar({
           type="text"
           value={search}
           onChange={e => setSearch(e.target.value)}
-          placeholder="بحث سريع بالاسم، الهاتف، أو كود العميل..."
-          className="w-full h-6 pl-6 pr-6 rounded-lg bg-[#0F172A] border border-slate-700 text-xs font-medium text-slate-100 placeholder-slate-400 focus:border-pink-500 outline-none transition-all"
+          className="w-full h-6 pl-6 pr-6 rounded-lg bg-[#0F172A] border border-slate-700 text-xs font-medium text-slate-100 focus:border-pink-500 outline-none transition-all"
         />
         <span className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 text-[11px] pointer-events-none">
           🔍

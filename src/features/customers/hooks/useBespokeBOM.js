@@ -36,8 +36,6 @@
     }
 
     const ageTier = resolveTier(measurements, targetMode);
-    const jumbo = (window.customerUtils?.getJumboFactor ? window.customerUtils.getJumboFactor(measurements) : { factor: 1 }) || { factor: 1 };
-    const jFactor = jumbo.factor && jumbo.factor > 1 ? jumbo.factor : 1;
 
     let items = [];
     const rawBom = selectedProduct.bom || selectedProduct.materials;
@@ -49,9 +47,6 @@
           qtyVal = parseFloat(item.brackets[ageTier] ?? item.brackets[ageTier.replace('Y', '')] ?? item.brackets['6-9Y'] ?? item.meters ?? item.qty ?? 0);
         } else {
           qtyVal = parseFloat(item.qty ?? item.meters ?? item.quantity ?? item.consumption ?? (ageTier === '1-2Y' ? 1.5 : (ageTier === '3-5Y' ? 2.0 : 2.5)));
-        }
-        if (jFactor > 1 && nativeUnit !== 'قطعة' && nativeUnit !== 'حبة') {
-          qtyVal = qtyVal * jFactor;
         }
         return {
           id: item.id || item.inventory_id || `bom-${idx}`,
@@ -65,7 +60,6 @@
     } else {
       const nativeUnit = String(selectedProduct.unit || selectedProduct.fabric_unit || 'متر').trim();
       let defaultMeters = parseFloat(selectedProduct.yards_used || (ageTier === '1-2Y' ? 1.5 : (ageTier === '3-5Y' ? 2.0 : (ageTier === '6-9Y' ? 2.5 : 3.5))));
-      if (jFactor > 1) defaultMeters = defaultMeters * jFactor;
       items = [{
         id: selectedProduct.id || 'mat-default',
         name: selectedProduct.fabric_name || 'قماش الموديل الأساسي',
@@ -84,7 +78,6 @@
     } else {
       resolvedPrice = parseFloat(selectedProduct.sell_price || selectedProduct.price || selectedProduct.base_price || 0);
     }
-    if (jFactor > 1) resolvedPrice = Math.round(resolvedPrice * jFactor);
 
     const bomSummary = items.map(i => `${i.name}: ${Number(i.qty).toFixed(2)} ${i.unit}`).join(' | ');
 
@@ -92,7 +85,7 @@
       ageTier,
       calculatedBomItems: items,
       calculatedPrice: Math.round(resolvedPrice),
-      jumboFactor: jFactor,
+      jumboFactor: 1,
       bomSummary
     };
   }

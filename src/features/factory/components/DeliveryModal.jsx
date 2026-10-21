@@ -13,7 +13,7 @@ function DeliveryModal({
   const utils = window.FactoryUtils || {};
   const deliveryForm = rawDeliveryForm || {};
   const setDeliveryForm = typeof rawSetDeliveryForm === 'function' ? rawSetDeliveryForm : (() => {});
-  const inputCls = "w-full h-11 px-3.5 py-2.5 rounded-xl border border-[#E8E5EA] bg-white text-[#25232A] text-xs font-medium placeholder:text-[#6F6B75] focus:bg-white focus:border-[#8F2A87] focus:ring-2 focus:ring-[#F2E7F3] transition-all outline-none";
+  const inputCls = "w-full h-11 px-3.5 py-2.5 rounded-xl border border-[#E8E5EA] bg-white text-[#25232A] text-xs font-medium focus:bg-white focus:border-[#8F2A87] focus:ring-2 focus:ring-[#F2E7F3] transition-all outline-none";
   const labelCls = "block text-xs font-semibold text-[#25232A] mb-1.5";
   const delFee = parseFloat(deliveryModalData.delivery_fee || deliveryModalData.order?.delivery_fee || 0);
   const delMode = deliveryModalData.delivery_payment_mode || deliveryModalData.order?.delivery_payment_mode || 'DIRECT_TO_COURIER';
@@ -157,11 +157,11 @@ function DeliveryModal({
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className={labelCls}>المبلغ المحصل الآن (ر.ي) <span className="text-[#D64545] font-bold">*</span></label>
-                <input type="number" step="100" min="0" className={inputCls + " font-mono font-bold text-[#8F2A87] text-center"} value={deliveryForm.amount_collected ?? '0'} onChange={e => setDeliveryForm({ ...deliveryForm, amount_collected: e.target.value })} placeholder="0" />
+                <input type="number" step="100" min="0" className={inputCls + " font-mono font-bold text-[#8F2A87] text-center"} value={deliveryForm.amount_collected ?? '0'} onChange={e => setDeliveryForm({ ...deliveryForm, amount_collected: e.target.value })} />
               </div>
               <div>
                 <label className={labelCls}>خصم إضافي إن وجد (ر.ي)</label>
-                <input type="number" step="100" min="0" className={inputCls + " font-mono text-center"} value={deliveryForm.discount} onChange={e => setDeliveryForm({ ...deliveryForm, discount: e.target.value })} placeholder="0" />
+                <input type="number" step="100" min="0" className={inputCls + " font-mono text-center"} value={deliveryForm.discount} onChange={e => setDeliveryForm({ ...deliveryForm, discount: e.target.value })} />
               </div>
             </div>
 
@@ -194,7 +194,7 @@ function DeliveryModal({
 
             <div>
               <label className={labelCls}>ملاحظات التسليم والتسوية</label>
-              <input type="text" className={inputCls} value={deliveryForm.notes} onChange={e => setDeliveryForm({ ...deliveryForm, notes: e.target.value })} placeholder="تم تسليم الفستان للأميرة وفحص المقاسات بنجاح..." />
+              <input type="text" className={inputCls} value={deliveryForm.notes} onChange={e => setDeliveryForm({ ...deliveryForm, notes: e.target.value })} />
             </div>
 
             <div className="pt-2 flex items-center gap-2">

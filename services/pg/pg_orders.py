@@ -12,8 +12,12 @@ def get_orders(params=None):
                COALESCE(c.name, 'عميل') as customer_name, 
                COALESCE(c.phone, '') as customer_phone,
                COALESCE(p.model_name, oi.notes, 'موديل راقي') as product_name,
-               p.image_url as image_url,
-               p.image_url as prod_image_url,
+               COALESCE(o.image_url, o.model_image, p.image_url, '') as image_url,
+               COALESCE(o.image_url, o.model_image, p.image_url, '') as prod_image_url,
+               COALESCE(o.model_image, o.image_url, p.image_url, '') as model_image,
+               COALESCE(o.selected_color, o.color, '') as selected_color,
+               COALESCE(o.selected_color, o.color, '') as color,
+               COALESCE(o.model_id, o.product_id, '') as model_id,
                COALESCE(
                    ch.child_name,
                    (SELECT m.child_name FROM measurements m WHERE m.child_id = o.child_id LIMIT 1),
@@ -125,6 +129,21 @@ def update_order(payload):
                 updates.append("delivery_payment_mode = %s")
                 params.append(dpm)
 
+        c_val = clean_str(data.get('selected_color') or data.get('color'))
+        if c_val:
+            updates.extend(["selected_color = %s", "color = %s"])
+            params.extend([c_val, c_val])
+
+        img_val = clean_str(data.get('model_image') or data.get('image_url') or data.get('image'))
+        if img_val:
+            updates.extend(["model_image = %s", "image_url = %s"])
+            params.extend([img_val, img_val])
+
+        m_val = clean_str(data.get('model_id') or data.get('product_id'))
+        if m_val:
+            updates.extend(["model_id = %s", "product_id = %s"])
+            params.extend([m_val, m_val])
+
         if 'subtotal' in data:
             updates.append("subtotal = %s")
             params.append(clean_num(data.get('subtotal')))
@@ -136,6 +155,7 @@ def update_order(payload):
             rate = float(existing.get('exchange_rate') or 1.0)
             updates.extend(["total_amount = %s", "paid_amount = %s", "base_amount = %s", "payment_status = %s"])
             params.extend([tot, pd, (tot * rate), ('Paid' if rem == 0 and tot > 0 else ('Partial' if pd > 0 else 'Unpaid'))])
+
 
         if updates:
             updates.append("updated_at = CURRENT_TIMESTAMP")

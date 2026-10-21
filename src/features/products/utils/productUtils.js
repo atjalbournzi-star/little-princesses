@@ -49,7 +49,7 @@ const DEFAULT_WOMEN_SIZE_CHART = [
 
 const DEFAULT_BRACKETS = ['1-2Y', '3-5Y', '6-9Y', '10-13Y'];
 const DEFAULT_SIZES = ['1-2 سنة', '3-5 سنوات', '6-9 سنوات', '10-13 سنة', 'XS', 'S', 'M', 'L', 'XL', 'XXL'];
-const DEFAULT_COLORS = ['أبيض ملكي', 'وردي فاتح', 'سكري / أوف وايت', 'موف أميرات', 'ذهبي شامبين', 'أحمر قرمزي', 'أزرق سماوي', 'تركواز ناعم'];
+const DEFAULT_COLORS = [];
 
 const generateSmartModelCode = (segment = 'kids') => {
   const pfx = segment === 'women_adults' ? 'WMN' : (segment === 'custom_free' ? 'CST' : 'KID');
@@ -177,7 +177,7 @@ const buildProductPayload = (d) => {
     sell_price: parseFloat(d.pricesMatrix[d.refSize] || Object.values(d.pricesMatrix)[0] || 0),
     base_price: parseFloat(d.pricesMatrix[d.refSize] || Object.values(d.pricesMatrix)[0] || 0),
     price_matrix: d.pricesMatrix, currency: d.activeModelCurrencyLabel, profit: d.computedProfit,
-    calc_date: d.calcDate, sizes: d.selectedSizes, colors: d.selectedColors,
+    calc_date: d.calcDate, sizes: d.selectedSizes, colors: d.selectedColors, approved_colors: d.selectedColors,
     bom: {
       items: buildBomArray(d.fabricsList, d.targetSegment),
       meta: {

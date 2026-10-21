@@ -1,13 +1,13 @@
 const { useState, useCallback } = React;
 
 function usePurchaseActions({ headerData, setHeaderData, emptyHeader, billItems, setBillItems, emptyItem, setItemData, setEditingIndex, setSupplierSearch, fetchSuppliers, purchases, setPurchases, inventory, setInventory, accounts, setAccounts, vouchers, setVouchers, journal, setJournal, showToast, defaultCurrency, defaultPayType, todayStrIso, genBillNo, discountVal, grandTotal, rawItemsSum: propRawItemsSum }) {
-  const [isSaving, setIsSaving] = useState(false);
-  const [editSaving, setEditSaving] = useState(false);
+  const [isSaving, setIsSaving] = useState(false), [editSaving, setEditSaving] = useState(false);
 
   // ── حفظ الفاتورة الجديدة مع التوريد والقيود المحاسبية ──
   const handleSaveFullBill = async () => {
     if (isSaving) return;
     if (!headerData.supplier.trim()) return showToast('اسم المورد مطلوب ⚠️', 'error');
+    if (!headerData.warehouse_id) return showToast('يرجى تحديد المستودع المستلم ⚠️', 'error');
     if (billItems.length === 0) return showToast('الفاتورة فارغة! أضف صنفاً ⚠️', 'error');
     setIsSaving(true);
     const billNo = (headerData.bill_no || '').trim() || genBillNo();
@@ -15,10 +15,8 @@ function usePurchaseActions({ headerData, setHeaderData, emptyHeader, billItems,
     const purRate = purCurrCode === 'YER' ? 1.0 : (parseFloat(headerData.exchange_rate) || (window.CurrencyService ? window.CurrencyService.getRate(purCurrCode) : 1.0));
 
     try {
-      const targetWh = headerData.warehouse_id || 'WH-MAIN';
-      const fCost = parseFloat(headerData.freight_cost) || 0;
-      const tFees = parseFloat(headerData.transfer_fees) || 0;
-      const shippingFees = fCost + tFees;
+      const targetWh = headerData.warehouse_id || (window.inventoryUtils?.WAREHOUSES?.[0]?.id || '');
+      const fCost = parseFloat(headerData.freight_cost) || 0, tFees = parseFloat(headerData.transfer_fees) || 0, shippingFees = fCost + tFees;
       const discountAmount = parseFloat(discountVal !== undefined ? discountVal : (headerData.discount || 0)) || 0;
       const rawItemsSum = (typeof propRawItemsSum === 'number' && propRawItemsSum > 0) ? propRawItemsSum : (billItems || []).reduce((sum, item) => {
         const qty = Number(item.quantity || item.qty || 0);
@@ -38,7 +36,7 @@ function usePurchaseActions({ headerData, setHeaderData, emptyHeader, billItems,
         shipping_cost: fCost, transfer_fees: tFees, transfer_fee: tFees, original_amount: rawItemsSum,
         grand_total: invoiceGrandTotal, net_amount: invoiceGrandTotal, receipt_url: headerData.receipt_url || '',
         invoice_image_url: headerData.invoice_image_url || '',
-        items: billItems.map(itm => ({ item_name: itm.item, unit: itm.unit || 'متر', qty: parseFloat(itm.qty) || 0, cost: parseFloat(itm.price) || 0 }))
+        items: billItems.map(itm => ({ item_name: itm.item, unit: itm.unit || 'متر', qty: parseFloat(itm.qty) || 0, cost: parseFloat(itm.price) || 0, warehouse_id: targetWh }))
       };
 
       const res = await fetch("/api/purchases", {
@@ -149,6 +147,7 @@ function usePurchaseActions({ headerData, setHeaderData, emptyHeader, billItems,
         item_name: String(editRecord.item).trim(), unit: editRecord.unit || 'متر', qty, price: parseFloat(price.toFixed(2)),
         total: parseFloat(total.toFixed(2)), currency: editRecord.currency, pay_type: editRecord.pay_type,
         transfer_no: editRecord.transfer_no || '', payment_source: editRecord.payment_source || '',
+        warehouse_id: editRecord.warehouse_id || '', location: editRecord.warehouse_id || '',
         date: editRecord.date, receipt_url: editRecord.receipt_url || '', invoice_image_url: editRecord.invoice_image_url || ''
       };
 

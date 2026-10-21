@@ -169,7 +169,7 @@ const [selectedOrderCode, setSelectedOrderCode] = React.useState('');
               </div>
               <div>
                 <label className="text-white font-bold text-[11px] block mb-1">الإجراء المطلوب من الخياط</label>
-                <input type="text" value={reworkAction} onChange={e => setReworkAction(e.target.value)} placeholder="مثال: ضبط محيط الصدر 2 سم وإعادة السحاب" className="w-full h-7.5 px-2.5 rounded-lg bg-[#0B132B] border border-slate-700 text-white text-xs outline-none" />
+                <input type="text" value={reworkAction} onChange={e => setReworkAction(e.target.value)} className="w-full h-7.5 px-2.5 rounded-lg bg-[#0B132B] border border-slate-700 text-white text-xs outline-none" />
               </div>
             </div>
           </div>

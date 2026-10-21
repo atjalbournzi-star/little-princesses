@@ -61,12 +61,21 @@ def ensure_warehouses_schema():
                     ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, location = EXCLUDED.location;
                 """, (w["id"], w["code"], w["name"], w["location"], w["is_active"]))
 
-            # مزامنة أرصدة المخزون التأسيسية القائمة إلى المستودع الرئيسي
+            # تنظيف آمن لأي أرصدة وهمية في المستودع الرئيسي ليس لها حركات فعلية
             cur.execute("""
-                INSERT INTO warehouse_stock (id, warehouse_id, inventory_id, quantity, reserved_qty, updated_at)
-                SELECT 'WS-' || i.id || '-MAIN', 'WH-MAIN', i.id, COALESCE(i.quantity, 0), COALESCE(i.reserved_qty, 0), CURRENT_TIMESTAMP
-                FROM inventory i
-                ON CONFLICT (warehouse_id, inventory_id) DO NOTHING;
+                DELETE FROM warehouse_stock ws
+                WHERE ws.warehouse_id = 'WH-MAIN'
+                  AND (ws.id LIKE '%-MAIN' OR ws.id LIKE 'WS-%-MAIN')
+                  AND NOT EXISTS (
+                      SELECT 1 FROM inventory_transactions it
+                      WHERE it.inventory_id = ws.inventory_id
+                        AND it.warehouse_id = 'WH-MAIN'
+                  )
+                  AND EXISTS (
+                      SELECT 1 FROM warehouse_stock other_ws
+                      WHERE other_ws.inventory_id = ws.inventory_id
+                        AND other_ws.warehouse_id != 'WH-MAIN'
+                  );
             """)
     except Exception as ex:
         logger.warning(f"Warehouses schema check note: {ex}")
@@ -149,24 +158,16 @@ def transfer_warehouse_stock(payload):
         src_stock = cur.fetchone()
         src_avail = float(src_stock["avail"] or 0.0) if src_stock else 0.0
 
+        cur.execute("SELECT id, name FROM warehouses WHERE id IN (%s, %s);", (from_wh, to_wh))
+        wh_map = {w['id']: w['name'] for w in cur.fetchall()}
+        from_name = wh_map.get(from_wh, from_wh)
+        to_name = wh_map.get(to_wh, to_wh)
+
         if not src_stock or src_avail < qty:
-            # إذا لم يكن هناك سجل في warehouse_stock ولكن الرصيد الإجمالي في inventory كافٍ
-            tot_inv_q = float(inv.get("quantity") or 0.0)
-            if from_wh == "WH-MAIN" and tot_inv_q >= qty:
-                cur.execute("""
-                    INSERT INTO warehouse_stock (id, warehouse_id, inventory_id, quantity, reserved_qty, updated_at)
-                    VALUES (%s, %s, %s, %s, 0.0, CURRENT_TIMESTAMP)
-                    ON CONFLICT (warehouse_id, inventory_id) DO UPDATE SET quantity = EXCLUDED.quantity;
-                """, (f"WS-{inv_id}-{from_wh}", from_wh, inv_id, tot_inv_q))
-                src_avail = tot_inv_q
-            else:
-                wh_names = {"WH-MAIN": "المستودع الرئيسي", "WH-WORKSHOP": "معمل وورشة الخياطة", "WH-SHOWROOM": "معرض وصالة التسليم"}
-                raise ValueError(f"الرصيد المتاح في {wh_names.get(from_wh, from_wh)} ({src_avail} {unit}) غير كافٍ لنقل {qty} {unit}")
+            raise ValueError(f"الرصيد المتاح في {from_name} ({src_avail} {unit}) غير كافٍ لنقل {qty} {unit}")
 
         # رقم مرجعي موحد للمناقلة
         transfer_ref = f"TRF-{int(time.time())}-{generate_id('M')[2:6]}"
-        wh_names = {"WH-MAIN": "المستودع الرئيسي", "WH-WORKSHOP": "معمل وورشة الخياطة", "WH-SHOWROOM": "معرض وصالة التسليم"}
-        from_name, to_name = wh_names.get(from_wh, from_wh), wh_names.get(to_wh, to_wh)
 
         # 1. خصم من مستودع المصدر
         cur.execute("""

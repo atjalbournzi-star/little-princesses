@@ -50,7 +50,7 @@ function InventoryTable({
               const qty = getItemQty(i);
               const rawCost = getItemCost(i);
               const unit = getItemUnit(i);
-              const loc = i.location || 'المستودع الرئيسي';
+              const loc = i.location || i.warehouse_name || (Array.isArray(i.warehouse_details) && i.warehouse_details[0]?.warehouse_name) || '—';
               const supplier = i.supplier_id || i.supplier || i.supplier_name || 'مورد عام';
 
               const iCurr = window.CurrencyService ? window.CurrencyService.normalizeCode(i.currency || 'YER') : 'YER';
@@ -93,15 +93,17 @@ function InventoryTable({
                   <td className="px-2 py-2.5 text-[#6F6B75] text-[11px] text-right align-middle truncate" title={loc}>
                     <div className="flex flex-col gap-0.5">
                       <span className="font-bold text-[#007F8C] text-[11px] truncate block">🏢 {loc}</span>
-                      {i.warehouse_stocks && (
-                        <div className="text-[9px] text-[#6F6B75] font-mono flex items-center gap-1 overflow-hidden" title="توزيع الرصيد: رئيسي | معمل | معرض">
-                          <span className="text-cyan-700 font-bold">ر:{i.warehouse_stocks['WH-MAIN'] || 0}</span>
-                          <span>·</span>
-                          <span className="text-purple-700 font-bold">م:{i.warehouse_stocks['WH-WORKSHOP'] || 0}</span>
-                          <span>·</span>
-                          <span className="text-emerald-700 font-bold">ع:{i.warehouse_stocks['WH-SHOWROOM'] || 0}</span>
+                      {Array.isArray(i.warehouse_details) && i.warehouse_details.length > 0 ? (
+                        <div className="text-[9px] text-[#6F6B75] font-mono flex items-center gap-1 overflow-hidden flex-wrap" title="توزيع الرصيد عبر المستودعات">
+                          {i.warehouse_details.map((wd, wIdx) => (
+                            <span key={wd.warehouse_id || wIdx} className="font-bold text-slate-700 inline-flex items-center gap-0.5">
+                              <span>{wd.warehouse_name || wd.warehouse_code}:</span>
+                              <span className="text-cyan-700">{wd.quantity}</span>
+                              {wIdx < i.warehouse_details.length - 1 && <span className="text-slate-400 mr-1">·</span>}
+                            </span>
+                          ))}
                         </div>
-                      )}
+                      ) : null}
                     </div>
                   </td>
 

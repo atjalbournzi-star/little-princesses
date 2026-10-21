@@ -11,7 +11,7 @@ function useInventoryActions({ inventory = [], setInventory, showToast, refreshI
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [formData, setFormData] = useState(() => u.getInitialInventoryForm ? u.getInitialInventoryForm(currency) : {
     item_name: '', category: 'أقمشة', qty: '', cost: '', total_value: '',
-    currency: currency?.code || 'YER', supply_date: new Date().toISOString().split('T')[0], location: 'المستودع الرئيسي', reorder_level: 5
+    currency: currency?.code || 'YER', supply_date: new Date().toISOString().split('T')[0], location: '', warehouse_id: '', reorder_level: 5
   });
 
   const [adjustingItem, setAdjustingItem] = useState(null);
@@ -21,8 +21,8 @@ function useInventoryActions({ inventory = [], setInventory, showToast, refreshI
   const [isSubmittingAdjust, setIsSubmittingAdjust] = useState(false);
 
   const [transferringItem, setTransferringItem] = useState(null);
-  const [transferFrom, setTransferFrom] = useState('WH-MAIN');
-  const [transferTo, setTransferTo] = useState('WH-WORKSHOP');
+  const [transferFrom, setTransferFrom] = useState('');
+  const [transferTo, setTransferTo] = useState('');
   const [transferQty, setTransferQty] = useState('');
   const [transferNotes, setTransferNotes] = useState('');
   const [isSubmittingTransfer, setIsSubmittingTransfer] = useState(false);
@@ -60,8 +60,11 @@ function useInventoryActions({ inventory = [], setInventory, showToast, refreshI
 
   const openTransferModal = (item) => {
     setTransferringItem(item);
-    setTransferFrom('WH-MAIN');
-    setTransferTo('WH-WORKSHOP');
+    const whs = Array.isArray(u.WAREHOUSES) ? u.WAREHOUSES : [];
+    const fromId = item.warehouse_id || (item.warehouse_details && item.warehouse_details[0]?.warehouse_id) || (whs[0]?.id || '');
+    const toWh = whs.find(w => (w.id || w.code) !== fromId);
+    setTransferFrom(fromId);
+    setTransferTo(toWh ? (toWh.id || toWh.code) : '');
     setTransferQty('');
     setTransferNotes('');
   };
@@ -78,7 +81,8 @@ function useInventoryActions({ inventory = [], setInventory, showToast, refreshI
       item_code: `MAT-${Math.floor(100 + Math.random() * 900)}`,
       cost_per_unit: costVal, unit_cost: costVal, cost_per_meter: costVal,
       total_value: parseFloat(formData.total_value) || (costVal * qtyVal),
-      location: formData.location || 'المستودع الرئيسي',
+      location: formData.location || '',
+      warehouse_id: formData.warehouse_id || '',
       available_qty: qtyVal, quantity_meters: qtyVal, quantity: qtyVal, qty: qtyVal,
       reorder_level: parseFloat(formData.reorder_level) || 5
     };

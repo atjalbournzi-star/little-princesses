@@ -2,8 +2,10 @@ import datetime
 import logging
 import time
 import uuid
-from .db_pool import get_db_cursor, clean_num, clean_str, generate_id
+from .db_pool import get_db_cursor, clean_num, clean_str, generate_id, today_str
 from .account_resolver import resolve_exchange_rate, resolve_account_id
+from .pg_account_code import generate_sequential_voucher_no
+from .pg_delivery_cogs import cascade_account_balances
 
 logger = logging.getLogger("LittlePrincesses_PG_FactoryPayout")
 
@@ -53,23 +55,23 @@ def post_tailor_payout_voucher(payload):
         base_gross = gross * rate
         base_deductions = deductions * rate
 
-        credit_acc = resolve_account_id(cur, account_id, 'ACC-101')
+        credit_acc = resolve_account_id(cur, account_id, 'ACC-101-1')
         expense_acc = 'ACC-501'
         advance_acc = 'ACC-107'
 
         pay_id = generate_id("PAY")
-        pay_no = f"PAY-VCH-{datetime.date.today().strftime('%Y%m')}-{uuid.uuid4().hex[:4].upper()}"
+        pay_no = generate_sequential_voucher_no(cur, 'Payment', today_str())
         pay_notes = f"صرف مستحقات عدد ({total_pieces}) قطعة منجزة للخياط: {actual_emp_name}. {notes}".strip()
 
         cur.execute("""
             INSERT INTO payments (
                 id, payment_no, payment_type, date, amount, currency,
-                exchange_rate, base_amount, party_name, payment_method, account_id, notes, status, created_at
-            ) VALUES (%s, %s, 'Payment', CURRENT_DATE, %s, %s, %s, %s, %s, %s, %s, %s, 'Confirmed', CURRENT_TIMESTAMP);
-        """, (pay_id, pay_no, net, currency, rate, base_net, actual_emp_name, payment_method, credit_acc, pay_notes))
+                exchange_rate, base_amount, party_name, payment_method, account_id, notes, status, created_at, target_account_id
+            ) VALUES (%s, %s, 'Payment', CURRENT_DATE, %s, %s, %s, %s, %s, %s, %s, %s, 'Confirmed', CURRENT_TIMESTAMP, %s);
+        """, (pay_id, pay_no, net, currency, rate, base_net, actual_emp_name, payment_method, credit_acc, pay_notes, expense_acc))
 
         jv_id = generate_id("JV")
-        jv_no = f"JV-VCH-{int(time.time())}-{uuid.uuid4().hex[:4].upper()}"
+        jv_no = f"JV-PAYOUT-{pay_no}"
         cur.execute("""
             INSERT INTO journal_entries (
                 id, entry_no, entry_date, description, debit_account_id, credit_account_id,
@@ -95,7 +97,9 @@ def post_tailor_payout_voucher(payload):
             VALUES (%s, %s, %s, %s, 0.0, %s, 0.0, %s);
         """, (generate_id("JVL"), jv_id, credit_acc, f"صرف نقدي للخياط {actual_emp_name} سند {pay_no}", net, base_net))
 
-        cur.execute("UPDATE chart_of_accounts SET current_balance = current_balance - %s WHERE id = %s;", (base_net, credit_acc))
+        cur.execute("UPDATE chart_of_accounts SET current_balance = COALESCE(current_balance, 0.0) + %s WHERE id = 'ACC-501' OR account_code = '501';", (base_gross,))
+        cur.execute("UPDATE chart_of_accounts SET current_balance = GREATEST(0.0, COALESCE(current_balance, 0.0) - %s) WHERE id = %s OR account_code = %s;", (base_net, credit_acc, credit_acc))
+        cascade_account_balances(cur)
 
         cur.execute("""
             UPDATE tailor_commissions

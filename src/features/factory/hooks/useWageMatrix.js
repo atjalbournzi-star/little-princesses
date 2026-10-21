@@ -23,12 +23,14 @@
     const tailor = prodWages.tailor_wage ?? prodWages.tailor ?? product?.tailor_wage ?? product?.meta?.tailor_wage ?? sysDefaults.tailor_wage ?? sysDefaults.tailor ?? '';
     const embroiderer = prodWages.embroiderer_wage ?? prodWages.embroiderer ?? product?.embroiderer_wage ?? product?.meta?.embroiderer_wage ?? sysDefaults.embroiderer_wage ?? sysDefaults.embroiderer ?? '';
     const finisher = prodWages.finisher_wage ?? prodWages.finisher ?? product?.finisher_wage ?? product?.meta?.finisher_wage ?? sysDefaults.finisher_wage ?? sysDefaults.finisher ?? '';
+    const packager = prodWages.packager_wage ?? prodWages.packager ?? product?.packager_wage ?? product?.meta?.packager_wage ?? sysDefaults.packager_wage ?? sysDefaults.packager ?? '';
 
     return {
       cutter_wage: cutter !== '' && cutter !== null && cutter !== undefined ? String(cutter) : '',
       tailor_wage: tailor !== '' && tailor !== null && tailor !== undefined ? String(tailor) : '',
       embroiderer_wage: embroiderer !== '' && embroiderer !== null && embroiderer !== undefined ? String(embroiderer) : '',
-      finisher_wage: finisher !== '' && finisher !== null && finisher !== undefined ? String(finisher) : ''
+      finisher_wage: finisher !== '' && finisher !== null && finisher !== undefined ? String(finisher) : '',
+      packager_wage: packager !== '' && packager !== null && packager !== undefined ? String(packager) : ''
     };
   }
 
@@ -41,6 +43,7 @@
       if (resolved.tailor_wage && (!prev.tailor_wage || Number(prev.tailor_wage) === 0)) updates.tailor_wage = resolved.tailor_wage;
       if (resolved.embroiderer_wage && (!prev.embroiderer_wage || Number(prev.embroiderer_wage) === 0)) updates.embroiderer_wage = resolved.embroiderer_wage;
       if (resolved.finisher_wage && (!prev.finisher_wage || Number(prev.finisher_wage) === 0)) updates.finisher_wage = resolved.finisher_wage;
+      if (resolved.packager_wage && (!prev.packager_wage || Number(prev.packager_wage) === 0)) updates.packager_wage = resolved.packager_wage;
       return Object.keys(updates).length > 0 ? { ...prev, ...updates } : prev;
     });
     return resolved;

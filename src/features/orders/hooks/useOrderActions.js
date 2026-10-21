@@ -2,10 +2,8 @@
 const { useState } = React;
 
 function useOrderActions({ orders, setOrders, showToast, currencyDisplay, openCustomerMessageModal }) {
-  const [submittingDelivery, setSubmittingDelivery] = useState(false);
-  const [scanDeliveryLoading, setScanDeliveryLoading] = useState(false);
-  const [submittingAlteration, setSubmittingAlteration] = useState(false);
-  const [isSubmittingPOS, setIsSubmittingPOS] = useState(false);
+  const [submittingDelivery, setSubmittingDelivery] = useState(false), [scanDeliveryLoading, setScanDeliveryLoading] = useState(false);
+  const [submittingAlteration, setSubmittingAlteration] = useState(false), [isSubmittingPOS, setIsSubmittingPOS] = useState(false);
 
   // ── حفظ أو تعديل الفاتورة ──
   const handleSaveInvoice = async ({ isEditing, editingOrderId, payload, resetForm }) => {
@@ -18,9 +16,12 @@ function useOrderActions({ orders, setOrders, showToast, currencyDisplay, openCu
 
     if (isEditing) {
       const updatedOrd = {
-        id: editingOrderId, customer_name: payload.customer_name, child_name: payload.child_name,
-        product_name: payload.product_name, qty: parseInt(payload.qty || 1), order_date: payload.order_date,
-        delivery_date: payload.delivery_date, total: tot, paid: pd, remaining: rem,
+        id: editingOrderId, customer_id: payload.customer_id, customer_name: payload.customer_name,
+        child_id: payload.child_id, child_name: payload.child_name, measurement_id: payload.measurement_id,
+        product_id: payload.product_id, model_id: payload.model_id, product_name: payload.product_name,
+        selected_color: payload.selected_color || payload.color || '', color: payload.selected_color || payload.color || '',
+        model_image: payload.model_image || '', fabrics_data: payload.fabrics_data || [],
+        qty: parseInt(payload.qty || 1), order_date: payload.order_date, delivery_date: payload.delivery_date, total: tot, paid: pd, remaining: rem,
         delivery_fee: parseFloat(payload.delivery_fee) || 0, delivery_payment_mode: payload.delivery_payment_mode || 'DIRECT_TO_COURIER',
         campaign_id: payload.campaign_id, currency: currencyDisplay
       };
@@ -39,12 +40,21 @@ function useOrderActions({ orders, setOrders, showToast, currencyDisplay, openCu
       const basePd = window.CurrencyService ? window.CurrencyService.toBase(pd, ordCurrCode, ordRate) : { base_amount: pd };
 
       const newOrd = {
-        id: newId, order_no: ordNo, customer_name: payload.customer_name, child_name: payload.child_name,
-        product_name: payload.product_name, qty: parseInt(payload.qty || 1), order_date: payload.order_date,
-        delivery_date: payload.delivery_date, total: tot, paid: pd, remaining: rem,
+        id: newId, order_no: ordNo, customer_id: payload.customer_id, customer_name: payload.customer_name,
+        child_id: payload.child_id, child_name: payload.child_name, measurement_id: payload.measurement_id,
+        product_id: payload.product_id, model_id: payload.model_id, product_name: payload.product_name,
+        selected_color: payload.selected_color || payload.color || '', color: payload.selected_color || payload.color || '',
+        model_image: payload.model_image || '', fabrics_data: payload.fabrics_data || [],
+        qty: parseInt(payload.qty || 1), order_date: payload.order_date, delivery_date: payload.delivery_date, total: tot, paid: pd, remaining: rem,
         delivery_fee: parseFloat(payload.delivery_fee) || 0, delivery_payment_mode: payload.delivery_payment_mode || 'DIRECT_TO_COURIER',
         currency: ordCurrCode, exchange_rate: ordRate, base_total: baseTot.base_amount, base_paid: basePd.base_amount,
-        campaign_id: payload.campaign_id, status: "قيد الخياطة 🪡"
+        campaign_id: payload.campaign_id, status: "قيد الخياطة 🪡",
+        items: [{
+          product_id: payload.product_id, model_id: payload.model_id, measurement_id: payload.measurement_id,
+          product_name: payload.product_name, selected_color: payload.selected_color || payload.color || '',
+          quantity: parseInt(payload.qty || 1), unit_price: tot / Math.max(1, parseInt(payload.qty || 1)),
+          total_price: tot, fabrics_data: payload.fabrics_data || []
+        }]
       };
 
       setOrders && setOrders([newOrd, ...(orders || [])]);
@@ -198,10 +208,8 @@ function useOrderActions({ orders, setOrders, showToast, currencyDisplay, openCu
   };
 
   return {
-    handleSaveInvoice, handleUpdateStatus, handleDelete,
-    handleConfirmDelivery, submittingDelivery,
-    handleConfirmScanDelivery, scanDeliveryLoading,
-    handleSaveAlteration, submittingAlteration,
+    handleSaveInvoice, handleUpdateStatus, handleDelete, handleConfirmDelivery, submittingDelivery,
+    handleConfirmScanDelivery, scanDeliveryLoading, handleSaveAlteration, submittingAlteration,
     isSubmittingPOS, setIsSubmittingPOS
   };
 }

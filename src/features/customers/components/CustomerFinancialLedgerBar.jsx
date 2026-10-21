@@ -24,7 +24,7 @@ function CustomerFinancialLedgerBar({
           {isReadOnly ? (
             <div className={readOnlyBoxCls}>{Number(totalSales || 0).toLocaleString()} {voucherCurr}</div>
           ) : (
-            <input type="number" step="0.01" value={totalSales} onChange={e => handleTotalChange(e.target.value)} className={metricInputCls} placeholder="0.00" />
+            <input type="number" step="0.01" value={totalSales} onChange={e => handleTotalChange(e.target.value)} className={metricInputCls} />
           )}
         </div>
         {/* 2. العربون المستلم */}
@@ -33,7 +33,7 @@ function CustomerFinancialLedgerBar({
           {isReadOnly ? (
             <div className={readOnlyBoxCls + " text-emerald-400"}>{Number(deposit || 0).toLocaleString()} {voucherCurr}</div>
           ) : (
-            <input type="number" step="0.01" value={deposit} onChange={e => setDeposit(e.target.value)} className={metricInputCls} placeholder="0.00" />
+            <input type="number" step="0.01" value={deposit} onChange={e => setDeposit(e.target.value)} className={metricInputCls} />
           )}
         </div>
         {/* 3. كلفة التوصيل */}
@@ -42,7 +42,7 @@ function CustomerFinancialLedgerBar({
           {isReadOnly ? (
             <div className={readOnlyBoxCls}>{Number(delivery || 0).toLocaleString()} {voucherCurr}</div>
           ) : (
-            <input type="number" step="0.01" value={delivery} onChange={e => handleDeliveryChange(e.target.value)} className={standardInputCls} placeholder="0.00" />
+            <input type="number" step="0.01" value={delivery} onChange={e => handleDeliveryChange(e.target.value)} className={standardInputCls} />
           )}
         </div>
         {/* 4. العملة */}

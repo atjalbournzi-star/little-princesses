@@ -119,6 +119,17 @@ function PurchaseModal({
                 <input type="date" lang="en-GB" dir="ltr" className={inputCls} value={editRecord.date || ''} onChange={e => handleEditRecordChange('date', e.target.value)} />
               </div>
               <div>
+                <label className={labelCls}>المستودع المستلم</label>
+                <select className={inputCls} value={editRecord.warehouse_id || ''} onChange={e => handleEditRecordChange('warehouse_id', e.target.value)}>
+                  <option value="">-- اختر المستودع --</option>
+                  {(Array.isArray(window.inventoryUtils?.WAREHOUSES) ? window.inventoryUtils.WAREHOUSES : []).map(w => (
+                    <option key={w.id || w.code} value={w.id || w.code}>
+                      {w.name} ({w.code || w.id})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
                 <label className={labelCls}>إرفاق صورة الفاتورة 🧾</label>
                 <div className="flex gap-2">
                   <label className="flex-1 cursor-pointer bg-white hover:bg-[#FAFAFB] border border-[#E8E5EA] text-[#25232A] font-bold p-2.5 rounded-xl text-center flex items-center justify-center h-11">

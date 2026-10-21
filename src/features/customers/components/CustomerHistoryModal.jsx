@@ -24,7 +24,7 @@ function CustomerHistoryModal({
       const measTotal = (customer.measurements || []).reduce((sum, m) => sum + (parseFloat(m.adjusted_price) || 0), 0);
       const tierPrice = (measTotal > 0)
         ? measTotal
-        : (parseFloat(leg.base_price) > 0 ? parseFloat(leg.base_price) : (parseFloat(leg.total_sales) > 0 ? parseFloat(leg.total_sales) : (parseFloat(customer.total_sales) || 0)));
+        : (parseFloat(leg.base_price) > 0 ? parseFloat(leg.base_price) : (parseFloat(leg.total_sales) > 0 ? parseFloat(leg.total_sales) : (parseFloat(customer.total_amount) > 0 ? parseFloat(customer.total_amount) : (parseFloat(customer.total_sales) || 0))));
       const delFee = leg.delivery !== undefined ? String(leg.delivery) : (customer.delivery_fee !== undefined ? String(customer.delivery_fee) : '0');
       const mode = leg.delivery_payment_mode || customer.delivery_payment_mode || 'DIRECT_TO_COURIER';
       setBasePrice(tierPrice > 0 ? String(tierPrice) : '');
@@ -33,8 +33,8 @@ function CustomerHistoryModal({
       const dVal = parseFloat(delFee) || 0;
       const initialTotal = mode === 'PREPAID_VIA_ATELIER' ? (tierPrice + dVal) : tierPrice;
       setTotalSales(initialTotal > 0 ? String(initialTotal) : (leg.total_sales ? String(leg.total_sales) : ''));
-      setTotalPaid(leg.total_paid !== undefined ? String(leg.total_paid) : (customer.total_paid !== undefined ? String(customer.total_paid) : ''));
-      setDeposit(leg.deposit !== undefined ? String(leg.deposit) : (customer.deposit !== undefined ? String(customer.deposit) : ''));
+      setTotalPaid(leg.total_paid !== undefined ? String(leg.total_paid) : (customer.paid_amount !== undefined ? String(customer.paid_amount) : (customer.total_paid !== undefined ? String(customer.total_paid) : '')));
+      setDeposit(leg.deposit !== undefined ? String(leg.deposit) : (customer.deposit_amount !== undefined ? String(customer.deposit_amount) : (customer.deposit !== undefined ? String(customer.deposit) : '')));
       setPayMethod(leg.pay_method || 'نقد (كاش)');
       const cCode = (currency?.code || currency?.display?.split(' ')[0] || 'YER').toUpperCase();
       setVoucherCurr(leg.currency || (cCode.includes('SAR') ? 'SAR' : (cCode.includes('USD') ? 'USD' : 'YER')));
@@ -93,7 +93,7 @@ function CustomerHistoryModal({
       if (depAmt > 0) {
         try {
           const vPayload = {
-            voucher_no: vNo || `RV-${customer.customer_id || customer.id || 'CUST'}`,
+            voucher_no: vNo || '',
             voucher_type: 'سند قبض', payment_type: 'Receipt', amount: depAmt, currency: voucherCurr,
             payment_method: payMethod, customer_id: customer.customer_id || customer.id,
             order_id: ordId, order_no: ordNo, reference_no: ordNo,
@@ -103,8 +103,7 @@ function CustomerHistoryModal({
           };
           const res = await fetch('/api/vouchers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(vPayload) }).then(r => r.json());
           if (res?.success) {
-            vNo = res.voucher_no || vPayload.voucher_no;
-            showToast && showToast(`✅ تم اعتماد سند القبض (${vNo}) وترحيل القيد بنجاح 🧾`, 'success');
+            vNo = res.voucher_no || res.payment_no || res.data?.payment_no || vNo;
           }
         } catch (e) { console.warn('Voucher post fallback:', e); }
       }
@@ -115,7 +114,7 @@ function CustomerHistoryModal({
         delivery_payment_mode: deliveryPaymentMode, remaining: parseFloat(remaining) || 0, currency: voucherCurr, pay_method: payMethod,
         latest_voucher_no: vNo, receipt_b64: receiptFile || '', updated_at: typeof TODAY_STR_ISO !== 'undefined' ? TODAY_STR_ISO : new Date().toISOString().slice(0, 10)
       };
-      if (onSaveLedger) await onSaveLedger(customer, ledgerPayload);
+      if (onSaveLedger) await onSaveLedger(customer, ledgerPayload, { voucherNo: vNo });
       onClose && onClose();
     } finally {
       setIsSubmitting(false);
@@ -145,6 +144,7 @@ function CustomerHistoryModal({
   );
 
   const hasOrders = customerOrders && customerOrders.length > 0;
+  const hasReadyOrder = hasOrders && customerOrders.some(o => o.stage === 'جاهز للتسليم 📦' || o.status === 'ready_for_delivery' || o.status === 'ready' || o.production_status === 'ready' || o.stage === 'ready');
   const footerLeftButtons = hasOrders ? (
     <div className="flex items-center gap-2">
       {parseFloat(remaining) > 0 && (
@@ -155,7 +155,9 @@ function CustomerHistoryModal({
             setDeposit(String((parseFloat(deposit) || 0) + parseFloat(payAmt)));
             setTimeout(() => handleSave(), 60);
           }
-        }} className="h-8 px-3.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-sm transition flex items-center gap-1.5 cursor-pointer">
+        }} className={`h-8 px-3.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-sm transition flex items-center gap-1.5 cursor-pointer ${
+          hasReadyOrder ? 'animate-pulse ring-2 ring-emerald-400/50 shadow-emerald-500/30' : ''
+        }`}>
           <span>💵 تسجيل سند قبض</span>
         </button>
       )}

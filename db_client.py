@@ -1,4 +1,4 @@
-﻿# db_client.py
+# db_client.py
 # Little Princesses ERP - Central PostgreSQL Connection Pool & Transactions Layer
 
 import os
@@ -55,6 +55,7 @@ def get_active_database_url(mode=None):
 
 def init_pool(minconn=None, maxconn=None, mode=None):
     global _db_pool
+    import time
     with _pool_lock:
         if _db_pool is not None and not _db_pool.closed:
             return _db_pool
@@ -64,9 +65,17 @@ def init_pool(minconn=None, maxconn=None, mode=None):
         if not db_url or not db_url.strip():
             raise ValueError(f"DATABASE_URL not configured for mode ({active_mode})")
         logger.info(f"🔄 Initializing PostgreSQL connection pool ({active_mode})...")
-        _db_pool = pool.ThreadedConnectionPool(minconn=min_c, maxconn=max_c, dsn=db_url, connect_timeout=DB_TIMEOUT)
-        logger.info("✅ PostgreSQL connection pool created successfully.")
-        return _db_pool
+        last_err = None
+        for attempt in range(3):
+            try:
+                _db_pool = pool.ThreadedConnectionPool(minconn=min_c, maxconn=max_c, dsn=db_url, connect_timeout=DB_TIMEOUT)
+                logger.info("✅ PostgreSQL connection pool created successfully.")
+                return _db_pool
+            except Exception as e:
+                last_err = e
+                if attempt < 2:
+                    time.sleep(1)
+        raise last_err
 
 
 def get_pool(mode=None):

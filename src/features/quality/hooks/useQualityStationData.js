@@ -4,7 +4,7 @@
 const { useState, useEffect, useMemo, useCallback } = React;
 
 function useQualityStationData(props = {}) {
-  const { factory = [], orders = [] } = props;
+  const { factory = [], orders = [], customers = [] } = props;
   const [activeGate, setActiveGate] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedInspection, setSelectedInspection] = useState(null);
@@ -14,34 +14,85 @@ function useQualityStationData(props = {}) {
   // طابور الفحص الفني التشغيلي (مدمج مع أوامر التصنيع الحقيقية)
   const [queue, setQueue] = useState([]);
 
-  // مزامنة الأوامر الفعلية في المعمل مع طابور الفحص
+  // مزامنة الأوامر الفعلية في المعمل والمرتبطة بطلبات وعملاء حقيقيين فقط
   useEffect(() => {
-    if (!factory || factory.length === 0) return;
-    const mapped = factory.filter(f => f.stage && (f.stage.includes('فحص') || f.stage.includes('خياط') || f.stage.includes('تسليم'))).map(f => {
-      const isFinal = f.stage.includes('فحص') || f.stage.includes('تسليم');
-      return {
-        id: `QC-${f.order_no || f.id}`,
-        order_no: f.order_no || f.id,
-        product_name: f.product || f.product_name || '',
-        child_name: f.child_name || '',
-        customer_name: f.customer || f.customer_name || '',
-        tailor_name: f.tailor || f.tailor_name || '',
-        gate_id: isFinal ? 'final' : 'in_process',
-        gate_title: isFinal ? 'اعتماد نهائي 👑' : 'تجميع وخياطة 🪡',
-        status: f.tailor_status === 'rework' ? 'rework' : (f.tailor_status === 'approved' ? 'passed' : 'pending'),
-        status_label: f.tailor_status === 'rework' ? 'مطلوب تعديل ✂️' : (f.tailor_status === 'approved' ? 'مجاز ومعتمد ✓' : 'بانتظار الفحص'),
-        created_time: 'اليوم',
-        priority: 'عادي'
-      };
-    });
-    if (mapped.length > 0) {
-      setQueue(prev => {
-        const existingNos = new Set(prev.map(p => p.order_no));
-        const newOnes = mapped.filter(m => !existingNos.has(m.order_no));
-        return [...prev, ...newOnes];
-      });
+    if (!factory || factory.length === 0) {
+      setQueue([]);
+      return;
     }
-  }, [factory]);
+
+    const activeCustomers = (customers || []).filter(c => c && (c.id || c.name || c.customer_name));
+    const realCustomerIds = new Set(
+      activeCustomers.map(c => String(c.id || c.customer_id || '').trim().toLowerCase()).filter(Boolean)
+    );
+    const realCustomerNames = new Set(
+      activeCustomers.map(c => String(c.name || c.customer_name || '').trim().toLowerCase()).filter(Boolean)
+    );
+    const realOrders = (orders || []).filter(o => {
+      const ocId = String(o.customer_id || '').trim().toLowerCase();
+      const ocName = String(o.customer_name || o.customer || '').trim().toLowerCase();
+      return (ocId && realCustomerIds.has(ocId)) || (ocName && realCustomerNames.has(ocName));
+    });
+    const realOrderNos = new Set(
+      realOrders.map(o => String(o.order_no || o.id || o.order_id || '').trim().toLowerCase()).filter(Boolean)
+    );
+
+    const mapped = factory
+      .filter(f => {
+        if (!f || !f.stage) return false;
+        if (!(f.stage.includes('فحص') || f.stage.includes('خياط') || f.stage.includes('تسليم'))) {
+          return false;
+        }
+
+        const orderNo = String(f.order_no || f.order_id || f.id || '').trim().toLowerCase();
+        const custId = String(f.customer_id || '').trim().toLowerCase();
+        const custName = String(f.customer || f.customer_name || '').trim().toLowerCase();
+
+        // استبعاد قاطع لأي سجلات لا تنتمي لعميل مسجل حقيقي
+        const isCustomerValid = (custId && realCustomerIds.has(custId)) || (custName && realCustomerNames.has(custName));
+        const isOrderValid = orderNo && (
+          realOrderNos.has(orderNo) || 
+          realOrderNos.has(orderNo.replace(/^po-/, '')) || 
+          realOrderNos.has(orderNo.replace(/^prd-/, ''))
+        );
+
+        if (realCustomerNames.size > 0 || realCustomerIds.size > 0) {
+          if (!isCustomerValid && !isOrderValid) return false;
+        } else {
+          if (!custName && !custId) return false;
+        }
+        return true;
+      })
+      .map(f => {
+        const isFinal = f.stage.includes('فحص') || f.stage.includes('تسليم');
+        const matchedOrder = (orders || []).find(o => {
+          const ono = String(o.order_no || o.id || '').trim().toLowerCase();
+          const fno = String(f.order_no || f.order_id || f.id || '').trim().toLowerCase();
+          return ono === fno || fno.includes(ono) || ono.includes(fno);
+        });
+
+        const resolvedCustomer = f.customer || f.customer_name || matchedOrder?.customer_name || matchedOrder?.customer || '—';
+        const resolvedChild = f.child_name || matchedOrder?.child_name || '—';
+        const resolvedProduct = f.product || f.product_name || matchedOrder?.product_name || matchedOrder?.product || 'فستان تفصيل';
+
+        return {
+          id: `QC-${f.order_no || f.id}`,
+          order_no: f.order_no || f.id,
+          product_name: resolvedProduct,
+          child_name: resolvedChild,
+          customer_name: resolvedCustomer,
+          tailor_name: f.tailor || f.tailor_name || '',
+          gate_id: isFinal ? 'final' : 'in_process',
+          gate_title: isFinal ? 'اعتماد نهائي 👑' : 'تجميع وخياطة 🪡',
+          status: f.tailor_status === 'rework' ? 'rework' : (f.tailor_status === 'approved' ? 'passed' : 'pending'),
+          status_label: f.tailor_status === 'rework' ? 'مطلوب تعديل ✂️' : (f.tailor_status === 'approved' ? 'مجاز ومعتمد ✓' : 'بانتظار الفحص'),
+          created_time: 'اليوم',
+          priority: 'عادي'
+        };
+      });
+
+    setQueue(mapped);
+  }, [factory, orders, customers]);
 
   // جلب إحصائيات الجودة الخلفية
   const fetchDashboardStats = useCallback(async () => {

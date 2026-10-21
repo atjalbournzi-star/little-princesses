@@ -45,7 +45,6 @@ function ScanProgressModal({
               autoFocus
               value={scanBarcodeQuery}
               onChange={e => setScanBarcodeQuery(e.target.value)}
-              placeholder="مثال: ORD-1001 أو امسح الباركود..."
               className="flex-1 h-11 px-3.5 rounded-xl border-2 border-dashed border-purple-500/60 bg-purple-50/20 dark:bg-slate-950 text-xs font-mono font-bold text-[#25232A] dark:text-slate-100 outline-none focus:border-purple-600"
             />
             <button

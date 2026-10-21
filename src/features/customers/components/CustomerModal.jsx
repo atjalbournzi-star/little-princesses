@@ -71,7 +71,7 @@ function CustomerModal({
     if (!name.trim()) return showToast && showToast('اسم العميل مطلوب ⚠️', 'error');
     if (!phone.trim()) return showToast && showToast('رقم الهاتف مطلوب ⚠️', 'error');
     const mList = (importedMeasurements.length > 0 ? importedMeasurements : (customer?.measurements || []));
-    const chList = (customer?.children && customer.children.length > 0) ? customer.children : mList.map((m, i) => ({ child_name: m.child_name || `الأميرة (${i + 1})`, id: m.child_id || '' }));
+    const chList = (customer?.children && customer.children.length > 0) ? customer.children : mList.map(m => ({ child_name: m.child_name || '', id: m.child_id || '' }));
     const payload = {
       ...(customer || {}),
       customer_id: custId, name: name.trim(), phone: phone.trim(), phone_alt: phoneAlt.trim(), platform, handle: handle.trim(),
@@ -84,7 +84,7 @@ function CustomerModal({
 
   if (!isOpen) return null;
   const Layout = window.UnifiedCustomerModalLayout;
-  const inputCls = "w-full h-8 px-2.5 rounded-lg border border-slate-700 bg-slate-900/80 text-white font-bold text-xs placeholder:text-slate-500 focus:border-pink-500 outline-none transition-all";
+  const inputCls = "w-full h-8 px-2.5 rounded-lg border border-slate-700 bg-slate-900/80 text-white font-bold text-xs focus:border-pink-500 outline-none transition-all";
   const labelCls = "block text-[10.5px] font-semibold text-slate-300 mb-0.5";
   const modalTitle = customer ? `إدارة ملف العميل • ${customer.name || customer.customer_name || ''}` : 'إضافة عميل جديد للنظام';
 
@@ -121,7 +121,7 @@ function CustomerModal({
           <div className="p-2 rounded-lg bg-purple-950/40 border border-purple-800/60 flex items-center justify-between text-xs animate-fadeIn">
             <div className="flex items-center gap-1.5 text-purple-300 text-[11px] font-medium">
               <span>📏</span>
-              <span>تم استيراد المقاسات ({importedMeasurements.length} مقاس: {importedMeasurements.map(m => m.child_name || 'الأميرة').join('، ')})</span>
+              <span>تم استيراد المقاسات ({importedMeasurements.length} مقاس: {importedMeasurements.map(m => m.child_name || '').filter(Boolean).join('، ')})</span>
             </div>
             <span className="text-[9.5px] font-bold text-purple-300 bg-[#0F172A] px-2 py-0.5 rounded border border-purple-800/40">معتمد للطلب الجديد ✨</span>
           </div>
@@ -139,7 +139,7 @@ function CustomerModal({
               )}
             </div>
             <div className="relative">
-              <input required value={name} onChange={e => { setName(e.target.value); if (!customer) setShowDropdown(true); }} onFocus={() => { if (!customer) setShowDropdown(true); }} className={inputCls} placeholder="اكتب الاسم أو الهاتف..." autoComplete="off" />
+              <input required value={name} onChange={e => { setName(e.target.value); if (!customer) setShowDropdown(true); }} onFocus={() => { if (!customer) setShowDropdown(true); }} className={inputCls} autoComplete="off" />
               {name && !customer && <button type="button" onClick={() => { setName(''); setShowDropdown(true); }} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-[10px] cursor-pointer">✕</button>}
             </div>
             {showDropdown && !customer && (
@@ -170,12 +170,12 @@ function CustomerModal({
               <label className={labelCls}>الهاتف (واتساب) <span className="text-rose-500">*</span></label>
               {phone && <a href={`https://wa.me/${String(phone).replace(/^0+/, '967').replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="text-[10px] text-cyan-400 hover:underline font-bold">💬 واتساب</a>}
             </div>
-            <input required value={phone} onChange={e => setPhone(e.target.value)} className={inputCls + " font-mono text-left"} placeholder="مثال: 771234567" type="tel" dir="ltr" />
+            <input required value={phone} onChange={e => setPhone(e.target.value)} className={inputCls + " font-mono text-left"} type="tel" dir="ltr" />
           </div>
 
           <div>
             <label className={labelCls}>الهاتف الإضافي / البديل</label>
-            <input value={phoneAlt} onChange={e => setPhoneAlt(e.target.value)} className={inputCls + " font-mono text-left"} placeholder="رقم هاتف ثانٍ..." type="tel" dir="ltr" />
+            <input value={phoneAlt} onChange={e => setPhoneAlt(e.target.value)} className={inputCls + " font-mono text-left"} type="tel" dir="ltr" />
           </div>
           <div>
             <label className={labelCls}>منصة التواصل</label>
@@ -185,7 +185,7 @@ function CustomerModal({
           </div>
           <div>
             <label className={labelCls}>اسم الحساب / المعرف</label>
-            <input value={handle} onChange={e => setHandle(e.target.value)} className={inputCls} placeholder="@user_handle" dir="ltr" />
+            <input value={handle} onChange={e => setHandle(e.target.value)} className={inputCls} dir="ltr" />
           </div>
           <div>
             <label className={labelCls}>فئة العميل (CRM Tier)</label>
@@ -195,11 +195,11 @@ function CustomerModal({
           </div>
           <div>
             <label className={labelCls}>المدينة / المنطقة</label>
-            <input value={city} onChange={e => setCity(e.target.value)} className={inputCls} placeholder="مثال: صنعاء، عدن..." />
+            <input value={city} onChange={e => setCity(e.target.value)} className={inputCls} />
           </div>
           <div>
             <label className={labelCls}>الشارع / العنوان التفصيلي</label>
-            <input value={street} onChange={e => setStreet(e.target.value)} className={inputCls} placeholder="الشارع، نقطة دالة..." />
+            <input value={street} onChange={e => setStreet(e.target.value)} className={inputCls} />
           </div>
           <div>
             <label className={labelCls}>تاريخ التسجيل</label>
@@ -207,7 +207,7 @@ function CustomerModal({
           </div>
           <div className="sm:col-span-2 lg:col-span-3">
             <label className={labelCls}>ملاحظات وتفضيلات العميل</label>
-            <input value={notes} onChange={e => setNotes(e.target.value)} className={inputCls} placeholder="أي تفضيلات أو ملاحظات إضافية..." />
+            <input value={notes} onChange={e => setNotes(e.target.value)} className={inputCls} />
           </div>
         </div>
       </form>
@@ -215,5 +215,4 @@ function CustomerModal({
   );
 }
 
-window.CustomerModal = CustomerModal;
-window.CustomerBasicInfoModal = CustomerModal;
+window.CustomerModal = CustomerModal; window.CustomerBasicInfoModal = CustomerModal;

@@ -61,3 +61,27 @@ def suggest_account_code(parent_id=None):
             candidate_code = f"{p_code}.{str(candidate_seq).zfill(2)}"
 
         return candidate_code
+
+
+def generate_sequential_voucher_no(cur, voucher_type='Receipt', voucher_date_str=None):
+    """
+    توليد رقم تسلسلي قياسي موحد لسندات القبض والصرف (Sequential Voucher Numbering)
+    سند قبض: RV-YYYY-MMDD-XX (مثال: RV-2026-1020-01)
+    سند صرف: PV-YYYY-MMDD-XX (مثال: PV-2026-1020-01)
+    """
+    from .db_pool import clean_str, today_str
+    dt = clean_str(voucher_date_str) or today_str()
+    parts = dt.split('-')
+    pfx_code = 'RV' if ('receipt' in str(voucher_type).lower() or 'قبض' in str(voucher_type)) else 'PV'
+    prefix = f"{pfx_code}-{parts[0]}-{parts[1]}{parts[2]}-" if len(parts) >= 3 else f"{pfx_code}-{today_str().replace('-', '')[:8]}-"
+
+    cur.execute("SELECT payment_no FROM payments WHERE payment_no LIKE %s ORDER BY LENGTH(payment_no) DESC, payment_no DESC LIMIT 1;", (f"{prefix}%",))
+    row = cur.fetchone()
+    if row and row.get('payment_no'):
+        try:
+            last_seq = int(row['payment_no'].split('-')[-1])
+            return f"{prefix}{last_seq + 1:02d}"
+        except Exception:
+            pass
+    return f"{prefix}01"
+

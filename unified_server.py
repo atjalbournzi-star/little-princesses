@@ -149,7 +149,7 @@ class UnifiedERPHandler(http.server.SimpleHTTPRequestHandler):
 
     def _send_cors_headers(self):
         self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
 
     def end_headers(self):
@@ -160,6 +160,12 @@ class UnifiedERPHandler(http.server.SimpleHTTPRequestHandler):
         self.send_response(200)
         self._send_cors_headers()
         self.end_headers()
+
+    def do_PUT(self):
+        self.do_POST()
+
+    def do_PATCH(self):
+        self.do_POST()
 
     def guess_type(self, path):
         if str(path).endswith('.jsx') or str(path).endswith('.js'):

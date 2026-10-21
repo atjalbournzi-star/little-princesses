@@ -9,7 +9,7 @@ function useCustomerActions({
   const [isSaving, setIsSaving] = useState(false);
 
   // ── 1. حفظ وتوثيق بيانات العميل الرئيسية ──
-  const handleSaveCustomer = useCallback(async (payload) => {
+  const handleSaveCustomer = useCallback(async (payload, options = {}) => {
     if (!payload.name || !payload.name.trim()) {
       showToast && showToast('اسم العميل مطلوب ⚠️', 'error');
       return false;
@@ -44,25 +44,12 @@ function useCustomerActions({
       }
 
       const rawRec = (apiRes && (apiRes.data || apiRes.customer)) || {};
-     const existingCust = (customers || []).find(c => 
-        String(c.customer_id || c.id) === String(custId) || 
-        (payload.phone && String(c.phone).trim() === String(payload.phone).trim())
-      );
+      const existingCust = (customers || []).find(c => String(c.customer_id || c.id) === String(custId) || (payload.phone && String(c.phone).trim() === String(payload.phone).trim()));
 
       const newRecord = {
-        ...(existingCust || {}),
-        ...payload,
-        ...rawRec,
-        measurements: (rawRec.measurements && rawRec.measurements.length)
-          ? rawRec.measurements
-          : ((payload.measurements && payload.measurements.length)
-              ? payload.measurements
-              : (existingCust?.measurements || [])),
-        children: (rawRec.children && rawRec.children.length)
-          ? rawRec.children
-          : ((payload.children && payload.children.length)
-              ? payload.children
-              : (existingCust?.children || []))
+        ...(existingCust || {}), ...payload, ...rawRec,
+        measurements: (rawRec.measurements?.length ? rawRec.measurements : (payload.measurements?.length ? payload.measurements : (existingCust?.measurements || []))),
+        children: (rawRec.children?.length ? rawRec.children : (payload.children?.length ? payload.children : (existingCust?.children || [])))
       };
       const finalCustId = newRecord.id || newRecord.customer_id || custId;
 
@@ -74,10 +61,16 @@ function useCustomerActions({
       }
       window.dispatchEvent(new CustomEvent('erp:ordersChanged'));
       const depAmt = parseFloat(payload.ledger?.deposit || 0);
-      const successMsg = depAmt > 0
-        ? `✅ تم حفظ ${payload.name} وقيد دفعة (${depAmt.toLocaleString('en-US')} ${currency.display}) بنجاح`
-        : `✅ تم حفظ بيانات ${payload.name} بنجاح`;
-      showToast && showToast(successMsg, 'success');
+      const vNo = options?.voucherNo || payload.ledger?.latest_voucher_no || '';
+      const cName = payload.name || payload.customer_name || 'العميل';
+      const successMsg = (depAmt > 0 && vNo)
+        ? `✅ تم حفظ بيانات ${cName}، اعتماد سند القبض (${vNo})، وقيد العربون بنجاح ✨`
+        : (depAmt > 0
+            ? `✅ تم حفظ بيانات ${cName} وقيد دفعة (${depAmt.toLocaleString('en-US')} ${currency.display}) بنجاح ✨`
+            : `✅ تم حفظ بيانات ${cName} بنجاح ✨`);
+      if (!options?.silent) {
+        showToast && showToast(successMsg, 'success');
+      }
       return newRecord;
     } catch (err) {
       console.error('Save customer fallback:', err);
@@ -102,7 +95,7 @@ function useCustomerActions({
   }, [handleSaveCustomer]);
 
   // ── 3. حفظ وتحديث كشف الحساب والمدفوعات ──
-  const handleSaveLedger = useCallback(async (targetCust, newLedger) => {
+  const handleSaveLedger = useCallback(async (targetCust, newLedger, options = {}) => {
     if (!targetCust) return false;
     const updatedCustomer = {
       ...targetCust,
@@ -112,7 +105,7 @@ function useCustomerActions({
       deposit: newLedger.deposit,
       remaining: newLedger.remaining
     };
-    return await handleSaveCustomer(updatedCustomer);
+    return await handleSaveCustomer(updatedCustomer, options);
   }, [handleSaveCustomer]);
 
   // ── 4. حذف أو أرشفة سجل العميل ──

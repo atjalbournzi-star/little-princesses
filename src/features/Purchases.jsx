@@ -17,12 +17,16 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
     return `PUR-${lastNum + 1}`;
   };
 
-  const emptyHeader = () => ({
-    bill_no: '', supplier_id: '', supplier: '', supplier_phone: '', warehouse_id: 'WH-MAIN',
-    discount: '', notes: '', currency: defaultCurrency, exchange_rate: '', pay_type: defaultPayType,
-    transfer_no: '', payment_source: '', receipt_url: '', invoice_image_url: '', date: todayStrIso,
-    freight_cost: '', transfer_fees: ''
-  });
+  const emptyHeader = () => {
+    const whs = Array.isArray(window.inventoryUtils?.WAREHOUSES) ? window.inventoryUtils.WAREHOUSES : [];
+    return {
+      bill_no: '', supplier_id: '', supplier: '', supplier_phone: '',
+      warehouse_id: whs[0]?.id || whs[0]?.code || '',
+      discount: '', notes: '', currency: defaultCurrency, exchange_rate: '', pay_type: defaultPayType,
+      transfer_no: '', payment_source: '', receipt_url: '', invoice_image_url: '', date: todayStrIso,
+      freight_cost: '', transfer_fees: ''
+    };
+  };
   const emptyItem = () => ({ item: '', unit: 'متر', qty: '', price: '', total: '' });
 
   const [headerData, setHeaderData] = useState(emptyHeader), [itemData, setItemData] = useState(emptyItem), [editingIndex, setEditingIndex] = useState(null);

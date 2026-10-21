@@ -45,7 +45,7 @@ def get_inventory(params=None):
                    COALESCE(i.total_value, i.quantity * i.unit_cost, 0.0) as total_value,
                    COALESCE(i.currency, 'YER') as currency,
                    COALESCE(s.name, i.supplier_id, 'مورد عام') as supplier,
-                   i.supplier_id, COALESCE(i.location, 'المستودع الرئيسي') as location,
+                   i.supplier_id, i.location,
                    COALESCE(i.status, 'Available') as status, i.created_at, i.updated_at
             FROM inventory i
             LEFT JOIN suppliers s ON i.supplier_id = s.id
@@ -53,17 +53,47 @@ def get_inventory(params=None):
         """
         rows = execute_query(query, fetch_all=True) or []
 
-    # إلحاق تفاصيل أرصدة المستودعات لكل مادة
-    ws_all = execute_query("SELECT warehouse_id, inventory_id, quantity, available_qty FROM warehouse_stock;", fetch_all=True) or []
+    # إلحاق تفاصيل أرصدة المستودعات الحقيقية من جدول warehouses
+    ws_all = execute_query("""
+        SELECT ws.warehouse_id, ws.inventory_id, ws.quantity, ws.reserved_qty,
+               COALESCE(ws.available_qty, ws.quantity - COALESCE(ws.reserved_qty, 0)) as available_qty,
+               w.name as warehouse_name, w.code as warehouse_code
+        FROM warehouse_stock ws
+        JOIN warehouses w ON ws.warehouse_id = w.id
+        WHERE ws.quantity > 0
+        ORDER BY ws.quantity DESC;
+    """, fetch_all=True) or []
+
     ws_map = {}
+    ws_details_map = {}
     for w_entry in ws_all:
         inv_k = w_entry['inventory_id']
-        ws_map.setdefault(inv_k, {})[w_entry['warehouse_id']] = float(w_entry['quantity'] or 0.0)
+        qty_val = float(w_entry['quantity'] or 0.0)
+        ws_map.setdefault(inv_k, {})[w_entry['warehouse_id']] = qty_val
+        ws_details_map.setdefault(inv_k, []).append({
+            'warehouse_id': w_entry['warehouse_id'],
+            'warehouse_code': w_entry['warehouse_code'],
+            'warehouse_name': w_entry['warehouse_name'],
+            'name': w_entry['warehouse_name'],
+            'quantity': qty_val,
+            'available_qty': float(w_entry['available_qty'] or 0.0)
+        })
 
     for r in rows:
         if r.get('created_at'): r['created_at'] = str(r['created_at'])
         if r.get('updated_at'): r['updated_at'] = str(r['updated_at'])
-        r['warehouse_stocks'] = ws_map.get(r['id'], {'WH-MAIN': float(r.get('quantity') or 0.0)})
+        r['warehouse_stocks'] = ws_map.get(r['id'], {})
+        details = ws_details_map.get(r['id'], [])
+        r['warehouse_details'] = details
+        if details:
+            primary_wh = details[0]
+            if not r.get('location') or r.get('location') in ('المستودع الرئيسي', 'WH-MAIN'):
+                r['location'] = primary_wh['warehouse_name']
+            r['warehouse_id'] = primary_wh['warehouse_id']
+            r['warehouse_name'] = primary_wh['warehouse_name']
+        else:
+            r['warehouse_id'] = r.get('warehouse_id') or ''
+            r['warehouse_name'] = r.get('location') or ''
     return rows
 
 
@@ -80,7 +110,7 @@ def add_or_update_inventory(payload):
     res_qty = clean_num(data.get('reserved_qty') or 0.0)
     min_lim = clean_num(data.get('min_limit') or data.get('reorder_level') or 5.0)
     unit_cost = clean_num(data.get('unit_cost') or data.get('cost') or data.get('cost_per_meter') or data.get('avg_cost') or 0.0)
-    location = clean_str(data.get('location') or 'المستودع الرئيسي')
+    location = clean_str(data.get('location') or '')
     supplier_id = clean_str(data.get('supplier_id') or data.get('supplier') or '')
     curr_raw = clean_str(data.get('currency') or 'YER')
     curr = 'SAR' if 'SAR' in curr_raw.upper() else ('USD' if 'USD' in curr_raw.upper() else 'YER')
@@ -116,13 +146,14 @@ def add_or_update_inventory(payload):
         res = dict(cur.fetchone())
 
         from .pg_warehouses import normalize_warehouse_id
-        target_wh = normalize_warehouse_id(location, default="WH-MAIN")
-        cur.execute("""
-            INSERT INTO warehouse_stock (id, warehouse_id, inventory_id, quantity, reserved_qty, updated_at)
-            VALUES (%s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
-            ON CONFLICT (warehouse_id, inventory_id) DO UPDATE SET
-                quantity = EXCLUDED.quantity, reserved_qty = EXCLUDED.reserved_qty, updated_at = CURRENT_TIMESTAMP;
-        """, (f"WS-{inv_id}-{target_wh}", target_wh, inv_id, qty, res_qty))
+        target_wh = normalize_warehouse_id(location, default="")
+        if target_wh:
+            cur.execute("""
+                INSERT INTO warehouse_stock (id, warehouse_id, inventory_id, quantity, reserved_qty, updated_at)
+                VALUES (%s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+                ON CONFLICT (warehouse_id, inventory_id) DO UPDATE SET
+                    quantity = EXCLUDED.quantity, reserved_qty = EXCLUDED.reserved_qty, updated_at = CURRENT_TIMESTAMP;
+            """, (f"WS-{inv_id}-{target_wh}", target_wh, inv_id, qty, res_qty))
 
         if res.get('created_at'): res['created_at'] = str(res['created_at'])
         if res.get('updated_at'): res['updated_at'] = str(res['updated_at'])
@@ -147,7 +178,7 @@ def update_inventory_qty(payload):
             init_qty = max(0.0, 100.0 + change)
             cur.execute("""
                 INSERT INTO inventory (id, item_code, name, type, category, unit, quantity, unit_cost, location, status)
-                VALUES (%s, %s, %s, 'Fabric', 'أقمشة فاخرة', 'meter', %s, 0.0, 'المستودع الرئيسي', 'Available')
+                VALUES (%s, %s, %s, 'Fabric', 'أقمشة فاخرة', 'meter', %s, 0.0, '', 'Available')
                 RETURNING *, name as item_name, quantity as current_balance;
             """, (new_id, new_id, item_id or 'خامة قماش', init_qty))
             row = cur.fetchone()

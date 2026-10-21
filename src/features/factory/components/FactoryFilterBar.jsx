@@ -33,8 +33,7 @@ function FactoryFilterBar({
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="w-full h-7.5 pl-3 pr-8 rounded-lg border border-slate-700/80 bg-slate-950/80 text-xs font-medium text-slate-200 outline-none placeholder:text-slate-500 focus:border-rose-500/60 focus:ring-1 focus:ring-rose-500/30 transition-all"
-            placeholder="بحث بالطلب، اسم العميلة، اسم الخياط..."
+            className="w-full h-7.5 pl-3 pr-8 rounded-lg border border-slate-700/80 bg-slate-950/80 text-xs font-medium text-slate-200 outline-none focus:border-rose-500/60 focus:ring-1 focus:ring-rose-500/30 transition-all"
           />
           <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none">🔍</span>
         </div>

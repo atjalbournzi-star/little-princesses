@@ -16,7 +16,7 @@ function InventoryAddItemModal({
 
   const u = window.inventoryUtils || {};
   const categories = u.INVENTORY_CATEGORIES || ['أقمشة', 'بطانات', 'كلف وتطريز', 'إكسسوارات', 'فساتين جاهزة'];
-  const warehouses = u.WAREHOUSE_LOCATIONS || ['المستودع الرئيسي', 'صالة العرض / المعرض', 'ورشة المصنع'];
+  const warehouses = Array.isArray(u.WAREHOUSES) ? u.WAREHOUSES : [];
 
   const inputCls = "w-full h-11 px-3.5 py-2.5 rounded-xl border border-[#E8E5EA] bg-white text-[#25232A] text-xs font-medium placeholder:text-[#6F6B75] focus:bg-white focus:border-[#009FAE] focus:ring-2 focus:ring-[#E2F5F7] transition-all outline-none";
   const labelCls = "block text-xs font-semibold text-[#25232A] mb-1.5";
@@ -53,7 +53,7 @@ function InventoryAddItemModal({
               <input
                 type="text"
                 className={inputCls}
-                placeholder="مثال: حرير إيطالي بيج، فستان سهرة لؤلؤي..."
+                placeholder=""
                 value={formData.item_name}
                 onChange={e => setFormData({ ...formData, item_name: e.target.value })}
                 required
@@ -79,7 +79,7 @@ function InventoryAddItemModal({
                 type="number"
                 step="0.1"
                 className={inputCls + " font-mono font-bold"}
-                placeholder="0.0"
+                placeholder=""
                 value={formData.qty}
                 onChange={handleQtyChange}
               />
@@ -91,7 +91,7 @@ function InventoryAddItemModal({
                 type="number"
                 step="0.01"
                 className={inputCls + " font-mono font-bold"}
-                placeholder="0.00"
+                placeholder=""
                 value={formData.cost}
                 onChange={handleCostChange}
               />
@@ -103,7 +103,7 @@ function InventoryAddItemModal({
                 type="number"
                 step="0.01"
                 className={inputCls + " font-mono font-bold bg-[#FAFAFB] text-[#007F8C]"}
-                placeholder="0.00"
+                placeholder=""
                 value={formData.total_value}
                 onChange={handleTotalChange}
               />
@@ -130,10 +130,22 @@ function InventoryAddItemModal({
               <label className={labelCls}>موقع التخزين / المستودع</label>
               <select
                 className={inputCls}
-                value={formData.location}
-                onChange={e => setFormData({ ...formData, location: e.target.value })}
+                value={formData.warehouse_id || formData.location}
+                onChange={e => {
+                  const selWh = warehouses.find(w => w.id === e.target.value || w.code === e.target.value);
+                  setFormData({
+                    ...formData,
+                    warehouse_id: e.target.value,
+                    location: selWh ? selWh.name : e.target.value
+                  });
+                }}
               >
-                {warehouses.map(w => <option key={w} value={w}>{w}</option>)}
+                <option value="">اختر المستودع...</option>
+                {warehouses.map(w => (
+                  <option key={w.id || w.code} value={w.id || w.code}>
+                    {w.name} ({w.code || w.id})
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -143,7 +155,7 @@ function InventoryAddItemModal({
                 type="number"
                 step="1"
                 className={inputCls + " font-mono font-bold"}
-                placeholder="5"
+                placeholder=""
                 value={formData.reorder_level || 5}
                 onChange={e => setFormData({ ...formData, reorder_level: e.target.value })}
               />

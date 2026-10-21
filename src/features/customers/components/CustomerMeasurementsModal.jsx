@@ -14,8 +14,7 @@ function CustomerMeasurementsModal({
     return (val && typeof val !== 'object') ? String(val) : ((val && typeof val === 'object') ? safeStr(val, fb) : fb);
   };
   const custNameStr = safeStr(customer?.name), derivedChild = (custNameStr ? custNameStr.replace(/^(ام|أم|والدة)\s+/i, '').trim() : '');
-  const getEmpty = (mode = 'kids', idx = 0) => (emptyMeasurement ? emptyMeasurement(mode) : { id: Date.now() + idx, child_name: mode === 'women_adults' ? (custNameStr || 'الأم') : (idx === 0 && derivedChild !== custNameStr ? derivedChild : ''), unit: 'سم', target_mode: mode });
-  const calcAge = calculateAge || (() => ''), smartMatch = getSmartModelMatch || (() => null);
+  const getEmpty = (mode = 'kids', idx = 0) => (emptyMeasurement ? emptyMeasurement(mode) : { id: Date.now() + idx, child_name: mode === 'women_adults' ? (custNameStr || 'الأم') : (idx === 0 && derivedChild !== custNameStr ? derivedChild : ''), unit: 'سم', target_mode: mode }), calcAge = calculateAge || (() => ''), smartMatch = getSmartModelMatch || (() => null);
   const [measurements, setMeasurements] = useState([]), [activeChildIdx, setActiveChildIdx] = useState(0), [targetMode, setTargetMode] = useState('kids'), [prods, setProds] = useState(products || []);
 
   useEffect(() => {
@@ -88,7 +87,15 @@ function CustomerMeasurementsModal({
     }));
   };
 
-  const handleSelectModel = (modelName) => setMeasurements(prev => prev.map((m, i) => i === activeChildIdx ? { ...m, selected_model: modelName } : m));
+  const handleSelectModel = (modelName) => {
+    const p = activeProds.find(x => safeStr(x.name || x.model_name).trim() === safeStr(modelName).trim());
+    const img = p?.image_url || p?.image || p?.image_data || '', pId = p?.id || p?.product_id || '';
+    let rawCols = p?.colors || p?.approved_colors || [];
+    if (typeof rawCols === 'string') { try { rawCols = JSON.parse(rawCols); } catch (e) { rawCols = rawCols.split(',').map(s => s.trim()).filter(Boolean); } }
+    const cols = Array.isArray(rawCols) ? rawCols : [];
+    const matchedCol = (cols.includes(currM?.dress_color) ? currM.dress_color : (cols[0] || ''));
+    setMeasurements(prev => prev.map((m, i) => i === activeChildIdx ? { ...m, selected_model: modelName, model_id: pId, product_id: pId, model_image: img, model_img: img, dress_color: matchedCol, selected_color: matchedCol, color: matchedCol } : m));
+  };
 
   const isCurrInch = /^(inch|in|إنش|انش)$/i.test(String(currM?.unit || '').trim());
   const formatSavedLength = (p) => {
@@ -102,8 +109,7 @@ function CustomerMeasurementsModal({
   };
 
   const toggleUnit = (idx) => {
-    const m = measurements[idx], isInch = /^(inch|in|إنش|انش)$/i.test(String(m?.unit || '').trim());
-    const factor = isInch ? 2.54 : (1 / 2.54), upd = { ...m, unit: isInch ? 'سم' : 'إنش' };
+    const m = measurements[idx], isInch = /^(inch|in|إنش|انش)$/i.test(String(m?.unit || '').trim()), factor = isInch ? 2.54 : (1 / 2.54), upd = { ...m, unit: isInch ? 'سم' : 'إنش' };
     ['total_height','dress_length','chest_length','skirt_length','sleeve_length','chest_circ','waist_circ','shoulder_width','armhole_circ','neck_circ','hips_circ','arm_circ','bust_drop'].forEach(f => { if (m[f] !== '' && !isNaN(parseFloat(m[f]))) upd[f] = (parseFloat(m[f]) * factor).toFixed(1); });
     upd.estimated_age = calcAge(upd.dress_length || upd.total_height, upd.selected_model, upd.unit, activeProds);
     setMeasurements(prev => prev.map((item, i) => i === idx ? upd : item));
@@ -132,11 +138,16 @@ function CustomerMeasurementsModal({
     return measurements.map((m, idx) => {
       const isAd = targetMode === 'women_adults', p = activeProds.find(x => safeStr(x.name || x.model_name).trim() === safeStr(m.selected_model).trim());
       const bData = window.BespokeBOMService?.deriveBespokeBOM ? window.BespokeBOMService.deriveBespokeBOM(p, m, targetMode) : null;
+      const mImg = m.model_image || m.model_img || p?.image_url || p?.image || '', mId = m.model_id || m.product_id || p?.id || '', col = m.selected_color || m.dress_color || m.color || '';
+      const fbList = bData?.calculatedBomItems || m.fabrics_breakdown || m.bom_items || [];
       return {
-        ...m, target_mode: targetMode, child_name: safeStr(m.child_name).trim() || (isAd ? `العميلة (${idx + 1})` : `الأميرة (${idx + 1})`),
+        ...m, id: m.id || m.measurement_id || (Date.now() + idx), measurement_id: m.id || m.measurement_id || (Date.now() + idx),
+        child_id: m.child_id || customer?.children?.[idx]?.id || '', target_mode: targetMode,
+        child_name: safeStr(m.child_name).trim() || (isAd ? `العميلة (${idx + 1})` : `الأميرة (${idx + 1})`),
+        model_id: mId, product_id: mId, model_image: mImg, model_img: mImg, image_url: mImg, dress_color: col, color: col, selected_color: col,
         age_tier: bData?.ageTier || (isAd ? 'M' : '6-9Y'), estimated_age: isAd ? 'مقاس كبار / نسائي' : (m.estimated_age || bData?.ageTier || '6-9Y'),
-        adjusted_price: bData?.calculatedPrice || parseFloat(m.adjusted_price || 0), bom_items: bData?.calculatedBomItems || [],
-        fabrics_breakdown: bData?.calculatedBomItems || [], fabric_summary: bData?.bomSummary || ''
+        adjusted_price: bData?.calculatedPrice || parseFloat(m.adjusted_price || 0), bom_items: fbList,
+        fabrics_data: fbList, fabrics_breakdown: fbList, fabric_summary: bData?.bomSummary || ''
       };
     });
   };
@@ -145,8 +156,7 @@ function CustomerMeasurementsModal({
     const enriched = buildEnriched();
     if (!enriched) return;
     if (onSaveMeasurements) await onSaveMeasurements(customer, enriched);
-    if (andProceed && onProceedToFinance) onProceedToFinance(enriched);
-    else onClose && onClose();
+    if (andProceed && onProceedToFinance) onProceedToFinance(enriched); else onClose && onClose();
   };
 
   if (!isOpen || !customer) return null;
@@ -155,18 +165,9 @@ function CustomerMeasurementsModal({
   return (
     <Layout
       isOpen={isOpen} onClose={onClose} step={2} onSwitchStep={onSwitchStep} title={modalTitle} customerCode={customer?.customer_id || customer?.id}
-      extraHeaderLeft={<div className="flex items-center bg-[#0F172A] p-0.5 rounded-lg border border-slate-700">
-        <button type="button" onClick={() => { setTargetMode('kids'); if (!measurements.length) setMeasurements([getEmpty('kids')]); }} className={`px-2 py-0.5 rounded text-[10.5px] font-bold transition cursor-pointer ${!isAdult ? 'bg-pink-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'}`}>👧 أطفال</button>
-        <button type="button" onClick={() => { setTargetMode('women_adults'); if (!measurements.length) setMeasurements([getEmpty('women_adults')]); }} className={`px-2 py-0.5 rounded text-[10.5px] font-bold transition cursor-pointer ${isAdult ? 'bg-pink-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'}`}>👗 نسائي/كبار</button>
-      </div>}
-      footerRight={<div className="flex items-center gap-2">
-        <button type="button" onClick={onClose} className="h-7 px-3 text-xs text-slate-400 hover:text-white rounded-lg border border-slate-700 hover:bg-slate-800 transition-colors cursor-pointer">إلغاء</button>
-        {onSwitchStep && <button type="button" onClick={() => onSwitchStep(1)} className="h-7 px-3 text-xs text-slate-300 hover:text-white rounded-lg border border-slate-700 hover:bg-slate-800 transition-colors cursor-pointer flex items-center gap-1"><span>السابق: بيانات العميل</span><span>➡️</span></button>}
-      </div>}
-      footerLeft={<div className="flex items-center gap-2">
-        <button type="button" onClick={() => handleSave(false)} disabled={isSaving} className="h-8 px-3.5 border border-pink-700/60 text-pink-300 hover:bg-pink-950/40 text-xs font-bold rounded-lg transition cursor-pointer disabled:opacity-60">{isSaving ? 'جاري الحفظ...' : 'حفظ المقاسات فقط 💾'}</button>
-        <button type="button" onClick={() => handleSave(true)} disabled={isSaving} className="h-8 px-4 text-xs font-bold bg-pink-600 hover:bg-pink-700 text-white rounded-lg shadow-md transition flex items-center gap-1.5 cursor-pointer disabled:opacity-60"><span>التالي: الحساب المالي ⬅️</span></button>
-      </div>}
+      extraHeaderLeft={<div className="flex items-center bg-[#0F172A] p-0.5 rounded-lg border border-slate-700"><button type="button" onClick={() => { setTargetMode('kids'); if (!measurements.length) setMeasurements([getEmpty('kids')]); }} className={`px-2 py-0.5 rounded text-[10.5px] font-bold transition cursor-pointer ${!isAdult ? 'bg-pink-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'}`}>👧 أطفال</button><button type="button" onClick={() => { setTargetMode('women_adults'); if (!measurements.length) setMeasurements([getEmpty('women_adults')]); }} className={`px-2 py-0.5 rounded text-[10.5px] font-bold transition cursor-pointer ${isAdult ? 'bg-pink-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'}`}>👗 نسائي/كبار</button></div>}
+      footerRight={<div className="flex items-center gap-2"><button type="button" onClick={onClose} className="h-7 px-3 text-xs text-slate-400 hover:text-white rounded-lg border border-slate-700 hover:bg-slate-800 transition-colors cursor-pointer">إلغاء</button>{onSwitchStep && <button type="button" onClick={() => onSwitchStep(1)} className="h-7 px-3 text-xs text-slate-300 hover:text-white rounded-lg border border-slate-700 hover:bg-slate-800 transition-colors cursor-pointer flex items-center gap-1"><span>السابق: بيانات العميل</span><span>➡️</span></button>}</div>}
+      footerLeft={<div className="flex items-center gap-2"><button type="button" onClick={() => handleSave(false)} disabled={isSaving} className="h-8 px-3.5 border border-pink-700/60 text-pink-300 hover:bg-pink-950/40 text-xs font-bold rounded-lg transition cursor-pointer disabled:opacity-60">{isSaving ? 'جاري الحفظ...' : 'حفظ المقاسات فقط 💾'}</button><button type="button" onClick={() => handleSave(true)} disabled={isSaving} className="h-8 px-4 text-xs font-bold bg-pink-600 hover:bg-pink-700 text-white rounded-lg shadow-md transition flex items-center gap-1.5 cursor-pointer disabled:opacity-60"><span>التالي: الحساب المالي ⬅️</span></button></div>}
     >
       <div className="space-y-2">
         {/* Tabs for Profiles */}
@@ -193,7 +194,7 @@ function CustomerMeasurementsModal({
           </div>
         )}
 
-        {Form && <Form currM={currM} activeChildIdx={activeChildIdx} targetMode={targetMode} uniqueModels={uniqueModels} activeFields={activeFields} onUpdate={updateMeasurement} onSelectModel={handleSelectModel} />}
+        {Form && <Form currM={currM} activeChildIdx={activeChildIdx} targetMode={targetMode} uniqueModels={uniqueModels} activeFields={activeFields} onUpdate={updateMeasurement} onSelectModel={handleSelectModel} selectedProduct={selectedProduct} />}
 
         {/* Persistent Real-Time Summary Bar */}
         {hasBasicMeasurements ? (

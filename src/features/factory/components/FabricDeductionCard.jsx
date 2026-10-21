@@ -9,7 +9,7 @@ function FabricDeductionCard({
   fabricInventory = [],
   customers = []
 }) {
-  const inputCls = "w-full h-8 px-2.5 py-1 rounded-lg border border-slate-700/80 bg-slate-950/80 text-slate-100 text-xs font-medium placeholder:text-slate-500 focus:border-rose-500/60 focus:ring-1 focus:ring-rose-500/30 transition-all outline-none";
+  const inputCls = "w-full h-8 px-2.5 py-1 rounded-lg border border-slate-700/80 bg-slate-950/80 text-slate-100 text-xs font-medium focus:border-rose-500/60 focus:ring-1 focus:ring-rose-500/30 transition-all outline-none";
   const labelCls = "block text-[11px] font-semibold text-slate-200 mb-1";
 
   const sizeChart = window.FactorySizeChart || {};
@@ -25,18 +25,19 @@ function FabricDeductionCard({
   const unitLabel = (rawUnit.includes('inch') || rawUnit.includes('إنش') || rawUnit.includes('انش') || rawUnit === '"' || rawUnit === 'in') ? 'إنش' : 'سم';
 
   const rawItems = (Array.isArray(form.bom_items) && form.bom_items.length > 0)
-    ? form.bom_items : [{ fabric_name: form.fabric_name || '', cut_meters: form.cut_meters || '', cut_unit: form.cut_unit || 'متر' }];
+    ? form.bom_items : ((Array.isArray(form.fabrics_data) && form.fabrics_data.length > 0) ? form.fabrics_data : [{ fabric_name: form.fabric_name || '', cut_meters: form.cut_meters || '', cut_unit: form.cut_unit || 'متر' }]);
 
   const updateBomItem = (index, field, value) => {
     setForm(prev => {
       const items = (Array.isArray(prev.bom_items) && prev.bom_items.length > 0)
-        ? prev.bom_items : [{ fabric_name: prev.fabric_name || '', cut_meters: prev.cut_meters || '', cut_unit: prev.cut_unit || 'متر' }];
+        ? prev.bom_items : ((Array.isArray(prev.fabrics_data) && prev.fabrics_data.length > 0) ? prev.fabrics_data : [{ fabric_name: prev.fabric_name || '', cut_meters: prev.cut_meters || '', cut_unit: prev.cut_unit || 'متر' }]);
       const patch = typeof field === 'object' ? field : { [field]: value };
       const updated = items.map((item, i) => i === index ? { ...item, ...patch } : item);
       const first = updated[0] || {};
       return {
         ...prev,
         bom_items: updated,
+        fabrics_data: updated,
         ...(index === 0 ? {
           fabric_name: first.fabric_name || prev.fabric_name,
           cut_meters: first.cut_meters ?? prev.cut_meters,
@@ -47,8 +48,9 @@ function FabricDeductionCard({
   };
 
   const addBomItem = () => setForm(prev => {
-    const items = (Array.isArray(prev.bom_items) && prev.bom_items.length > 0) ? prev.bom_items : [];
-    return { ...prev, bom_items: [...items, { fabric_name: '', cut_meters: '1.00', cut_unit: 'متر', deduct_inventory: true }] };
+    const items = (Array.isArray(prev.bom_items) && prev.bom_items.length > 0) ? prev.bom_items : ((Array.isArray(prev.fabrics_data) && prev.fabrics_data.length > 0) ? prev.fabrics_data : []);
+    const updated = [...items, { fabric_name: '', cut_meters: '1.00', cut_unit: 'متر', deduct_inventory: true }];
+    return { ...prev, bom_items: updated, fabrics_data: updated };
   });
 
   const removeBomItem = (index) => {
@@ -60,6 +62,7 @@ function FabricDeductionCard({
       return {
         ...prev,
         bom_items: updated,
+        fabrics_data: updated,
         fabric_name: first.fabric_name || '',
         cut_meters: first.cut_meters || '',
         cut_unit: first.cut_unit || 'متر'
@@ -151,14 +154,13 @@ function FabricDeductionCard({
                     className={inputCls + " font-mono font-bold text-rose-400"}
                     value={item.cut_meters !== undefined && item.cut_meters !== null ? item.cut_meters : ''}
                     onChange={e => updateBomItem(idx, 'cut_meters', e.target.value)}
-                    placeholder="مثال: 3.5"
                   />
                 </div>
 
                 <div>
                   <label className={labelCls}>رصيد المخزن والتحويل الذكي</label>
                   {curStock === null ? (
-                    <span className="text-[11px] text-slate-400 bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-700/80 block">اختر الخامة</span>
+                    <div className="h-8 px-2.5 rounded-lg border border-slate-800 bg-slate-950/60 flex items-center text-xs text-slate-500 font-mono">—</div>
                   ) : (
                     <div className={`p-2 rounded-lg border text-[11px] flex flex-col gap-0.5 font-mono ${isLow ? 'bg-rose-500/10 border-rose-500/30 text-rose-300' : 'bg-slate-900 border-slate-800 text-slate-200'}`}>
                       <div className="flex items-center justify-between">

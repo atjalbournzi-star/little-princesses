@@ -19,7 +19,7 @@ function useProductActions({ products = [], setProducts, inventory = [], showToa
   const [formCurrency, setFormCurrency] = useState(() => getCurrencyCode(currency) || "YER");
   const [calcDate, setCalcDate] = useState(() => (typeof TODAY_STR_ISO !== 'undefined' ? TODAY_STR_ISO : new Date().toISOString().split('T')[0]));
   const [selectedSizes, setSelectedSizes] = useState(() => ['1-2Y', '3-5Y', '6-9Y', '10-13Y']);
-  const [selectedColors, setSelectedColors] = useState(() => ['وردي فاتح', 'أبيض ملكي']);
+  const [selectedColors, setSelectedColors] = useState(() => []);
 
   // 2. مصفوفة الأقمشة والخامات (BOM)
   const [fabricsList, setFabricsList] = useState([u.createDefaultFabricRow ? u.createDefaultFabricRow("YER", "kids") : {
@@ -48,9 +48,7 @@ function useProductActions({ products = [], setProducts, inventory = [], showToa
       setSmartCode(code);
       const segSizes = u.getSegmentSizes ? u.getSegmentSizes(newSeg) : ['1-2Y', '3-5Y', '6-9Y', '10-13Y'];
       setSelectedSizes(segSizes);
-      setFabricsList([u.createDefaultFabricRow ? u.createDefaultFabricRow(activeModelCurrency, newSeg) : {
-        id: Date.now(), inventory_id: "", name: "", unit: "متر", currency: activeModelCurrency, brackets: {}, cost: 0
-      }]);
+    setFabricsList([u.createDefaultFabricRow ? u.createDefaultFabricRow(activeModelCurrency, "kids") : { id: Date.now(), inventory_id: "", name: "", unit: "متر", currency: activeModelCurrency, brackets: { "1-2Y": "", "3-5Y": "", "6-9Y": "", "10-13Y": "" }, cost: 0 }]);
       const newPrices = {};
       segSizes.forEach(s => { newPrices[s] = ""; });
       setPricesMatrix(newPrices);
@@ -124,7 +122,7 @@ function useProductActions({ products = [], setProducts, inventory = [], showToa
     setCategory("فساتين وبدلات خاصة"); setSubcategory(""); setCollection(""); setImageUrl(""); setDescription(""); setStatus("Active");
     setCutterWage(""); setTailorWage(""); setEmbroidWage(""); setFinisherWage(""); setPackagingCost("");
     setPricesMatrix({ '1-2Y': "", '3-5Y': "", '6-9Y': "", '10-13Y': "" });
-    setSelectedSizes(['1-2Y', '3-5Y', '6-9Y', '10-13Y']);
+    setSelectedSizes(['1-2Y', '3-5Y', '6-9Y', '10-13Y']); setSelectedColors([]);
     setFabricsList([u.createDefaultFabricRow ? u.createDefaultFabricRow(activeModelCurrency, 'kids') : {
       id: Date.now(), inventory_id: "", name: "", unit: "متر", currency: activeModelCurrency, brackets: { '1-2Y': "", '3-5Y': "", '6-9Y': "", '10-13Y': "" }, cost: 0
     }]);
@@ -147,8 +145,10 @@ function useProductActions({ products = [], setProducts, inventory = [], showToa
     setPackagingCost(p.packaging_cost || bmMeta.packaging_cost || "");
     const loadedSizes = p.sizes?.length ? p.sizes : (bmMeta.sizes?.length ? bmMeta.sizes : (p.price_matrix ? Object.keys(p.price_matrix) : []));
     if (loadedSizes.length) setSelectedSizes(loadedSizes);
-    if (p.colors?.length) setSelectedColors(p.colors);
-    else if (bmMeta.colors?.length) setSelectedColors(bmMeta.colors);
+    let rCols = p.colors || p.approved_colors || bmMeta.colors || [];
+    if (typeof rCols === 'string') { try { rCols = JSON.parse(rCols); } catch (e) { rCols = rCols.split(',').map(c => c.trim()).filter(Boolean); } }
+    const pCols = rCols;
+    setSelectedColors(Array.isArray(pCols) ? pCols : []);
     if (p.currency) setFormCurrency(getCurrencyCode(p.currency));
     if (u.normalizeProductForEdit) {
       const norm = u.normalizeProductForEdit(p, refSize);

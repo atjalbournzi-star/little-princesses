@@ -1,4 +1,4 @@
-﻿# routes/customers_bp.py
+# routes/customers_bp.py
 # Customer CRM & Princess Profiles Flask Blueprint
 
 from flask import Blueprint, request, jsonify
@@ -82,3 +82,13 @@ def confirm_fitting():
         return jsonify({'success': True, 'data': res}), 200
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 400
+
+
+@customers_bp.route('/api/customers/sync-financials', methods=['POST', 'GET'])
+@customers_bp.route('/api/crm/customers/sync-financials', methods=['POST', 'GET'])
+def sync_financials():
+    try:
+        res = pg_service.retroactive_financial_sync()
+        return jsonify({'success': True, 'data': res}), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500

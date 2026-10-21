@@ -10,11 +10,18 @@ def get_purchases(params=None):
     """استرجاع فواتير المشتريات وتفاصيل الأصناف المرفقة والموردين"""
     params = params or {}
     include_cancelled = params.get('include_cancelled', False)
-    where_clause = "" if include_cancelled else "WHERE (receipt_status IS NULL OR receipt_status != 'Cancelled')"
+    where_clause = "" if include_cancelled else "WHERE (p.receipt_status IS NULL OR p.receipt_status != 'Cancelled')"
     query = f"""
-        SELECT * FROM purchases
+        SELECT p.*,
+               COALESCE((
+                   SELECT it.warehouse_id
+                   FROM inventory_transactions it
+                   WHERE it.reference_id = p.id AND it.reference_type = 'purchases'
+                   LIMIT 1
+               ), 'WH-MAIN') AS warehouse_id
+        FROM purchases p
         {where_clause}
-        ORDER BY invoice_date DESC, created_at DESC;
+        ORDER BY p.invoice_date DESC, p.created_at DESC;
     """
     rows = execute_query(query, fetch_all=True) or []
 
@@ -54,5 +61,6 @@ def get_purchases(params=None):
         r['image_path'] = r['receipt_url']
         r['invoice_image_url'] = r.get('invoice_attachment') or r.get('invoice_image_url') or r.get('invoice_url') or ''
         r['items'] = items_by_pur.get(r['id']) or []
+        r['warehouse_id'] = r.get('warehouse_id') or 'WH-MAIN'
 
     return rows
