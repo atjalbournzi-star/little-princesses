@@ -148,9 +148,15 @@ def recalculate_advance_deposits(cur):
         except Exception as e_sync:
             logger.warning(f"Advance sync warning for {cid}: {e_sync}")
 
-    cur.execute("UPDATE chart_of_accounts SET current_balance = %s WHERE id = 'ACC-202' OR account_code = '202';", (tot_adv,))
-    logger.info(f"✅ تم تصحيح رصيد حساب 202 في شجرة الحسابات: {tot_adv:,.2f} YER ({len(rows)} سندات)")
-    return {"total_advances": tot_adv, "count": len(rows), "synced_customers": len(distinct_custs)}
+    # خصم العربونات المسواة محاسبياً عند تسليم الطلبات (الجانب المدين من حساب 202)
+    cur.execute("SELECT COALESCE(SUM(debit), 0.0) as settled_adv FROM journal_entry_lines WHERE account_id = 'ACC-202';")
+    settled_row = cur.fetchone()
+    settled_adv = clean_num(settled_row['settled_adv'] if settled_row else 0.0)
+    net_adv = max(0.0, tot_adv - settled_adv)
+
+    cur.execute("UPDATE chart_of_accounts SET current_balance = %s WHERE id = 'ACC-202' OR account_code = '202';", (net_adv,))
+    logger.info(f"✅ تم تصحيح رصيد حساب 202 في شجرة الحسابات: {net_adv:,.2f} YER (إجمالي: {tot_adv:,.2f} - تسوية تسليم: {settled_adv:,.2f})")
+    return {"total_advances": net_adv, "gross_advances": tot_adv, "settled": settled_adv, "count": len(rows), "synced_customers": len(distinct_custs)}
 
 
 def recalculate_advance_deposits_action(payload=None):

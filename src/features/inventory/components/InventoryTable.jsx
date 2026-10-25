@@ -1,9 +1,9 @@
 // src/features/inventory/components/InventoryTable.jsx
-// جدول استعراض أصناف المخزون والأقمشة والمنتجات التامة، التكاليف، والأرصدة
+// جدول استعراض أصناف المخزون والأقمشة والمنتجات التامة المتطابق مع معيار جدول السندات
 
 function InventoryTable({
   items = [],
-  activeCurrDef = { code: 'YER', display: 'YER ﷼' },
+  activeCurrDef = { code: 'YER', display: 'YER' },
   isBaseCurrency = true,
   activeTargetCurr = 'YER',
   onOpenAdjust,
@@ -20,166 +20,169 @@ function InventoryTable({
 
   if (!items || items.length === 0) {
     return (
-      <div className="bg-white rounded-2xl border border-[#E8E5EA] shadow-[0_2px_12px_rgba(0,0,0,0.02)] p-12 text-center text-[#6F6B75] text-xs font-medium">
-        لا توجد أصناف مسجلة في المخزون تطابق معايير الفلترة والبحث 📦
+      <div className="flex-1 flex flex-col items-center justify-center bg-white dark:bg-[#111C38] rounded-xl border border-slate-200 dark:border-slate-800 p-8 text-slate-700 dark:text-white text-xs font-semibold select-none">
+        <svg className="w-7 h-7 text-slate-400 dark:text-slate-300 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+        </svg>
+        <span>لا توجد أصناف مسجلة في المخزون تطابق معايير الفلترة والبحث</span>
       </div>
     );
   }
 
+  const currCode = (activeCurrDef?.code || activeTargetCurr || 'YER').replace('﷼', '').trim();
+
+  const columns = [
+    { key: 'code', label: 'الرمز', width: 'w-[75px]', align: 'text-right' },
+    { key: 'name', label: 'اسم الصنف / الخامة', width: 'w-[20%]', align: 'text-right' },
+    { key: 'category', label: 'التصنيف', width: 'w-[100px]', align: 'text-right' },
+    { key: 'location', label: 'المستودع / الموقع', width: 'w-[135px]', align: 'text-right' },
+    { key: 'qty', label: 'الرصيد المتوفر', width: 'w-[95px]', align: 'text-left' },
+    { key: 'cost', label: `متوسط التكلفة (${currCode})`, width: 'w-[110px]', align: 'text-left' },
+    { key: 'total', label: `إجمالي القيمة (${currCode})`, width: 'w-[115px]', align: 'text-left' },
+    { key: 'supplier', label: 'المورد', width: 'w-[110px]', align: 'text-right' },
+    { key: 'actions', label: 'الإجراءات', width: 'w-[85px]', align: 'text-center sticky left-0 z-10 bg-slate-50 dark:bg-[#0F172A]' }
+  ];
+
   return (
-    <div className="bg-white rounded-2xl border border-[#E8E5EA] shadow-[0_2px_12px_rgba(0,0,0,0.02)] overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="w-full text-xs table-fixed border-collapse">
-          <thead>
-            <tr className="bg-[#FAFAFB] text-[#6F6B75] font-bold border-b border-[#E8E5EA]">
-              <th className="px-2.5 py-3 text-right w-[7%]">الرمز</th>
-              <th className="px-3 py-3 text-right w-[18%]">اسم الصنف / الخامة</th>
-              <th className="px-2 py-3 text-right w-[10%]">التصنيف</th>
-              <th className="px-2 py-3 text-right w-[11%]">الموقع / المستودع</th>
-              <th className="px-2 py-3 text-left w-[9%]">الرصيد المتوفر</th>
-              <th className="px-2 py-3 text-left w-[11%]">متوسط التكلفة</th>
-              <th className="px-2 py-3 text-left w-[12%]">إجمالي القيمة</th>
-              <th className="px-2 py-3 text-right w-[10%]">المورد</th>
-              <th className="px-2 py-3 text-center w-[12%]">الإجراءات</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-[#E8E5EA] bg-white">
-            {items.map((i, idx) => {
-              const name = getItemName(i);
-              const code = i.item_code || i.code || i.id || (idx + 1);
-              const qty = getItemQty(i);
-              const rawCost = getItemCost(i);
-              const unit = getItemUnit(i);
-              const loc = i.location || i.warehouse_name || (Array.isArray(i.warehouse_details) && i.warehouse_details[0]?.warehouse_name) || '—';
-              const supplier = i.supplier_id || i.supplier || i.supplier_name || 'مورد عام';
+    <div className="overflow-x-auto custom-scrollbar rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111C38]/90 select-none">
+      <table className="w-full min-w-[980px] table-fixed text-right border-collapse">
+        <thead className="sticky top-0 z-10 bg-slate-50 dark:bg-[#0F172A] border-b border-slate-200 dark:border-slate-800 shadow-xs">
+          <tr className="h-7.5">
+            {columns.map(c => (
+              <th
+                key={c.key}
+                className={`h-7.5 py-1.5 px-2 text-[11px] font-bold text-slate-800 dark:text-slate-200 uppercase tracking-tight whitespace-nowrap overflow-hidden ${c.width} ${c.align}`}
+              >
+                {c.label}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60 bg-white dark:bg-transparent">
+          {items.map((i, idx) => {
+            const name = getItemName(i);
+            const code = i.item_code || i.code || i.id || (idx + 1);
+            const qty = getItemQty(i);
+            const rawCost = getItemCost(i);
+            const unit = getItemUnit(i);
+            const loc = i.location || i.warehouse_name || (Array.isArray(i.warehouse_details) && i.warehouse_details[0]?.warehouse_name) || '—';
+            const supplier = i.supplier_name || i.supplier || i.supplier_id || 'مورد عام';
 
-              const iCurr = window.CurrencyService ? window.CurrencyService.normalizeCode(i.currency || 'YER') : 'YER';
-              const baseCost = iCurr === 'YER' ? rawCost : (window.CurrencyService ? window.CurrencyService.toBase(rawCost, iCurr).base_amount : rawCost);
-              const baseTotal = (parseFloat(i.total_value) && iCurr === 'YER') ? parseFloat(i.total_value) : (qty * baseCost);
+            const iCurr = window.CurrencyService ? window.CurrencyService.normalizeCode(i.currency || 'YER') : 'YER';
+            const baseCost = iCurr === 'YER' ? rawCost : (window.CurrencyService ? window.CurrencyService.toBase(rawCost, iCurr).base_amount : rawCost);
+            const baseTotal = (parseFloat(i.total_value) && iCurr === 'YER') ? parseFloat(i.total_value) : (qty * baseCost);
 
-              const displayCost = isBaseCurrency ? baseCost : (window.CurrencyService ? window.CurrencyService.fromBase(baseCost, activeTargetCurr) : baseCost);
-              const displayTotal = isBaseCurrency ? baseTotal : (window.CurrencyService ? window.CurrencyService.fromBase(baseTotal, activeTargetCurr) : baseTotal);
+            const displayCost = isBaseCurrency ? baseCost : (window.CurrencyService ? window.CurrencyService.fromBase(baseCost, activeTargetCurr) : baseCost);
+            const displayTotal = isBaseCurrency ? baseTotal : (window.CurrencyService ? window.CurrencyService.fromBase(baseTotal, activeTargetCurr) : baseTotal);
 
-              const outOfStock = isOutOfStock(i);
-              const lowStock = isLowStock(i);
+            const outOfStock = isOutOfStock(i);
+            const lowStock = isLowStock(i);
 
-              return (
-                <tr key={i.id || name || idx} className="hover:bg-[#FAFAFB] transition-colors">
-                  {/* رمز الصنف */}
-                  <td className="px-2.5 py-2.5 font-mono text-[#8F2A87] font-bold text-xs text-right align-middle truncate" title={String(code)}>
-                    {code}
-                  </td>
+            return (
+              <tr key={i.id || name || idx} className="h-8 border-b border-slate-200 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/40 text-[11px] font-medium transition-colors group">
+                {/* 1. رمز الصنف */}
+                <td className="w-[75px] py-1.5 px-2 text-right font-mono text-slate-500 dark:text-slate-400 text-[11px] truncate" title={String(code)}>
+                  {code}
+                </td>
 
-                  {/* اسم الصنف وحالة التنبيه */}
-                  <td className="px-3 py-2.5 font-bold text-[#25232A] text-right align-middle truncate" title={name}>
-                    <div className="flex items-center gap-1.5 truncate">
-                      <span className="truncate">{name}</span>
-                      {outOfStock ? (
-                        <span className="text-[9px] bg-rose-50 text-rose-600 border border-rose-200 px-1 py-0.2 rounded font-bold shrink-0">نفد 🚫</span>
-                      ) : lowStock ? (
-                        <span className="text-[9px] bg-[#FFF1DC] text-[#C97300] border border-[#FFE4B9] px-1 py-0.2 rounded font-bold shrink-0">منخفض ⚠️</span>
-                      ) : null}
-                    </div>
-                  </td>
+                {/* 2. اسم الصنف وحالة التنبيه */}
+                <td className="w-[20%] py-1.5 px-2 text-right font-semibold text-slate-900 dark:text-white text-[11px] truncate" title={name}>
+                  <div className="flex items-center gap-1.5 truncate">
+                    <span className="truncate">{name}</span>
+                    {outOfStock ? (
+                      <span className="text-[9px] bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/60 px-1 py-0.2 rounded font-bold shrink-0">نفد</span>
+                    ) : lowStock ? (
+                      <span className="text-[9px] bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60 px-1 py-0.2 rounded font-bold shrink-0">منخفض</span>
+                    ) : null}
+                  </div>
+                </td>
 
-                  {/* التصنيف */}
-                  <td className="px-2 py-2.5 text-right align-middle truncate">
-                    <span className="bg-[#FAFAFB] text-[#25232A] border border-[#E8E5EA] px-1.5 py-0.5 rounded text-[10px] font-semibold inline-block truncate max-w-full">
-                      {i.category || 'أقمشة وخامات'}
-                    </span>
-                  </td>
+                {/* 3. التصنيف */}
+                <td className="w-[100px] py-1.5 px-2 text-right truncate">
+                  <span className="bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 px-1.5 py-0.2 rounded text-[10px] font-medium inline-block truncate max-w-full">
+                    {i.category || 'أقمشة وخامات'}
+                  </span>
+                </td>
 
-                  {/* الموقع / المستودع */}
-                  <td className="px-2 py-2.5 text-[#6F6B75] text-[11px] text-right align-middle truncate" title={loc}>
-                    <div className="flex flex-col gap-0.5">
-                      <span className="font-bold text-[#007F8C] text-[11px] truncate block">🏢 {loc}</span>
-                      {Array.isArray(i.warehouse_details) && i.warehouse_details.length > 0 ? (
-                        <div className="text-[9px] text-[#6F6B75] font-mono flex items-center gap-1 overflow-hidden flex-wrap" title="توزيع الرصيد عبر المستودعات">
-                          {i.warehouse_details.map((wd, wIdx) => (
-                            <span key={wd.warehouse_id || wIdx} className="font-bold text-slate-700 inline-flex items-center gap-0.5">
-                              <span>{wd.warehouse_name || wd.warehouse_code}:</span>
-                              <span className="text-cyan-700">{wd.quantity}</span>
-                              {wIdx < i.warehouse_details.length - 1 && <span className="text-slate-400 mr-1">·</span>}
-                            </span>
-                          ))}
-                        </div>
-                      ) : null}
-                    </div>
-                  </td>
+                {/* 4. الموقع / المستودع */}
+                <td className="w-[135px] py-1.5 px-2 text-right truncate" title={loc}>
+                  <div className="flex flex-col gap-0.5 truncate">
+                    <span className="font-semibold text-teal-700 dark:text-teal-400 text-[10.5px] truncate">{loc}</span>
+                    {Array.isArray(i.warehouse_details) && i.warehouse_details.length > 0 && (
+                      <div className="text-[9px] text-slate-500 dark:text-slate-400 font-mono flex items-center gap-1 overflow-hidden truncate">
+                        {i.warehouse_details.map((wd, wIdx) => (
+                          <span key={wd.warehouse_id || wIdx} className="inline-flex items-center gap-0.5">
+                            <span>{wd.warehouse_name || wd.warehouse_code}:</span>
+                            <span className="font-bold text-slate-700 dark:text-slate-200">{wd.quantity}</span>
+                            {wIdx < i.warehouse_details.length - 1 && <span className="text-slate-400 mr-0.5">·</span>}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </td>
 
-                  {/* الرصيد المتوفر */}
-                  <td className="px-2 py-2.5 text-left align-middle truncate">
-                    <span className="font-bold font-mono text-[#25232A] tabular-nums dir-ltr">
-                      {qty.toLocaleString('en-US', { minimumFractionDigits: unit === 'قطعة' ? 0 : 1, maximumFractionDigits: 1 })}
-                    </span>
-                    <span className="text-[10px] font-normal text-[#6F6B75] font-sans mr-0.5">
-                      {unit}
-                    </span>
-                  </td>
+                {/* 5. الرصيد المتوفر */}
+                <td className="w-[95px] py-1.5 px-2 text-left truncate">
+                  <span className="font-bold font-mono text-slate-900 dark:text-white text-xs tabular-nums dir-ltr">
+                    {qty.toLocaleString('en-US', { minimumFractionDigits: unit === 'قطعة' ? 0 : 1, maximumFractionDigits: 1 })}
+                  </span>
+                  <span className="text-[10px] font-normal text-slate-500 dark:text-slate-400 mr-0.5">
+                    {unit}
+                  </span>
+                </td>
 
-                  {/* التكلفة */}
-                  <td className="px-2 py-2.5 text-left align-middle truncate">
-                    <span className="font-mono text-[#6F6B75] font-semibold tabular-nums dir-ltr">
-                      {displayCost > 0 ? displayCost.toLocaleString('en-US', { minimumFractionDigits: isBaseCurrency ? 0 : 2, maximumFractionDigits: 2 }) : '0.00'}
-                    </span>
-                    <span className="text-[9.5px] font-normal font-sans text-[#6F6B75] mr-0.5">
-                      {activeCurrDef.code}
-                    </span>
-                  </td>
+                {/* 6. متوسط التكلفة */}
+                <td className="w-[110px] py-1.5 px-2 text-left font-mono text-xs text-slate-800 dark:text-slate-200 tabular-nums dir-ltr truncate">
+                  {displayCost > 0 ? displayCost.toLocaleString('en-US', { minimumFractionDigits: isBaseCurrency ? 0 : 2, maximumFractionDigits: 2 }) : '0.00'}
+                </td>
 
-                  {/* إجمالي القيمة */}
-                  <td className="px-2 py-2.5 text-left align-middle truncate">
-                    <span className="font-bold font-mono text-[#007F8C] tabular-nums dir-ltr">
-                      {displayTotal > 0 ? displayTotal.toLocaleString('en-US', { minimumFractionDigits: isBaseCurrency ? 0 : 2, maximumFractionDigits: 2 }) : '0.00'}
-                    </span>
-                    <span className="text-[9.5px] font-normal font-sans text-[#007F8C] mr-0.5">
-                      {activeCurrDef.code}
-                    </span>
-                  </td>
+                {/* 7. إجمالي القيمة */}
+                <td className="w-[115px] py-1.5 px-2 text-left font-bold font-mono text-xs text-slate-900 dark:text-white tabular-nums dir-ltr truncate">
+                  {displayTotal > 0 ? displayTotal.toLocaleString('en-US', { minimumFractionDigits: isBaseCurrency ? 0 : 2, maximumFractionDigits: 2 }) : '0.00'}
+                </td>
 
-                  {/* المورد */}
-                  <td className="px-2 py-2.5 text-[#25232A] font-medium text-right align-middle truncate text-[11px]" title={supplier}>
-                    {supplier}
-                  </td>
+                {/* 8. المورد */}
+                <td className="w-[110px] py-1.5 px-2 text-right font-mono text-slate-500 dark:text-slate-400 text-[11px] truncate" title={supplier}>
+                  {supplier}
+                </td>
 
-                  {/* الإجراءات السريعة */}
-                  <td className="px-2 py-2.5 text-center align-middle">
-                    <div className="flex items-center justify-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => onOpenMovements && onOpenMovements(i)}
-                        className="p-1.5 bg-[#FAFAFB] hover:bg-[#E8E5EA] text-[#25232A] border border-[#E8E5EA] rounded-lg text-xs transition cursor-pointer"
-                        title="كارت الصنف وسجل الحركات التاريخية"
-                      >
-                        📋
-                      </button>
+                {/* 9. الإجراءات السريعة - 3 أيقونات مدمجة متطابقة مع السندات */}
+                <td className="w-[85px] py-1.5 px-2 text-center whitespace-nowrap sticky left-0 z-10 bg-white dark:bg-[#111C38] group-hover:bg-slate-50 dark:group-hover:bg-slate-800/60 border-r border-slate-200 dark:border-slate-800">
+                  <div className="flex items-center justify-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => onOpenMovements && onOpenMovements(i)}
+                      className="w-5.5 h-5.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 rounded-md transition-all duration-200 hover:scale-110 active:scale-95 cursor-pointer flex items-center justify-center shrink-0"
+                      title="كارت الصنف وسجل الحركات التاريخية"
+                    >
+                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                    </button>
 
-                      <button
-                        type="button"
-                        onClick={() => onOpenTransfer && onOpenTransfer(i)}
-                        className="p-1.5 bg-[#FAFAFB] hover:bg-[#E2F5F7] text-[#007F8C] border border-[#E8E5EA] rounded-lg text-xs transition cursor-pointer"
-                        title="مناقلة بين المستودعات والفروع"
-                      >
-                        🔄
-                      </button>
+                    <button
+                      type="button"
+                      onClick={() => onOpenTransfer && onOpenTransfer(i)}
+                      className="w-5.5 h-5.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800/60 rounded-md transition-all duration-200 hover:scale-110 active:scale-95 cursor-pointer flex items-center justify-center shrink-0"
+                      title="مناقلة بين المستودعات والفروع"
+                    >
+                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+                    </button>
 
-                      <button
-                        type="button"
-                        onClick={() => onOpenAdjust && onOpenAdjust(i)}
-                        className="px-2 py-1 bg-[#FAFAFB] hover:bg-[#FCE8F2] text-[#B0005A] border border-[#E8E5EA] hover:border-[#F2A4CB] rounded-lg text-[10.5px] font-bold transition cursor-pointer"
-                        title="تسوية فروقات جردية أو إهلاك تالف"
-                      >
-                        <span>⚖️</span>
-                        <span className="mr-0.5">تسوية</span>
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+                    <button
+                      type="button"
+                      onClick={() => onOpenAdjust && onOpenAdjust(i)}
+                      className="w-5.5 h-5.5 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/60 rounded-md transition-all duration-200 hover:scale-110 active:scale-95 cursor-pointer flex items-center justify-center shrink-0"
+                      title="تسوية فروقات جردية أو إهلاك تالف"
+                    >
+                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" /></svg>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }

@@ -68,3 +68,101 @@ textarea:focus {
   border-color: rgba(168, 85, 247, 0.6) !important;
   box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.2) !important;
 }
+
+/* 8. Production Floor Live Keyframe Animations */
+@keyframes scissor-snip {
+  0%, 100% {
+    transform: rotate(0deg) scale(1);
+  }
+  20% {
+    transform: rotate(-18deg) scale(1.12);
+  }
+  40% {
+    transform: rotate(0deg) scale(1);
+  }
+  60% {
+    transform: rotate(18deg) scale(1.12);
+  }
+  80% {
+    transform: rotate(0deg) scale(1);
+  }
+}
+.animate-scissor {
+  animation: scissor-snip 1.6s ease-in-out infinite !important;
+  transform-origin: center center;
+  display: inline-block;
+}
+
+@keyframes sewing-glow {
+  0%, 100% {
+    transform: translateY(0) scale(1);
+    filter: drop-shadow(0 0 1px rgba(20, 184, 166, 0.4));
+  }
+  50% {
+    transform: translateY(-2px) scale(1.15);
+    filter: drop-shadow(0 0 6px rgba(20, 184, 166, 0.9));
+  }
+}
+.animate-sewing {
+  animation: sewing-glow 2s ease-in-out infinite !important;
+  display: inline-block;
+}
+
+@keyframes embroidery-sparkle {
+  0%, 100% {
+    transform: rotate(0deg) scale(1);
+    filter: drop-shadow(0 0 1px rgba(99, 102, 241, 0.4));
+  }
+  50% {
+    transform: rotate(45deg) scale(1.2);
+    filter: drop-shadow(0 0 8px rgba(129, 140, 248, 0.95));
+  }
+}
+.animate-embroidery {
+  animation: embroidery-sparkle 2.2s cubic-bezier(0.4, 0, 0.2, 1) infinite !important;
+  display: inline-block;
+}
+
+@keyframes ready-bounce {
+  0%, 100% {
+    transform: translateY(0) scale(1);
+    filter: drop-shadow(0 0 2px rgba(16, 185, 129, 0.4));
+  }
+  50% {
+    transform: translateY(-3px) scale(1.18);
+    filter: drop-shadow(0 0 7px rgba(52, 211, 153, 0.95));
+  }
+}
+.animate-ready {
+  animation: ready-bounce 1.8s ease-in-out infinite !important;
+  display: inline-block;
+}
+
+@keyframes finisher-pulse {
+  0%, 100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 1px rgba(14, 165, 233, 0.4));
+  }
+  50% {
+    transform: scale(1.18);
+    filter: drop-shadow(0 0 6px rgba(56, 189, 248, 0.9));
+  }
+}
+.animate-finisher {
+  animation: finisher-pulse 1.8s ease-in-out infinite !important;
+  display: inline-block;
+}
+
+@keyframes shimmer-slide {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+.shimmer-bar {
+  background-size: 200% 100% !important;
+  animation: shimmer-slide 2.5s linear infinite !important;
+}
+

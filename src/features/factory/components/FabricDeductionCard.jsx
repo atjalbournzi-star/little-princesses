@@ -4,7 +4,7 @@
  */
 
 function FabricDeductionCard({
-  form,
+  form = {},
   setForm,
   fabricInventory = [],
   customers = []

@@ -86,13 +86,42 @@ function usePurchasesData({ purchases, setPurchases, headerData, setHeaderData }
 
   // ── حالات البحث والفلترة لسجل المشتريات ──
   const [search, setSearch] = useState('');
-  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [payTypeFilter, setPayTypeFilter] = useState('الكل');
+  const [sortBy, setSortBy] = useState('latest');
+  const [isHistoryOpen, setIsHistoryOpen] = useState(true);
+
+  // إحصائيات المؤشرات القياسية لشريط الهيدر (KPI Metrics)
+  const stats = useMemo(() => {
+    const list = Array.isArray(purchases) ? purchases : [];
+    let totalYER = 0, cashYER = 0, creditYER = 0;
+    list.forEach(p => {
+      if (!p || typeof p !== 'object') return;
+      const isForeign = p.currency && p.currency !== 'YER' && !String(p.currency).includes('YER');
+      const rate = parseFloat(p.exchange_rate) || (p.currency === 'SAR' ? 142 : (p.currency === 'USD' ? 535 : 1));
+      const tot = parseFloat(p.grand_total_yer || p.total_amount_yer || p.total || 0) || 0;
+      const amountYER = tot > 0 ? (tot <= 1000 && isForeign ? tot * rate : tot) : 0;
+      totalYER += amountYER;
+      if (p.pay_type === 'آجل') {
+        creditYER += amountYER;
+      } else {
+        cashYER += amountYER;
+      }
+    });
+    return {
+      totalInvoices: list.length,
+      totalAmountYER: totalYER,
+      cashYER,
+      creditYER,
+      currencyDisplay: 'YER ﷼'
+    };
+  }, [purchases]);
 
   const filteredPurchases = useMemo(() => {
     const list = Array.isArray(purchases) ? purchases : [];
     const q = String(search || '').trim().toLowerCase();
-    return list.filter(p => {
+    let res = list.filter(p => {
       if (!p || typeof p !== 'object') return false;
+      if (payTypeFilter && payTypeFilter !== 'الكل' && p.pay_type !== payTypeFilter) return false;
       const itemName = String(p.fabric_name || p.item || p.item_name || '');
       const billNo = String(p.bill_no || p.purchase_no || '');
       const supplier = String(p.supplier || p.supplier_name || '');
@@ -103,7 +132,18 @@ function usePurchasesData({ purchases, setPurchases, headerData, setHeaderData }
         itemName.toLowerCase().includes(q) ||
         transferNo.toLowerCase().includes(q);
     });
-  }, [purchases, search]);
+
+    if (sortBy === 'oldest') {
+      res = [...res].sort((a, b) => new Date(a.date || a.created_at || 0) - new Date(b.date || b.created_at || 0));
+    } else if (sortBy === 'amount_desc') {
+      res = [...res].sort((a, b) => (parseFloat(b.grand_total_yer || b.total || 0) - parseFloat(a.grand_total_yer || a.total || 0)));
+    } else if (sortBy === 'amount_asc') {
+      res = [...res].sort((a, b) => (parseFloat(a.grand_total_yer || a.total || 0) - parseFloat(b.grand_total_yer || b.total || 0)));
+    } else if (sortBy === 'supplier') {
+      res = [...res].sort((a, b) => String(a.supplier || a.supplier_name || '').localeCompare(String(b.supplier || b.supplier_name || '')));
+    }
+    return res;
+  }, [purchases, search, payTypeFilter, sortBy]);
 
   return {
     suppliers,
@@ -120,9 +160,14 @@ function usePurchasesData({ purchases, setPurchases, headerData, setHeaderData }
     selectedSupplierObj,
     search,
     setSearch,
+    payTypeFilter,
+    setPayTypeFilter,
+    sortBy,
+    setSortBy,
     isHistoryOpen,
     setIsHistoryOpen,
-    filteredPurchases
+    filteredPurchases,
+    stats
   };
 }
 

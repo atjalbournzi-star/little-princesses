@@ -68,7 +68,7 @@ function AppRouter({
 
   const DashboardComponent = getComp('Dashboard');
   const CustomersComponent = getComp('Customers');
-  const ProductsComponent  = getComp('Products');
+  const ProductsComponent  = getComp('Products', 'ProductsComponent');
   const OrdersComponent    = getComp('Orders');
   const PurchasesComponent = getComp('Purchases');
   const InventoryComponent = getComp('Inventory');

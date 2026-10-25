@@ -6,7 +6,7 @@
 const { useState: useStageState, useEffect: useStageEffect } = React;
 
 function StageWagesMatrix({
-  form,
+  form = {},
   setForm,
   employees = [],
   handleStageEmpChange,

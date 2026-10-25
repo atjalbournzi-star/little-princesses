@@ -46,63 +46,65 @@ function Inventory({ inventory = [], setInventory, purchases = [], orders = [], 
   });
 
   return (
-    <div className="space-y-6 animate-fadeIn text-right" dir="rtl">
-      {/* 1. ترويسة المخزون وبطاقات المؤشرات العليا */}
+    <div className="space-y-1 animate-fadeIn text-right" dir="rtl">
+      {/* 1. ترويسة المخزون وبطاقات المؤشرات العليا المدمجة */}
       {HeaderComp && (
         <HeaderComp
           stats={data.stats}
           onOpenAdd={() => actions.setIsAddModalOpen(true)}
           onReconcile={actions.handleReconcileGovernance}
-          onRefresh={data.refreshInventory}
-          isRefreshing={data.isRefreshing}
           onOpenTransfer={() => actions.openTransferModal(inventory[0] || null)}
           onOpenAddWarehouse={() => actions.setIsAddWarehouseOpen(true)}
           onOpenManageWarehouses={() => setIsManageWarehouseOpen(true)}
         />
       )}
 
-      {/* 2. شريط التبويبات والبحث والتصفية */}
-      {FilterBarComp && (
-        <FilterBarComp
-          activeTab={data.activeTab}
-          setActiveTab={data.setActiveTab}
-          search={data.search}
-          setSearch={data.setSearch}
-          categoryFilter={data.categoryFilter}
-          setCategoryFilter={data.setCategoryFilter}
-          warehouseFilter={data.warehouseFilter}
-          setWarehouseFilter={data.setWarehouseFilter}
-          stockAlertFilter={data.stockAlertFilter}
-          setStockAlertFilter={data.setStockAlertFilter}
-          counts={{
-            fabricsCount: (inventory || []).filter(i => !(window.inventoryUtils?.isReadyDressItem?.(i))).length,
-            readyDressesCount: (inventory || []).filter(i => window.inventoryUtils?.isReadyDressItem?.(i)).length,
-            purchasesCount: (purchases || []).length,
-            txnsCount: (data.transactions || []).length
-          }}
-        />
-      )}
+      {/* 2. حاوية الفلاتر والجدول المتطابقة مع الهوية البصرية لشاشة السندات */}
+      <div className="bg-white dark:bg-[#111C38] rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden p-2 space-y-1.5">
+        {FilterBarComp && (
+          <FilterBarComp
+            activeTab={data.activeTab}
+            setActiveTab={data.setActiveTab}
+            search={data.search}
+            setSearch={data.setSearch}
+            categoryFilter={data.categoryFilter}
+            setCategoryFilter={data.setCategoryFilter}
+            warehouseFilter={data.warehouseFilter}
+            setWarehouseFilter={data.setWarehouseFilter}
+            stockAlertFilter={data.stockAlertFilter}
+            setStockAlertFilter={data.setStockAlertFilter}
+            onRefresh={data.refreshInventory}
+            isRefreshing={data.isRefreshing}
+            counts={{
+              fabricsCount: (inventory || []).filter(i => !(window.inventoryUtils?.isReadyDressItem?.(i))).length,
+              readyDressesCount: (inventory || []).filter(i => window.inventoryUtils?.isReadyDressItem?.(i)).length,
+              purchasesCount: (purchases || []).length,
+              txnsCount: (data.transactions || []).length
+            }}
+          />
+        )}
 
-      {/* 3. استعراض التبويب النشط */}
-      {(data.activeTab === 'stock' || data.activeTab === 'ready_dresses') && TableComp && (
-        <TableComp
-          items={data.filteredInventory}
-          activeCurrDef={data.activeCurrDef}
-          isBaseCurrency={data.isBaseCurrency}
-          activeTargetCurr={data.activeTargetCurr}
-          onOpenAdjust={actions.openAdjustModal}
-          onOpenTransfer={actions.openTransferModal}
-          onOpenMovements={actions.setSelectedItemForMovements}
-        />
-      )}
+        {/* 3. استعراض التبويب النشط */}
+        {(data.activeTab === 'stock' || data.activeTab === 'ready_dresses') && TableComp && (
+          <TableComp
+            items={data.filteredInventory}
+            activeCurrDef={data.activeCurrDef}
+            isBaseCurrency={data.isBaseCurrency}
+            activeTargetCurr={data.activeTargetCurr}
+            onOpenAdjust={actions.openAdjustModal}
+            onOpenTransfer={actions.openTransferModal}
+            onOpenMovements={actions.setSelectedItemForMovements}
+          />
+        )}
 
-      {data.activeTab === 'purchases' && PurchasesTableComp && (
-        <PurchasesTableComp purchases={data.filteredPurchases} currencyDisplay={data.currencyDisplay} />
-      )}
+        {data.activeTab === 'purchases' && PurchasesTableComp && (
+          <PurchasesTableComp purchases={data.filteredPurchases} currencyDisplay={data.currencyDisplay} />
+        )}
 
-      {data.activeTab === 'movements' && MovementsTableComp && (
-        <MovementsTableComp transactions={data.filteredTransactions} />
-      )}
+        {data.activeTab === 'movements' && MovementsTableComp && (
+          <MovementsTableComp transactions={data.filteredTransactions} />
+        )}
+      </div>
 
       {/* 4. النوافذ المنبثقة التفاعلية */}
       {AddItemModalComp && (

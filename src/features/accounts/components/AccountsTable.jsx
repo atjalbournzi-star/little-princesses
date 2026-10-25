@@ -2,11 +2,10 @@
 // يعتمد على: cleanCode (accountHelpers.js)
 
 function AccountsTable({
-  accountsWithRollupBalances,
-  isBaseCurrency, activeTargetCurr, currDef,
+  accountsWithRollupBalances = [],
+  isBaseCurrency, activeTargetCurr, currDef = { display: 'YER ﷼', decimals: 0 },
   onOpenEditModal, onToggleStatus, onDeleteAccount, onViewDetail
 }) {
-  // نعرض فقط حسابات الحركة (غير التجميعية) في الجدول بصورة افتراضية
   const postingAccounts = accountsWithRollupBalances.filter(a => !a.hasChildren);
 
   const fmt = (val) => {
@@ -17,132 +16,165 @@ function AccountsTable({
     });
   };
 
+  const typeBadgeClass = (t) => {
+    switch (t) {
+      case 'أصول': return 'bg-cyan-950/40 text-cyan-300 border-cyan-800/50';
+      case 'خصوم': return 'bg-amber-950/40 text-amber-300 border-amber-800/50';
+      case 'حقوق ملكية': return 'bg-pink-950/40 text-pink-300 border-pink-800/50';
+      case 'إيرادات': return 'bg-emerald-950/40 text-emerald-300 border-emerald-800/50';
+      default: return 'bg-rose-950/40 text-rose-300 border-rose-800/50';
+    }
+  };
+
   if (postingAccounts.length === 0) {
     return (
-      <div className="bg-white dark:bg-[#1E1B24] rounded-2xl p-8 shadow-[0_2px_12px_rgba(0,0,0,0.02)] border border-[#E8E5EA] dark:border-[#2D2A36] text-center text-[#6F6B75] dark:text-[#9E9AA5]">
-        <p className="text-3xl mb-2">📋</p>
-        <p className="text-sm font-bold">لا توجد حسابات حركة لعرضها في الجدول</p>
+      <div className="bg-[#111C38] rounded-xl p-8 border border-slate-800 text-center text-slate-400">
+        <svg className="w-8 h-8 mx-auto mb-2 text-slate-500 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+        <p className="text-xs font-bold text-slate-300">لا توجد حسابات حركة لعرضها في الجدول</p>
       </div>
     );
   }
 
   return (
-    <div className="bg-white dark:bg-[#1E1B24] rounded-2xl shadow-[0_2px_12px_rgba(0,0,0,0.02)] border border-[#E8E5EA] dark:border-[#2D2A36] overflow-hidden">
-      <div className="p-4 border-b border-[#E8E5EA] dark:border-[#2D2A36] flex items-center justify-between bg-[#FAFAFB] dark:bg-[#25222E]">
-        <h3 className="text-sm font-bold text-[#25232A] dark:text-[#F3F0F7]">📋 قائمة الحسابات الجدولية (حسابات الحركة)</h3>
-        <span className="text-[11px] text-[#6F6B75] dark:text-[#9E9AA5] font-medium font-mono tabular-nums">{postingAccounts.length} حساب</span>
+    <div className="bg-[#111C38] rounded-xl border border-slate-800 shadow-md overflow-hidden">
+      <div className="p-2 px-3 border-b border-slate-800 flex items-center justify-between bg-[#0F172A]">
+        <div className="flex items-center gap-2">
+          <svg className="w-4 h-4 text-pink-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M3 14h18m-9-4v8m-7 4h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+          <h3 className="text-[13px] font-bold text-white">قائمة الحسابات الجدولية (حسابات الحركة)</h3>
+        </div>
+        <span className="text-xs bg-slate-900 border border-slate-600 text-pink-200 px-2.5 py-0.5 rounded font-mono font-bold tabular-nums">
+          {postingAccounts.length} حساب
+        </span>
       </div>
 
       <div className="overflow-x-auto">
         <table className="w-full text-right text-xs">
           <thead>
-            <tr className="bg-[#FAFAFB] dark:bg-[#25222E] border-b border-[#E8E5EA] dark:border-[#2D2A36]">
-              <th className="p-3 text-[#6F6B75] dark:text-[#9E9AA5] font-bold">كود الحساب</th>
-              <th className="p-3 text-[#6F6B75] dark:text-[#9E9AA5] font-bold">اسم الحساب</th>
-              <th className="p-3 text-[#6F6B75] dark:text-[#9E9AA5] font-bold">النوع</th>
-              <th className="p-3 text-[#6F6B75] dark:text-[#9E9AA5] font-bold">الطبيعة</th>
-              <th className="p-3 text-[#6F6B75] dark:text-[#9E9AA5] font-bold text-left">إجمالي المدين</th>
-              <th className="p-3 text-[#6F6B75] dark:text-[#9E9AA5] font-bold text-left">إجمالي الدائن</th>
-              <th className="p-3 text-[#6F6B75] dark:text-[#9E9AA5] font-bold text-left">الرصيد الحالي ({activeTargetCurr})</th>
-              <th className="p-3 text-[#6F6B75] dark:text-[#9E9AA5] font-bold text-center">الحالة</th>
-              <th className="p-3 text-[#6F6B75] dark:text-[#9E9AA5] font-bold text-center">إجراءات</th>
+            <tr className="bg-[#0F172A] border-b border-slate-700 text-slate-200 text-xs font-bold">
+              <th className="py-2 px-3">كود الحساب</th>
+              <th className="py-2 px-3">اسم الحساب</th>
+              <th className="py-2 px-3">النوع</th>
+              <th className="py-2 px-3">الطبيعة</th>
+              <th className="py-2 px-3 text-left">إجمالي المدين</th>
+              <th className="py-2 px-3 text-left">إجمالي الدائن</th>
+              <th className="py-2 px-3 text-left">الرصيد الحالي ({activeTargetCurr})</th>
+              <th className="py-2 px-3 text-center">الحالة</th>
+              <th className="py-2 px-3 text-center">إجراءات</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-slate-800/60">
             {postingAccounts.map((acc, idx) => {
               const balance = parseFloat(acc.balance) || 0;
               const totalDebit = parseFloat(acc.total_debit) || 0;
               const totalCredit = parseFloat(acc.total_credit) || 0;
-              const presentBalance = isBaseCurrency
-                ? balance
-                : (window.CurrencyService ? window.CurrencyService.fromBase(balance, activeTargetCurr) : balance);
               const isCredit = acc.nature === 'credit';
+              const cannotDelete = Math.abs(balance) > 0.001 || acc.hasChildren;
 
               return (
                 <tr key={acc.id || acc.code || idx}
-                  className={`border-b border-[#E8E5EA] dark:border-[#2D2A36] hover:bg-[#FAFAFB] dark:hover:bg-[#25222E] transition ${acc.is_active === 0 ? 'opacity-50' : ''}`}>
+                  className={`hover:bg-slate-800/40 transition-colors h-7.5 ${acc.is_active === 0 ? 'opacity-50' : ''}`}>
 
-                  <td className="p-3">
-                    <span className="font-mono bg-[#F2E7F3]/70 dark:bg-[#38203B]/60 text-[#8F2A87] dark:text-[#E5CEE7] px-2 py-0.5 rounded-md text-[11px] font-bold tabular-nums">
+                  <td className="py-1.5 px-3">
+                    <span className="font-mono bg-slate-900 text-pink-300 border border-slate-600 px-1.5 py-0.5 rounded text-[11px] font-extrabold tabular-nums">
                       {acc.code}
                     </span>
                   </td>
 
-                  <td className="p-3">
-                    <span className="font-medium text-[#25232A] dark:text-[#E2DFE7] text-xs">{acc.name}</span>
+                  <td className="py-1.5 px-3">
+                    <span className="font-semibold text-white text-[12.5px]">{acc.name}</span>
                     {acc.name_en && (
-                      <span className="block text-[10px] text-[#6F6B75] dark:text-[#9E9AA5] font-mono">{acc.name_en}</span>
+                      <span className="block text-[10.5px] text-slate-300 font-mono font-medium">{acc.name_en}</span>
                     )}
                   </td>
 
-                  <td className="p-3">
-                    <span className={`text-[10px] px-2 py-0.5 rounded-md font-bold ${
-                      acc.account_type === 'أصول' ? 'bg-[#E2F5F7]/70 dark:bg-[#1B3439]/60 text-[#007F8C] dark:text-[#80D2DB]' :
-                      acc.account_type === 'خصوم' ? 'bg-[#FFF1DC]/70 dark:bg-[#3A2D1B]/60 text-[#C97300] dark:text-[#E5A548]' :
-                      acc.account_type === 'حقوق ملكية' ? 'bg-[#F2E7F3]/70 dark:bg-[#38203B]/60 text-[#8F2A87] dark:text-[#E5CEE7]' :
-                      acc.account_type === 'إيرادات' ? 'bg-[#E2F5F7]/70 dark:bg-[#1B3439]/60 text-[#007F8C] dark:text-[#80D2DB]' :
-                      'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300'
-                    }`}>
+                  <td className="py-1.5 px-3">
+                    <span className={`text-[10px] px-2 py-0.5 rounded-md border font-bold ${typeBadgeClass(acc.account_type)}`}>
                       {acc.account_type}
                     </span>
                   </td>
 
-                  <td className="p-3">
-                    <span className={`text-[10px] px-2 py-0.5 rounded-md font-bold ${isCredit ? 'bg-[#F2E7F3]/70 dark:bg-[#38203B]/60 text-[#8F2A87] dark:text-[#E5CEE7]' : 'bg-[#E2F5F7]/70 dark:bg-[#1B3439]/60 text-[#007F8C] dark:text-[#80D2DB]'}`}>
+                  <td className="py-1.5 px-3">
+                    <span className={`text-[10px] px-2 py-0.5 rounded-md border font-bold ${
+                      isCredit ? 'bg-purple-950/70 text-purple-300 border-purple-600/60' : 'bg-cyan-950/70 text-cyan-300 border-cyan-600/60'
+                    }`}>
                       {isCredit ? 'دائن' : 'مدين'}
                     </span>
                   </td>
 
-                  <td className="p-3 text-left font-mono tabular-nums text-[#007F8C] dark:text-[#80D2DB] font-bold text-[11px]">
+                  <td className="py-1.5 px-3 text-left font-mono tabular-nums text-cyan-300 font-bold text-xs">
                     {fmt(totalDebit)}
-                    <span className="text-[9px] text-[#6F6B75] dark:text-[#9E9AA5] font-normal mr-1">YER</span>
+                    <span className="text-[10px] text-slate-200 font-bold mr-1">YER</span>
                   </td>
 
-                  <td className="p-3 text-left font-mono tabular-nums text-[#8F2A87] dark:text-[#E5CEE7] font-bold text-[11px]">
+                  <td className="py-1.5 px-3 text-left font-mono tabular-nums text-purple-300 font-bold text-xs">
                     {fmt(totalCredit)}
-                    <span className="text-[9px] text-[#6F6B75] dark:text-[#9E9AA5] font-normal mr-1">YER</span>
+                    <span className="text-[10px] text-slate-200 font-bold mr-1">YER</span>
                   </td>
 
-                  <td className="p-3 text-left font-mono tabular-nums">
-                    <span className={`font-extrabold text-[11px] ${presentBalance > 0 ? 'text-[#007F8C] dark:text-[#80D2DB]' : presentBalance < 0 ? 'text-[#D64545] dark:text-rose-400' : 'text-[#6F6B75] dark:text-[#9E9AA5]'}`}>
+                  <td className="py-1.5 px-3 text-left font-mono tabular-nums">
+                    <span className={`font-extrabold text-[12.5px] ${
+                      balance > 0 ? 'text-white' : balance < 0 ? 'text-rose-300' : 'text-slate-300'
+                    }`}>
                       {fmt(balance)}
                     </span>
-                    <span className="text-[9px] text-[#6F6B75] dark:text-[#9E9AA5] font-normal mr-1">{currDef.display}</span>
+                    <span className="text-[10.5px] text-slate-200 font-bold mr-1">{currDef.display}</span>
                   </td>
 
-                  <td className="p-3 text-center">
-                    <span className={`text-[10px] px-2 py-0.5 rounded-md font-bold ${acc.is_active === 1 ? 'bg-[#E2F5F7]/70 dark:bg-[#1B3439]/60 text-[#007F8C] dark:text-[#80D2DB]' : 'bg-rose-50 dark:bg-rose-950/40 text-[#D64545] dark:text-rose-300'}`}>
+                  <td className="py-1.5 px-3 text-center">
+                    <span className={`text-[10px] px-2 py-0.5 rounded-md border font-bold ${
+                      acc.is_active === 1 ? 'bg-emerald-950/70 text-emerald-300 border-emerald-600/60' : 'bg-rose-950/70 text-rose-300 border-rose-600/60'
+                    }`}>
                       {acc.is_active === 1 ? 'نشط' : 'معطل'}
                     </span>
                   </td>
 
-                  <td className="p-3">
+                  <td className="py-1.5 px-3">
                     <div className="flex items-center justify-center gap-1">
                       <button onClick={() => onViewDetail(acc)} title="عرض التفاصيل"
-                        className="w-6 h-6 bg-[#E2F5F7]/70 dark:bg-[#1B3439]/50 hover:bg-[#C5ECF0] text-[#007F8C] dark:text-[#80D2DB] rounded-lg text-[10px] flex items-center justify-center cursor-pointer transition">👁️</button>
-                      <button onClick={() => onOpenEditModal(acc)} title="تعديل"
-                        className="w-6 h-6 bg-[#FAFAFB] dark:bg-[#25222E] hover:bg-[#E8E5EA] text-[#25232A] dark:text-[#E2DFE7] rounded-lg text-[10px] border border-[#E8E5EA] dark:border-[#2D2A36] flex items-center justify-center cursor-pointer transition">✏️</button>
-                      <button onClick={() => onToggleStatus(acc)} title={acc.is_active === 1 ? 'تعطيل' : 'تفعيل'}
-                        className={`w-6 h-6 rounded-lg text-[10px] flex items-center justify-center cursor-pointer transition ${acc.is_active === 1 ? 'bg-[#FFF1DC]/70 dark:bg-[#3A2D1B]/50 hover:bg-[#FFE4B9] text-[#C97300] dark:text-[#E5A548]' : 'bg-[#E2F5F7]/70 dark:bg-[#1B3439]/50 text-[#007F8C] dark:text-[#80D2DB]'}`}>
-                        {acc.is_active === 1 ? '🚫' : '✅'}
+                        className="w-5.5 h-5.5 rounded bg-slate-900 border border-slate-700/80 hover:border-cyan-500/60 hover:text-cyan-300 text-slate-400 flex items-center justify-center transition cursor-pointer">
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
                       </button>
-                      {(() => {
-                        const cannotDelete = Math.abs(parseFloat(acc.balance) || 0) > 0.001 || acc.hasChildren;
-                        return (
-                          <button
-                            onClick={() => !cannotDelete && onDeleteAccount(acc)}
-                            disabled={cannotDelete}
-                            title={cannotDelete ? "لا يمكن حذف حساب يحتوي على رصيد مالي" : "حذف"}
-                            className={`w-6 h-6 rounded-lg text-[10px] flex items-center justify-center transition ${
-                              cannotDelete
-                                ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 opacity-40 cursor-not-allowed border border-gray-200 dark:border-gray-700'
-                                : 'bg-rose-50 dark:bg-rose-950/30 hover:bg-rose-100 text-[#D64545] dark:text-rose-400 border border-rose-200 dark:border-rose-900/50 cursor-pointer'
-                            }`}
-                          >
-                            🗑️
-                          </button>
-                        );
-                      })()}
+                      <button onClick={() => onOpenEditModal(acc)} title="تعديل"
+                        className="w-5.5 h-5.5 rounded bg-slate-900 border border-slate-700/80 hover:border-pink-500/60 hover:text-pink-300 text-slate-400 flex items-center justify-center transition cursor-pointer">
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                        </svg>
+                      </button>
+                      <button onClick={() => onToggleStatus(acc)} title={acc.is_active === 1 ? 'تعطيل' : 'تفعيل'}
+                        className={`w-5.5 h-5.5 rounded bg-slate-900 border border-slate-700/80 flex items-center justify-center transition cursor-pointer ${
+                          acc.is_active === 1 ? 'hover:border-amber-500/60 hover:text-amber-300 text-slate-400' : 'hover:border-emerald-500/60 hover:text-emerald-300 text-emerald-400'
+                        }`}>
+                        {acc.is_active === 1 ? (
+                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                          </svg>
+                        ) : (
+                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </button>
+                      <button
+                        onClick={() => !cannotDelete && onDeleteAccount(acc)}
+                        disabled={cannotDelete}
+                        title={cannotDelete ? "لا يمكن حذف حساب يحتوي على رصيد مالي أو حسابات فرعية" : "حذف"}
+                        className={`w-5.5 h-5.5 rounded border flex items-center justify-center transition ${
+                          cannotDelete
+                            ? 'bg-slate-950/40 text-slate-600 border-slate-800/80 cursor-not-allowed opacity-40'
+                            : 'bg-slate-900 border-slate-700/80 hover:border-rose-500/60 hover:text-rose-400 text-slate-400 cursor-pointer'
+                        }`}
+                      >
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -156,4 +188,3 @@ function AccountsTable({
 }
 
 window.AccountsTable = AccountsTable;
-

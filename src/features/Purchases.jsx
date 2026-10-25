@@ -1,9 +1,25 @@
+// src/features/Purchases.jsx
+// المنسق العام والمجمع الرئيسي لوحدة إدارة المشتريات والموردين (Purchases Orchestrator)
+
 const { useState, useMemo } = React;
 
-function Purchases({ purchases = [], setPurchases, inventory = [], setInventory, accounts = [], setAccounts, vouchers = [], setVouchers, journal = [], setJournal, showToast, currency }) {
+function Purchases({
+  purchases = [],
+  setPurchases,
+  inventory = [],
+  setInventory,
+  accounts = [],
+  setAccounts,
+  vouchers = [],
+  setVouchers,
+  journal = [],
+  setJournal,
+  showToast,
+  currency
+}) {
   const UNITS = ['متر', 'وار (ياردة)', 'سم', 'حبة (قطعة)', 'رول (طاقة)'];
-  const inputCls = "w-full h-11 px-3.5 py-2.5 rounded-xl border border-[#E8E5EA] bg-white text-[#25232A] text-xs font-medium placeholder:text-[#6F6B75] focus:bg-white focus:border-[#8F2A87] focus:ring-2 focus:ring-[#F2E7F3] transition-all outline-none";
-  const labelCls = "block text-xs font-semibold text-[#25232A] mb-1.5";
+  const inputCls = "w-full h-8 px-2.5 rounded-lg border border-slate-700 bg-slate-900 text-white text-xs font-medium focus:border-pink-500 outline-none transition";
+  const labelCls = "block text-[11px] font-medium text-slate-300 mb-1";
 
   const defaultCurrency = (typeof CURRENCIES !== 'undefined' ? (typeof CURRENCIES[0] === 'object' ? CURRENCIES[0].value : CURRENCIES[0]) : (window.CURRENCIES ? window.CURRENCIES[0] : 'YER ﷼'));
   const defaultPayType = (typeof PAY_METHODS !== 'undefined' ? PAY_METHODS[0] : (window.PAY_METHODS ? window.PAY_METHODS[0] : 'نقدي'));
@@ -29,27 +45,33 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
   };
   const emptyItem = () => ({ item: '', unit: 'متر', qty: '', price: '', total: '' });
 
-  const [headerData, setHeaderData] = useState(emptyHeader), [itemData, setItemData] = useState(emptyItem), [editingIndex, setEditingIndex] = useState(null);
-  const [billItems, setBillItems] = useState([]), [previewImage, setPreviewImage] = useState(null), [previewTitle, setPreviewTitle] = useState('صورة المرفق');
-  const [editRecord, setEditRecord] = useState(null), [showQuickAddSupplier, setShowQuickAddSupplier] = useState(false);
+  const [headerData, setHeaderData] = useState(emptyHeader);
+  const [itemData, setItemData] = useState(emptyItem);
+  const [editingIndex, setEditingIndex] = useState(null);
+  const [billItems, setBillItems] = useState([]);
+  const [previewImage, setPreviewImage] = useState(null);
+  const [previewTitle, setPreviewTitle] = useState('صورة المرفق');
+  const [editRecord, setEditRecord] = useState(null);
+  const [showQuickAddSupplier, setShowQuickAddSupplier] = useState(false);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
   // Subcomponents & Hooks
   const useData = window.usePurchasesData || (() => ({}));
   const useActions = window.usePurchaseActions || (() => ({}));
   const {
-    SupplierQuickAddModal: QuickAddModal,
-    PurchaseItemsTable: ItemsTable,
-    PurchaseModal: ModalComponent,
-    PurchasesFilterBar: FilterBar,
-    PurchasesTable: DataTable,
-    PurchaseHeaderForm: HeaderForm
+    PurchasesHeader: HeaderComp,
+    PurchasesFilterBar: FilterBarComp,
+    PurchasesTable: TableComp,
+    PurchaseInvoiceModal: InvoiceModalComp,
+    PurchaseModal: ModalComp,
+    SupplierQuickAddModal: QuickAddModalComp
   } = window;
 
   const {
     suppliers, setSuppliers, isLoadingSuppliers, supplierSearch, setSupplierSearch,
     isSupplierDropdownOpen, setIsSupplierDropdownOpen, supplierDropdownRef, fetchSuppliers,
     handleSelectSupplier, filteredSuppliersList, selectedSupplierObj,
-    search, setSearch, isHistoryOpen, setIsHistoryOpen, filteredPurchases
+    search, setSearch, payTypeFilter, setPayTypeFilter, sortBy, setSortBy, filteredPurchases, stats
   } = useData({ purchases, setPurchases, headerData, setHeaderData });
 
   const rawItemsSum = (billItems || []).reduce((sum, item) => {
@@ -69,9 +91,9 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
   });
 
   const handleOpenEdit = (p) => {
-    const VALID_UNITS_CHECK = ['متر', 'وار (ياردة)', 'سم', 'حبة (قطعة)', 'رول (طاقة)', 'يارده', 'وار'];
+    const VALID_UNITS = ['متر', 'وار (ياردة)', 'سم', 'حبة (قطعة)', 'رول (طاقة)', 'يارده', 'وار'];
     let rawUnit = p.unit, rawQty = p.qty, rawPrice = p.price, rawTotal = p.total;
-    if (rawUnit !== undefined && rawUnit !== '' && !isNaN(parseFloat(rawUnit)) && !VALID_UNITS_CHECK.includes(String(rawUnit))) {
+    if (rawUnit !== undefined && rawUnit !== '' && !isNaN(parseFloat(rawUnit)) && !VALID_UNITS.includes(String(rawUnit))) {
       rawQty = parseFloat(rawUnit); rawPrice = parseFloat(p.qty) || 0; rawTotal = parseFloat(p.price) || 0; rawUnit = 'متر';
     }
     setEditRecord({
@@ -92,76 +114,83 @@ function Purchases({ purchases = [], setPurchases, inventory = [], setInventory,
   };
 
   return (
-    <div className="space-y-6 animate-fadeIn text-xs text-right" dir="rtl">
-      {ModalComponent && (
-        <ModalComponent
-          editRecord={editRecord} setEditRecord={setEditRecord} editSaving={editSaving}
-          handleSaveEditRecord={handleSaveEditRecord} accounts={accounts} previewImage={previewImage}
-          setPreviewImage={setPreviewImage} previewTitle={previewTitle} setPreviewTitle={setPreviewTitle}
+    <div className="space-y-1 animate-fadeIn text-right text-xs" dir="rtl">
+      {/* 1. ترويسة المشتريات وبطاقات المؤشرات العليا */}
+      {HeaderComp && (
+        <HeaderComp
+          stats={stats}
+          onOpenAdd={() => setIsAddModalOpen(true)}
+        />
+      )}
+
+      {/* 2. سجل المشتريات والفلاتر متطابق مع معيار شاشة السندات */}
+      <div className="bg-white dark:bg-[#111C38] rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden p-2 space-y-1.5">
+        {FilterBarComp && (
+          <FilterBarComp
+            search={search}
+            setSearch={setSearch}
+            payTypeFilter={payTypeFilter}
+            setPayTypeFilter={setPayTypeFilter}
+            sortBy={sortBy}
+            setSortBy={setSortBy}
+            filteredPurchasesCount={filteredPurchases.length}
+            totalCount={purchases.length}
+          />
+        )}
+
+        {TableComp && (
+          <TableComp
+            filteredPurchases={filteredPurchases}
+            handleOpenEdit={handleOpenEdit}
+            handleDeleteRecord={handleDeleteRecord}
+            setPreviewImage={setPreviewImage}
+            setPreviewTitle={setPreviewTitle}
+          />
+        )}
+      </div>
+
+      {/* 4. نافذة إصدار فاتورة مشتريات وتوريد جديدة (Invoice Modal) */}
+      {InvoiceModalComp && isAddModalOpen && (
+        <InvoiceModalComp
+          isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)}
+          headerData={headerData} setHeaderData={setHeaderData} genBillNo={genBillNo}
+          setShowQuickAddSupplier={setShowQuickAddSupplier} supplierDropdownRef={supplierDropdownRef}
+          supplierSearch={supplierSearch} setSupplierSearch={setSupplierSearch}
+          isSupplierDropdownOpen={isSupplierDropdownOpen} setIsSupplierDropdownOpen={setIsSupplierDropdownOpen}
+          isLoadingSuppliers={isLoadingSuppliers} filteredSuppliersList={filteredSuppliersList}
+          handleSelectSupplier={handleSelectSupplier} selectedSupplierObj={selectedSupplierObj}
+          accounts={accounts} handleFileUpload={handleFileUpload}
+          setPreviewImage={setPreviewImage} setPreviewTitle={setPreviewTitle}
+          itemData={itemData} setItemData={setItemData} emptyItem={emptyItem}
+          editingIndex={editingIndex} setEditingIndex={setEditingIndex}
+          billItems={billItems} setBillItems={setBillItems}
+          rawItemsSum={rawItemsSum} grandTotal={grandTotal}
+          isSaving={isSaving} handleSaveFullBill={handleSaveFullBill}
           showToast={showToast} UNITS={UNITS} inputCls={inputCls} labelCls={labelCls}
         />
       )}
 
-      {QuickAddModal && (
-        <QuickAddModal
-          show={showQuickAddSupplier} onClose={() => setShowQuickAddSupplier(false)} initialName={supplierSearch}
-          suppliers={suppliers} setSuppliers={setSuppliers} setHeaderData={setHeaderData}
-          setSupplierSearch={setSupplierSearch} setIsSupplierDropdownOpen={setIsSupplierDropdownOpen}
-          fetchSuppliers={fetchSuppliers} showToast={showToast} inputCls={inputCls} labelCls={labelCls}
+      {/* 5. نافذة تعديل سجل مشتريات ومعاينة الصور */}
+      {ModalComp && (
+        <ModalComp
+          editRecord={editRecord} setEditRecord={setEditRecord}
+          editSaving={editSaving} handleSaveEditRecord={handleSaveEditRecord}
+          accounts={accounts} previewImage={previewImage} setPreviewImage={setPreviewImage}
+          previewTitle={previewTitle} setPreviewTitle={setPreviewTitle}
+          showToast={showToast} UNITS={UNITS} inputCls={inputCls} labelCls={labelCls}
         />
       )}
 
-      {/* ── بطاقة الفاتورة الجديدة ── */}
-      <div className="bg-white p-6 rounded-2xl border border-[#E8E5EA] shadow-[0_2px_12px_rgba(0,0,0,0.02)] space-y-5">
-        <div className="border-b border-[#E8E5EA] pb-3 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <span className="w-8 h-8 rounded-xl bg-[#F2E7F3] text-[#8F2A87] flex items-center justify-center font-bold">🛒</span>
-            <div>
-              <h2 className="font-bold text-sm text-[#25232A]">فاتورة مشتريات وتوريد جديدة</h2>
-              <p className="text-[11px] text-[#6F6B75]">إصدار فاتورة شراء، توريد المخزون، وتوليد القيود وسندات الصرف آلياً</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] font-semibold text-[#6F6B75]">رقم الفاتورة:</span>
-            <span className="text-[#8F2A87] font-mono font-bold text-xs bg-[#F2E7F3] border border-[#E5CEE7] px-3 py-1 rounded-xl">
-              {headerData.bill_no ? headerData.bill_no : genBillNo()}
-            </span>
-          </div>
-        </div>
-
-        {HeaderForm && (
-          <HeaderForm
-            headerData={headerData} setHeaderData={setHeaderData} genBillNo={genBillNo}
-            setShowQuickAddSupplier={setShowQuickAddSupplier} supplierDropdownRef={supplierDropdownRef}
-            supplierSearch={supplierSearch} setSupplierSearch={setSupplierSearch}
-            isSupplierDropdownOpen={isSupplierDropdownOpen} setIsSupplierDropdownOpen={setIsSupplierDropdownOpen}
-            isLoadingSuppliers={isLoadingSuppliers} filteredSuppliersList={filteredSuppliersList}
-            handleSelectSupplier={handleSelectSupplier} selectedSupplierObj={selectedSupplierObj}
-            accounts={accounts} handleFileUpload={handleFileUpload} setPreviewImage={setPreviewImage}
-            setPreviewTitle={setPreviewTitle} inputCls={inputCls} labelCls={labelCls}
-          />
-        )}
-
-        {ItemsTable && (
-          <ItemsTable
-            itemData={itemData} setItemData={setItemData} emptyItem={emptyItem} editingIndex={editingIndex}
-            setEditingIndex={setEditingIndex} billItems={billItems} setBillItems={setBillItems}
-            headerData={headerData} setHeaderData={setHeaderData} rawItemsSum={rawItemsSum}
-            grandTotal={grandTotal} isSaving={isSaving} handleSaveFullBill={handleSaveFullBill} showToast={showToast}
-            UNITS={UNITS} inputCls={inputCls} labelCls={labelCls}
-          />
-        )}
-      </div>
-
-      {/* ── سجل المشتريات القابل للطي ── */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-[0_2px_12px_rgba(0,0,0,0.02)] overflow-hidden transition-all duration-300">
-        {FilterBar && <FilterBar isHistoryOpen={isHistoryOpen} setIsHistoryOpen={setIsHistoryOpen} filteredPurchasesCount={(filteredPurchases || []).length} search={search} setSearch={setSearch} />}
-        {isHistoryOpen && DataTable && (
-          <div className="p-5 space-y-4 animate-fade-in">
-            <DataTable filteredPurchases={filteredPurchases} handleOpenEdit={handleOpenEdit} handleDeleteRecord={handleDeleteRecord} setPreviewImage={setPreviewImage} setPreviewTitle={setPreviewTitle} />
-          </div>
-        )}
-      </div>
+      {/* 6. نافذة الإضافة السريعة لمورد جديد */}
+      {QuickAddModalComp && (
+        <QuickAddModalComp
+          show={showQuickAddSupplier} onClose={() => setShowQuickAddSupplier(false)}
+          initialName={supplierSearch} suppliers={suppliers} setSuppliers={setSuppliers}
+          setHeaderData={setHeaderData} setSupplierSearch={setSupplierSearch}
+          setIsSupplierDropdownOpen={setIsSupplierDropdownOpen} fetchSuppliers={fetchSuppliers}
+          showToast={showToast} inputCls={inputCls} labelCls={labelCls}
+        />
+      )}
     </div>
   );
 }

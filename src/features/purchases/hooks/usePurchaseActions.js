@@ -4,7 +4,7 @@ function usePurchaseActions({ headerData, setHeaderData, emptyHeader, billItems,
   const [isSaving, setIsSaving] = useState(false), [editSaving, setEditSaving] = useState(false);
 
   // ── حفظ الفاتورة الجديدة مع التوريد والقيود المحاسبية ──
-  const handleSaveFullBill = async () => {
+  const handleSaveFullBill = async (onSuccess) => {
     if (isSaving) return;
     if (!headerData.supplier.trim()) return showToast('اسم المورد مطلوب ⚠️', 'error');
     if (!headerData.warehouse_id) return showToast('يرجى تحديد المستودع المستلم ⚠️', 'error');
@@ -121,6 +121,7 @@ function usePurchaseActions({ headerData, setHeaderData, emptyHeader, billItems,
       setSupplierSearch('');
       setBillItems([]); setItemData(emptyItem()); setEditingIndex(null);
       fetchSuppliers();
+      if (typeof onSuccess === 'function') onSuccess();
     } catch(err) {
       console.error(err);
       showToast('خطأ أثناء الحفظ ⚠️ ' + (err.message || 'يرجى المحاولة مرة أخرى'), 'error');
@@ -188,20 +189,13 @@ function usePurchaseActions({ headerData, setHeaderData, emptyHeader, billItems,
         }
         throw new Error(resData.error || 'تعذر إلغاء الفاتورة في السيرفر');
       }
-
-      if (setPurchases) {
-        setPurchases(prev => (prev || []).filter(r => String(r.id) !== String(p.id) && String(r.bill_no) !== String(p.bill_no)));
-      }
-
+      if (setPurchases) setPurchases(prev => (prev || []).filter(r => String(r.id) !== String(p.id) && String(r.bill_no) !== String(p.bill_no)));
       try {
-        const freshRes = await fetch('/api/purchases');
-        const freshData = await freshRes.json();
-        if (freshData && Array.isArray(freshData.data) && typeof setPurchases === 'function') setPurchases(freshData.data);
-        const freshInvRes = await fetch('/api/inventory');
-        const freshInvData = await freshInvRes.json();
-        if (freshInvData && Array.isArray(freshInvData.data) && typeof setInventory === 'function') setInventory(freshInvData.data);
+        const [flRes, fiRes] = await Promise.all([fetch('/api/purchases'), fetch('/api/inventory')]);
+        const [flData, fiData] = await Promise.all([flRes.json(), fiRes.json()]);
+        if (flData?.data && typeof setPurchases === 'function') setPurchases(flData.data);
+        if (fiData?.data && typeof setInventory === 'function') setInventory(fiData.data);
       } catch (syncErr) { console.warn('Sync warning:', syncErr); }
-
       if (typeof callGAS === 'function') callGAS('deletePurchase', { id: String(p.id), bill_no: p.bill_no }).catch(e => console.warn('GAS warning:', e));
       showToast(`🗑️ ${resData.message || `تم إلغاء الفاتورة ${billIdentifier} وعكس أثرها المالي والمخزني بنجاح`}`);
     } catch(err) {

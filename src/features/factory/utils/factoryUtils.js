@@ -173,33 +173,31 @@ const getBespokeOrdersList = (orders = [], customers = [], products = []) => {
   return result;
 };
 
-// فلترة وتنظيف لوحة التتبع من السجلات اليتيمة واقتصار العرض على العملاء الفعليين
+// فلترة أوامر لوحة التتبع الحية للورشة وفقاً للبحث والمرحلة
 const filterRealFactoryOrders = (factory = [], customers = [], orders = [], search = '', stageFilter = 'الكل') => {
   const list = Array.isArray(factory) ? factory : [], searchStr = (search || '').toLowerCase().trim();
-  const activeCustomers = (customers || []).filter(c => c && (c.id || c.name || c.customer_name));
-  const realCustIds = new Set(activeCustomers.map(c => String(c.id || c.customer_id || '').toLowerCase().trim()).filter(Boolean));
-  const realCustNames = new Set(activeCustomers.map(c => String(c.name || c.customer_name || '').toLowerCase().trim()).filter(Boolean));
-  const realOrdersMap = new Map();
-  (orders || []).forEach(o => {
-    const ocId = String(o?.customer_id || '').toLowerCase().trim(), ocName = String(o?.customer_name || o?.customer || '').toLowerCase().trim();
-    if ((ocId && realCustIds.has(ocId)) || (ocName && realCustNames.has(ocName))) {
-      const oNo = String(o.order_no || o.id || '').toLowerCase().trim();
-      if (oNo) realOrdersMap.set(oNo, o);
-    }
-  });
+  const norm = (s) => String(s || '').replace(/[\u{1F300}-\u{1F9FF}\s]/gu, '').toLowerCase();
 
   return list.filter(f => {
     if (!f) return false;
     const isDelivered = f?.status === 'delivered' || f?.stage === 'تم التسليم' || f?.stage === 'تم التسليم ✅' || f?.production_status === 'delivered';
-    const fCustId = String(f.customer_id || '').toLowerCase().trim(), fCustName = String(f.customer || f.customer_name || f.client || f.client?.name || '').toLowerCase().trim(), fOrderNo = String(f.order_no || f.id || '').toLowerCase().trim();
-    if (!fCustName && !fCustId && !fOrderNo) return false;
+    const fCustId = String(f.customer_id || '').toLowerCase().trim();
+    const fCustName = String(f.customer || f.customer_name || f.client || f.client?.name || '').toLowerCase().trim();
+    const fOrderNo = String(f.order_no || f.id || '').toLowerCase().trim();
 
-    const isRTW = f?.production_type === 'ready_to_wear' || f?.production_type === 'stock' || (fOrderNo.startsWith('rtw') || fOrderNo.startsWith('stock'));
-    const isMatched = (fCustId && realCustIds.has(fCustId)) || (fCustName && realCustNames.has(fCustName)) || (fOrderNo && realOrdersMap.has(fOrderNo));
-    if ((realCustIds.size > 0 || realCustNames.size > 0) && !isRTW && !isMatched) return false;
+    if (!fCustName && !fCustId && !fOrderNo && !f.product && !f.product_name) return false;
 
-    const matchSearch = !searchStr || fOrderNo.includes(searchStr) || fCustName.includes(searchStr) || (f?.child_name || '').toString().toLowerCase().includes(searchStr) || (f?.product || f?.product_name || '').toString().toLowerCase().includes(searchStr) || (f?.tailor || f?.tailor_name || '').toString().toLowerCase().includes(searchStr);
-    const matchStage = stageFilter === 'الكل' ? !isDelivered : f?.stage === stageFilter;
+    const matchSearch = !searchStr ||
+      fOrderNo.includes(searchStr) ||
+      fCustName.includes(searchStr) ||
+      String(f?.child_name || '').toLowerCase().includes(searchStr) ||
+      String(f?.product || f?.product_name || '').toLowerCase().includes(searchStr) ||
+      String(f?.tailor || f?.tailor_name || '').toLowerCase().includes(searchStr);
+
+    const matchStage = stageFilter === 'الكل'
+      ? !isDelivered
+      : (f?.stage === stageFilter || norm(f?.stage) === norm(stageFilter) || (norm(f?.stage) && norm(stageFilter).includes(norm(f?.stage))));
+
     return matchSearch && matchStage;
   });
 };

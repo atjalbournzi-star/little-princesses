@@ -11,8 +11,8 @@ function SupplierQuickAddModal({
   setIsSupplierDropdownOpen,
   fetchSuppliers,
   showToast,
-  inputCls = "w-full h-11 px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs font-medium placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-fuchsia-600 focus:ring-2 focus:ring-fuchsia-100 dark:focus:ring-fuchsia-950/40 transition outline-none",
-  labelCls = "block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5"
+  inputCls = "w-full h-8 px-2.5 rounded-lg border border-slate-700 bg-slate-900 text-white text-xs font-medium focus:border-pink-500 transition-all outline-none",
+  labelCls = "block text-[11px] font-medium text-slate-300 mb-1"
 }) {
   const [quickSupplierData, setQuickSupplierData] = useState({
     name: '',
@@ -95,38 +95,41 @@ function SupplierQuickAddModal({
     }
   };
 
-  return (
-    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 w-full max-w-lg shadow-2xl space-y-4 border border-slate-200 dark:border-slate-800" onClick={e => e.stopPropagation()}>
-        <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-3">
-          <div>
-            <h3 className="font-bold text-slate-900 dark:text-white text-base">إضافة مورد جديد</h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400">تسجيل بيانات المورد الجديد واعتماده في النظام</p>
+  const createPortal = (typeof ReactDOM !== 'undefined' && ReactDOM.createPortal) ? ReactDOM.createPortal : null;
+
+  const modalContent = (
+    <div className="fixed inset-0 w-screen h-screen backdrop-blur-sm bg-slate-950/80 z-[10000] flex items-center justify-center p-4 transition-all select-none" dir="rtl" onClick={onClose}>
+      <div className="bg-slate-900 rounded-xl p-4 sm:p-5 w-full max-w-lg shadow-2xl border border-slate-800 space-y-3" onClick={e => e.stopPropagation()}>
+        <div className="flex justify-between items-center border-b border-slate-800 pb-2.5">
+          <div className="flex items-center gap-2">
+            <span className="w-6 h-6 rounded-lg bg-slate-800/90 text-pink-400 border border-pink-700/60 flex items-center justify-center text-xs shadow-xs">🏢</span>
+            <div>
+              <h3 className="font-bold text-white text-sm">إضافة مورد جديد</h3>
+              <p className="text-[10.5px] text-slate-400">تسجيل بيانات المورد الجديد واعتماده في النظام</p>
+            </div>
           </div>
-          <button type="button" onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold cursor-pointer transition">✕</button>
+          <button type="button" onClick={onClose} className="w-6 h-6 flex items-center justify-center rounded-md text-slate-400 hover:text-white hover:bg-slate-800 text-xs font-bold cursor-pointer transition">✕</button>
         </div>
 
-        <form onSubmit={handleSave} className="space-y-4">
+        <form onSubmit={handleSave} className="space-y-3">
           <div>
             <label className={labelCls}>اسم المورد / المحل *</label>
             <input
               type="text"
               required
               className={inputCls}
-              placeholder=""
               value={quickSupplierData.name}
               onChange={e => setQuickSupplierData(prev => ({ ...prev, name: e.target.value }))}
             />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             <div>
               <label className={labelCls}>رقم الهاتف الأساسي *</label>
               <input
                 type="tel"
                 required
                 className={inputCls + " font-mono"}
-                placeholder=""
                 value={quickSupplierData.phone}
                 onChange={e => setQuickSupplierData(prev => ({ ...prev, phone: e.target.value }))}
               />
@@ -137,7 +140,6 @@ function SupplierQuickAddModal({
               <input
                 type="text"
                 className={inputCls}
-                placeholder=""
                 value={quickSupplierData.city}
                 onChange={e => setQuickSupplierData(prev => ({ ...prev, city: e.target.value }))}
               />
@@ -149,24 +151,23 @@ function SupplierQuickAddModal({
             <input
               type="text"
               className={inputCls}
-              placeholder=""
               value={quickSupplierData.address}
               onChange={e => setQuickSupplierData(prev => ({ ...prev, address: e.target.value }))}
             />
           </div>
 
-          <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-slate-200 dark:border-slate-800">
+          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-800">
             <button
               type="button"
               onClick={onClose}
-              className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold text-xs rounded-xl transition cursor-pointer"
+              className="h-8 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs rounded-lg transition cursor-pointer"
             >
               إلغاء
             </button>
             <button
               type="submit"
               disabled={isSaving}
-              className="px-6 py-2.5 bg-fuchsia-700 hover:bg-fuchsia-800 disabled:opacity-50 text-white font-bold text-xs rounded-xl transition cursor-pointer shadow-xs"
+              className="h-8 px-5 bg-pink-600 hover:bg-pink-700 disabled:opacity-50 text-white font-semibold text-xs rounded-lg transition cursor-pointer shadow-xs"
             >
               {isSaving ? 'جاري الحفظ...' : 'حفظ المورد'}
             </button>
@@ -175,6 +176,11 @@ function SupplierQuickAddModal({
       </div>
     </div>
   );
+
+  if (typeof document !== 'undefined' && createPortal) {
+    return createPortal(modalContent, document.body);
+  }
+  return modalContent;
 }
 
 window.SupplierQuickAddModal = SupplierQuickAddModal;

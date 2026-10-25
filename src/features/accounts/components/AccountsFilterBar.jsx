@@ -23,7 +23,6 @@ function AccountsFilterBar({
         <div className="md:col-span-2 relative">
           <input
             type="text"
-            placeholder="🔍 ابحث برقم الكود، اسم الحساب، أو النوع..."
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
             className="w-full bg-[#FAFAFB] border border-[#E8E5EA] rounded-xl px-4 py-2.5 text-xs font-medium focus:bg-white focus:border-[#8F2A87] outline-none h-11"

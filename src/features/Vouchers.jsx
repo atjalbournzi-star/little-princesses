@@ -41,7 +41,7 @@ function Vouchers({
   const ReversalModal = window.VoucherReversalModal || (typeof VoucherReversalModal !== 'undefined' ? VoucherReversalModal : null);
 
   return (
-    <div className="space-y-6 animate-fadeIn text-right" dir="rtl">
+    <div className="space-y-1 animate-fadeIn text-right" dir="rtl">
       {Header && (
         <Header
           totals={totals}
@@ -54,7 +54,7 @@ function Vouchers({
         />
       )}
 
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-[0_2px_12px_rgba(0,0,0,0.02)] overflow-hidden p-6 space-y-4">
+      <div className="bg-white dark:bg-[#111C38] rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden p-2 space-y-1.5">
         {FilterBar && (
           <FilterBar
             search={search} setSearch={setSearch}
@@ -65,9 +65,9 @@ function Vouchers({
         )}
 
         {loading && (!filteredVouchers || filteredVouchers.length === 0) ? (
-          <div className="flex flex-col items-center justify-center py-16 text-center text-slate-400">
-            <div className="w-8 h-8 border-3 border-teal-500/30 border-t-teal-600 rounded-full animate-spin mb-3"></div>
-            <p className="text-xs font-semibold">جاري تحميل السندات والمعاملات المالية...</p>
+          <div className="flex flex-col items-center justify-center py-12 text-center text-slate-400">
+            <div className="w-7 h-7 border-2 border-teal-500/30 border-t-teal-600 rounded-full animate-spin mb-2"></div>
+            <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">جاري تحميل السندات والمعاملات المالية...</p>
           </div>
         ) : Table ? (
           <Table

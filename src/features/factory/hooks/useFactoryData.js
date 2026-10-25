@@ -112,30 +112,6 @@ function useFactoryData({
       : (Array.isArray(factory) ? factory : []);
   }, [factory, customers, orders, search, stageFilter, utils]);
 
-  useEffect(() => {
-    if (customers?.length > 0 && Array.isArray(factory) && factory.length > 0 && typeof setFactory === 'function') {
-      const activeCusts = customers.filter(c => c && (c.id || c.name || c.customer_name));
-      const cIds = new Set(activeCusts.map(c => String(c.id || c.customer_id || '').toLowerCase().trim()).filter(Boolean));
-      const cNames = new Set(activeCusts.map(c => String(c.name || c.customer_name || '').toLowerCase().trim()).filter(Boolean));
-      const hasOrphan = factory.some(f => {
-        if (!f) return false;
-        const fNo = String(f.order_no || f.id || '').toLowerCase().trim();
-        if (f?.production_type === 'ready_to_wear' || f?.production_type === 'stock' || fNo.startsWith('rtw') || fNo.startsWith('stock')) return false;
-        const fid = String(f.customer_id || '').toLowerCase().trim(), fnm = String(f.customer || f.customer_name || '').toLowerCase().trim();
-        return !((fid && cIds.has(fid)) || (fnm && cNames.has(fnm)));
-      });
-      if (hasOrphan) {
-        setFactory(p => (p || []).filter(f => {
-          if (!f) return false;
-          const fNo = String(f.order_no || f.id || '').toLowerCase().trim();
-          if (f?.production_type === 'ready_to_wear' || f?.production_type === 'stock' || fNo.startsWith('rtw') || fNo.startsWith('stock')) return true;
-          const fid = String(f.customer_id || '').toLowerCase().trim(), fnm = String(f.customer || f.customer_name || '').toLowerCase().trim();
-          return (fid && cIds.has(fid)) || (fnm && cNames.has(fnm));
-        }));
-      }
-    }
-  }, [customers, factory.length, setFactory]);
-
   const syncOrders = useCallback(() => {
     if (typeof setOrders === 'function') {
       fetch('/api/sales/orders').then(r => r.json()).then(d => {

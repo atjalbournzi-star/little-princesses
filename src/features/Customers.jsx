@@ -63,7 +63,7 @@ function Customers({
   };
 
   return (
-    <div className="space-y-2.5 animate-fadeIn text-right" dir="rtl">
+    <div className="space-y-1 animate-fadeIn text-right" dir="rtl">
       {/* ترويسة إدارة العملاء والإحصاءات */}
       {HeaderComp && (
         <HeaderComp
@@ -193,11 +193,8 @@ function Customers({
             setIsDeleting(true);
             try {
               const cid = customerToDelete.customer_id || customerToDelete.id;
-              const ok = await handleDeleteCustomer(cid, true);
-              if (ok) setCustomerToDelete(null);
-            } finally {
-              setIsDeleting(false);
-            }
+              if (await handleDeleteCustomer(cid, true)) setCustomerToDelete(null);
+            } finally { setIsDeleting(false); }
           }}
         />
       )}

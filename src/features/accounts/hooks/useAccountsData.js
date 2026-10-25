@@ -22,14 +22,12 @@ function useAccountsData({ accounts, journal, searchTerm, filterType, maxDepthFi
         const existing = dedupedAccounts[existingIdx];
         const authBal = (a.current_balance !== undefined && a.current_balance !== null && a.current_balance !== '')
           ? parseFloat(a.current_balance)
-          : ((a.balance !== undefined && a.balance !== null && a.balance !== '')
-              ? parseFloat(a.balance) : (parseFloat(existing.current_balance || existing.balance || 0) || 0));
+          : ((a.balance !== undefined && a.balance !== null && a.balance !== '') ? parseFloat(a.balance) : (parseFloat(existing.current_balance || existing.balance || 0) || 0));
         dedupedAccounts[existingIdx] = {
           ...existing, ...a,
           opening_balance: parseFloat(a.opening_balance ?? existing.opening_balance) || 0.0,
           balance: authBal, current_balance: authBal,
-          parent_id: (a.parent_id !== undefined && a.parent_id !== null && a.parent_id !== '' && a.parent_id !== '0')
-            ? a.parent_id : existing.parent_id,
+          parent_id: (a.parent_id !== undefined && a.parent_id !== null && a.parent_id !== '' && a.parent_id !== '0') ? a.parent_id : existing.parent_id,
           name: (a.name && a.name.length > (existing.name || '').length && !a.name.includes('?')) ? a.name : existing.name,
           name_en: a.name_en || existing.name_en || '',
           account_name_en: a.account_name_en || existing.account_name_en || ''
@@ -99,9 +97,7 @@ function useAccountsData({ accounts, journal, searchTerm, filterType, maxDepthFi
         if (a.account_id && s === String(a.account_id)) return true;
         const ext = extractCode(s);
         if (ext && (ext === cleanC || ext === cleanCode(code))) return true;
-        if (s === `ACC-${code}` || s === `ACC_${code}` || s === `ACC-${cleanC}` || s === `ACC-${cleanC.replace(/\./g, '-')}`) return true;
-        if (s.startsWith(`${code} - `) || s.startsWith(`${cleanC} - `) || s.startsWith(`${code} `) || s.startsWith(`${cleanC} `)) return true;
-        return false;
+        return (s === `ACC-${code}` || s === `ACC_${code}` || s === `ACC-${cleanC}` || s === `ACC-${cleanC.replace(/\./g, '-')}` || s.startsWith(`${code} - `) || s.startsWith(`${cleanC} - `) || s.startsWith(`${code} `) || s.startsWith(`${cleanC} `));
       };
 
       const accCurr = (window.CurrencyService ? window.CurrencyService.normalizeCode(a.currency) : a.currency) || 'YER';
@@ -122,11 +118,9 @@ function useAccountsData({ accounts, journal, searchTerm, filterType, maxDepthFi
       });
 
       // الرصيد الفعلي المعتمد من قاعدة البيانات مع احتساب الحركات عند الغياب
-      let calculatedBal = 0.0;
-      if (a.current_balance !== undefined && a.current_balance !== null && a.current_balance !== '') calculatedBal = parseFloat(a.current_balance) || 0.0;
-      else if (a.balance !== undefined && a.balance !== null && a.balance !== '') calculatedBal = parseFloat(a.balance) || 0.0;
-      else if (hasMovements) calculatedBal = nature === 'credit' ? (openingBal + (totalCredit - totalDebit)) : (openingBal + (totalDebit - totalCredit));
-      else calculatedBal = openingBal;
+      let calculatedBal = (a.current_balance !== undefined && a.current_balance !== null && a.current_balance !== '')
+        ? (parseFloat(a.current_balance) || 0.0)
+        : ((a.balance !== undefined && a.balance !== null && a.balance !== '') ? (parseFloat(a.balance) || 0.0) : (hasMovements ? (nature === 'credit' ? (openingBal + (totalCredit - totalDebit)) : (openingBal + (totalDebit - totalCredit))) : openingBal));
 
       // الرصيد بالعملة الأصلية للحساب (مثل SAR أو USD)
       let foreignBal = 0.0;
@@ -136,7 +130,7 @@ function useAccountsData({ accounts, journal, searchTerm, filterType, maxDepthFi
         else if (calculatedBal !== 0) { const defRate = parseFloat(a.exchange_rate) || (window.CurrencyService ? window.CurrencyService.getRate(accCurr) : 142.0); foreignBal = defRate > 0 ? (calculatedBal / defRate) : 0.0; }
       }
 
-      return { ...a, id, code, name, name_en: a.name_en || '', account_type: type, parent_id, level, is_group, nature, is_active, balance: calculatedBal, foreign_balance: foreignBal, opening_balance: openingBal, total_debit: totalDebit, total_credit: totalCredit };
+      return { ...a, id, code, name, name_en: a.name_en || '', account_type: type, parent_id, level, is_group, nature, is_active, balance: calculatedBal, foreign_balance: foreignBal, opening_balance: openingBal, total_debit: totalDebit, total_credit: totalCredit, hasMovements };
     });
   }, [accounts, journal]);
 
@@ -158,10 +152,7 @@ function useAccountsData({ accounts, journal, searchTerm, filterType, maxDepthFi
       if (cCode.startsWith(prefix)) { const rest = cCode.slice(prefix.length); if (!rest.includes(sep) || pCode.includes(sep)) return true; }
     }
     if (cCode.startsWith(pCode) && !cCode.includes('.') && !cCode.includes('-') && !cCode.includes('/')) {
-      if (pCode.length === 1 && [2,3,4].includes(cCode.length)) return true;
-      if (pCode.length === 2 && [3,4].includes(cCode.length)) return true;
-      if (pCode.length === 3 && cCode.length === 4) return true;
-      if (pCode.length === 4 && cCode.length === 6) return true;
+      if ((pCode.length === 1 && [2,3,4].includes(cCode.length)) || (pCode.length === 2 && [3,4].includes(cCode.length)) || (pCode.length === 3 && cCode.length === 4) || (pCode.length === 4 && cCode.length === 6)) return true;
     }
     return false;
   }, []);
@@ -174,19 +165,25 @@ function useAccountsData({ accounts, journal, searchTerm, filterType, maxDepthFi
     const calcNodeRollup = (acc, visited = new Set()) => {
       const key = cleanCode(acc.code || acc.id);
       if (memoSum[key] !== undefined) return memoSum[key];
-      if (visited.has(key)) return parseFloat(acc.balance) || 0.0;
+      if (visited.has(key)) return 0.0;
       visited.add(key);
       const children = getDirectChildren(acc);
-      if (children.length === 0) { memoSum[key] = parseFloat(acc.balance) || 0.0; return memoSum[key]; }
-      let total = parseFloat(acc.balance) || 0.0;
-      children.forEach(child => { total += calcNodeRollup(child, new Set(visited)); });
+      if (children.length === 0) {
+        memoSum[key] = parseFloat(acc.balance) || 0.0;
+        return memoSum[key];
+      }
+      // الحساب التجميعي: مجموع صافي لأرصدة الأبناء مع الحركات المباشرة فقط وتجاهل الرصيد المسبق المكرر
+      const direct = (acc.hasMovements || acc.total_debit > 0 || acc.total_credit > 0) ? (parseFloat(acc.balance) || 0.0) : 0.0;
+      let total = direct;
+      children.forEach(c => { total += calcNodeRollup(c, new Set(visited)); });
       memoSum[key] = total;
       return total;
     };
     return accList.map(a => {
       const children = getDirectChildren(a);
       const hasChildren = children.length > 0;
-      return { ...a, is_group: hasChildren ? 1 : (a.is_group !== undefined ? Number(a.is_group) : 0), is_postable: hasChildren ? 0 : 1, rollupBalance: hasChildren ? calcNodeRollup(a) : (parseFloat(a.balance) || 0.0), hasChildren };
+      const isGrp = hasChildren ? 1 : (a.is_group !== undefined ? Number(a.is_group) : 0);
+      return { ...a, is_group: isGrp, is_postable: hasChildren ? 0 : 1, rollupBalance: hasChildren ? calcNodeRollup(a) : (parseFloat(a.balance) || 0.0), hasChildren };
     });
   }, [normalizedAccounts, isChildOf]);
 

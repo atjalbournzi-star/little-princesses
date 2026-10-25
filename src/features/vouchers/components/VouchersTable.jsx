@@ -1,3 +1,5 @@
+// src/features/vouchers/components/VouchersTable.jsx
+// جدول السندات والمعاملات المالية التفصيلي المتوافق مع الهوية البصرية وشاشة المنتجات
 function VouchersTable({
   vouchers = [],
   accounts = [],
@@ -7,170 +9,186 @@ function VouchersTable({
   onOpenReverseModal,
   onSendWhatsApp
 }) {
+  const formatPay = (m) => {
+    if (!m) return 'نقدي';
+    const s = String(m).toLowerCase();
+    if (s.includes('kuraimi') || s.includes('كريمي')) return 'كريمي إكسبرس';
+    if (s.includes('jawali') || s.includes('جوالي')) return 'محفظة جوالي';
+    if (s.includes('floosak') || s.includes('فلوسك')) return 'محفظة فلوسك';
+    if (s.includes('onecash') || s.includes('ون كاش') || s.includes('ونكاش')) return 'ون كاش';
+    if (s.includes('bank') || s.includes('تحويل') || s.includes('بنك')) return 'تحويل بنكي';
+    if (s.includes('cheque') || s.includes('شيك')) return 'شيك بنكي';
+    if (s.includes('network') || s.includes('شبكة')) return 'شبكة مصرفية';
+    return (s === 'cash' || s === 'كاش') ? 'نقدي' : m;
+  };
+
+  const getAccLabel = (raw, fallback) => {
+    if (!raw) return fallback;
+    const code = String(raw).trim().split(' - ')[0].trim();
+    const m = (accounts || []).find(a => [String(a.id), String(a.code), String(a.acc_code), `ACC-${a.code}`].includes(code) || String(a.id) === `ACC-${code}`);
+    return m ? `${m.code || m.acc_code} - ${m.name || m.account_name || m.acc_name || m.name_en || m.code}` : raw;
+  };
+
   if (!vouchers || !vouchers.length) {
     return (
-      <div className="text-center py-12 text-slate-500 dark:text-slate-400 text-xs font-medium border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900">
-        لا توجد سندات مسجلة تطابق البحث 🧾
+      <div className="flex-1 flex flex-col items-center justify-center bg-white dark:bg-[#111C38] rounded-xl border border-slate-200 dark:border-slate-800 p-8 text-slate-700 dark:text-white text-xs font-semibold select-none">
+        <svg className="w-7 h-7 text-slate-400 dark:text-slate-300 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+        <span>لا توجد سندات مسجلة تطابق معايير البحث والتصفية</span>
       </div>
     );
   }
 
+  const columns = [
+    { key: 'type', label: 'النوع', width: 'w-[78px]', align: 'text-center' },
+    { key: 'v_no', label: 'رقم السند', width: 'w-[125px]', align: 'text-right' },
+    { key: 'party', label: 'الطرف / المستفيد', width: 'w-[12%]', align: 'text-right' },
+    { key: 'amount', label: `المبلغ (${activeTargetCurr})`, width: 'w-[85px]', align: 'text-left' },
+    { key: 'pay_method', label: 'طريقة الدفع', width: 'w-[92px]', align: 'text-center' },
+    { key: 'account', label: 'الحساب المالي', width: 'w-auto', align: 'text-right' },
+    { key: 'target_account', label: 'الحساب المقابل', width: 'w-auto', align: 'text-right' },
+    { key: 'date', label: 'التاريخ', width: 'w-[88px]', align: 'text-center' },
+    { key: 'actions', label: 'إجراءات', width: 'w-[95px]', align: 'text-center' }
+  ];
+
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden bg-white dark:bg-slate-900">
-      <table className="w-full text-xs table-fixed border-collapse">
-        <thead>
-          <tr className="bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 font-semibold border-b border-slate-200 dark:border-slate-800">
-            <th className="px-3 py-3 text-right w-[8%]">النوع</th>
-            <th className="px-3 py-3 text-right w-[11%]">رقم السند</th>
-            <th className="px-3 py-3 text-right w-[14%]">الطرف (المستفيد / العميل)</th>
-            <th className="px-3 py-3 text-left w-[13%]">المبلغ ({activeTargetCurr})</th>
-            <th className="px-3 py-3 text-right w-[10%]">طريقة الدفع</th>
-            <th className="px-3 py-3 text-right w-[15%]">الحساب المالي</th>
-            <th className="px-3 py-3 text-right w-[17%]">الحساب المقابل</th>
-            <th className="px-3 py-3 text-center w-[9%]">التاريخ</th>
-            <th className="px-3 py-3 text-center w-[9%]">إجراءات</th>
+    <div className="overflow-x-auto custom-scrollbar rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111C38]/90 select-none">
+      <table className="w-full min-w-[980px] table-fixed text-right border-collapse">
+        <thead className="sticky top-0 z-10 bg-slate-50 dark:bg-[#0F172A] border-b border-slate-200 dark:border-slate-800 shadow-xs">
+          <tr className="h-7.5">
+            {columns.map(c => (
+              <th
+                key={c.key}
+                className={`h-7.5 py-1.5 px-2 text-[11px] font-bold text-slate-800 dark:text-slate-200 uppercase tracking-tight whitespace-nowrap overflow-hidden ${c.width} ${c.align}`}
+              >
+                {c.label}
+              </th>
+            ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
-          {(vouchers || []).map(v => {
+        <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60 bg-white dark:bg-transparent">
+          {vouchers.map(v => {
             const rawAcc = v.account || v.acc_code || v.account_id || v.payment_source || '';
-            const accCodeOnly = String(rawAcc).trim().split(' - ')[0].trim();
-            const match = (accounts || []).find(a => 
-              String(a.id || '') === accCodeOnly || String(a.code || '') === accCodeOnly ||
-              String(a.acc_code || '') === accCodeOnly || String(a.id || '') === `ACC-${accCodeOnly}` ||
-              String(a.code || '') === accCodeOnly.replace(/^ACC-/, '')
-            );
-            const accLabel = match ? `${match.code || match.acc_code} - ${match.name || match.account_name || match.acc_name || match.name_en || match.code}` : (rawAcc || '101 - الصندوق الرئيسي');
-
+            const accLabel = getAccLabel(rawAcc, rawAcc || '101 - الصندوق الرئيسي');
             const rawTarget = v.target_account || v.target_acc || (v.isReceipt ? '104' : '201');
-            const targetCodeOnly = String(rawTarget).trim().split(' - ')[0].trim();
-            const targetMatch = (accounts || []).find(a => 
-              String(a.id || '') === targetCodeOnly || String(a.code || '') === targetCodeOnly ||
-              String(a.acc_code || '') === targetCodeOnly || String(a.id || '') === `ACC-${targetCodeOnly}` ||
-              String(a.code || '') === targetCodeOnly.replace(/^ACC-/, '')
-            );
-            const targetLabel = targetMatch 
-              ? `${targetMatch.code || targetMatch.acc_code} - ${targetMatch.name || targetMatch.account_name || targetMatch.acc_name || targetMatch.code}`
-              : (rawTarget.includes('202') ? '202 - عرابين وأمانات العملاء' : (rawTarget.includes('104') ? '104 - ذمم العملاء' : rawTarget));
-            const isAdvance = String(targetCodeOnly).includes('202') || (v.notes && (v.notes.includes('عربون') || v.notes.includes('حجز')));
+            const targetLabel = getAccLabel(rawTarget, (String(rawTarget).includes('202') ? '202 - عرابين وأمانات العملاء' : (String(rawTarget).includes('104') ? '104 - ذمم العملاء' : rawTarget)));
 
             const vCurr = window.CurrencyService ? window.CurrencyService.normalizeCode(v.currency) : (v.currency || 'YER');
             const isSameCurr = vCurr === activeTargetCurr;
-            const convertedAmt = (activeTargetCurr === 'YER' && parseFloat(v.base_amount) > 0)
-              ? parseFloat(v.base_amount)
-              : (window.CurrencyService ? window.CurrencyService.convert(v.amount, vCurr, activeTargetCurr, v.exchange_rate) : v.amount);
+            const rawNum = isSameCurr
+              ? (parseFloat(v.amount) || 0)
+              : ((activeTargetCurr === 'YER' && parseFloat(v.base_amount) > 0)
+                  ? parseFloat(v.base_amount)
+                  : (window.CurrencyService ? window.CurrencyService.convert(v.amount, vCurr, activeTargetCurr, v.exchange_rate) : v.amount));
+            const formattedAmt = (parseFloat(rawNum) || 0).toLocaleString('en-US', {
+              minimumFractionDigits: activeTargetCurr === 'YER' ? 0 : 2,
+              maximumFractionDigits: 2
+            });
+            const amtTooltip = !isSameCurr
+              ? `${formattedAmt} ${activeTargetCurr} (المسجل: ${(parseFloat(v.amount) || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ${vCurr})`
+              : `${formattedAmt} ${activeTargetCurr}`;
             const isReversed = v.status === 'reversed';
 
             return (
-              <tr key={v.id || v.v_no} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors border-b border-slate-200 dark:border-slate-800">
-                <td className="px-3 py-3 text-right align-middle whitespace-nowrap">
+              <tr key={v.id || v.v_no} className="h-8 border-b border-slate-200 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/40 text-[11px] font-medium transition-colors">
+                {/* 1. النوع */}
+                <td className="w-[78px] py-1.5 px-1 text-center truncate overflow-hidden whitespace-nowrap" title={v.v_type}>
                   {isReversed ? (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold border bg-gray-100 dark:bg-gray-800 text-gray-500 border-gray-300 dark:border-gray-700">
-                      ملغى بقيد عكسي ↩️
-                    </span>
+                    <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold border bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-300 dark:border-slate-700">ملغى بقيد</span>
                   ) : (
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold border whitespace-nowrap ${
-                      v.v_type === 'إيداع رأس مال'
-                        ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800'
-                        : (v.v_type && (v.v_type.includes('قيد') || v.v_type.includes('تسوية')))
-                        ? 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800'
-                        : (v.isReceipt ? 'bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-400 border-teal-200 dark:border-teal-800' : 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-800')
+                    <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold border whitespace-nowrap ${
+                      v.v_type === 'إيداع رأس مال' ? 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800/60'
+                      : (v.v_type && (v.v_type.includes('قيد') || v.v_type.includes('تسوية'))) ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800/60'
+                      : (v.isReceipt ? 'bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-800/60' : 'bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-300 border-rose-200 dark:border-rose-800/60')
                     }`}>
                       {v.v_type}
                     </span>
                   )}
                 </td>
 
-                <td className="px-3 py-3 text-right align-middle font-bold text-fuchsia-700 dark:text-fuchsia-400 text-xs whitespace-nowrap truncate" title={v.v_no}>
-                  <span className="font-mono">{v.v_no}</span>
+                {/* 2. رقم السند - فضي تقني هادئ */}
+                <td className="w-[125px] py-1.5 px-2 text-right truncate overflow-hidden whitespace-nowrap" dir="ltr" title={v.v_no}>
+                  <span className="font-mono text-slate-600 dark:text-slate-400 font-medium text-[11px] block truncate">{v.v_no}</span>
                 </td>
 
-                <td className="px-3 py-3 text-right align-middle font-bold text-slate-800 dark:text-slate-200 text-xs whitespace-nowrap truncate" title={v.party}>
-                  {v.party || '—'}
+                {/* 3. الطرف / المستفيد */}
+                <td className="w-[12%] py-1.5 px-2 text-right truncate overflow-hidden whitespace-nowrap" title={v.party || '—'}>
+                  <span className="font-semibold text-slate-900 dark:text-slate-100 text-[11px] block truncate">{v.party || '—'}</span>
                 </td>
 
-                <td className="px-3 py-3 text-left align-middle font-bold text-xs whitespace-nowrap dir-ltr">
-                  {isSameCurr ? (
-                    <div className="flex items-baseline gap-1">
-                      <span className={`font-mono tabular-nums ${isReversed ? 'line-through text-gray-400' : 'text-slate-900 dark:text-white'}`}>
-                        {(parseFloat(v.amount) || 0).toLocaleString('en-US', { minimumFractionDigits: activeTargetCurr === 'YER' ? 0 : 2, maximumFractionDigits: 2 })}
-                      </span>
-                      <span className="text-[10px] font-bold text-teal-700 dark:text-teal-400">{activeTargetCurr}</span>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-start leading-tight">
-                      <div className="flex items-baseline gap-1">
-                        <span className={`font-mono tabular-nums font-bold ${isReversed ? 'line-through text-gray-400' : 'text-teal-700 dark:text-teal-400'}`}>
-                          {convertedAmt.toLocaleString('en-US', { minimumFractionDigits: activeTargetCurr === 'YER' ? 0 : 2, maximumFractionDigits: 2 })}
-                        </span>
-                        <span className="text-[10px] font-bold text-teal-700 dark:text-teal-400">{activeTargetCurr}</span>
-                      </div>
-                      <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 font-mono mt-0.5" title="المبلغ الأصلي المسجل بالسند">
-                        ({(parseFloat(v.amount) || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} {vCurr})
-                      </span>
-                    </div>
-                  )}
-                </td>
-
-                <td className="px-3 py-3 text-right align-middle text-slate-800 dark:text-slate-200 text-xs font-medium whitespace-nowrap truncate">
-                  <span className="inline-block px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-[11px]">
-                    {v.pay_method || 'نقدي'}
+                {/* 4. المبلغ - أبيض واضح بدون تكرار رمز العملة الملون */}
+                <td className="w-[85px] py-1.5 px-2 text-left truncate overflow-hidden whitespace-nowrap dir-ltr" title={amtTooltip}>
+                  <span className={`font-mono font-bold text-xs tabular-nums block truncate ${isReversed ? 'line-through text-slate-400' : 'text-slate-900 dark:text-white'}`}>
+                    {formattedAmt}
                   </span>
                 </td>
 
-                <td className="px-3 py-3 text-right align-middle text-slate-800 dark:text-slate-200 text-xs font-medium whitespace-nowrap truncate" title={accLabel}>
-                  {accLabel}
-                </td>
-
-                <td className="px-3 py-3 text-right align-middle whitespace-nowrap truncate" title={targetLabel}>
-                  <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold border truncate ${isAdvance ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800' : 'bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-400 border-teal-200 dark:border-teal-800'}`}>
-                    {targetLabel}
+                {/* 5. طريقة الدفع - شارة داكنة محايدة هادئة */}
+                <td className="w-[92px] py-1.5 px-1.5 text-center truncate overflow-hidden whitespace-nowrap" title={formatPay(v.pay_method)}>
+                  <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700/70 whitespace-nowrap truncate max-w-full">
+                    {formatPay(v.pay_method)}
                   </span>
                 </td>
 
-                <td className="px-3 py-3 text-center align-middle text-slate-500 dark:text-slate-400 text-xs whitespace-nowrap">
-                  <span className="font-mono tabular-nums">{v.date || '—'}</span>
+                {/* 6. الحساب المالي - نص محاسبي نظيف بدون إطار */}
+                <td className="w-auto py-1.5 px-2 text-right truncate overflow-hidden whitespace-nowrap" title={accLabel}>
+                  <span className="text-slate-700 dark:text-slate-200 text-[11px] font-medium block truncate">{accLabel}</span>
                 </td>
 
-                <td className="px-3 py-3 text-center align-middle whitespace-nowrap">
+                {/* 7. الحساب المقابل - نص محاسبي نظيف بدون إطار ملون */}
+                <td className="w-auto py-1.5 px-2 text-right truncate overflow-hidden whitespace-nowrap" title={targetLabel}>
+                  <span className="text-slate-700 dark:text-slate-200 text-[11px] font-medium block truncate">{targetLabel}</span>
+                </td>
+
+                {/* 8. التاريخ - رمادي فضي هادئ */}
+                <td className="w-[88px] py-1.5 px-1.5 text-center truncate overflow-hidden whitespace-nowrap" dir="ltr" title={v.date || '—'}>
+                  <span className="font-mono text-slate-500 dark:text-slate-400 text-[11px] block truncate">{v.date || '—'}</span>
+                </td>
+
+                {/* 9. إجراءات - 3 أيقونات نقية ومكتملة الظهور بدون قص */}
+                <td className="w-[95px] py-1.5 px-2 text-center whitespace-nowrap overflow-hidden">
                   <div className="flex items-center justify-center gap-1.5">
+                    {/* 1. معاينة وطباعة وتنزيل بطاقة السند الرسمية */}
                     <a
                       href={`/voucher.html?id=${encodeURIComponent(v.v_no || v.payment_no || v.id)}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      title="عرض وتنزيل بطاقة السند كصورة 🖼️"
-                      className="p-1.5 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/60 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800 rounded-lg transition cursor-pointer flex items-center justify-center font-bold"
+                      title="معاينة وطباعة وتنزيل بطاقة السند الرسمية"
+                      className="w-5.5 h-5.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-teal-600 dark:text-teal-400 border border-slate-300 dark:border-slate-700 rounded transition cursor-pointer flex items-center justify-center shrink-0"
                     >
-                      <span className="text-xs">🖼️</span>
+                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
                     </a>
+
+                    {/* 2. إرسال إشعار السند عبر واتساب مباشرة */}
                     <button
                       type="button"
                       onClick={() => onSendWhatsApp?.(v)}
-                      title="إرسال إشعار رسمي عبر واتساب WhatsApp"
-                      className="p-1.5 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 rounded-lg transition cursor-pointer flex items-center justify-center font-bold"
+                      title="إرسال إشعار السند عبر واتساب مباشرة"
+                      className="w-5.5 h-5.5 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60 rounded transition cursor-pointer flex items-center justify-center shrink-0"
                     >
-                      <span className="text-xs">⚡</span>
+                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                      </svg>
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => onViewVoucher?.(v)}
-                      title="معاينة وطباعة السند"
-                      className="p-1.5 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-teal-700 dark:text-teal-400 border border-slate-200 dark:border-slate-700 rounded-lg transition cursor-pointer flex items-center justify-center"
-                    >
-                      👁️
-                    </button>
+
+                    {/* 3. إلغاء السند بقيد عكسي معتمد محاسبياً */}
                     {!isReversed ? (
                       <button
                         type="button"
                         onClick={() => onOpenReverseModal?.(v)}
                         title="إلغاء السند بقيد عكسي معتمد محاسبياً"
-                        className="px-2 py-1 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800 rounded-lg transition cursor-pointer flex items-center justify-center gap-1 text-[11px] font-bold"
+                        className="w-5.5 h-5.5 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/60 rounded transition cursor-pointer flex items-center justify-center shrink-0"
                       >
-                        <span>↩️</span>
-                        <span>إلغاء</span>
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h10a5 5 0 015 5v2m0 0l-3-3m3 3l3-3M3 10l3-3m-3 3l3 3" />
+                        </svg>
                       </button>
                     ) : (
-                      <span className="text-[10px] font-bold text-gray-400 bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-1.5 py-0.5 rounded">
+                      <span className="text-[9.5px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-1.5 py-0.5 rounded">
                         معكوس
                       </span>
                     )}

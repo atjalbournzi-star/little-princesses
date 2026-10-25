@@ -40,7 +40,7 @@ const syncProductModel = (productObj, setForm, form, qty = Number(form.quantity)
 };
 
 function JobOrderFormFields({
-  form, setForm, orders = [], employees = [], products = [], stages = [], customers = [],
+  form = {}, setForm, orders = [], employees = [], products = [], stages = [], customers = [],
   handleOrderSelect, handleStageEmpChange, handleStageChange, handleProductChange,
   handleSizeChange, setModelPreviewData, fabricInventory = []
 }) {

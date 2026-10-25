@@ -138,7 +138,7 @@ function Accounts({
 
   // ── العرض ────────────────────────────────────────────────────────────────
   return (
-    <div className="space-y-3 animate-fadeIn text-right" dir="rtl">
+    <div className="space-y-1.5 animate-fadeIn text-right" dir="rtl">
 
       <AccountsHeader
         searchTerm={searchTerm} setSearchTerm={setSearchTerm}

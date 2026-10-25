@@ -1,9 +1,10 @@
 // src/features/products/hooks/useProductsData.js
 // خطاف إدارة بيانات كتالوج المنتجات والموديلات والتصفية والفرز والمؤشرات الإحصائية
 
-const { useState, useMemo } = React;
+
 
 function useProductsData({ products = [], currency }) {
+  const { useState, useMemo } = React;
   const currencyDisplay = currency?.display || "YER ﷼";
 
   const [search, setSearch] = useState("");

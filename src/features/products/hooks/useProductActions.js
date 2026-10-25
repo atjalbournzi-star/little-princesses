@@ -1,9 +1,7 @@
-// src/features/products/hooks/useProductActions.js
-// خطاف عمليات وإجراءات الموديلات: إدارة البيانات الشاملة، شجرة الخامات، ومصفوفة التكاليف المرنة
 
-const { useState, useEffect, useMemo } = React;
-
+/** useProductActions.js - إدارة موديلات وخامات وتكاليف */
 function useProductActions({ products = [], setProducts, inventory = [], showToast, currency }) {
+  const { useState, useEffect, useMemo } = React;
   const u = window.productUtils || {};
   const getCurrencyCode = u.getCurrencyCode || ((c) => (typeof c === 'object' ? c.code : c) || 'YER');
   const getCurrencyLabel = u.getCurrencyLabel || ((c) => `${getCurrencyCode(c)} ﷼`);
@@ -16,10 +14,10 @@ function useProductActions({ products = [], setProducts, inventory = [], showToa
   const [targetSegment, setTargetSegment] = useState("kids"), [category, setCategory] = useState("فساتين وبدلات خاصة");
   const [subcategory, setSubcategory] = useState(""), [collection, setCollection] = useState("");
   const [imageUrl, setImageUrl] = useState(""), [description, setDescription] = useState(""), [status, setStatus] = useState("Active");
-  const [formCurrency, setFormCurrency] = useState(() => getCurrencyCode(currency) || "YER");
-  const [calcDate, setCalcDate] = useState(() => (typeof TODAY_STR_ISO !== 'undefined' ? TODAY_STR_ISO : new Date().toISOString().split('T')[0]));
-  const [selectedSizes, setSelectedSizes] = useState(() => ['1-2Y', '3-5Y', '6-9Y', '10-13Y']);
-  const [selectedColors, setSelectedColors] = useState(() => []);
+  const [formCurrency, setFormCurrency] = useState(() => getCurrencyCode(currency) || "YER"), [calcDate, setCalcDate] = useState(() => (typeof TODAY_STR_ISO !== 'undefined' ? TODAY_STR_ISO : new Date().toISOString().split('T')[0]));
+
+  const [selectedSizes, setSelectedSizes] = useState(() => ['1-2Y', '3-5Y', '6-9Y', '10-13Y']), [selectedColors, setSelectedColors] = useState(() => []);
+
 
   // 2. مصفوفة الأقمشة والخامات (BOM)
   const [fabricsList, setFabricsList] = useState([u.createDefaultFabricRow ? u.createDefaultFabricRow("YER", "kids") : {

@@ -28,12 +28,13 @@ function POS({
   const [posCashReceived, setPosCashReceived] = useState('');
   const barcodeInputRef = useRef(null);
 
-  const HeaderComp = window.POSHeader;
-  const CatalogComp = window.POSCatalog;
-  const CartComp = window.POSCart;
+  const HeaderComp = window.POSHeader || (typeof POSHeader !== 'undefined' ? POSHeader : null);
+  const CatalogComp = window.POSCatalog || (typeof POSCatalog !== 'undefined' ? POSCatalog : null);
+  const CartComp = window.POSCart || (typeof POSCart !== 'undefined' ? POSCart : null);
 
   const posCategories = useMemo(() => {
     const cats = (products || [])
+      .filter(p => p && typeof p === 'object')
       .map(p => p.category || p.classification)
       .filter(Boolean);
     return ['الكل', ...Array.from(new Set(cats))];
@@ -88,8 +89,8 @@ function POS({
   };
 
   return (
-    <div className="w-full h-full max-h-full overflow-hidden flex flex-col p-1.5 bg-slate-100 dark:bg-[#0B132B] select-none transition-colors">
-      {/* Ultra-compact Header & KPIs Bar (h-8.5) */}
+    <div className="w-full h-full max-h-full overflow-hidden flex flex-col px-4 md:px-6 lg:px-8 py-6 space-y-3 select-none" dir="rtl">
+      {/* Ultra-compact Header & KPIs Bar (h-8) */}
       {HeaderComp && (
         <HeaderComp
           activeMode={activeMode}
@@ -103,7 +104,7 @@ function POS({
       )}
 
       {/* Main Workspace Split */}
-      <div className="flex-1 flex gap-2 min-h-0 overflow-hidden" dir="ltr">
+      <div className="flex-1 flex gap-2.5 min-h-0 overflow-hidden" dir="ltr">
         {/* Left Column: Fixed POS Cart */}
         <div className="w-76 w-[304px] xl:w-80 h-full flex flex-col shrink-0 overflow-hidden" dir="rtl">
           {CartComp && (
@@ -130,7 +131,7 @@ function POS({
 
         {/* Right Column: Catalog Workspace */}
         <div className="flex-1 h-full flex flex-col min-w-0 overflow-hidden" dir="rtl">
-          {CatalogComp && (
+          {CatalogComp ? (
             <CatalogComp
               products={products}
               cart={cart}
@@ -146,6 +147,11 @@ function POS({
               barcodeInputRef={barcodeInputRef}
               posCategories={posCategories}
             />
+          ) : (
+            <div className="w-full h-full flex flex-col items-center justify-center bg-white dark:bg-[#111C38] border border-slate-200 dark:border-slate-800 rounded-xl p-4 text-slate-400">
+              <div className="w-6 h-6 border-2 border-pink-500/30 border-t-pink-600 rounded-full animate-spin mb-2"></div>
+              <span className="text-xs font-medium">جاري تحميل كتالوج المنتجات...</span>
+            </div>
           )}
         </div>
       </div>

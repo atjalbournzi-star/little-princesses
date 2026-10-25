@@ -96,6 +96,7 @@ def deliver_and_settle_order(payload):
             revenue_acc = resolve_account_id(cur, "ACC-401", "ACC-401")
             advance_acc = "ACC-202"
 
+            # أ) إصدار سند قبض نقدي للمبلغ المتبقي المحصل فعلياً عند التسليم فقط
             if collected_amt > 0:
                 pay_id = generate_id("PAY")
                 pay_no = generate_sequential_voucher_no(cur, 'Receipt', today_str())
@@ -105,37 +106,43 @@ def deliver_and_settle_order(payload):
                         exchange_rate, base_amount, payment_method, reference_no, account_id, date, status, notes, party_name, target_account_id)
                     VALUES (%s, %s, %s, %s, 'Receipt', %s, 'YER', 1.0, %s, %s, %s, %s, CURRENT_DATE, 'Confirmed', %s, %s, %s);
                 """, (pay_id, pay_no, real_order_id, cust_id, collected_amt, collected_amt, payment_method, order_no, target_treasury_acc, p_notes, cust_name or 'العميلة', revenue_acc))
-
-            if new_total > 0:
-                jv_id = generate_id("JV")
-                jv_no = f"JV-DEL-{order_no}"
-                j_desc = f"إيراد تسليم فستان وإقفال أمانات طلب {order_no} ({cust_name or 'العميلة'})"
+                v_jv_no = f"AUTO-VCH-{pay_no}"
                 cur.execute("""
                     INSERT INTO journal_entries (id, entry_no, entry_date, description, debit_account_id, credit_account_id,
                         amount, total_amount, base_amount, ref_type, ref_id, currency, exchange_rate, status, notes)
-                    VALUES (%s, %s, CURRENT_DATE, %s, %s, %s, %s, %s, %s, 'SalesDelivery', %s, 'YER', 1.0, 'Posted', %s)
-                    ON CONFLICT (entry_no) DO UPDATE SET amount = EXCLUDED.amount, total_amount = EXCLUDED.total_amount, base_amount = EXCLUDED.base_amount;
-                """, (jv_id, jv_no, j_desc, target_treasury_acc, revenue_acc, new_total, new_total, new_total, real_order_id, j_desc))
+                    VALUES (%s, %s, CURRENT_DATE, %s, %s, %s, %s, %s, %s, 'Receipt', %s, 'YER', 1.0, 'Posted', %s)
+                    ON CONFLICT (entry_no) DO UPDATE SET amount = EXCLUDED.amount;
+                """, (generate_id("JV"), v_jv_no, p_notes, target_treasury_acc, revenue_acc, collected_amt, collected_amt, collected_amt, pay_id, p_notes))
+                cur.execute("SELECT id FROM journal_entries WHERE entry_no = %s LIMIT 1;", (v_jv_no,))
+                act_v_id = cur.fetchone()['id']
+                cur.execute("DELETE FROM journal_entry_lines WHERE entry_id = %s;", (act_v_id,))
+                cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, %s, %s, %s, 0.0, %s, 0.0);", (generate_id("JVL"), act_v_id, target_treasury_acc, f"مدين - تحصيل نقد تسليم فستان {order_no}", collected_amt, collected_amt))
+                cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, %s, %s, 0.0, %s, 0.0, %s);", (generate_id("JVL"), act_v_id, revenue_acc, f"دائن - إيراد تحصيل تسليم فستان {order_no} ({cust_name or 'العميلة'})", collected_amt, collected_amt))
 
+            # ب) ترحيل العربون المسدد مسبقاً كقيد تسوية أمانة من حساب 202 إلى حساب الإيرادات 401
+            if old_paid > 0:
+                jv_id = generate_id("JV")
+                jv_no = f"JV-SETTLE-DEP-{order_no}"
+                j_desc = f"تسوية أمانات وعربون طلب {order_no} ({cust_name or 'العميلة'}) وترحيلها للإيرادات"
+                cur.execute("""
+                    INSERT INTO journal_entries (id, entry_no, entry_date, description, debit_account_id, credit_account_id,
+                        amount, total_amount, base_amount, ref_type, ref_id, currency, exchange_rate, status, notes)
+                    VALUES (%s, %s, CURRENT_DATE, %s, %s, %s, %s, %s, %s, 'AdvanceSettlement', %s, 'YER', 1.0, 'Posted', %s)
+                    ON CONFLICT (entry_no) DO UPDATE SET amount = EXCLUDED.amount;
+                """, (jv_id, jv_no, j_desc, advance_acc, revenue_acc, old_paid, old_paid, old_paid, real_order_id, j_desc))
                 cur.execute("SELECT id FROM journal_entries WHERE entry_no = %s LIMIT 1;", (jv_no,))
                 act_jv_id = cur.fetchone()['id']
                 cur.execute("DELETE FROM journal_entry_lines WHERE entry_id = %s;", (act_jv_id,))
+                cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, %s, %s, %s, 0.0, %s, 0.0);", (generate_id("JVL"), act_jv_id, advance_acc, f"مدين - تسوية أمانات وعربون طلب {order_no}", old_paid, old_paid))
+                cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, %s, %s, 0.0, %s, 0.0, %s);", (generate_id("JVL"), act_jv_id, revenue_acc, f"دائن - إيراد فستان مقابل عربون مسدد {order_no}", old_paid, old_paid))
 
-                ins_line = "INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, %s, %s, %s, 0.0, %s, 0.0);"
-                if collected_amt > 0:
-                    cur.execute(ins_line, (generate_id("JVL"), act_jv_id, target_treasury_acc, f"مدين - تحصيل نقد تسليم فستان {order_no}", collected_amt, collected_amt))
-                if old_paid > 0:
-                    cur.execute(ins_line, (generate_id("JVL"), act_jv_id, advance_acc, f"مدين - إقفال أمانات وعربون طلب {order_no}", old_paid, old_paid))
-                if new_remaining > 0:
-                    cur.execute(ins_line, (generate_id("JVL"), act_jv_id, 'ACC-104', f"مدين - ذمم متبقية على العميل - طلب {order_no}", new_remaining, new_remaining))
-                cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, %s, %s, 0.0, %s, 0.0, %s);",
-                            (generate_id("JVL"), act_jv_id, revenue_acc, f"دائن - إيراد مبيعات فستان {order_no} ({cust_name or 'العميلة'})", new_total, new_total))
-
-                if collected_amt > 0:
-                    cur.execute("UPDATE chart_of_accounts SET current_balance = COALESCE(current_balance, 0.0) + %s WHERE id = %s OR account_code = %s;", (collected_amt, target_treasury_acc, target_treasury_acc))
-                if old_paid > 0:
-                    cur.execute("UPDATE chart_of_accounts SET current_balance = GREATEST(0.0, COALESCE(current_balance, 0.0) - %s) WHERE id = 'ACC-202' OR account_code = '202';", (old_paid,))
-                cur.execute("UPDATE chart_of_accounts SET current_balance = COALESCE(current_balance, 0.0) + %s WHERE id = %s OR account_code = %s OR account_code = '401';", (new_total, revenue_acc, revenue_acc))
+            # تحديث الأرصدة في شجرة الحسابات بدقة تامة
+            if collected_amt > 0:
+                cur.execute("UPDATE chart_of_accounts SET current_balance = COALESCE(current_balance, 0.0) + %s WHERE id = %s OR account_code = %s;", (collected_amt, target_treasury_acc, target_treasury_acc))
+            if old_paid > 0:
+                cur.execute("UPDATE chart_of_accounts SET current_balance = GREATEST(0.0, COALESCE(current_balance, 0.0) - %s) WHERE id = 'ACC-202' OR account_code = '202';", (old_paid,))
+            if new_total > 0:
+                cur.execute("UPDATE chart_of_accounts SET current_balance = COALESCE(current_balance, 0.0) + %s WHERE id = %s;", (new_total, revenue_acc))
 
             # 5. COGS Recognition & Rollup Cascade
             cogs_data = record_delivery_cogs(cur, real_order_id, order_no, cust_name, child_name)

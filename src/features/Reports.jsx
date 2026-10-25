@@ -49,7 +49,7 @@ function Reports({
   const testedCount = activeTab === 'financial' ? filteredJournal.length : (activeTab === 'orders' ? (orders || []).length : (activeTab === 'production' ? productionStats.totalOrders : inventoryStats.totalItems));
 
   return (
-    <div className="space-y-6 animate-fadeIn text-right pb-16" dir="rtl">
+    <div className="space-y-2.5 animate-fadeIn text-right pb-8" dir="rtl">
       {/* ترويسة الطباعة الرسمية المعتمدة */}
       {PrintHeader && <PrintHeader brandProfile={brandProfile} getTabTitle={getTabTitle} dateRange={dateRange} reportCurrency={reportCurrency} />}
 

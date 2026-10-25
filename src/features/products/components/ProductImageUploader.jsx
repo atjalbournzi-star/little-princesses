@@ -1,9 +1,10 @@
 // src/features/products/components/ProductImageUploader.jsx
 // مكون رفع ومعاينة صور الفساتين (Drag & Drop / File Upload + Thumbnail Preview)
 
-const { useState, useRef } = React;
+
 
 function ProductImageUploader({ imageUrl = "", setImageUrl }) {
+  const { useState, useRef } = React;
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef(null);
 
