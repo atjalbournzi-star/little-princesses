@@ -1,12 +1,29 @@
 import logging
-from .db_pool import get_db_cursor, clean_num, clean_str, generate_id, today_str
+from .db_pool import get_db_cursor, clean_num, clean_str, today_str
+from .pg_sequences import get_next_sequence_number
+from .pg_audit import log_audit_event, get_active_user_context
 
 logger = logging.getLogger("LittlePrincesses_PG_Employees")
 
 
 def get_employees(params=None):
     with get_db_cursor() as cur:
-        cur.execute("SELECT * FROM employees ORDER BY created_at DESC;")
+        cur.execute("""
+            SELECT e.*, COALESCE(t.active_tasks_count, 0) as active_tasks_count
+            FROM employees e
+            LEFT JOIN (
+                SELECT emp_name, COUNT(*) as active_tasks_count FROM (
+                    SELECT cutter_name AS emp_name FROM production_orders WHERE status NOT IN ('Completed', 'Delivered', 'Cancelled', 'مكتمل', 'تم التسليم', 'ملغي') AND cutter_name IS NOT NULL AND cutter_name != ''
+                    UNION ALL
+                    SELECT tailor_name AS emp_name FROM production_orders WHERE status NOT IN ('Completed', 'Delivered', 'Cancelled', 'مكتمل', 'تم التسليم', 'ملغي') AND tailor_name IS NOT NULL AND tailor_name != ''
+                    UNION ALL
+                    SELECT embroiderer_name AS emp_name FROM production_orders WHERE status NOT IN ('Completed', 'Delivered', 'Cancelled', 'مكتمل', 'تم التسليم', 'ملغي') AND embroiderer_name IS NOT NULL AND embroiderer_name != ''
+                    UNION ALL
+                    SELECT finisher_name AS emp_name FROM production_orders WHERE status NOT IN ('Completed', 'Delivered', 'Cancelled', 'مكتمل', 'تم التسليم', 'ملغي') AND finisher_name IS NOT NULL AND finisher_name != ''
+                ) sub GROUP BY emp_name
+            ) t ON (e.name = t.emp_name OR e.full_name = t.emp_name)
+            ORDER BY e.created_at DESC;
+        """)
         rows = cur.fetchall()
         for r in rows:
             if r.get('created_at'):
@@ -27,6 +44,7 @@ def get_employees(params=None):
             r['full_name'] = r.get('full_name') or r.get('name')
             raw_st = str(r.get('status') or 'نشط')
             r['status'] = 'نشط' if raw_st in ('Active', 'active', 'نشط') else 'موقوف'
+            r['active_tasks_count'] = int(r.get('active_tasks_count') or 0)
         return rows
 
 
@@ -53,7 +71,7 @@ def _format_emp_dict(res, default_type, default_hire_date, default_status):
 
 def add_employee(payload):
     data = payload.get('data') or payload
-    emp_id = clean_str(data.get('id')) or generate_id("EMP")
+    emp_id = clean_str(data.get('id'))
     name = clean_str(data.get('name') or data.get('full_name') or data.get('employee_name'))
     full_name = clean_str(data.get('full_name') or name)
     role = clean_str(data.get('role') or data.get('position') or 'خياط')
@@ -67,13 +85,14 @@ def add_employee(payload):
     notes = clean_str(data.get('notes') or '')
 
     with get_db_cursor(commit=True) as cur:
-        # Deduplication Guard: Check if employee already exists with same name, role and phone
-        cur.execute("SELECT id FROM employees WHERE id = %s;", (emp_id,))
-        id_exists = cur.fetchone()
+        existing = None
+        if emp_id:
+            cur.execute("SELECT id, name, role, type, salary, phone FROM employees WHERE id = %s;", (emp_id,))
+            existing = cur.fetchone()
 
-        if not id_exists:
+        if not existing and name:
             cur.execute("""
-                SELECT id FROM employees 
+                SELECT id, name, role, type, salary, phone FROM employees 
                 WHERE TRIM(LOWER(name)) = TRIM(LOWER(%s))
                   AND TRIM(LOWER(role)) = TRIM(LOWER(%s))
                   AND (
@@ -82,10 +101,16 @@ def add_employee(payload):
                   )
                 ORDER BY created_at ASC LIMIT 1;
             """, (name, role, phone, phone))
-            duplicate = cur.fetchone()
-            if duplicate:
-                logger.warning("Duplicate employee detected: %s (Reusing existing ID: %s)", name, duplicate['id'])
-                emp_id = duplicate['id']
+            existing = cur.fetchone()
+            if existing:
+                logger.warning("Duplicate employee detected: %s (Reusing existing ID: %s)", name, existing['id'])
+                emp_id = existing['id']
+
+        is_update = bool(existing)
+        if is_update:
+            emp_id = existing['id']
+        else:
+            emp_id = get_next_sequence_number(cur, 'EMP', fallback_prefix='EMP-')
 
         cur.execute("""
             INSERT INTO employees (id, name, full_name, role, type, employment_type, phone, salary, currency, hire_date, status, notes, updated_at)
@@ -106,14 +131,43 @@ def add_employee(payload):
             RETURNING *;
         """, (emp_id, name, full_name, role, emp_type, employment_type, phone, salary, currency, hire_date, status, notes))
         res = dict(cur.fetchone())
+
+        user_ctx = get_active_user_context('admin')
+        new_val = {'id': emp_id, 'name': name, 'role': role, 'salary': salary, 'status': status}
+        log_audit_event(
+            entity_type='employees',
+            entity_id=emp_id,
+            action='UPDATE' if is_update else 'INSERT',
+            old_values=dict(existing) if existing else None,
+            new_values=new_val,
+            user_id=user_ctx,
+            document_no=emp_id,
+            details=f"{'تحديث' if is_update else 'إضافة'} بيانات الموظف {name} ({emp_id})",
+            cur=cur
+        )
+
         return _format_emp_dict(res, emp_type, hire_date, status)
 
 
 def delete_employee(payload):
     data = payload.get('data') or payload
     emp_id = clean_str(data.get('id'))
+    user_ctx = get_active_user_context('admin')
     with get_db_cursor(commit=True) as cur:
+        cur.execute("SELECT id, name, role FROM employees WHERE id = %s;", (emp_id,))
+        emp_row = cur.fetchone()
+        emp_name = emp_row['name'] if emp_row else emp_id
         cur.execute("DELETE FROM payroll WHERE employee_id = %s;", (emp_id,))
         cur.execute("DELETE FROM employees WHERE id = %s;", (emp_id,))
+        log_audit_event(
+            entity_type='employees',
+            entity_id=emp_id,
+            action='DELETE',
+            old_values=dict(emp_row) if emp_row else {'id': emp_id},
+            user_id=user_ctx,
+            document_no=emp_id,
+            details=f"حذف الموظف {emp_name} ({emp_id})",
+            cur=cur
+        )
     return {"success": True, "deleted": True, "id": emp_id}
 

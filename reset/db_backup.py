@@ -32,31 +32,34 @@ def step1_create_full_backup():
         shutil.copy2(sqlite_db_path, sqlite_backup_path)
         print(f"  ✓ تم نسخ قاعدة البيانات المحلية SQLite إلى: {sqlite_backup_name}")
 
-    # 1.2 تصدير كافة جداول Supabase PostgreSQL إلى ملف JSON شامل
+    # 1.2 تصدير كافة جداول Supabase PostgreSQL إلى ملف JSON شامل (إن كانت متصلة)
     dump_data = {}
-    with db_client.get_db_cursor() as cur:
-        cur.execute("""
-            SELECT table_name
-            FROM information_schema.tables
-            WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
-            ORDER BY table_name;
-        """)
-        all_tables = [r['table_name'] for r in cur.fetchall()]
-        print(f"  ✓ جاري تصدير {len(all_tables)} جدولاً من Supabase (public schema)...")
+    try:
+        with db_client.get_db_cursor() as cur:
+            cur.execute("""
+                SELECT table_name
+                FROM information_schema.tables
+                WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+                ORDER BY table_name;
+            """)
+            all_tables = [r['table_name'] for r in cur.fetchall()]
+            print(f"  ✓ جاري تصدير {len(all_tables)} جدولاً من Supabase (public schema)...")
 
-        for tbl in all_tables:
-            try:
-                cur.execute(f'SELECT * FROM "{tbl}";')
-                rows = [dict(r) for r in cur.fetchall()]
-                for r in rows:
-                    for k, v in r.items():
-                        if isinstance(v, (datetime.date, datetime.datetime, uuid.UUID)):
-                            r[k] = str(v)
-                        elif isinstance(v, Decimal):
-                            r[k] = float(v)
-                dump_data[tbl] = rows
-            except Exception as e:
-                print(f"    ⚠️ تعذر تصدير الجدول {tbl}: {e}")
+            for tbl in all_tables:
+                try:
+                    cur.execute(f'SELECT * FROM "{tbl}";')
+                    rows = [dict(r) for r in cur.fetchall()]
+                    for r in rows:
+                        for k, v in r.items():
+                            if isinstance(v, (datetime.date, datetime.datetime, uuid.UUID)):
+                                r[k] = str(v)
+                            elif isinstance(v, Decimal):
+                                r[k] = float(v)
+                    dump_data[tbl] = rows
+                except Exception as e:
+                    print(f"    ⚠️ تعذر تصدير الجدول {tbl}: {e}")
+    except Exception as e:
+        print(f"  ℹ️ تنبيه: تعذر تصدير جداول PostgreSQL السحابية (السيرفر غير متصل أو مؤقت): {e}")
 
     json_backup_name = f"snapshot_before_clean_slate_{ts}.json"
     json_backup_path = os.path.join(BACKUPS_DIR, json_backup_name)

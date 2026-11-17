@@ -6,7 +6,8 @@ function Products({
   setProducts,
   inventory = [],
   showToast,
-  currency
+  currency,
+  jobRoles = []
 }) {
   // استدعاء الخطافات والمكونات المعيارية من النطاق العام مع بدائل آمنة
   const useData = window.useProductsData || (() => ({
@@ -53,8 +54,17 @@ function Products({
     setProducts,
     inventory,
     showToast,
-    currency
+    currency,
+    jobRoles
   });
+
+  const {
+    handleEditProduct = actions.handleEditProduct,
+    handleDeleteProduct = actions.handleDeleteProduct,
+    handleOpenAddModal = actions.handleOpenAddModal,
+    modalOpen = actions.modalOpen,
+    setModalOpen = actions.setModalOpen
+  } = actions;
 
   return (
     <div className="space-y-1 animate-fadeIn text-right" dir="rtl">
@@ -64,7 +74,7 @@ function Products({
           stats={stats}
           viewMode={viewMode}
           onViewModeChange={setViewMode}
-          onOpenAdd={actions.handleOpenAddModal}
+          onOpenAdd={handleOpenAddModal}
         />
       )}
 
@@ -91,8 +101,8 @@ function Products({
         {viewMode === "table" && TableComp && (
           <TableComp
             products={filteredProducts}
-            onEdit={actions.handleEditProduct}
-            onDelete={actions.handleDeleteProduct}
+            onEdit={handleEditProduct}
+            onDelete={handleDeleteProduct}
             onShowQr={setQrProduct}
             currencyLabel={stats.currencyDisplay}
           />
@@ -115,8 +125,8 @@ function Products({
                     <CardComp
                       key={p.id}
                       product={p}
-                      onEdit={actions.handleEditProduct}
-                      onDelete={actions.handleDeleteProduct}
+                      onEdit={handleEditProduct}
+                      onDelete={handleDeleteProduct}
                       onShowQr={setQrProduct}
                       currencyLabel={stats.currencyDisplay}
                     />
@@ -129,14 +139,15 @@ function Products({
       </div>
 
       {/* 5. نافذة إضافة وتعديل الموديل ومصفوفة التكاليف (BOM Studio Modal) */}
-      {ModalComp && actions.modalOpen && (
+      {ModalComp && modalOpen && (
         <ModalComp
-          isOpen={actions.modalOpen}
-          onClose={() => actions.setModalOpen(false)}
+          isOpen={modalOpen}
+          onClose={() => setModalOpen(false)}
           actions={actions}
           inventory={inventory}
           availableCategories={availableCategories}
           availableCollections={availableCollections}
+          jobRoles={jobRoles}
         />
       )}
 

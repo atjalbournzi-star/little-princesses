@@ -1,7 +1,10 @@
 import json
-from .db_pool import clean_str, clean_num, generate_id, today_str, generate_sequential_order_no
+from .db_pool import clean_str, clean_num, generate_id, today_str
 from .pg_receipt_sync import sync_advance_receipt
 from .pg_order_stages import create_order_stages
+from .pg_sequences import get_next_sequence_number
+from .pg_audit import log_audit_event
+from .account_resolver import resolve_receiving_account, resolve_customer_advance_account
 
 def save_customer_financials(cur, cust_id, name, data, meas_list, is_existing=False):
     ledger_data = data.get('ledger') or {}
@@ -60,10 +63,10 @@ def save_customer_financials(cur, cust_id, name, data, meas_list, is_existing=Fa
 
     m_ev = clean_str(first_m.get('event_date') or first_m.get('date') or '') or None
     m_ms = clean_str(first_m.get('meas_date') or first_m.get('measurement_date') or '') or None
-    actual_order_id = ex_order['id'] if ex_order else (generate_id("ORD") if (not is_existing or data.get('create_new_order')) else None)
-    order_no = ex_order['order_no'] if ex_order else (generate_sequential_order_no(cur, m_ms or today_str()) if actual_order_id else None)
+    actual_order_id = ex_order['id'] if ex_order else ((get_next_sequence_number(cur, 'ORD', fallback_prefix='ORD-')) if (not is_existing or data.get('create_new_order') or total_sales > 0 or deposit > 0 or meas_list) else None)
+    order_no = ex_order['order_no'] if ex_order else actual_order_id
     order_status = 'Paid' if remaining <= 0 and total_sales > 0 else ('Partial' if deposit > 0 else 'Unpaid')
-    order_notes = clean_str(data.get('notes') or (f"طلب تفصيل للعميلة {name}" + (f" ({first_model})" if first_model else "") + (f" | اللون: {m_color}" if m_color else "")))
+    order_notes = clean_str(data.get('notes') or (f"طلب تفصيل للعميل {name}" + (f" ({first_model})" if first_model else "") + (f" | اللون: {m_color}" if m_color else "")))
     first_fb = json.dumps(first_m.get('fabrics_data') or first_m.get('fabrics_breakdown') or first_m.get('bom_items') or [], ensure_ascii=False)
 
     if ex_order and (deposit > 0 or total_sales > 0):
@@ -91,7 +94,18 @@ def save_customer_financials(cur, cust_id, name, data, meas_list, is_existing=Fa
             );
         """, (actual_order_id, order_no, cust_id, first_chld_id, prod_id, prod_id, m_color, m_color, m_img, m_img, m_ms, m_ev, curr, total_sales, total_order_amount, deposit, deposit, total_order_amount, order_status, pay_method, delivery_fee, del_mode, first_fb, order_notes))
 
+        log_audit_event(cur=cur, entity_type='orders', entity_id=actual_order_id, action='INSERT',
+                        new_values={'order_no': order_no, 'customer_id': cust_id, 'total_amount': total_order_amount, 'deposit': deposit},
+                        document_no=order_no, details=f"إنشاء طلب تفصيل رقم {order_no} للعميل {name}")
+
         if meas_list:
+            cur.execute("SELECT bom, labor_cost, packaging_cost FROM products WHERE id = %s OR model_name = %s LIMIT 1;", (prod_id or first_model, first_model))
+            p_bom_row = cur.fetchone()
+            b_meta = (p_bom_row['bom'].get('meta') or {}) if (p_bom_row and isinstance(p_bom_row.get('bom'), dict)) else {}
+            c_w, t_w = clean_num(b_meta.get('cutter_wage') or 0.0), clean_num(b_meta.get('tailor_wage') or 0.0)
+            e_w, f_w = clean_num(b_meta.get('embroiderer_wage') or 0.0), clean_num(b_meta.get('finisher_wage') or 0.0)
+            p_w = clean_num(b_meta.get('packaging_cost') or (p_bom_row.get('packaging_cost') if p_bom_row else 0.0))
+
             for idx_m, m_item in enumerate(meas_list):
                 m_mod = clean_str(m_item.get('model_name') or m_item.get('selected_model') or first_model)
                 m_ch = clean_str(m_item.get('child_name') or first_chld_name)
@@ -114,20 +128,28 @@ def save_customer_financials(cur, cust_id, name, data, meas_list, is_existing=Fa
                 m_fb = json.dumps(raw_fb_list, ensure_ascii=False)
                 m_sp = json.dumps({k: m_item[k] for k in ['dress_length', 'total_height', 'chest_circ', 'waist_circ', 'shoulder_width', 'armpit_circ', 'neck_circ', 'unit'] if m_item.get(k)}, ensure_ascii=False)
                 m_pr = clean_num(m_item.get('adjusted_price') or m_item.get('price') or total_sales)
-                po_num = f"PO-{order_no}" if idx_m == 0 else f"PO-{order_no}-{idx_m+1}"
+                po_num = get_next_sequence_number(cur, 'PROD-ORD', fallback_prefix='PROD-ORD-')
 
                 cur.execute("""
                     INSERT INTO production_orders (
                         id, production_order_no, order_id, customer_id, customer_name, product_id, model_id, product_name, child_name,
                         selected_color, color, model_image, product_image, stage, progress, status,
-                        total_amount, deposit_amount, remaining_amount, measurements_spec, fabrics_data, notes
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'القص والتحضير ✂️', 20, 'In Progress', %s, %s, %s, %s::jsonb, %s::jsonb, %s)
+                        total_amount, deposit_amount, remaining_amount, measurements_spec, fabrics_data, notes,
+                        start_date, due_date, cutter_wage, tailor_wage, embroiderer_wage, finisher_wage, packager_wage
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'القص والتحضير ✂️', 20, 'In Progress', %s, %s, %s, %s::jsonb, %s::jsonb, %s, COALESCE(%s::date, CURRENT_DATE), %s::date, %s, %s, %s, %s, %s)
                     ON CONFLICT (production_order_no) DO UPDATE SET customer_id = EXCLUDED.customer_id, customer_name = EXCLUDED.customer_name,
                         product_name = EXCLUDED.product_name, child_name = EXCLUDED.child_name, selected_color = EXCLUDED.selected_color, color = EXCLUDED.color,
                         model_image = EXCLUDED.model_image, product_image = EXCLUDED.product_image, total_amount = EXCLUDED.total_amount,
                         deposit_amount = EXCLUDED.deposit_amount, remaining_amount = EXCLUDED.remaining_amount, measurements_spec = EXCLUDED.measurements_spec,
-                        fabrics_data = EXCLUDED.fabrics_data, notes = EXCLUDED.notes;
-                """, (generate_id("PRD"), po_num, actual_order_id, cust_id, name, prod_id, prod_id, m_mod, m_ch, m_c, m_c, m_i, m_i, m_pr, deposit, max(0.0, m_pr - deposit), m_sp, m_fb, clean_str(f"أمر تفصيل للعميلة {name} (طلب {order_no})")))
+                        fabrics_data = EXCLUDED.fabrics_data, notes = EXCLUDED.notes, due_date = EXCLUDED.due_date,
+                        cutter_wage = EXCLUDED.cutter_wage, tailor_wage = EXCLUDED.tailor_wage, embroiderer_wage = EXCLUDED.embroiderer_wage,
+                        finisher_wage = EXCLUDED.finisher_wage, packager_wage = EXCLUDED.packager_wage;
+                """, (po_num, po_num, actual_order_id, cust_id, name, prod_id, prod_id, m_mod, m_ch, m_c, m_c, m_i, m_i, m_pr, deposit, max(0.0, m_pr - deposit), m_sp, m_fb, clean_str(f"أمر تفصيل للعميل {name} (طلب {order_no})"), m_ms, m_ev, c_w, t_w, e_w, f_w, p_w))
+
+                log_audit_event(cur=cur, entity_type='production_orders', entity_id=po_num, action='INSERT',
+                                new_values={'production_order_no': po_num, 'order_id': actual_order_id, 'due_date': m_ev},
+                                document_no=po_num, details=f"إنشاء أمر تصنيع {po_num} للطلب {order_no}")
+
                 it_id = clean_str(m_item.get('order_item_id')) or generate_id("ITEM")
                 cur.execute("""
                     INSERT INTO order_items (id, order_id, product_id, measurement_id, model_id, product_name, selected_color, color, model_image, image_url, quantity, unit_price, total_price, total_amount, paid_amount, remaining_amount, fabrics_data)
@@ -138,14 +160,14 @@ def save_customer_financials(cur, cust_id, name, data, meas_list, is_existing=Fa
                 """, (it_id, actual_order_id, prod_id, m_meas_id, prod_id, m_mod, m_c, m_c, m_i, m_i, m_pr, m_pr, m_pr, deposit, max(0.0, m_pr - deposit), m_fb))
                 create_order_stages(cur, actual_order_id, it_id, prod_id, m_mod, po_num)
 
-    cash_acc = 'ACC-101-2' if curr == 'SAR' else ('ACC-101-3' if curr == 'USD' else 'ACC-101-1')
+    cash_acc = resolve_receiving_account(cur, pay_method, curr)
 
     if deposit > 0 and (actual_order_id or order_no or is_existing):
         sync_advance_receipt(cur, {
             'order_id': actual_order_id or f"ORD-{cust_id}", 'order_no': order_no or f"ORD-{cust_id}",
             'customer_id': cust_id, 'party_name': name, 'amount': deposit, 'currency': curr,
             'exchange_rate': 1.0, 'base_amount': deposit, 'payment_method': pay_method, 'account_id': cash_acc,
-            'notes': f"سند قبض مبيعات - العميلة {name} ({first_model})"
+            'notes': f"سند قبض مبيعات - العميل {name} ({first_model})"
         })
 
     return total_sales, deposit, remaining, pay_method, order_no, delivery_fee, total_order_amount, del_mode

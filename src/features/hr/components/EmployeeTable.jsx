@@ -6,7 +6,22 @@ function EmployeeTable({
   toggleEmpStatus,
   deleteEmp,
   onEditEmployee,
+  jobRoles = []
 }) {
+  const prodRolesSet = React.useMemo(() => {
+    const set = new Set();
+    (jobRoles || []).forEach(r => {
+      if (r && r.is_production && r.role_name) set.add(r.role_name);
+    });
+    return set;
+  }, [jobRoles]);
+
+  const isProductionRole = (role) => {
+    if (!role) return false;
+    if (prodRolesSet.size > 0) return prodRolesSet.has(role);
+    return ["خياط", "قصاص", "تشطيب", "تطريز", "تغليف"].includes(role);
+  };
+
   if (employees.length === 0) {
     return (
       <div className="bg-[#111C38] border border-slate-800 rounded-xl p-8 text-center text-slate-400 font-medium select-none">
@@ -51,7 +66,7 @@ function EmployeeTable({
                 </div>
 
                 {calculateEmployeeCompletedTasks &&
-                  ["خياط", "قصاص", "تشطيب", "تطريز", "تغليف"].includes(emp.role) && (
+                  isProductionRole(emp.role) && (
                     <div className="text-center bg-slate-900/80 px-1.5 py-0.2 rounded border border-slate-800 shrink-0">
                       <span className="text-[11px] font-bold font-mono text-pink-400">
                         {calculateEmployeeCompletedTasks(emp.name)}

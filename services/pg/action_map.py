@@ -9,7 +9,8 @@ from . import (
     pg_vouchers, pg_expenses, pg_accounts, pg_journal,
     pg_factory, pg_payroll, pg_system, pg_audit,
     pg_dashboard, pg_customer_tracking, pg_warehouses,
-    pg_receipt_sync, pg_cost_centers, pg_financial_sync
+    pg_receipt_sync, pg_cost_centers, pg_financial_sync,
+    pg_measurement_studio, pg_sequences
 )
 
 ACTION_HANDLERS = {
@@ -48,6 +49,7 @@ ACTION_HANDLERS = {
 
     # المنتجات والمخزون
     "getProducts": pg_products.get_products,
+    "getProductById": lambda p: pg_products.get_product_by_id(p.get("id") or p.get("product_id") if isinstance(p, dict) else p),
     "addProduct": pg_products.add_product,
     "updateProduct": pg_products.add_product,
     "deleteProduct": pg_products.delete_product,
@@ -146,6 +148,8 @@ ACTION_HANDLERS = {
     "addEmployee": pg_payroll.add_employee,
     "updateEmployee": pg_payroll.add_employee,
     "deleteEmployee": pg_payroll.delete_employee,
+    "getJobRoles": pg_payroll.get_job_roles,
+    "addJobRole": pg_payroll.add_job_role,
     "getPayroll": pg_payroll.get_payroll,
     "addPayrollBatch": pg_payroll.add_payroll_batch,
     "updatePayrollRecord": pg_payroll.update_payroll_record,
@@ -164,6 +168,10 @@ ACTION_HANDLERS = {
     "saveSystemSettings": pg_system.save_system_settings,
     "getAuditLogs": pg_audit.get_audit_logs,
     "addAuditLog": pg_audit.add_audit_log,
+    "getNumberSequences": pg_sequences.get_number_sequences,
+    "getNextSequenceNumber": pg_sequences.fetch_next_sequence,
+    "get_next_sequence_number": pg_sequences.fetch_next_sequence,
+    "updateNumberSequence": pg_sequences.update_number_sequence,
     "getBackupStatus": pg_system.get_backup_status,
     "createSnapshot": pg_system.create_backup_snapshot,
     "createBackupSnapshot": pg_system.create_backup_snapshot,
@@ -180,4 +188,9 @@ ACTION_HANDLERS = {
     "updateFittingAlterationStatus": pg_factory.update_fitting_alteration_status,
     "getAtelierWatchdog": pg_factory.get_atelier_watchdog,
     "scanToDeliverOrder": pg_factory.scan_to_deliver_order,
+    # استوديو المقاسات والمعايرة A4
+    "saveMeasurementStudio": pg_measurement_studio.save_measurement_session,
+    "getMeasurementStudio": lambda p: pg_measurement_studio.get_measurement_session_by_order(p.get("order") or p.get("order_id") or p.get("id")),
+    "approveMeasurementStudio": pg_measurement_studio.approve_measurement_session,
+    "getRecentMeasurementStudios": lambda p: pg_measurement_studio.get_recent_measurement_sessions(p.get("limit", 20)),
 }

@@ -106,7 +106,7 @@ def cancel_purchase(payload):
 
 def delete_purchase(payload):
     res = cancel_purchase(payload)
-    if res.get('success'):
+    if res.get('success') and not res.get('not_in_db'):
         try:
             reconcile_inventory_governance()
         except Exception as e:

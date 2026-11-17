@@ -15,7 +15,7 @@ def handle_post(handler, path, parsed_url) -> bool:
             data = json.loads(post_data.decode('utf-8'))
             
             # استخراج وتوحيد بيانات الفاتورة
-            bill_no = data.get('bill_no') or data.get('invoice_no') or f"PUR-{int(time.time())}"
+            bill_no = data.get('bill_no') or data.get('invoice_no') or ''
             supplier_id = data.get('supplier_id') or ''
             supplier = data.get('supplier') or data.get('supplier_name') or ''
             supplier_phone = str(data.get('supplier_phone') or data.get('phone') or data.get('supplier_number') or '').strip()
@@ -36,9 +36,9 @@ def handle_post(handler, path, parsed_url) -> bool:
             created_by = data.get('created_by', 'admin')
 
             items = data.get('items', [])
-            if not items:
+            if not items and (data.get('item') or data.get('item_name') or data.get('fabric_name')):
                 items = [{
-                    'item_name': data.get('item') or data.get('item_name') or data.get('fabric_name') or 'صنف مشتريات',
+                    'item_name': data.get('item') or data.get('item_name') or data.get('fabric_name'),
                     'unit': data.get('unit', 'متر'),
                     'qty': float(data.get('qty', 1.0)),
                     'cost': float(data.get('cost') or data.get('price') or data.get('unit_price') or 0.0)
@@ -84,26 +84,32 @@ def handle_post(handler, path, parsed_url) -> bool:
             res = pg_service.add_purchase(pg_payload)
 
             clean_ref = str(res.get('id', ''))[4:] if str(res.get('id', '')).startswith('PUR-') else str(res.get('id', ''))
-            handler.send_response(200)
-            handler._send_cors_headers()
-            handler.send_header('Content-Type', 'application/json; charset=utf-8')
-            handler.end_headers()
-            handler.wfile.write(json.dumps({
+            final_no = res.get('invoice_no') or res.get('bill_no') or res.get('id') or bill_no
+            resp_bytes = json.dumps({
                 'success': True,
-                'bill_no': res.get('invoice_no') or bill_no,
+                'bill_no': final_no,
                 'id': res.get('id'),
                 'data': res,
                 'voucher_no': f"PAY-{clean_ref}" if pay_type != 'آجل' else None,
                 'journal_no': f"JV-PUR-{clean_ref}",
-                'message': f"✅ تم حفظ الفاتورة {bill_no} وتوريد الأصناف للمخزون وترحيل القيود وسندات الصرف بنجاح"
-            }, ensure_ascii=False, default=str).encode('utf-8'))
+                'message': f"تم حفظ فاتورة المشتريات {final_no} وتوريد الأصناف للمخزون وترحيل القيود بنجاح"
+            }, ensure_ascii=False, default=str).encode('utf-8')
+            handler.send_response(200)
+            handler._send_cors_headers()
+            handler.send_header('Content-Type', 'application/json; charset=utf-8')
+            handler.send_header('Content-Length', str(len(resp_bytes)))
+            handler.end_headers()
+            handler.wfile.write(resp_bytes)
             return True
         except Exception as e:
+            err_msg = str(e)
+            err_bytes = json.dumps({'success': False, 'error': err_msg, 'message': err_msg}, ensure_ascii=False).encode('utf-8')
             handler.send_response(400)
             handler._send_cors_headers()
             handler.send_header('Content-Type', 'application/json; charset=utf-8')
+            handler.send_header('Content-Length', str(len(err_bytes)))
             handler.end_headers()
-            handler.wfile.write(json.dumps({'success': False, 'error': str(e)}, ensure_ascii=False).encode('utf-8'))
+            handler.wfile.write(err_bytes)
             return True
 
     return False

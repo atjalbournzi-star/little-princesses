@@ -1,28 +1,30 @@
 # services/pg/pg_receipt_sync.py
-# Double-entry sync service for customer advance receipts (Liability Account 202)
+# Double-entry sync service for customer advance receipts (Liability Account)
 
 from .db_pool import clean_str, clean_num, generate_id, today_str, logger
+from .pg_sequences import get_next_sequence_number
+from .pg_audit import log_audit_event, get_active_user_context, resolve_active_user_id
+from .pg_delivery_cogs import cascade_account_balances
+from .account_resolver import resolve_receiving_account, resolve_customer_advance_account, resolve_exchange_rate
 
 
 def sync_advance_receipt(cur, data):
-    """مزامنة وترحيل قيد مزدوج لسند قبض العربون وتحديث رصيد حساب 202 والصندوق فورياً"""
+    """مزامنة وترحيل قيد مزدوج متوازن لسند قبض العربون وتحديث شجرة الحسابات فورياً"""
     order_id = clean_str(data.get('order_id')) or None
     order_no = clean_str(data.get('order_no') or order_id or '')
     cust_id = clean_str(data.get('customer_id')) or None
-    p_name = clean_str(data.get('party_name') or data.get('customer_name') or 'العميلة')
+    p_name = clean_str(data.get('party_name') or data.get('customer_name') or 'العميل')
     amt = clean_num(data.get('amount') or data.get('deposit') or data.get('paid_amount') or 0.0)
     curr = clean_str(data.get('currency') or 'YER').replace('﷼', '').replace('$', '').strip() or 'YER'
-    rate = clean_num(data.get('exchange_rate') or 1.0)
+    rate = clean_num(data.get('exchange_rate')) or resolve_exchange_rate(cur, curr)
     base_amt = clean_num(data.get('base_amount') or (amt * rate))
     pay_m = clean_str(data.get('payment_method') or data.get('pay_method') or 'نقد (كاش)')
     p_date = clean_str(data.get('date') or data.get('order_date')) or today_str()
-    notes = clean_str(data.get('notes') or f"سند قبض عربون مبيعات - العميلة {p_name}")
+    notes = clean_str(data.get('notes') or f"سند قبض عربون مبيعات - العميل {p_name}")
+    user_id = resolve_active_user_id(cur, clean_str(data.get('created_by') or data.get('user_id') or ''))
 
-    cash_acc = clean_str(data.get('account_id') or data.get('cash_acc'))
-    if not cash_acc:
-        cash_acc = 'ACC-101-2' if 'SAR' in curr.upper() else ('ACC-101-3' if 'USD' in curr.upper() else 'ACC-101-1')
-        if any(k in pay_m for k in ['كريمي', 'بنك', 'حوالة']): cash_acc = 'ACC-102-2'
-    tgt_acc = 'ACC-202'
+    cash_acc = clean_str(data.get('account_id') or data.get('cash_acc')) or resolve_receiving_account(cur, pay_m, curr)
+    tgt_acc = clean_str(data.get('target_account_id')) or resolve_customer_advance_account(cur)
 
     custom_id = clean_str(data.get('id') or data.get('payment_id'))
     custom_no = clean_str(data.get('payment_no') or data.get('voucher_no'))
@@ -45,13 +47,11 @@ def sync_advance_receipt(cur, data):
             cur.execute("DELETE FROM payments WHERE id = %s;", (ex_pay['id'],))
         return None
 
-    from .pg_account_code import generate_sequential_voucher_no
     if ex_pay:
         pay_id = ex_pay['id']
         pay_no = ex_pay.get('payment_no') or custom_no
         if not pay_no or pay_no.startswith('REC-') or pay_no.startswith('RV-CUST-') or pay_no.startswith('RV-PAY-'):
-            pay_no = generate_sequential_voucher_no(cur, 'Receipt', p_date)
-
+            pay_no = get_next_sequence_number(cur, 'RV', fallback_prefix='RV-')
         cur.execute("""
             UPDATE payments SET payment_no = %s, amount = %s, currency = %s, exchange_rate = %s, base_amount = %s,
                 payment_method = %s, account_id = %s, target_account_id = %s, date = %s,
@@ -61,38 +61,42 @@ def sync_advance_receipt(cur, data):
         """, (pay_no, amt, curr, rate, base_amt, pay_m, cash_acc, tgt_acc, p_date, notes, p_name, cust_id, order_id, pay_id))
         res = dict(cur.fetchone())
     else:
-        pay_id = custom_id or (f"PAY-{order_id}" if order_id else (f"PAY-{cust_id}" if cust_id else generate_id("PAY")))
-        pay_no = custom_no
-        if not pay_no or pay_no.startswith('REC-') or pay_no.startswith('RV-CUST-') or pay_no.startswith('RV-PAY-'):
-            pay_no = generate_sequential_voucher_no(cur, 'Receipt', p_date)
+        pay_no = get_next_sequence_number(cur, 'RV', fallback_prefix='RV-')
+        pay_id = pay_no
         cur.execute("""
             INSERT INTO payments (id, payment_no, customer_id, order_id, payment_type, amount, currency,
-                exchange_rate, base_amount, payment_method, account_id, target_account_id, date, status, notes, party_name)
-            VALUES (%s, %s, %s, %s, 'Receipt', %s, %s, %s, %s, %s, %s, %s, %s, 'Confirmed', %s, %s)
+                exchange_rate, base_amount, payment_method, account_id, target_account_id, date, status, notes, party_name, created_by)
+            VALUES (%s, %s, %s, %s, 'Receipt', %s, %s, %s, %s, %s, %s, %s, %s, 'Confirmed', %s, %s, %s)
             ON CONFLICT (id) DO UPDATE SET payment_no = EXCLUDED.payment_no, amount = EXCLUDED.amount, base_amount = EXCLUDED.base_amount, account_id = EXCLUDED.account_id,
                 target_account_id = EXCLUDED.target_account_id, notes = EXCLUDED.notes, party_name = EXCLUDED.party_name
             RETURNING *;
-        """, (pay_id, pay_no, cust_id, order_id, amt, curr, rate, base_amt, pay_m, cash_acc, tgt_acc, p_date, notes, p_name))
+        """, (pay_id, pay_no, cust_id, order_id, amt, curr, rate, base_amt, pay_m, cash_acc, tgt_acc, p_date, notes, p_name, user_id))
         res = dict(cur.fetchone())
 
-    jv_no = f"AUTO-VCH-{pay_no}"
+    jv_no = get_next_sequence_number(cur, 'JV', fallback_prefix='JV-')
+    jv_id = f"JV-{pay_no}"
     cur.execute("""
         INSERT INTO journal_entries (id, entry_no, entry_date, description, debit_account_id, credit_account_id,
-            amount, total_amount, base_amount, ref_type, ref_id, currency, exchange_rate, status, notes)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'Receipt', %s, %s, %s, 'Posted', %s)
-        ON CONFLICT (entry_no) DO UPDATE SET amount = EXCLUDED.amount, total_amount = EXCLUDED.total_amount,
+            amount, total_amount, base_amount, ref_type, ref_id, currency, exchange_rate, status, notes, created_by)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'Receipt', %s, %s, %s, 'Posted', %s, %s)
+        ON CONFLICT (id) DO UPDATE SET entry_no = EXCLUDED.entry_no, amount = EXCLUDED.amount, total_amount = EXCLUDED.total_amount,
             base_amount = EXCLUDED.base_amount, debit_account_id = EXCLUDED.debit_account_id,
             credit_account_id = EXCLUDED.credit_account_id, currency = EXCLUDED.currency, notes = EXCLUDED.notes;
-    """, (f"JV-{pay_id}", jv_no, p_date, f"سند قبض عربون {pay_no}: {p_name}", cash_acc, tgt_acc, amt, amt, base_amt, pay_id, curr, rate, notes))
+    """, (jv_id, jv_no, p_date, f"سند قبض عربون {pay_no}: {p_name}", cash_acc, tgt_acc, amt, amt, base_amt, pay_id, curr, rate, notes, user_id))
 
-    cur.execute("SELECT id FROM journal_entries WHERE entry_no = %s LIMIT 1;", (jv_no,))
-    jv_row = cur.fetchone()
-    jv_id = jv_row['id'] if jv_row else f"JV-{pay_id}"
     cur.execute("DELETE FROM journal_entry_lines WHERE entry_id = %s;", (jv_id,))
     cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, %s, %s, %s, 0.0, %s, 0.0);",
-                (generate_id("JVL"), jv_id, cash_acc, f"مدين - عربون عميلة {p_name} ({pay_no})", amt, base_amt))
+                (generate_id("JVL"), jv_id, cash_acc, f"مدين - عربون عميل {p_name} ({pay_no})", amt, base_amt))
     cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, %s, %s, 0.0, %s, 0.0, %s);",
                 (generate_id("JVL"), jv_id, tgt_acc, f"دائن - أمانات وعرابين فساتين ({p_name})", amt, base_amt))
+
+    cur.execute("UPDATE chart_of_accounts SET current_balance = COALESCE(current_balance, 0.0) + %s WHERE id = %s OR account_code = %s;", (base_amt, cash_acc, cash_acc))
+    cur.execute("UPDATE chart_of_accounts SET current_balance = COALESCE(current_balance, 0.0) + %s WHERE id = %s OR account_code = %s;", (base_amt, tgt_acc, tgt_acc))
+    cascade_account_balances(cur)
+
+    log_audit_event(cur=cur, entity_type='payments', entity_id=pay_id, action='UPDATE' if ex_pay else 'INSERT', new_values={'payment_no': pay_no, 'amount': amt, 'currency': curr}, user_id=user_id, document_no=pay_no, details=f"سند قبض عربون {pay_no} للعميل {p_name}")
+    log_audit_event(cur=cur, entity_type='journal_entries', entity_id=jv_id, action='INSERT', new_values={'entry_no': jv_no, 'amount': amt, 'base_amount': base_amt}, user_id=user_id, document_no=jv_no, details=f"قيد يومية مزدوج {jv_no} لسند {pay_no}")
+
     if cust_id:
         try:
             from .pg_financial_sync import sync_customer_order_from_voucher
@@ -103,23 +107,24 @@ def sync_advance_receipt(cur, data):
 
 
 def recalculate_advance_deposits(cur):
-    """إعادة احتساب وتصحيح رصيد حساب 202 في شجرة الحسابات بناءً على كافة سندات العربون المسجلة"""
+    """إعادة احتساب وتصحيح رصيد حساب العربون في شجرة الحسابات بناءً على كافة سندات العربون المسجلة"""
+    tgt_acc = resolve_customer_advance_account(cur)
     cur.execute("""
         SELECT id, payment_no, customer_id, party_name, amount, currency, exchange_rate, base_amount,
                account_id, target_account_id, date, notes
         FROM payments
         WHERE payment_type = 'Receipt' AND status != 'reversed'
-          AND (target_account_id = 'ACC-202' OR notes ILIKE '%%عربون%%' OR notes ILIKE '%%حجز%%' OR payment_no ILIKE 'RV-CUST-%%');
-    """)
+          AND (target_account_id = %s OR notes ILIKE '%%عربون%%' OR notes ILIKE '%%حجز%%' OR payment_no ILIKE 'RV-CUST-%%');
+    """, (tgt_acc,))
     rows = cur.fetchall()
     tot_adv = 0.0
     for r in rows:
         b_amt = clean_num(r.get('base_amount') or r.get('amount') or 0.0)
         tot_adv += b_amt
-        cur.execute("UPDATE payments SET target_account_id = 'ACC-202' WHERE id = %s;", (r['id'],))
+        cur.execute("UPDATE payments SET target_account_id = %s WHERE id = %s;", (tgt_acc, r['id']))
         jv_no = f"AUTO-VCH-{r['payment_no']}"
-        cash_acc = r.get('account_id') or 'ACC-101-1'
-        p_name = r.get('party_name') or 'العميلة'
+        cash_acc = r.get('account_id') or resolve_cash_account_by_currency(cur, r.get('currency'))
+        p_name = r.get('party_name') or 'العميل'
         amt = clean_num(r.get('amount') or b_amt)
         curr = r.get('currency') or 'YER'
         rate = clean_num(r.get('exchange_rate') or 1.0)
@@ -129,16 +134,16 @@ def recalculate_advance_deposits(cur):
         cur.execute("""
             INSERT INTO journal_entries (id, entry_no, entry_date, description, debit_account_id, credit_account_id,
                 amount, total_amount, base_amount, ref_type, ref_id, currency, exchange_rate, status, notes)
-            VALUES (%s, %s, %s, %s, %s, 'ACC-202', %s, %s, %s, 'Receipt', %s, %s, %s, 'Posted', %s)
-            ON CONFLICT (entry_no) DO UPDATE SET credit_account_id = 'ACC-202', base_amount = EXCLUDED.base_amount;
-        """, (f"JV-{r['id']}", jv_no, p_date, f"سند قبض عربون {r['payment_no']}: {p_name}", cash_acc, amt, amt, b_amt, r['id'], curr, rate, notes))
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'Receipt', %s, %s, %s, 'Posted', %s)
+            ON CONFLICT (entry_no) DO UPDATE SET credit_account_id = %s, base_amount = EXCLUDED.base_amount;
+        """, (f"JV-{r['id']}", jv_no, p_date, f"سند قبض عربون {r['payment_no']}: {p_name}", cash_acc, tgt_acc, amt, amt, b_amt, r['id'], curr, rate, notes, tgt_acc))
         cur.execute("SELECT id FROM journal_entries WHERE entry_no = %s LIMIT 1;", (jv_no,))
         j_id = cur.fetchone()['id']
         cur.execute("DELETE FROM journal_entry_lines WHERE entry_id = %s;", (j_id,))
         cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, %s, %s, %s, 0.0, %s, 0.0);",
-                    (generate_id("JVL"), j_id, cash_acc, f"مدين - عربون عميلة {p_name}", amt, b_amt))
-        cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, 'ACC-202', %s, 0.0, %s, 0.0, %s);",
-                    (generate_id("JVL"), j_id, f"دائن - أمانات وعرابين فساتين ({p_name})", amt, b_amt))
+                    (generate_id("JVL"), j_id, cash_acc, f"مدين - عربون عميل {p_name}", amt, b_amt))
+        cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, %s, %s, 0.0, %s, 0.0, %s);",
+                    (generate_id("JVL"), j_id, tgt_acc, f"دائن - أمانات وعرابين فساتين ({p_name})", amt, b_amt))
 
     distinct_custs = {r['customer_id'] for r in rows if r.get('customer_id')}
     from .pg_financial_sync import sync_customer_order_from_voucher
@@ -148,15 +153,48 @@ def recalculate_advance_deposits(cur):
         except Exception as e_sync:
             logger.warning(f"Advance sync warning for {cid}: {e_sync}")
 
-    # خصم العربونات المسواة محاسبياً عند تسليم الطلبات (الجانب المدين من حساب 202)
-    cur.execute("SELECT COALESCE(SUM(debit), 0.0) as settled_adv FROM journal_entry_lines WHERE account_id = 'ACC-202';")
+    tgt_acc = resolve_customer_advance_account(cur)
+    cur.execute("SELECT COALESCE(SUM(debit), 0.0) as settled_adv FROM journal_entry_lines WHERE account_id = %s;", (tgt_acc,))
     settled_row = cur.fetchone()
     settled_adv = clean_num(settled_row['settled_adv'] if settled_row else 0.0)
     net_adv = max(0.0, tot_adv - settled_adv)
 
-    cur.execute("UPDATE chart_of_accounts SET current_balance = %s WHERE id = 'ACC-202' OR account_code = '202';", (net_adv,))
-    logger.info(f"✅ تم تصحيح رصيد حساب 202 في شجرة الحسابات: {net_adv:,.2f} YER (إجمالي: {tot_adv:,.2f} - تسوية تسليم: {settled_adv:,.2f})")
+    cur.execute("UPDATE chart_of_accounts SET current_balance = %s WHERE id = %s OR account_code = '202';", (net_adv, tgt_acc))
+    cascade_account_balances(cur)
+    logger.info(f"✅ تم تصحيح رصيد حساب العربونات في شجرة الحسابات: {net_adv:,.2f} YER")
+    sync_all_unvouchered_advances(cur)
     return {"total_advances": net_adv, "gross_advances": tot_adv, "settled": settled_adv, "count": len(rows), "synced_customers": len(distinct_custs)}
+
+
+def sync_all_unvouchered_advances(cur):
+    """مزامنة خلفية للطلبات والعملاء الذين لديهم مبالغ عربون مدفوعة لم يُنشأ لها سند قبض أو قيد محاسبي"""
+    cur.execute("""
+        SELECT o.id, o.order_no, o.customer_id, o.currency, o.exchange_rate, o.payment_method,
+               o.order_date, o.delivery_date, COALESCE(o.deposit_amount, o.paid_amount, 0.0) as deposit,
+               c.name as customer_name
+        FROM orders o
+        LEFT JOIN customers c ON o.customer_id = c.id
+        WHERE COALESCE(o.deposit_amount, o.paid_amount, 0.0) > 0
+          AND NOT EXISTS (
+              SELECT 1 FROM payments p 
+              WHERE (p.order_id = o.id OR p.order_id = o.order_no) AND p.payment_type = 'Receipt'
+          );
+    """)
+    unvouchered_orders = cur.fetchall()
+    vouchered_count = 0
+    for o in unvouchered_orders:
+        dep = clean_num(o['deposit'])
+        if dep > 0:
+            sync_advance_receipt(cur, {
+                'order_id': o['id'], 'order_no': o['order_no'], 'customer_id': o['customer_id'],
+                'party_name': o['customer_name'] or 'العميل', 'amount': dep,
+                'currency': o['currency'] or 'YER', 'exchange_rate': o.get('exchange_rate'),
+                'payment_method': o.get('payment_method') or 'نقد (كاش)',
+                'date': str(o.get('order_date') or today_str()),
+                'notes': f"سند قبض عربون مرحل آلياً للطلب {o['order_no']}"
+            })
+            vouchered_count += 1
+    return {"synced_orders": vouchered_count}
 
 
 def recalculate_advance_deposits_action(payload=None):

@@ -1,20 +1,22 @@
 /**
- * StageWagesMatrix.jsx - مصفوفة مواعيد وأجور وتوجيه مراحل الإنتاج عبر الواتساب
- * Little Princesses ERP - Production Floor Architecture
+ * StageWagesMatrix.jsx - مصفوفة مواعيد وأجور وتوجيه مراحل الإنتاج المقروءة ديناميكياً
+ * Little Princesses ERP - Dynamic Production Floor Architecture
  */
 
-const { useState: useStageState, useEffect: useStageEffect } = React;
+const { useState: useStageState, useEffect: useStageEffect, useMemo: useStageMemo } = React;
 
 function StageWagesMatrix({
   form = {},
   setForm,
   employees = [],
   handleStageEmpChange,
-  showToast
+  showToast,
+  jobRoles = []
 }) {
   const utils = window.FactoryUtils || {};
   const waUtils = window.FactoryWhatsAppUtils || {};
   const [localEmps, setLocalEmps] = useStageState([]);
+  const [prodRoles, setProdRoles] = useStageState([]);
 
   useStageEffect(() => {
     if (!employees || employees.length === 0) {
@@ -25,29 +27,56 @@ function StageWagesMatrix({
     }
   }, [employees]);
 
-  const activeEmps = (employees?.length > 0 ? employees : localEmps).filter(e => e.status === 'نشط' || !e.status);
-  const cWage = parseFloat(form.cutter_wage || 0) || 0;
-  const tWage = parseFloat(form.tailor_wage || 0) || 0;
-  const eWage = parseFloat(form.embroiderer_wage || 0) || 0;
-  const fWage = parseFloat(form.finisher_wage || 0) || 0;
-  const pWage = parseFloat(form.packager_wage || 0) || 0;
-  const singleDressTotal = cWage + tWage + eWage + fWage + pWage, qty = parseFloat(form.quantity || 1), grandTotalWages = singleDressTotal * qty;
+  useStageEffect(() => {
+    if (jobRoles && jobRoles.length > 0) {
+      setProdRoles(jobRoles.filter(r => r.is_production));
+    } else if (window.JobRolesService?.getJobRoles) {
+      window.JobRolesService.getJobRoles({ is_production: true }).then(r => {
+        if (r && r.length) setProdRoles(r);
+      });
+    }
+  }, [jobRoles]);
 
-  const STAGES_CONFIG = [
-    { role: 'cutter', title: '1. القص والتحضير', icon: '✂️', pct: '20%', empKey: 'cutter_name', dateKey: 'cutting_due_date', wageKey: 'cutter_wage', jobHint: 'قص وتفصيل', color: '#f43f5e', bg: 'rgba(244,63,94,0.1)', match: ['قصاس', 'قص', 'cutter'] },
-    { role: 'tailor', title: '2. الخياطة والتجميع', icon: '🪡', pct: '40%', empKey: 'tailor_name', dateKey: 'sewing_due_date', wageKey: 'tailor_wage', jobHint: 'خياط', color: '#38bdf8', bg: 'rgba(56,189,248,0.1)', match: ['خياط', 'خياطة', 'tailor'] },
-    { role: 'embroiderer', title: '3. التطريز والشك', icon: '✨', pct: '60%', empKey: 'embroiderer_name', dateKey: 'embroidery_due_date', wageKey: 'embroiderer_wage', jobHint: 'تطريز وشك', color: '#c084fc', bg: 'rgba(192,132,252,0.1)', match: ['تطريز', 'شك', 'embroider'] },
-    { role: 'finisher', title: '4. الفحص والتشطيب', icon: '🔍', pct: '80%', empKey: 'finisher_name', dateKey: 'finishing_due_date', wageKey: 'finisher_wage', jobHint: 'تشطيب', color: '#34d399', bg: 'rgba(52,211,153,0.1)', match: ['تشطيب', 'فحص', 'finisher'] },
-    { role: 'packager', title: '5. التغليف والتجهيز', icon: '📦', pct: '100%', empKey: 'packager_name', dateKey: 'packaging_due_date', wageKey: 'packager_wage', jobHint: 'تغليف وتجهيز', color: '#fbbf24', bg: 'rgba(251,191,36,0.1)', match: ['تغليف', 'تجهيز', 'مستودع', 'packager'] }
-  ];
+  const activeEmps = (employees?.length > 0 ? employees : localEmps).filter(e => e.status === 'نشط' || !e.status);
+
+  const STAGES_CONFIG = useStageMemo(() => {
+    return [
+      { role: 'cutter', role_key: 'cutter', role_name: 'القصاص (قص وتفصيل)', title: '1. القصاص (قص وتفصيل)', icon: '✂️', pct: '20%', empKey: 'cutter_name', dateKey: 'cutting_due_date', wageKey: 'cutter_wage', jobHint: 'القصاص (قص وتفصيل)', color: '#f43f5e', bg: 'rgba(244,63,94,0.1)', match: ['قصاص', 'قص', 'cutter'] },
+      { role: 'tailor', role_key: 'tailor', role_name: 'خياط', title: '2. خياط', icon: '🪡', pct: '40%', empKey: 'tailor_name', dateKey: 'sewing_due_date', wageKey: 'tailor_wage', jobHint: 'خياط', color: '#38bdf8', bg: 'rgba(56,189,248,0.1)', match: ['خياط', 'tailor'] },
+      { role: 'embroiderer', role_key: 'embroiderer', role_name: 'تطريز', title: '3. فني تطريز وشك', icon: '✨', pct: '60%', empKey: 'embroiderer_name', dateKey: 'embroidery_due_date', wageKey: 'embroiderer_wage', jobHint: 'فني تطريز وشك', color: '#c084fc', bg: 'rgba(192,132,252,0.1)', match: ['تطريز', 'شك', 'embroiderer'] },
+      { role: 'finisher', role_key: 'finisher', role_name: 'تشطيب', title: '4. فني تشطيب وكي', icon: '🔍', pct: '80%', empKey: 'finisher_name', dateKey: 'finishing_due_date', wageKey: 'finisher_wage', jobHint: 'فني تشطيب وكي', color: '#34d399', bg: 'rgba(52,211,153,0.1)', match: ['تشطيب', 'كي', 'finisher'] },
+      { role: 'packager', role_key: 'packager', role_name: 'تكلفة التغليف والإكسسوارات', title: '5. تكلفة التغليف والإكسسوارات', icon: '📦', pct: '100%', empKey: 'packager_name', dateKey: 'packaging_due_date', wageKey: 'packager_wage', jobHint: 'تكلفة التغليف والإكسسوارات', color: '#fbbf24', bg: 'rgba(251,191,36,0.1)', isCostItem: true }
+    ];
+  }, []);
+
+  useStageEffect(() => {
+    STAGES_CONFIG.forEach(st => {
+      if (st.isCostItem) return;
+      const specialists = activeEmps
+        .filter(e => st.match.some(m => (e.role || '').toLowerCase().includes(m) || (e.job_title || '').toLowerCase().includes(m)))
+        .sort((a, b) => (a.active_tasks_count || 0) - (b.active_tasks_count || 0));
+      const currentEmp = form[st.empKey] || (st.role === 'tailor' ? form.tailor : '');
+      if (!currentEmp && specialists.length === 1 && handleStageEmpChange) {
+        handleStageEmpChange(st.role, specialists[0].name);
+      }
+    });
+  }, [activeEmps, STAGES_CONFIG]);
+
+  const singleDressTotal = STAGES_CONFIG.reduce((sum, st) => sum + (parseFloat(form[st.wageKey] || 0) || 0), 0);
+  const qty = parseFloat(form.quantity || 1), grandTotalWages = singleDressTotal * qty;
 
   const handleAutoDistribute = () => {
     const m = utils.autoDistributeMilestones ? utils.autoDistributeMilestones(form.start_date, form.due_date) : {};
-    setForm(prev => ({
-      ...prev, cutting_due_date: m.cutting, sewing_due_date: m.sewing,
-      embroidery_due_date: m.embroidery, finishing_due_date: m.finishing, packaging_due_date: m.packaging || form.due_date
-    }));
-    if (showToast) showToast('تم التوزيع التلقائي لمواعيد المراحل الخمس ⚡', 'info');
+    const updates = {
+      cutting_due_date: m.cutting, sewing_due_date: m.sewing,
+      embroidery_due_date: m.embroidery, finishing_due_date: m.finishing,
+      packaging_due_date: m.packaging || form.due_date
+    };
+    STAGES_CONFIG.forEach(st => {
+      if (!updates[st.dateKey]) updates[st.dateKey] = form.due_date || '';
+    });
+    setForm(prev => ({ ...prev, ...updates }));
+    if (showToast) showToast('تم التوزيع التلقائي لمواعيد مراحل الإنتاج ⚡', 'info');
   };
 
   return (
@@ -67,7 +96,7 @@ function StageWagesMatrix({
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-2">
         {STAGES_CONFIG.map(st => {
           const empVal = form[st.empKey] || (st.role === 'tailor' ? form.tailor : '') || '';
-          const specialists = activeEmps.filter(e => st.match.some(m => (e.role || '').toLowerCase().includes(m) || (e.job_title || '').toLowerCase().includes(m)));
+          const specialists = (st.match ? activeEmps.filter(e => st.match.some(m => (e.role || '').toLowerCase().includes(m) || (e.job_title || '').toLowerCase().includes(m))) : []).sort((a, b) => (a.active_tasks_count || 0) - (b.active_tasks_count || 0));
           return (
             <div key={st.role} className="p-2 rounded-xl bg-slate-950/80 border border-slate-800/80 space-y-1.5 hover:border-slate-700/80 transition-all shadow-xs">
               <div className="flex items-center justify-between pb-1 border-b border-slate-800/60 text-xs">
@@ -78,28 +107,36 @@ function StageWagesMatrix({
                   <span className="text-[9.5px] font-bold px-1.5 py-0.2 rounded-full font-mono border border-slate-700/60" style={{ backgroundColor: st.bg, color: st.color }}>
                     {st.pct}
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => waUtils.sendWhatsAppToStage && waUtils.sendWhatsAppToStage({ stageRole: st.role, form, employees: activeEmps, specs: form.measurements_spec || {}, showToast })}
-                    title={`إرسال واتساب 📲`}
-                    className="h-5 w-5 rounded-md bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 transition cursor-pointer text-[10px] flex items-center justify-center border border-emerald-500/20 active:scale-95"
-                  >
-                    📲
-                  </button>
+                  {!st.isCostItem && (
+                    <button
+                      type="button"
+                      onClick={() => waUtils.sendWhatsAppToStage && waUtils.sendWhatsAppToStage({ stageRole: st.role, form, employees: activeEmps, specs: form.measurements_spec || {}, showToast })}
+                      title={`إرسال واتساب 📲`}
+                      className="h-5 w-5 rounded-md bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 transition cursor-pointer text-[10px] flex items-center justify-center border border-emerald-500/20 active:scale-95"
+                    >
+                      📲
+                    </button>
+                  )}
                 </div>
               </div>
 
               <div>
-                <label className="block text-[9.5px] font-medium text-slate-400 mb-0.5">الفني المسؤول ({st.jobHint})</label>
-                <select
-                  className="w-full h-7 px-2 rounded-lg border border-slate-700/80 bg-slate-900 text-xs font-medium text-slate-100 outline-none focus:border-rose-500/60 transition-all cursor-pointer"
-                  value={empVal} onChange={e => handleStageEmpChange(st.role, e.target.value)}
-                >
-                  <option value="" className="bg-slate-900">-- اختر الفني --</option>
-                  {specialists.map(emp => (
-                    <option key={emp.id || emp.name} value={emp.name} className="bg-slate-900">{emp.name} ({emp.role || st.jobHint})</option>
-                  ))}
-                </select>
+                <label className="block text-[9.5px] font-medium text-slate-400 mb-0.5">{st.isCostItem ? 'طبيعة البند' : `الفني المسؤول (${st.jobHint})`}</label>
+                {st.isCostItem ? (
+                  <div className="w-full h-7 px-2 rounded-lg border border-amber-500/30 bg-amber-950/20 text-amber-300 text-[10px] font-semibold flex items-center justify-center">تكلفة مباشرة للموديل 📦</div>
+                ) : (
+                  <select
+                    className="w-full h-7 px-2 rounded-lg border border-slate-700/80 bg-slate-900 text-xs font-medium text-slate-100 outline-none focus:border-rose-500/60 transition-all cursor-pointer"
+                    value={empVal} onChange={e => handleStageEmpChange(st.role, e.target.value)}
+                  >
+                    <option value="" className="bg-slate-900">-- اختر الفني --</option>
+                    {specialists.map(emp => (
+                      <option key={emp.id || emp.name} value={emp.name} className="bg-slate-900">
+                        {emp.name} ({emp.active_tasks_count || 0} مهام نشطة)
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
 
               <div>
@@ -107,7 +144,16 @@ function StageWagesMatrix({
                 <input
                   type="date" lang="en-GB" dir="ltr" style={{ direction: 'ltr', textAlign: 'left' }}
                   className="w-full h-7 px-2 rounded-lg border border-slate-700/80 bg-slate-900 text-xs font-mono font-bold text-rose-400 text-left outline-none focus:border-rose-500/60 cursor-pointer transition-all"
-                  value={form[st.dateKey] || ''} onChange={e => setForm({ ...form, [st.dateKey]: e.target.value })}
+                  value={form[st.dateKey] || ''}
+                  onChange={e => {
+                    const val = e.target.value;
+                    if (form.due_date && val && val > form.due_date) {
+                      if (showToast) showToast(`تاريخ مرحلة (${st.title}) لا يمكن أن يتجاوز موعد التسليم (${form.due_date}) ⚠️`, 'warning');
+                      setForm(p => ({ ...p, [st.dateKey]: form.due_date }));
+                    } else {
+                      setForm(p => ({ ...p, [st.dateKey]: val }));
+                    }
+                  }}
                 />
               </div>
 
@@ -131,19 +177,15 @@ function StageWagesMatrix({
       <div className="p-2 rounded-xl bg-slate-950/80 border border-slate-800/80 flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-slate-100 shrink-0">
         <div className="flex items-center gap-1.5 flex-wrap text-[10.5px]">
           <span className="text-rose-400 font-bold">💰 أجور القطعة:</span>
-          <span className="bg-slate-900 px-1.5 py-0.5 rounded-md border border-slate-800 text-slate-300">✂️ قص: <strong className="text-slate-100 font-mono">{cWage.toLocaleString('en-US')}</strong></span>
-          <span className="bg-slate-900 px-1.5 py-0.5 rounded-md border border-slate-800 text-slate-300">🪡 خياطة: <strong className="text-slate-100 font-mono">{tWage.toLocaleString('en-US')}</strong></span>
-          <span className="bg-slate-900 px-1.5 py-0.5 rounded-md border border-slate-800 text-slate-300">✨ تطريز: <strong className="text-slate-100 font-mono">{eWage.toLocaleString('en-US')}</strong></span>
-          <span className="bg-slate-900 px-1.5 py-0.5 rounded-md border border-slate-800 text-slate-300">🔍 تشطيب: <strong className="text-slate-100 font-mono">{fWage.toLocaleString('en-US')}</strong></span>
-          <span className="bg-slate-900 px-1.5 py-0.5 rounded-md border border-slate-800 text-slate-300">📦 تغليف: <strong className="text-slate-100 font-mono">{pWage.toLocaleString('en-US')}</strong></span>
+          {STAGES_CONFIG.map(st => (
+            <span key={st.role} className="bg-slate-900 px-1.5 py-0.5 rounded-md border border-slate-800 text-slate-300">
+              {st.icon} {st.jobHint}: <strong className="text-slate-100 font-mono">{(parseFloat(form[st.wageKey] || 0) || 0).toLocaleString('en-US')}</strong>
+            </span>
+          ))}
         </div>
         <div className="flex items-center gap-2 font-semibold font-mono text-[11px]">
           <span className="text-slate-300">إجمالي القطعة: <strong className="text-emerald-400 font-bold">{singleDressTotal.toLocaleString('en-US')} YER</strong></span>
-          {qty > 1 && (
-            <span className="text-cyan-300 bg-cyan-500/10 px-2 py-0.5 rounded-md border border-cyan-500/20 font-bold">
-              ({qty} قطع): {grandTotalWages.toLocaleString('en-US')} YER
-            </span>
-          )}
+          {qty > 1 && (<span className="text-cyan-300 bg-cyan-500/10 px-2 py-0.5 rounded-md border border-cyan-500/20 font-bold">({qty} قطع): {grandTotalWages.toLocaleString('en-US')} YER</span>)}
         </div>
       </div>
     </div>

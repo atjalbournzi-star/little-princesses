@@ -2,7 +2,7 @@
 # Purchases queries, line item joins, and facade re-exports for purchasing workflows
 
 from .db_pool import execute_query
-from .pg_purchases_write import add_purchase
+from .pg_purchases_write import add_purchase, update_purchase
 from .pg_purchases_cancel import cancel_purchase, delete_purchase, reconcile_inventory_governance, purge_purchases
 
 
@@ -64,3 +64,14 @@ def get_purchases(params=None):
         r['warehouse_id'] = r.get('warehouse_id') or 'WH-MAIN'
 
     return rows
+
+
+def get_purchase_by_id(purchase_id):
+    """استرجاع فاتورة مشتريات محددة مع بنودها التفصيلية من جدول purchase_items"""
+    if not purchase_id: return None
+    rows = get_purchases({'include_cancelled': True})
+    for r in rows:
+        if str(r.get('id')) == str(purchase_id) or str(r.get('invoice_no')) == str(purchase_id) or str(r.get('bill_no')) == str(purchase_id):
+            return r
+    return None
+

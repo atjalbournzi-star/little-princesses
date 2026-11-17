@@ -79,6 +79,7 @@ def get_general_ledger_pg(params=None):
             j.id as entry_id,
             COALESCE(j.entry_no, 'JV-' || j.id) as entry_no,
             j.entry_date::date as date,
+            j.created_at,
             COALESCE(a.id, l.account_id) as account_id,
             COALESCE(a.account_code, l.account_id) as account_code,
             COALESCE(a.account_name, l.account_id) as account_name,
@@ -102,23 +103,25 @@ def get_general_ledger_pg(params=None):
             OR a.account_code = REPLACE(REPLACE(l.account_id, 'ACC-', ''), 'ACC_', '')
         )
         WHERE {' AND '.join(where_clauses)}
-        ORDER BY j.entry_date ASC, j.created_at ASC, l.id ASC;
+        ORDER BY j.entry_date ASC, j.created_at ASC, j.id ASC, l.id ASC;
     """
     rows = execute_query(query, params=tuple(sql_params), fetch_all=True) or []
 
     ledger_rows = []
     running_balance = opening_bal
+    account_running_balances = {}
 
-    if not is_all and start:
+    if not is_all and (start or opening_bal != Decimal("0.0")):
         ledger_rows.append({
             'id': f'OPENING-{acc_filter}',
             'journal_id': 'OPENING',
             'entry_no': 'رصيد سابق',
-            'date': start,
+            'date': start or '—',
+            'created_at': '',
             'account_code': target_acc.get('account_code') if target_acc else acc_filter,
             'account_name': target_acc.get('account_name') if target_acc else acc_filter,
             'account_nature': acc_nature,
-            'notes': f'الرصيد السابق / الافتتاحي حتى تاريخ {start}',
+            'notes': f'الرصيد السابق / الافتتاحي حتى تاريخ {start}' if start else 'الرصيد الافتتاحي للحساب',
             'debit_orig': 0.0, 'credit_orig': 0.0,
             'debit_base': 0.0, 'credit_base': 0.0,
             'debit_target': 0.0, 'credit_target': 0.0,
@@ -134,16 +137,28 @@ def get_general_ledger_pg(params=None):
         c_base = Decimal(str(r.get('credit_base') or 0.0))
         row_nature = 'credit' if str(r.get('normal_balance') or '').lower() in ('credit', 'دائن') else 'debit'
 
-        if row_nature == 'credit':
-            running_balance += (c_base - d_base)
+        if is_all:
+            acc_key = str(r['account_code'] or r['account_id'])
+            if acc_key not in account_running_balances:
+                account_running_balances[acc_key] = Decimal("0.0")
+            if row_nature == 'credit':
+                account_running_balances[acc_key] += (c_base - d_base)
+            else:
+                account_running_balances[acc_key] += (d_base - c_base)
+            cur_running = account_running_balances[acc_key]
         else:
-            running_balance += (d_base - c_base)
+            if row_nature == 'credit':
+                running_balance += (c_base - d_base)
+            else:
+                running_balance += (d_base - c_base)
+            cur_running = running_balance
 
         ledger_rows.append({
             'id': r['line_id'],
             'journal_id': r['entry_id'],
             'entry_no': r['entry_no'],
             'date': str(r['date']),
+            'created_at': str(r['created_at']) if r.get('created_at') else '',
             'account_id': r['account_id'],
             'account_code': r['account_code'],
             'account_name': r['account_name'],
@@ -155,8 +170,8 @@ def get_general_ledger_pg(params=None):
             'credit_base': float(c_base),
             'debit_target': float(d_base),
             'credit_target': float(c_base),
-            'running_target': float(running_balance),
-            'running_balance_base': float(running_balance),
+            'running_target': float(cur_running),
+            'running_balance_base': float(cur_running),
             'currency': r['currency'],
             'exchange_rate': float(r['exchange_rate']),
             'ref_type': r['ref_type'],

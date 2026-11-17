@@ -34,7 +34,7 @@ import pg_service
 import db_client
 
 # UTF-8 stdout configuration for Arabic logging
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', line_buffering=True)
 
 PORT = 5000
 DB_FILE = 'little_princesses.db'
@@ -69,7 +69,7 @@ from domains.marketing.db_ai_init import init_marketing_ai_db
 from domains.auth import routes as auth_routes, routes_users
 from domains.customers import routes as customer_routes
 from domains.tailoring import (
-    routes_orders, routes_delivery, routes_factory, routes_factory_actions
+    routes_orders, routes_delivery, routes_factory, routes_factory_actions, routes_measurement
 )
 from domains.inventory import (
     routes_inventory, routes_warehouses, routes_purchases, routes_purchases_manage
@@ -89,54 +89,25 @@ from domains.system import (
 )
 
 GET_ROUTERS = [
-    auth_routes.handle_get,
-    customer_routes.handle_get,
-    routes_orders.handle_get,
-    routes_factory.handle_get,
-    routes_inventory.handle_get,
-    routes_warehouses.handle_get,
-    routes_purchases_manage.handle_get,
-    routes_vouchers.handle_get,
-    routes_expenses.handle_get,
-    routes_journal.handle_get,
-    routes_reports.handle_get,
-    routes_accounts.handle_get,
-    routes_dashboard.handle_get,
-    routes_feedback.handle_get,
-    routes_core.handle_get,
-    routes_webhooks.handle_get,
-    routes_ai_analysis.handle_get,
-    routes_ai_insights.handle_get,
-    hr_routes.handle_get,
-    routes_backup.handle_get,
-    system_routes.handle_get,
-    routes_sync.handle_get,
+    auth_routes.handle_get, customer_routes.handle_get, routes_orders.handle_get,
+    routes_factory.handle_get, routes_measurement.handle_get, routes_inventory.handle_get,
+    routes_warehouses.handle_get, routes_purchases_manage.handle_get, routes_vouchers.handle_get,
+    routes_expenses.handle_get, routes_journal.handle_get, routes_reports.handle_get,
+    routes_accounts.handle_get, routes_dashboard.handle_get, routes_feedback.handle_get,
+    routes_core.handle_get, routes_webhooks.handle_get, routes_ai_analysis.handle_get,
+    routes_ai_insights.handle_get, hr_routes.handle_get, routes_backup.handle_get,
+    system_routes.handle_get, routes_sync.handle_get,
 ]
 
 POST_ROUTERS = [
-    auth_routes.handle_post,
-    routes_users.handle_post,
-    customer_routes.handle_post,
-    routes_orders.handle_post,
-    routes_delivery.handle_post,
-    routes_factory_actions.handle_post,
-    routes_inventory.handle_post,
-    routes_warehouses.handle_post,
-    routes_purchases.handle_post,
-    routes_purchases_manage.handle_post,
-    routes_vouchers.handle_post,
-    routes_expenses.handle_post,
-    routes_journal.handle_post,
-    routes_accounts.handle_post,
-    quality_actions.handle_post,
-    routes_feedback.handle_post,
-    routes_core.handle_post,
-    routes_webhooks.handle_post,
-    routes_ai_actions.handle_post,
-    hr_routes.handle_post,
-    routes_backup.handle_post,
-    system_routes.handle_post,
-    routes_sync.handle_post,
+    auth_routes.handle_post, routes_users.handle_post, customer_routes.handle_post,
+    routes_orders.handle_post, routes_delivery.handle_post, routes_factory_actions.handle_post,
+    routes_measurement.handle_post, routes_inventory.handle_post, routes_warehouses.handle_post,
+    routes_purchases.handle_post, routes_purchases_manage.handle_post, routes_vouchers.handle_post,
+    routes_expenses.handle_post, routes_journal.handle_post, routes_accounts.handle_post,
+    quality_actions.handle_post, routes_feedback.handle_post, routes_core.handle_post,
+    routes_webhooks.handle_post, routes_ai_actions.handle_post, hr_routes.handle_post,
+    routes_backup.handle_post, system_routes.handle_post, routes_sync.handle_post,
 ]
 
 
@@ -147,10 +118,19 @@ class UnifiedERPHandler(http.server.SimpleHTTPRequestHandler):
         except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError, TimeoutError):
             pass
 
+    def _extract_user_context(self):
+        u = self.headers.get('X-User-Id') or self.headers.get('X-Username') or self.headers.get('X-Current-User')
+        if not u:
+            auth = self.headers.get('Authorization', '')
+            if auth.startswith('Bearer '):
+                parts = auth.split(' ', 1)[1].split('_')
+                if len(parts) >= 2 and parts[1]: u = parts[1]
+        pg_service.set_current_user_context(u)
+
     def _send_cors_headers(self):
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-User-Id, X-Username, X-Current-User')
 
     def end_headers(self):
         self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
@@ -173,6 +153,7 @@ class UnifiedERPHandler(http.server.SimpleHTTPRequestHandler):
         return super().guess_type(path)
 
     def do_GET(self):
+        self._extract_user_context()
         parsed_url = urllib.parse.urlparse(self.path)
         path = parsed_url.path
         for router in GET_ROUTERS:
@@ -181,6 +162,7 @@ class UnifiedERPHandler(http.server.SimpleHTTPRequestHandler):
         super().do_GET()
 
     def do_POST(self):
+        self._extract_user_context()
         parsed_url = urllib.parse.urlparse(self.path)
         path = parsed_url.path
         for router in POST_ROUTERS:

@@ -29,7 +29,7 @@ def add_quality_return(payload):
     cust_id = clean_str(data.get('customer_id')) or None
     prod_id = clean_str(data.get('product_id')) or None
     reason = clean_str(data.get('return_reason') or data.get('reason') or 'عيب جودة')
-    cond = clean_str(data.get('condition') or 'مستلم من العميلة')
+    cond = clean_str(data.get('condition') or 'مستلم من العميل')
     action = clean_str(data.get('action_taken') or 'إعادة تشغيل واستبدال')
     refund = Decimal(str(clean_num(data.get('refund_amount') or 0.0)))
     rep_cost = Decimal(str(clean_num(data.get('replacement_cost') or 0.0)))

@@ -203,16 +203,13 @@ def handle_post(handler, path, parsed_url) -> bool:
             fmt = data.get('format', 'excel')
             report_type = data.get('report_type', 'executive')
             with get_db_cursor(commit=False) as cur:
-                cur.execute("SELECT * FROM campaigns ORDER BY created_at DESC")
+                cur.execute("SELECT id FROM campaigns")
                 camps = cur.fetchall()
-            res = {
-                'success': True,
-                'format': fmt,
-                'report_type': report_type,
+            _send_json(handler, {
+                'success': True, 'format': fmt, 'report_type': report_type,
                 'exported_records': len(camps),
                 'message': f'تم توليد التقرير بنجاح بصيغة {fmt.upper()} وتصدير {len(camps)} سجلاً بنجاح 🚀'
-            }
-            _send_json(handler, res)
+            })
             return True
         except Exception as e:
             _send_json(handler, {'success': False, 'error': str(e)}, 400)

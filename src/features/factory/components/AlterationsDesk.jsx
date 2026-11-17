@@ -57,7 +57,7 @@ function AlterationsDesk({
               <thead>
                 <tr className="bg-[#FAFAFB] text-[#6F6B75] font-bold border-b border-[#E8E5EA]">
                   <th className="p-3 text-right">رقم الطلب</th>
-                  <th className="p-3 text-right">العميلة / الأميرة</th>
+                  <th className="p-3 text-right">العميل / الأميرة</th>
                   <th className="p-3 text-right">الموديل</th>
                   <th className="p-3 text-right">سبب التعديل</th>
                   <th className="p-3 text-right">ملاحظات التعديل الدقيقة</th>
@@ -72,7 +72,7 @@ function AlterationsDesk({
                 {alterationsList.map((alt) => (
                   <tr key={alt.id} className="hover:bg-purple-50/30 transition">
                     <td className="p-3 font-mono font-bold text-purple-700">{alt.order_no || ('ORD-' + alt.order_id)}</td>
-                    <td className="p-3 font-bold text-[#25232A]">{alt.customer_name || 'عميلة'}</td>
+                    <td className="p-3 font-bold text-[#25232A]">{alt.customer_name || 'عميل'}</td>
                     <td className="p-3 text-[#25232A]">{alt.dress_type || 'فستان'}</td>
                     <td className="p-3 font-semibold text-purple-900">{alt.alteration_reason}</td>
                     <td className="p-3 text-[#6F6B75] max-w-xs truncate" title={alt.adjustment_notes}>{alt.adjustment_notes}</td>

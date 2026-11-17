@@ -67,6 +67,7 @@
     bom: window.bomAPI || {},
     products: window.productAPI || {},
     quality: window.qualityAPI || {},
+    measurement: window.measurementApi || {},
 
     // Accounting & Finance
     accounting: {
@@ -88,6 +89,7 @@
       syncSheets: () => (window.syncGoogleSheets ? window.syncGoogleSheets() : Promise.resolve({}))
     },
     hr: window.hrAPI || {},
+    jobRoles: window.jobRolesAPI || {},
     marketing: window.marketingAPI || {}
   };
 

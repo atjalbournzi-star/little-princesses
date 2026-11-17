@@ -11,19 +11,21 @@
   var EVENT_BRAND_CHANGED = 'erp:brandProfileChanged';
 
   var DEFAULT_PROFILE = {
-    name: 'مؤسسة الأميرات الصغيرات',
-    shortName: 'الأميرات الصغيرات',
-    tradeName: 'دار الأميرات الصغيرات للأزياء الفاخرة',
-    tagline: 'دار أزياء وتفصيل فساتين الأميرات الراقية | عراقة التصميم وأناقة الطفولة',
-    phone: '776773458',
-    address: 'اليمن - صنعاء - شارع حدة',
-    email: 'info@littleprincesses.com',
-    taxNumber: 'CR-1010-009283',
-    commercialRegister: 'CR-1010-009283',
-    logoUrl: 'logo.svg',
-    systemIcon: '👑',
-    footerNote: 'وثيقة رسمية معتمدة عبر Little Princesses ERP'
+    name: '',
+    shortName: '',
+    tradeName: '',
+    tagline: '',
+    phone: '',
+    address: '',
+    email: '',
+    taxNumber: '',
+    commercialRegister: '',
+    logoUrl: '',
+    systemIcon: '',
+    footerNote: ''
   };
+
+  var _currentProfile = Object.assign({}, DEFAULT_PROFILE);
 
   function cleanText(text, fallback) {
     if (!text || typeof text !== 'string') return fallback || '';
@@ -32,54 +34,33 @@
   }
 
   function getProfile() {
-    try {
-      var stored = localStorage.getItem(STORAGE_KEY_PROFILE);
-      var legacyName = localStorage.getItem('erp_company_name');
-      var legacyPhone = localStorage.getItem('erp_phone');
-      var legacyAddress = localStorage.getItem('erp_address');
-      var legacyEmail = localStorage.getItem('erp_email');
-      var legacyLogo = localStorage.getItem('erp_company_logo');
-
-      var profile = stored ? JSON.parse(stored) : {};
-
-      var name = profile.name || legacyName || DEFAULT_PROFILE.name;
-      var email = profile.email || legacyEmail || DEFAULT_PROFILE.email;
-      var rawLogo = profile.logoUrl || legacyLogo || DEFAULT_PROFILE.logoUrl;
-      var safeLogo = (!rawLogo || rawLogo === 'logo.png') ? 'logo.svg' : rawLogo;
-
-      return {
-        name: name,
-        shortName: profile.shortName || (name ? name.split('|')[0].trim() : DEFAULT_PROFILE.shortName),
-        tradeName: profile.tradeName || DEFAULT_PROFILE.tradeName,
-        tagline: profile.tagline || DEFAULT_PROFILE.tagline,
-        phone: profile.phone || legacyPhone || DEFAULT_PROFILE.phone,
-        address: profile.address || legacyAddress || DEFAULT_PROFILE.address,
-        email: email,
-        taxNumber: profile.taxNumber || profile.tax_id || DEFAULT_PROFILE.taxNumber,
-        commercialRegister: profile.commercialRegister || profile.cr_number || DEFAULT_PROFILE.commercialRegister,
-        logoUrl: safeLogo,
-        systemIcon: profile.systemIcon || DEFAULT_PROFILE.systemIcon,
-        footerNote: profile.footerNote || DEFAULT_PROFILE.footerNote
-      };
-    } catch(e) {
-      return Object.assign({}, DEFAULT_PROFILE);
-    }
+    return Object.assign({}, _currentProfile);
   }
 
   function saveProfile(newProfile) {
     try {
-      var current = getProfile();
-      var merged = Object.assign({}, current, newProfile);
-      localStorage.setItem(STORAGE_KEY_PROFILE, JSON.stringify(merged));
-      if (merged.name) localStorage.setItem('erp_company_name', merged.name);
-      if (merged.phone) localStorage.setItem('erp_phone', merged.phone);
-      if (merged.address) localStorage.setItem('erp_address', merged.address);
-      if (merged.email) localStorage.setItem('erp_email', merged.email);
-      if (merged.logoUrl) localStorage.setItem('erp_company_logo', merged.logoUrl);
+      _currentProfile = Object.assign({}, _currentProfile, newProfile);
+
+      // Save exclusively to PostgreSQL backend
+      if (typeof fetch === 'function') {
+        fetch('/api/system/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            company_name: _currentProfile.name || _currentProfile.company_name || '',
+            phone: _currentProfile.phone || '',
+            address: _currentProfile.address || '',
+            email: _currentProfile.email || '',
+            logo_url: _currentProfile.logoUrl || _currentProfile.logo_url || ''
+          })
+        }).catch(function(err) {
+          console.warn("BrandService saveProfile sync note:", err);
+        });
+      }
 
       // Notify entire app of profile change
-      window.dispatchEvent(new CustomEvent(EVENT_BRAND_CHANGED, { detail: merged }));
-      return { success: true, profile: merged };
+      window.dispatchEvent(new CustomEvent(EVENT_BRAND_CHANGED, { detail: _currentProfile }));
+      return { success: true, profile: _currentProfile };
     } catch(e) {
       return { success: false, error: e.message };
     }
@@ -91,24 +72,31 @@
       if (res.ok) {
         var d = await res.json();
         var comp = d.company || d.company_profile;
-        if (comp && comp.company_name) {
-          saveProfile({
-            name: comp.company_name,
-            phone: comp.phone || DEFAULT_PROFILE.phone,
-            address: comp.address || DEFAULT_PROFILE.address,
-            email: comp.email || DEFAULT_PROFILE.email,
-            logoUrl: comp.logo_url || DEFAULT_PROFILE.logoUrl,
-            taxNumber: comp.tax_id || DEFAULT_PROFILE.taxNumber,
-            commercialRegister: comp.cr_number || DEFAULT_PROFILE.commercialRegister
-          });
+        if (comp && (comp.company_name || comp.name)) {
+          var name = comp.company_name || comp.name || '';
+          _currentProfile = {
+            name: name,
+            shortName: comp.shortName || (name ? name.split('|')[0].trim() : ''),
+            tradeName: comp.tradeName || name,
+            tagline: comp.tagline || '',
+            phone: comp.phone || '',
+            address: comp.address || '',
+            email: comp.email || '',
+            taxNumber: comp.tax_id || comp.taxNumber || '',
+            commercialRegister: comp.cr_number || comp.commercialRegister || '',
+            logoUrl: comp.logo_url || comp.logoUrl || '',
+            systemIcon: comp.systemIcon || '',
+            footerNote: comp.footerNote || ''
+          };
+          window.dispatchEvent(new CustomEvent(EVENT_BRAND_CHANGED, { detail: _currentProfile }));
         }
       }
     } catch(e) {}
   }
 
-  // Auto-sync on startup in browser environment
+  // Auto-sync exclusively from PostgreSQL on startup
   if (typeof window !== 'undefined' && typeof fetch === 'function') {
-    setTimeout(syncFromBackend, 500);
+    syncFromBackend();
   }
 
   window.BrandService = {

@@ -23,12 +23,8 @@ def handle_get(handler, path, parsed_url) -> bool:
                 brief = dict(row) if row else {}
 
             trends = {
-                'rising_products': [],
-                'declining_products': [],
-                'rising_colors': [],
-                'rising_sizes': [],
-                'rising_questions': [],
-                'silent_audience_count': 0,
+                'rising_products': [], 'declining_products': [], 'rising_colors': [],
+                'rising_sizes': [], 'rising_questions': [], 'silent_audience_count': 0,
                 'lost_opportunities_count': 0
             }
             _send_json(handler, {'success': True, 'brief': brief, 'trends': trends})
@@ -167,11 +163,11 @@ def handle_get(handler, path, parsed_url) -> bool:
             for i, c in enumerate(custs):
                 item = {'id': c['id'], 'name': c['name'], 'intent_score': 95 - (i * 5), 'notes': c['notes']}
                 if i == 0:
-                    segments['hot_leads'].append({**item, 'intent_score': 100, 'notes': 'عميلة ساخنة أرسلت المقاسات وتطلب حجز فستان سندريلا'})
+                    segments['hot_leads'].append({**item, 'intent_score': 100, 'notes': 'عميل مهتم جداً أرسلت المقاسات وتطلب حجز فستان سندريلا'})
                 elif i == 1:
                     segments['high_intent'].append({**item, 'intent_score': 85, 'notes': 'استفسار عن جاهزية التسليم الفوري لموديل الملكة'})
                 elif i == 2:
-                    segments['returning_customers'].append({**item, 'intent_score': 90, 'notes': 'عميلة سابقة قامت بتفصيل فستانين بنجاح'})
+                    segments['returning_customers'].append({**item, 'intent_score': 90, 'notes': 'عميل سابق قامت بتفصيل فستانين بنجاح'})
                 elif i == 3:
                     segments['price_sensitive'].append({**item, 'intent_score': 70, 'notes': 'اعتراض سعر بسيط مع طلب خصم على فستانين'})
                 else:

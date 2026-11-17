@@ -43,6 +43,7 @@ function AppSidebar({
     { title: 'إدارة العمليات والإنتاج', items: [
       { id: 'products', label: 'المنتجات ومواصفات التشغيل', icon: Icons.Calculator, roles: ['admin','workshop_manager'] },
       { id: 'factory', label: 'خطوط التصنيع والتشغيل', icon: Icons.Factory, roles: ['admin','workshop_manager'] },
+      { id: 'measurement', label: 'استوديو المقاسات (A4)', icon: Icons.Scissors, roles: ['admin','workshop_manager','data_entry','sales_rep','accountant'] },
       { id: 'inventory', label: 'المخزون وسلاسل الإمداد', icon: Icons.Scissors, roles: ['admin','workshop_manager'] },
       { id: 'purchases', label: 'المشتريات وإدارة الموردين', icon: Icons.Purchases, roles: ['admin','accountant'] }
     ]},

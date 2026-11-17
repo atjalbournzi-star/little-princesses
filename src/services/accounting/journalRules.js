@@ -54,11 +54,11 @@
       var rate = params.exchange_rate || (window.CurrencyService ? window.CurrencyService.getRate(curr) : 1.0);
       var baseObj = window.CurrencyService ? window.CurrencyService.toBase(params.amount, curr, rate) : { base_amount: params.amount, exchange_rate: rate };
 
-      var txId = params.transaction_id || params.ref_id || ('TX-' + Date.now() + '-' + Math.floor(Math.random()*1000));
-      var entryNo = params.entry_no || ('JV-' + Date.now().toString().slice(-6));
+      var txId = params.transaction_id || params.ref_id || '';
+      var entryNo = params.entry_no || params.entryNumber || params.entry_number || '';
 
       return {
-        id: params.id || Date.now(),
+        id: params.id || entryNo || txId || '',
         transaction_id: txId,
         entry_no: entryNo,
         debit: String(params.debit),
@@ -86,7 +86,7 @@
       }
 
       var rate = parseFloat(p.exchangeRate) || 1.0;
-      var entryNo = p.entryNumber || ('JV-MAN-' + Date.now().toString().slice(-6));
+      var entryNo = p.entryNumber || p.entry_number || p.entry_no || p.sourceId || '';
       return {
         entry_number: entryNo,
         entry_date: p.date || (window.TODAY_STR_ISO || new Date().toISOString().split('T')[0]),
@@ -104,5 +104,8 @@
   };
 
   window.JournalRules = JournalRules;
+  window.validateEntry = JournalRules.validateEntry;
+  window.createJournalPayload = JournalRules.createJournalPayload;
+  window.createManualJournal = JournalRules.createManualJournal;
 
 })(typeof window !== 'undefined' ? window : globalThis);

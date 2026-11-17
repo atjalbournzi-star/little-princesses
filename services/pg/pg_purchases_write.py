@@ -1,127 +1,147 @@
 # services/pg/pg_purchases_write.py
-# Purchase invoices creation, stock valuation (weighted average), payments, and double entry posting
+# Purchase invoices creation, stock valuation, inventory receipt, and atomic posting
 
-from .db_pool import get_db_cursor, clean_str, clean_num, generate_id, today_str
-from .account_resolver import resolve_exchange_rate, resolve_account_id
-from .pg_audit import log_audit_event
-from .pg_warehouses import normalize_warehouse_id
+from .db_pool import get_db_cursor, clean_str, clean_num, today_str
+from .account_resolver import (
+    resolve_exchange_rate, resolve_account_id, resolve_cash_account_by_currency,
+    resolve_inventory_account, resolve_payables_account
+)
+from .pg_audit import log_audit_event, get_active_user_context
+from .pg_sequences import get_next_sequence_number
+from .pg_purchases_posting import post_purchase_journal, post_purchase_payment
+from .pg_purchases_update import update_purchase
 
 
 def add_purchase(payload):
     data = payload.get('data') or payload
-    warehouse_id = normalize_warehouse_id(data.get('warehouse_id') or data.get('warehouse') or data.get('location') or 'WH-MAIN')
-
-    pur_id = clean_str(data.get('id') or data.get('purchase_id')) or generate_id("PUR")
-    inv_no = clean_str(data.get('invoice_no') or data.get('bill_no') or data.get('purchase_no')) or pur_id
-    supp_id = clean_str(data.get('supplier_id') or '')
-    supp_name = clean_str(data.get('supplier_name') or data.get('supplier') or 'مورد عام')
-    supp_phone = clean_str(data.get('supplier_phone') or data.get('phone') or data.get('supplier_number') or '')
-    inv_date = clean_str(data.get('invoice_date') or data.get('date')) or today_str()
-
-    curr_raw = clean_str(data.get('currency') or data.get('Original_Currency') or 'YER')
-    curr = 'SAR' if 'SAR' in curr_raw.upper() else ('USD' if 'USD' in curr_raw.upper() else 'YER')
-
+    p_id = clean_str(data.get('id') or data.get('purchase_id'))
+    if p_id and not p_id.startswith('PUR-NEW') and not p_id.startswith('BILL-'):
+        return update_purchase(payload)
     raw_items = data.get('items')
     items = []
     if isinstance(raw_items, list) and len(raw_items) > 0:
         for itm in raw_items:
-            i_name = clean_str(itm.get('item_name') or itm.get('item') or itm.get('name') or 'مشتريات خامات')
-            i_qty = clean_num(itm.get('qty') or itm.get('quantity') or 1.0)
-            i_cost = clean_num(itm.get('cost') or itm.get('price') or itm.get('unit_price') or 0.0)
+            i_name = clean_str(itm.get('item_name') or itm.get('item') or itm.get('name') or '')
+            if not i_name: continue
+            i_qty = max(0.0001, clean_num(itm.get('qty') or itm.get('quantity') or 1.0))
+            i_cost = max(0.0, clean_num(itm.get('cost') or itm.get('price') or itm.get('unit_price') or 0.0))
             items.append({
                 'item_name': i_name, 'unit': clean_str(itm.get('unit') or 'متر'), 'quantity': i_qty,
                 'unit_price': i_cost, 'total_price': round(i_qty * i_cost, 2), 'notes': clean_str(itm.get('notes') or '')
             })
     else:
-        s_name = clean_str(data.get('item_name') or data.get('fabric_name') or data.get('item') or 'مشتريات خامات')
-        s_qty = clean_num(data.get('quantity') or data.get('qty') or 1.0)
-        s_cost = clean_num(data.get('unit_price') or data.get('cost_per_unit') or data.get('price') or 0.0)
-        s_tot = clean_num(data.get('original_amount') or (s_qty * s_cost) or data.get('total_amount') or 0.0)
-        items.append({'item_name': s_name, 'unit': clean_str(data.get('unit') or 'متر'), 'quantity': s_qty, 'unit_price': s_cost, 'total_price': s_tot if s_tot > 0 else round(s_qty * s_cost, 2), 'notes': clean_str(data.get('notes') or '')})
+        s_name = clean_str(data.get('item_name') or data.get('fabric_name') or data.get('item') or '')
+        if s_name:
+            s_qty = max(0.0001, clean_num(data.get('quantity') or data.get('qty') or 1.0))
+            s_cost = max(0.0, clean_num(data.get('unit_price') or data.get('cost_per_unit') or data.get('price') or 0.0))
+            s_tot = clean_num(data.get('original_amount') or (s_qty * s_cost) or data.get('total_amount') or 0.0)
+            items.append({'item_name': s_name, 'unit': clean_str(data.get('unit') or 'متر'), 'quantity': s_qty, 'unit_price': s_cost, 'total_price': s_tot if s_tot > 0 else round(s_qty * s_cost, 2), 'notes': clean_str(data.get('notes') or '')})
+
+    if not items:
+        raise ValueError("بنود فاتورة المشتريات فارغة! يرجى إضافة صنف واحد على الأقل")
 
     total_qty = sum(i['quantity'] for i in items)
     items_total = sum(i['total_price'] for i in items)
     orig_amt = clean_num(data.get('original_amount') or items_total)
-
-    if len(items) == 1:
-        header_name, header_unit, header_price = items[0]['item_name'], items[0]['unit'], items[0]['unit_price']
-    else:
-        header_name = " + ".join([i['item_name'] for i in items if i.get('item_name')])
-        if len(header_name) > 250: header_name = header_name[:247] + "..."
-        header_unit = items[0]['unit'] if all(i.get('unit') == items[0].get('unit') for i in items) else 'مشكل'
-        header_price = round(orig_amt / total_qty, 2) if total_qty > 0 else 0.0
+    header_name = items[0]['item_name'] if len(items) == 1 else " + ".join([i['item_name'] for i in items])[:245]
+    header_unit = items[0]['unit'] if all(i.get('unit') == items[0].get('unit') for i in items) else 'مشكل'
+    header_price = round(orig_amt / total_qty, 2) if total_qty > 0 else 0.0
 
     discount = clean_num(data.get('discount') or data.get('discount_amount') or 0.0)
     shipping_cost = clean_num(data.get('shipping_cost') or data.get('freight_cost') or 0.0)
     transfer_fee = clean_num(data.get('transfer_fee') or data.get('transfer_fees') or 0.0)
-    pay_method = clean_str(data.get('payment_method') or data.get('pay_type') or 'نقد (كاش)')
+    pay_method = clean_str(data.get('payment_method') or data.get('pay_type') or 'نقدي')
     pay_source_raw = clean_str(data.get('payment_account_code') or data.get('payment_source') or data.get('account_id') or '')
     transfer_no = clean_str(data.get('transaction_ref') or data.get('transaction_id') or data.get('transfer_no') or '')
     receipt_url = clean_str(data.get('receipt_attachment') or data.get('receipt_url') or data.get('image_path') or '')
     invoice_image_url = clean_str(data.get('invoice_attachment') or data.get('invoice_image_url') or data.get('invoice_url') or data.get('bill_attachment') or '')
     notes = clean_str(data.get('notes') or '')
+    inv_date = clean_str(data.get('invoice_date') or data.get('date')) or today_str()
+    curr_raw = clean_str(data.get('currency') or data.get('Original_Currency') or 'YER')
+    curr = 'SAR' if 'SAR' in curr_raw.upper() else ('USD' if 'USD' in curr_raw.upper() else 'YER')
 
     with get_db_cursor(commit=True) as cur:
         rate = resolve_exchange_rate(cur, curr, clean_num(data.get('exchange_rate') or 1.0))
-        items_amt_yer = orig_amt * rate
-        discount_yer = discount * rate
-        shipping_yer = shipping_cost * rate
-        transfer_yer = transfer_fee * rate
         net_paid_orig = max(0.0, (orig_amt + shipping_cost + transfer_fee) - discount)
-        net_paid_yer = max(0.0, (items_amt_yer + shipping_yer + transfer_yer) - discount_yer)
+        items_amt_yer = orig_amt * rate
+        net_paid_yer = max(0.0, ((orig_amt + shipping_cost + transfer_fee) - discount) * rate)
         grand_total_yer = net_paid_yer
 
-        cash_acc = resolve_account_id(cur, pay_source_raw, default_id='ACC-101-1', currency=curr)
-        if not pay_source_raw or cash_acc in ('ACC-101', 'ACC-101-1'):
-            cash_acc = 'ACC-101-2' if curr == 'SAR' else ('ACC-101-3' if curr == 'USD' else 'ACC-101-1')
+        inv_acc = resolve_inventory_account(cur)
+        supp_acc = resolve_payables_account(cur)
+        cash_acc = resolve_account_id(cur, pay_source_raw, currency=curr) or resolve_cash_account_by_currency(cur, curr)
+        if not inv_acc or not supp_acc:
+            raise ValueError("تعذر تحديد حسابات المخزون أو الموردين من شجرة الحسابات")
 
-        # التحقق من وجود المستودع الفعلي بقاعدة البيانات مع الرجوع للمستودع الرئيسي
-        cur.execute("SELECT id FROM warehouses WHERE id = %s LIMIT 1;", (warehouse_id,))
+        wh_in = clean_str(data.get('warehouse_id') or data.get('warehouse') or data.get('location') or '')
+        cur.execute("SELECT id FROM warehouses WHERE id = %s OR code = %s OR name = %s LIMIT 1;", (wh_in, wh_in, wh_in))
         wh_row = cur.fetchone()
         if not wh_row:
-            cur.execute("SELECT id FROM warehouses WHERE name = %s OR code = %s LIMIT 1;", (warehouse_id, warehouse_id))
+            cur.execute("SELECT id FROM warehouses WHERE is_active = TRUE ORDER BY id ASC LIMIT 1;")
             wh_row = cur.fetchone()
-            warehouse_id = wh_row['id'] if wh_row else 'WH-MAIN'
+        if not wh_row:
+            raise ValueError("لا يوجد أي مستودع نشط معرف في جدول المستودعات (warehouses)")
+        warehouse_id = wh_row['id']
 
-        # التحقق من وجود المورد أو إنشائه تلقائياً لمنع خطأ القيود الخارجية
+        supp_id, supp_name = clean_str(data.get('supplier_id') or ''), clean_str(data.get('supplier_name') or data.get('supplier') or '')
+        supp_phone = clean_str(data.get('supplier_phone') or data.get('phone') or '')
+        if not supp_name and not supp_id:
+            raise ValueError("اسم المورد مطلوب لإصدار فاتورة المشتريات")
         if supp_id:
-            cur.execute("SELECT id FROM suppliers WHERE id = %s LIMIT 1;", (supp_id,))
-            if not cur.fetchone():
-                cur.execute("SELECT id FROM suppliers WHERE name = %s LIMIT 1;", (supp_name,))
+            cur.execute("SELECT id, name FROM suppliers WHERE id = %s LIMIT 1;", (supp_id,))
+            s_row = cur.fetchone()
+            if not s_row and supp_name:
+                cur.execute("SELECT id, name FROM suppliers WHERE name = %s LIMIT 1;", (supp_name,))
                 s_row = cur.fetchone()
                 if s_row: supp_id = s_row['id']
-                else:
-                    cur.execute("INSERT INTO suppliers (id, name, phone, city, address, current_balance, is_active, created_at, updated_at) VALUES (%s, %s, %s, 'صنعاء', 'توريد خامات ومشتريات', 0.0, True, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) ON CONFLICT (id) DO NOTHING;", (supp_id, supp_name or 'مورد عام', supp_phone or '0000000000'))
         elif supp_name:
-            cur.execute("SELECT id FROM suppliers WHERE name = %s LIMIT 1;", (supp_name,))
+            cur.execute("SELECT id, name FROM suppliers WHERE name = %s LIMIT 1;", (supp_name,))
             s_row = cur.fetchone()
             if s_row: supp_id = s_row['id']
-            else:
-                supp_id = generate_id("SUPP")
-                cur.execute("INSERT INTO suppliers (id, name, phone, city, address, current_balance, is_active, created_at, updated_at) VALUES (%s, %s, %s, 'صنعاء', 'توريد خامات ومشتريات', 0.0, True, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) ON CONFLICT (id) DO NOTHING;", (supp_id, supp_name, supp_phone or '0000000000'))
 
-        cur.execute("SELECT id FROM purchases WHERE invoice_no = %s OR id = %s LIMIT 1;", (inv_no, pur_id))
-        ex_pur = cur.fetchone()
-        if ex_pur: pur_id = ex_pur['id']
+        resolved_user = clean_str(data.get('created_by')) or get_active_user_context()
+        if resolved_user:
+            cur.execute("SELECT id FROM users WHERE id = %s OR username = %s LIMIT 1;", (resolved_user, resolved_user))
+            u_row = cur.fetchone()
+            resolved_user = u_row['id'] if u_row else None
 
-        query = """
+        if not supp_id:
+            supp_id = get_next_sequence_number(cur, 'SUP', fallback_prefix='SUP-')
+            cur.execute("""
+                INSERT INTO suppliers (id, name, phone, city, address, current_balance, is_active, created_at, updated_at, created_by)
+                VALUES (%s, %s, %s, %s, %s, 0.0, TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, %s);
+            """, (supp_id, supp_name, supp_phone, clean_str(data.get('city') or ''), clean_str(data.get('address') or ''), resolved_user))
+
+        e_id, e_no = clean_str(data.get('id') or data.get('purchase_id')), clean_str(data.get('invoice_no') or data.get('bill_no'))
+        ex_pur = None
+        if e_id or (e_no and not e_no.startswith('PUR-NEW') and not e_no.startswith('BILL-')):
+            cur.execute("SELECT id, invoice_no FROM purchases WHERE id = %s OR invoice_no = %s LIMIT 1 FOR UPDATE;", (e_id, e_no))
+            ex_pur = cur.fetchone()
+
+        if ex_pur:
+            pur_id, inv_no = ex_pur['id'], (ex_pur.get('invoice_no') or ex_pur['id'])
+        else:
+            inv_no = get_next_sequence_number(cur, 'PUR', fallback_prefix='PUR-')
+            pur_id = inv_no
+
+        pay_status = 'Unpaid' if pay_method == 'آجل' else 'Paid'
+        pay_acc_code = supp_acc if pay_method == 'آجل' else cash_acc
+
+        cur.execute("""
             INSERT INTO purchases (
                 id, invoice_no, supplier_id, supplier_name, supplier_phone, invoice_date, item_name, unit, quantity,
                 unit_price, currency, exchange_rate, original_amount, discount, amount_yer, shipping_cost, transfer_fee,
                 grand_total_yer, payment_method, payment_account_code, transaction_ref, invoice_attachment, receipt_attachment,
-                receipt_status, payment_status, created_by, notes
+                receipt_status, payment_status, created_by, notes, created_at
             ) VALUES (
-                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'Received', %s, %s, %s
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'Received', %s, %s, %s, CURRENT_TIMESTAMP
             ) ON CONFLICT (id) DO UPDATE SET
                 supplier_id = EXCLUDED.supplier_id, supplier_name = EXCLUDED.supplier_name, quantity = EXCLUDED.quantity,
                 unit_price = EXCLUDED.unit_price, original_amount = EXCLUDED.original_amount, discount = EXCLUDED.discount,
                 shipping_cost = EXCLUDED.shipping_cost, transfer_fee = EXCLUDED.transfer_fee, amount_yer = EXCLUDED.amount_yer,
                 grand_total_yer = EXCLUDED.grand_total_yer, payment_method = EXCLUDED.payment_method, notes = EXCLUDED.notes
             RETURNING *;
-        """
-        pay_status = 'Unpaid' if pay_method == 'آجل' else 'Paid'
-        pay_acc_code = 'ACC-201' if pay_method == 'آجل' else cash_acc
-        cur.execute(query, (pur_id, inv_no, supp_id, supp_name, supp_phone, inv_date, header_name, header_unit, total_qty, header_price, curr, rate, orig_amt, discount, items_amt_yer, shipping_cost, transfer_fee, grand_total_yer, pay_method, pay_acc_code, transfer_no, invoice_image_url, receipt_url, pay_status, clean_str(data.get('created_by') or 'admin'), notes))
+        """, (pur_id, inv_no, supp_id, supp_name, supp_phone, inv_date, header_name, header_unit, total_qty, header_price, curr, rate, orig_amt, discount, items_amt_yer, shipping_cost, transfer_fee, grand_total_yer, pay_method, pay_acc_code, transfer_no, invoice_image_url, receipt_url, pay_status, resolved_user, notes))
         res = dict(cur.fetchone())
 
         cur.execute("SELECT inventory_id, quantity FROM purchase_items WHERE purchase_id = %s;", (pur_id,))
@@ -131,76 +151,53 @@ def add_purchase(payload):
 
         cur.execute("DELETE FROM purchase_items WHERE purchase_id = %s;", (pur_id,))
         cur.execute("DELETE FROM inventory_transactions WHERE reference_type = 'purchases' AND reference_id = %s;", (pur_id,))
+        cur.execute("DELETE FROM stock_movements WHERE reference_type = 'purchases' AND reference_id = %s;", (pur_id,))
 
         saved_items = []
         cost_ratio = (net_paid_orig / orig_amt) if orig_amt > 0 else 1.0
-        for itm in items:
+        for idx, itm in enumerate(items):
             net_u_cost = round(itm['unit_price'] * cost_ratio, 4)
-            it_cost_yer = round(net_u_cost * rate, 2)
+            it_cost_yer = round(net_u_cost * rate, 4)
             cur.execute("SELECT id, quantity, unit_cost FROM inventory WHERE name = %s OR item_code = %s LIMIT 1 FOR UPDATE;", (itm['item_name'], itm['item_name']))
             inv_row = cur.fetchone()
             if inv_row:
                 inv_id = inv_row['id']
                 old_q, old_c = float(inv_row['quantity'] or 0.0), float(inv_row['unit_cost'] or 0.0)
                 new_q = old_q + itm['quantity']
-                new_c = round(((old_q * old_c) + (itm['quantity'] * it_cost_yer)) / new_q, 2) if new_q > 0 else it_cost_yer
+                new_c = round(((old_q * old_c) + (itm['quantity'] * it_cost_yer)) / new_q, 4) if new_q > 0 else it_cost_yer
                 cur.execute("UPDATE inventory SET quantity = %s, unit_cost = %s, location = %s, status = 'Available', updated_at = CURRENT_TIMESTAMP WHERE id = %s;", (new_q, new_c, warehouse_id, inv_id))
             else:
-                inv_id = generate_id("MAT")
+                inv_id = get_next_sequence_number(cur, 'MAT', fallback_prefix='MAT-')
                 cur.execute("INSERT INTO inventory (id, item_code, name, type, category, unit, quantity, reserved_qty, unit_cost, currency, supplier_id, location, status) VALUES (%s, %s, %s, 'Fabric', 'أقمشة فاخرة', %s, %s, 0.0, %s, 'YER', %s, %s, 'Available');", (inv_id, inv_id, itm['item_name'], itm['unit'], itm['quantity'], it_cost_yer, supp_id, warehouse_id))
 
             cur.execute("""
                 INSERT INTO warehouse_stock (id, warehouse_id, inventory_id, quantity, reserved_qty, updated_at)
                 VALUES (%s, %s, %s, %s, 0.0, CURRENT_TIMESTAMP)
-                ON CONFLICT (warehouse_id, inventory_id) DO UPDATE SET quantity = warehouse_stock.quantity + EXCLUDED.quantity, updated_at = CURRENT_TIMESTAMP;
+                ON CONFLICT (warehouse_id, inventory_id) DO UPDATE SET
+                    quantity = warehouse_stock.quantity + EXCLUDED.quantity,
+                    updated_at = CURRENT_TIMESTAMP;
             """, (f"WS-{inv_id}-{warehouse_id}", warehouse_id, inv_id, itm['quantity']))
 
-            cur.execute("INSERT INTO inventory_transactions (id, inventory_id, warehouse_id, transaction_type, quantity, unit_cost, reference_type, reference_id, notes) VALUES (%s, %s, %s, 'PURCHASE_IN', %s, %s, 'purchases', %s, %s);", (generate_id("ITXN"), inv_id, warehouse_id, itm['quantity'], it_cost_yer, pur_id, f"شراء خامات فاتورة {inv_no} إلى مستودع [{warehouse_id}]"))
-            p_item_id = generate_id("PITM")
+            sm_id = get_next_sequence_number(cur, 'SM', fallback_prefix='SM-')
+            cur.execute("""
+                INSERT INTO stock_movements (id, item_id, warehouse_id, movement_type, quantity, unit_cost, total_cost, reference_id, reference_type, notes, created_at)
+                VALUES (%s, %s, %s, 'PURCHASE_IN', %s, %s, %s, %s, 'purchases', %s, CURRENT_TIMESTAMP);
+            """, (sm_id, inv_id, warehouse_id, itm['quantity'], it_cost_yer, round(itm['quantity'] * it_cost_yer, 4), pur_id, f"توريد مشتريات {inv_no}"))
+
+            p_item_id = f"{pur_id}-ITM-{idx + 1}"
             cur.execute("INSERT INTO purchase_items (id, purchase_id, inventory_id, item_name, unit, quantity, unit_price, total_price, notes) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s);", (p_item_id, pur_id, inv_id, itm['item_name'], itm['unit'], itm['quantity'], itm['unit_price'], itm['total_price'], itm.get('notes') or f"صنف فاتورة {inv_no}"))
             saved_items.append({"id": p_item_id, "item_name": itm['item_name'], "unit": itm['unit'], "quantity": itm['quantity'], "unit_price": itm['unit_price'], "total_price": itm['total_price'], "warehouse_id": warehouse_id})
 
-        clean_ref = pur_id[4:] if str(pur_id).startswith('PUR-') else pur_id
+        post_purchase_journal(cur, pur_id, inv_no, inv_date, supp_id, supp_name, net_paid_orig, net_paid_yer, curr, rate, inv_acc, supp_acc, resolved_user)
 
-        # 1. قيد الفاتورة والتوريد (مدين: 105 مخزون الأقمشة / دائن: 201 ذمم الموردين)
-        if orig_amt > 0 or net_paid_orig > 0:
-            pur_jv_no = f"JV-PUR-{clean_ref}"
-            cur.execute("""
-                INSERT INTO journal_entries (id, entry_no, entry_date, description, debit_account_id, credit_account_id, amount, total_amount, base_amount, ref_type, ref_id, currency, exchange_rate, status, notes)
-                VALUES (%s, %s, %s, %s, 'ACC-105', 'ACC-201', %s, %s, %s, 'Purchase', %s, %s, %s, 'Posted', %s)
-                ON CONFLICT (entry_no) DO UPDATE SET amount = EXCLUDED.amount, total_amount = EXCLUDED.total_amount, base_amount = EXCLUDED.base_amount, credit_account_id = 'ACC-201';
-            """, (generate_id("JV"), pur_jv_no, inv_date, f"فاتورة توريد مشتريات خامات {inv_no} - {supp_name}", net_paid_orig, net_paid_orig, net_paid_yer, pur_id, curr, rate, f"توريد مشتريات {inv_no}"))
-            cur.execute("SELECT id FROM journal_entries WHERE entry_no = %s LIMIT 1;", (pur_jv_no,))
-            act_pur_jv = cur.fetchone()['id']
-            cur.execute("DELETE FROM journal_entry_lines WHERE entry_id = %s;", (act_pur_jv,))
-            cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, 'ACC-105', %s, %s, 0.0, %s, 0.0);", (generate_id("JVL"), act_pur_jv, f"مخزون الأقمشة والخامات - فاتورة {inv_no}", net_paid_orig, net_paid_yer))
-            cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, 'ACC-201', %s, 0.0, %s, 0.0, %s);", (generate_id("JVL"), act_pur_jv, f"استحقاق فاتورة {inv_no} - {supp_name}", net_paid_orig, net_paid_yer))
-
-        # 2. سند الصرف وقيد السداد النمطي (مدين: 201 ذمم الموردين / دائن: الصندوق المستخدم)
-        if pay_method != 'آجل' and net_paid_orig > 0:
-            pay_no = f"PAY-{clean_ref}"
-            cur.execute("""
-                INSERT INTO payments (id, payment_no, invoice_id, supplier_id, payment_type, amount, currency, exchange_rate, base_amount, payment_method, account_id, target_account_id, party_name, date, status, notes)
-                VALUES (%s, %s, %s, %s, 'Payment', %s, %s, %s, %s, %s, %s, 'ACC-201', %s, %s, 'Confirmed', %s)
-                ON CONFLICT (payment_no) DO UPDATE SET amount = EXCLUDED.amount, base_amount = EXCLUDED.base_amount, account_id = EXCLUDED.account_id, target_account_id = 'ACC-201', party_name = EXCLUDED.party_name;
-            """, (generate_id("PAY"), pay_no, pur_id, supp_id, net_paid_orig, curr, rate, net_paid_yer, pay_method, cash_acc, supp_name, inv_date, f"سداد فاتورة مشتريات {inv_no} - {supp_name}"))
-
-            pay_jv_no = f"AUTO-VCH-{pay_no}"
-            cur.execute("""
-                INSERT INTO journal_entries (id, entry_no, entry_date, description, debit_account_id, credit_account_id, amount, total_amount, base_amount, ref_type, ref_id, currency, exchange_rate, status, notes)
-                VALUES (%s, %s, %s, %s, 'ACC-201', %s, %s, %s, %s, 'Payment', %s, %s, %s, 'Posted', %s)
-                ON CONFLICT (entry_no) DO UPDATE SET amount = EXCLUDED.amount, total_amount = EXCLUDED.total_amount, base_amount = EXCLUDED.base_amount, credit_account_id = EXCLUDED.credit_account_id;
-            """, (generate_id("JV"), pay_jv_no, inv_date, f"سند صرف سداد فاتورة مشتريات {inv_no}: {supp_name}", cash_acc, net_paid_orig, net_paid_orig, net_paid_yer, pur_id, curr, rate, f"سداد فاتورة {inv_no}"))
-            cur.execute("SELECT id FROM journal_entries WHERE entry_no = %s LIMIT 1;", (pay_jv_no,))
-            act_pay_jv = cur.fetchone()['id']
-            cur.execute("DELETE FROM journal_entry_lines WHERE entry_id = %s;", (act_pay_jv,))
-            cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, 'ACC-201', %s, %s, 0.0, %s, 0.0);", (generate_id("JVL"), act_pay_jv, f"مدين - سداد فاتورة {inv_no} ({supp_name})", net_paid_orig, net_paid_yer))
-            cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, %s, %s, 0.0, %s, 0.0, %s);", (generate_id("JVL"), act_pay_jv, cash_acc, f"دائن - سداد فاتورة {inv_no} ({supp_name})", net_paid_orig, net_paid_yer))
-
-        if pay_method == 'آجل' and supp_id and supp_id != 'SUPP-GENERAL':
+        if pay_method != 'آجل':
+            post_purchase_payment(cur, pur_id, inv_no, inv_date, supp_id, supp_name, net_paid_orig, net_paid_yer, curr, rate, pay_method, cash_acc, supp_acc, transfer_no, resolved_user)
+        elif supp_id:
             cur.execute("UPDATE suppliers SET current_balance = current_balance + %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s;", (net_paid_orig, supp_id))
 
-        log_audit_event('purchases', pur_id, 'UPDATE' if ex_pur else 'CREATE', old_values=dict(ex_pur) if ex_pur else None, new_values={'invoice_no': inv_no, 'supplier': supp_name, 'grand_total_yer': grand_total_yer, 'items_count': len(saved_items)}, user_id=clean_str(data.get('created_by') or 'system'))
-        res['items'] = saved_items
+        log_audit_event('purchases', pur_id, 'UPDATE' if ex_pur else 'INSERT', old_values=dict(ex_pur) if ex_pur else None, new_values={'invoice_no': inv_no, 'supplier': supp_name, 'grand_total_yer': grand_total_yer}, user_id=resolved_user, document_no=inv_no, details=f"فاتورة مشتريات {inv_no} من {supp_name}", cur=cur)
+
+        res['invoice_no'], res['bill_no'], res['purchase_no'], res['id'], res['items'] = inv_no, inv_no, inv_no, pur_id, saved_items
         if res.get('created_at'): res['created_at'] = str(res['created_at'])
+        if res.get('invoice_date'): res['invoice_date'] = str(res['invoice_date'])
         return res

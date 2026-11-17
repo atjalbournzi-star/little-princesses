@@ -66,8 +66,15 @@ def to_decimal(val):
         return Decimal("0.00")
 
 
+_SEED_INITIALIZED = False
+
+
 def ensure_base_system_seed():
     """غرس إعدادات المؤسسة والعملات والمستخدم الافتراضي عند أول تشغيل"""
+    global _SEED_INITIALIZED
+    if _SEED_INITIALIZED:
+        return
+    _SEED_INITIALIZED = True
     try:
         with get_db_cursor(commit=True) as cur:
             # 1. Company Profile
@@ -182,18 +189,20 @@ def ensure_base_system_seed():
                 ensure_warehouses_schema()
             except Exception as e_wh:
                 logger.warning(f"⚠️ Warehouses seed warning: {e_wh}")
-            # 7. Account 202 Customer Advance Deposits Sync
-            try:
-                from .pg_receipt_sync import recalculate_advance_deposits
-                recalculate_advance_deposits(cur)
-            except Exception as e_adv:
-                logger.warning(f"⚠️ Account 202 sync notice: {e_adv}")
             # 8. Standard Chart of Accounts Seeder
             try:
                 from .pg_chart_seed import ensure_chart_of_accounts_seed
                 ensure_chart_of_accounts_seed(cur)
             except Exception as e_coa:
                 logger.warning(f"⚠️ Chart of Accounts seed notice: {e_coa}")
+            # 9. Number Sequences & Audit Logs Schema Initialization
+            try:
+                from .pg_sequences import ensure_number_sequences_schema
+                from .pg_audit import ensure_audit_logs_schema
+                ensure_number_sequences_schema(cur)
+                ensure_audit_logs_schema(cur)
+            except Exception as e_seq:
+                logger.warning(f"⚠️ Sequences/Audit seed notice: {e_seq}")
         logger.info("✅ تم التحقق من البيانات التأسيسية للنظام (Seed Data Checked)")
     except Exception as e:
         logger.warning(f"⚠️ تنبيه أثناء غرس البيانات التأسيسية: {e}")

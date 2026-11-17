@@ -21,12 +21,14 @@ function POSCatalog({
     : (currencyDisplay?.code || currencyDisplay?.display?.split(' ')[0] || 'YER');
 
   const dynamicCategories = React.useMemo(() => {
-    if (posCategories && posCategories.length > 0) return posCategories;
-    const cats = (products || [])
-      .filter(p => p && typeof p === 'object')
-      .map(p => p.category || p.classification)
+    const srcList = (posCategories && posCategories.length > 0)
+      ? posCategories
+      : (products || []).filter(p => p && typeof p === 'object').map(p => p.category || p.classification);
+    const cleanCats = srcList
+      .filter(c => c && typeof c === 'string' && !c.includes('???') && c !== 'الكل')
+      .map(c => c.trim())
       .filter(Boolean);
-    return ['الكل', ...Array.from(new Set(cats))];
+    return ['الكل', ...Array.from(new Set(cleanCats))];
   }, [posCategories, products]);
 
   const filteredProducts = React.useMemo(() => {

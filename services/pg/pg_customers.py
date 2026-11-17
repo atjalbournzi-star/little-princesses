@@ -3,6 +3,7 @@
 
 from .db_pool import get_db_cursor, clean_str, clean_num, logger
 from .pg_customer_save import add_customer
+from .pg_audit import log_audit_event, get_active_user_context
 from .pg_customer_tracking import get_customer_order_tracking, confirm_customer_fitting
 
 
@@ -182,4 +183,5 @@ def delete_customer(payload):
             cur.execute("DELETE FROM measurements WHERE customer_id = %s;", (cid,))
             cur.execute("DELETE FROM children WHERE customer_id = %s;", (cid,))
             cur.execute("DELETE FROM customers WHERE id = %s;", (cid,))
+            log_audit_event('customers', cid, 'DELETE', user_id=get_active_user_context('admin'), document_no=cid, details=f"حذف العميل {cid}", cur=cur)
     return {"deleted": True, "id": cid}

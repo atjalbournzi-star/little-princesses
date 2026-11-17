@@ -19,7 +19,7 @@ function QualityAssurance(props) {
   }
 
   return (
-    <div className="space-y-3 animate-fadeIn text-right pb-2" dir="rtl">
+    <div className="space-y-1.5 animate-fadeIn text-right pb-1 select-none" dir="rtl">
       {/* 1. بوابات التفتيش الفني الثلاث (The 3 Operational Inspection Gate Cards) */}
       {GateCards && (
         <GateCards

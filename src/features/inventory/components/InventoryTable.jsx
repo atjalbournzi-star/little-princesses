@@ -70,7 +70,7 @@ function InventoryTable({
 
             const iCurr = window.CurrencyService ? window.CurrencyService.normalizeCode(i.currency || 'YER') : 'YER';
             const baseCost = iCurr === 'YER' ? rawCost : (window.CurrencyService ? window.CurrencyService.toBase(rawCost, iCurr).base_amount : rawCost);
-            const baseTotal = (parseFloat(i.total_value) && iCurr === 'YER') ? parseFloat(i.total_value) : (qty * baseCost);
+            const baseTotal = qty * baseCost;
 
             const displayCost = isBaseCurrency ? baseCost : (window.CurrencyService ? window.CurrencyService.fromBase(baseCost, activeTargetCurr) : baseCost);
             const displayTotal = isBaseCurrency ? baseTotal : (window.CurrencyService ? window.CurrencyService.fromBase(baseTotal, activeTargetCurr) : baseTotal);
@@ -134,7 +134,7 @@ function InventoryTable({
 
                 {/* 6. متوسط التكلفة */}
                 <td className="w-[110px] py-1.5 px-2 text-left font-mono text-xs text-slate-800 dark:text-slate-200 tabular-nums dir-ltr truncate">
-                  {displayCost > 0 ? displayCost.toLocaleString('en-US', { minimumFractionDigits: isBaseCurrency ? 0 : 2, maximumFractionDigits: 2 }) : '0.00'}
+                  {displayCost > 0 ? displayCost.toLocaleString('en-US', { minimumFractionDigits: isBaseCurrency ? 0 : 2, maximumFractionDigits: 4 }) : '0.00'}
                 </td>
 
                 {/* 7. إجمالي القيمة */}

@@ -17,15 +17,18 @@ function Reports({
   const useExport = window.useReportExport || (() => ({}));
 
   const {
-    activeTab, setActiveTab, financialSubTab, setFinancialSubTab,
-    periodPreset, setPeriodPreset, dateRange, setDateRange,
-    reportCurrency, setReportCurrency, selectedLedgerAcc, setSelectedLedgerAcc,
-    statementType, setStatementType, selectedPartyId, setSelectedPartyId,
-    targetCode, toReportAmount, fmtMoney, filteredJournal, liveAccountsMap,
-    pnlData, balanceSheetData, trialBalanceData, generalLedgerRows, cashBankReconciliation,
-    statementData, dailySalesData, modelProfitabilityData, productionStats, inventoryStats,
-    isTBLoading, isGLLoading
-  } = useData({ orders, expenses, vouchers, journal, accounts, purchases, customers, inventory, products, currency });
+    activeTab = 'financial', setActiveTab = () => {}, financialSubTab = 'pnl', setFinancialSubTab = () => {},
+    periodPreset = 'this_month', setPeriodPreset = () => {}, dateRange = { start: '', end: '' }, setDateRange = () => {},
+    reportCurrency = 'YER ﷼', setReportCurrency = () => {}, selectedLedgerAcc = '', setSelectedLedgerAcc = () => {},
+    statementType = 'treasury', setStatementType = () => {}, selectedPartyId = '', setSelectedPartyId = () => {},
+    targetCode = 'YER', toReportAmount = (a) => parseFloat(a) || 0, fmtMoney = (n) => String(n),
+    filteredJournal = [], liveAccountsMap = {}, pnlData = {}, balanceSheetData = {},
+    trialBalanceData = [], generalLedgerRows = [], cashBankReconciliation = {},
+    statementData = {}, dailySalesData = [], modelProfitabilityData = [],
+    productionStats = { totalOrders: 0, inProdCount: 0, completedCount: 0, totalWages: 0, totalFabricUsed: 0 },
+    inventoryStats = { totalItems: 0, totalValuation: 0, lowStockCount: 0, totalFabrics: 0 },
+    isTBLoading = false, isGLLoading = false
+  } = useData({ orders, expenses, vouchers, journal, accounts, purchases, customers, inventory, products, currency }) || {};
 
   const { getTabTitle, handleExportExcel, handlePrint } = useExport({
     activeTab, financialSubTab, statementType, selectedLedgerAcc,
@@ -46,10 +49,16 @@ function Reports({
     ReportsAuditFooter: AuditFooter
   } = window;
 
-  const testedCount = activeTab === 'financial' ? filteredJournal.length : (activeTab === 'orders' ? (orders || []).length : (activeTab === 'production' ? productionStats.totalOrders : inventoryStats.totalItems));
+  const testedCount = activeTab === 'financial'
+    ? (filteredJournal?.length ?? 0)
+    : (activeTab === 'orders'
+      ? (orders?.length ?? 0)
+      : (activeTab === 'production'
+        ? (productionStats?.totalOrders ?? 0)
+        : (inventoryStats?.totalItems ?? 0)));
 
   return (
-    <div className="space-y-2.5 animate-fadeIn text-right pb-8" dir="rtl">
+    <div className="space-y-1 animate-fadeIn text-right pb-6 select-none" dir="rtl">
       {/* ترويسة الطباعة الرسمية المعتمدة */}
       {PrintHeader && <PrintHeader brandProfile={brandProfile} getTabTitle={getTabTitle} dateRange={dateRange} reportCurrency={reportCurrency} />}
 

@@ -7,6 +7,10 @@ import pg_service
 
 
 def handle_get(handler, path, parsed_url) -> bool:
+    from domains.tailoring import routes_measurement
+    if routes_measurement.handle_get(handler, path, parsed_url):
+        return True
+
     if path in ('/api/stats', '/api/dashboard/stats'):
         data = pg_service.get_dashboard_stats()
         handler.send_response(200)

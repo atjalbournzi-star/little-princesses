@@ -63,7 +63,7 @@ function OrderDeliveryModal({
   };
 
   const sendWhatsAppDeliveryGreeting = () => {
-    const cName = order.customer_name || 'العميلة الكريمة';
+    const cName = order.customer_name || 'العميل الكريم';
     const chName = order.child_name || 'الأميرة';
     const pName = order.product_name || 'فستان الأميرات الفاخر';
     const orderNo = order.order_no || order.id;
@@ -119,7 +119,7 @@ function OrderDeliveryModal({
             <div className="p-3.5 rounded-2xl bg-[#FCE8F2]/60 dark:bg-rose-950/30 border border-[#F2A4CB]/40 dark:border-rose-900/40 space-y-1.5 text-xs">
               <div className="flex justify-between items-center">
                 <span className="font-bold text-[#B0005A] dark:text-rose-400">👧 الأميرة: {order.child_name || 'الأميرة'}</span>
-                <span className="text-[#6F6B75] dark:text-slate-400">العميلة: {order.customer_name}</span>
+                <span className="text-[#6F6B75] dark:text-slate-400">العميل: {order.customer_name}</span>
               </div>
               <div className="flex justify-between items-center text-[11px] pt-1 border-t border-[#F2A4CB]/30 dark:border-rose-900/30">
                 <span>👗 الموديل: <strong>{order.product_name}</strong></span>

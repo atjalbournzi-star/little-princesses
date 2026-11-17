@@ -14,7 +14,7 @@
     { id: "ACC-1111", code: "1111", name: "الصندوق الرئيسي", name_en: "Main Cash", account_type: "أصول", parent_id: "1", level: 2, nature: "debit", is_group: 0, is_active: 1, balance: 0.0 },
     { id: "ACC-1112", code: "1112", name: "البنك / الشبكة وPOS", name_en: "Bank & POS", account_type: "أصول", parent_id: "1", level: 2, nature: "debit", is_group: 0, is_active: 1, balance: 0.0 },
     { id: "ACC-1121", code: "1121", name: "عهد الورشة والمشغل", name_en: "Workshop Custody", account_type: "أصول", parent_id: "1", level: 2, nature: "debit", is_group: 0, is_active: 1, balance: 0.0 },
-    { id: "ACC-1131", code: "1131", name: "ذمم العميلات", name_en: "Accounts Receivable", account_type: "أصول", parent_id: "1", level: 2, nature: "debit", is_group: 0, is_active: 1, balance: 0.0 },
+    { id: "ACC-1131", code: "1131", name: "ذمم العملاء", name_en: "Accounts Receivable", account_type: "أصول", parent_id: "1", level: 2, nature: "debit", is_group: 0, is_active: 1, balance: 0.0 },
     { id: "ACC-1141", code: "1141", name: "سلف الخياطين والعاملين", name_en: "Tailor Advances", account_type: "أصول", parent_id: "1", level: 2, nature: "debit", is_group: 0, is_active: 1, balance: 0.0 },
     { id: "ACC-1151", code: "1151", name: "مخزون الأقمشة والخامات", name_en: "Fabric Inventory", account_type: "أصول", parent_id: "1", level: 2, nature: "debit", is_group: 0, is_active: 1, balance: 0.0 },
     { id: "ACC-1152", code: "1152", name: "إنتاج تحت التشغيل (WIP)", name_en: "Work in Progress - WIP", account_type: "أصول", parent_id: "1", level: 2, nature: "debit", is_group: 0, is_active: 1, balance: 0.0 },

@@ -37,22 +37,16 @@ function useSettingsActions({
     try {
       if (window.BrandService) {
         window.BrandService.saveProfile({
-          name: formData.companyName,
-          shortName: formData.shortName,
-          tagline: formData.tagline,
-          commercialRegister: formData.commercialRegister,
-          phone: formData.phone,
-          address: formData.address,
-          email: formData.email,
-          logoUrl: formData.logoUrl
+          name: formData.companyName, shortName: formData.shortName, tagline: formData.tagline,
+          commercialRegister: formData.commercialRegister, phone: formData.phone, address: formData.address,
+          email: formData.email, logoUrl: formData.logoUrl
         });
       }
-      localStorage.setItem('erp_company_name', formData.companyName);
-      localStorage.setItem('erp_phone',        formData.phone);
-      localStorage.setItem('erp_address',      formData.address);
-      localStorage.setItem('erp_fiscal_date',  formData.fiscalDate);
-      localStorage.setItem('erp_email',        formData.email);
-      localStorage.setItem('lp_theme',         themeMode);
+      ['erp_company_name', 'erp_phone', 'erp_address', 'erp_fiscal_date', 'erp_email'].forEach((k, idx) => {
+        const v = [formData.companyName, formData.phone, formData.address, formData.fiscalDate, formData.email][idx];
+        if (v) localStorage.setItem(k, v);
+      });
+      localStorage.setItem('lp_theme', themeMode);
 
       if (window.CurrencyService) {
         if (parseFloat(sarRate) > 0) window.CurrencyService.setRate('SAR', parseFloat(sarRate));
@@ -60,18 +54,10 @@ function useSettingsActions({
       }
 
       const payload = {
-        company_name: formData.companyName,
-        phone: formData.phone,
-        address: formData.address,
-        fiscal_date: formData.fiscalDate,
-        email: formData.email,
-        theme_mode: themeMode,
+        company_name: formData.companyName, phone: formData.phone, address: formData.address,
+        fiscal_date: formData.fiscalDate, email: formData.email, theme_mode: themeMode,
         base_currency: localCurrency ? localCurrency.code : 'YER',
-        rates: {
-          YER: 1.0,
-          SAR: parseFloat(sarRate) || 142.0,
-          USD: parseFloat(usdRate) || 535.0
-        }
+        rates: { YER: 1.0, SAR: parseFloat(sarRate) || 142.0, USD: parseFloat(usdRate) || 535.0 }
       };
 
       if (window.settingsAPI && window.settingsAPI.saveSettings) {

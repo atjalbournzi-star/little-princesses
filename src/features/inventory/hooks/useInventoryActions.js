@@ -47,7 +47,7 @@ function useInventoryActions({ inventory = [], setInventory, showToast, refreshI
   const handleTotalChange = (e) => {
     const t = e.target.value;
     const q = formData.qty;
-    const c = (q !== '' && parseFloat(q) > 0) ? (parseFloat(t || 0) / parseFloat(q)).toFixed(2) : formData.cost;
+    const c = (q !== '' && parseFloat(q) > 0) ? (parseFloat(t || 0) / parseFloat(q)).toFixed(4) : formData.cost;
     setFormData(prev => ({ ...prev, total_value: t, cost: c }));
   };
 

@@ -47,18 +47,18 @@ def process_stock_inflow(payload):
             if f_row:
                 fabric_unit_cost = clean_num(f_row.get('unit_cost') or 0.0)
 
-        total_fabric_cost = round(cut_qty * fabric_unit_cost, 2)
-        fabric_cost_per_piece = round(total_fabric_cost / pieces_count, 2)
+        total_fabric_cost = round(cut_qty * fabric_unit_cost, 4)
+        fabric_cost_per_piece = round(total_fabric_cost / pieces_count, 4)
 
         cutter_w = clean_num(po.get('cutter_wage') or 0.0)
         tailor_w = clean_num(po.get('tailor_wage') or 0.0)
         embroid_w = clean_num(po.get('embroiderer_wage') or 0.0)
         finisher_w = clean_num(po.get('finisher_wage') or 0.0)
-        labor_cost_per_piece = round(cutter_w + tailor_w + embroid_w + finisher_w, 2)
-        total_labor_cost = round(labor_cost_per_piece * pieces_count, 2)
+        labor_cost_per_piece = round(cutter_w + tailor_w + embroid_w + finisher_w, 4)
+        total_labor_cost = round(labor_cost_per_piece * pieces_count, 4)
 
-        unit_cost = round(fabric_cost_per_piece + labor_cost_per_piece, 2)
-        total_mfg_cost = round(total_fabric_cost + total_labor_cost, 2)
+        unit_cost = round(fabric_cost_per_piece + labor_cost_per_piece, 4)
+        total_mfg_cost = round(total_fabric_cost + total_labor_cost, 4)
 
         tx_id = generate_id("ITXN")
         tx_notes = (

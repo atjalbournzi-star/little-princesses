@@ -85,14 +85,13 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
   const handlePOSCheckout = async (posParams) => {
     setIsSubmittingPOS(true);
     try {
-      const newId = Date.now(), ordNo = `POS-${newId.toString().slice(-6)}`;
       const ordCurr = window.CurrencyService ? window.CurrencyService.normalizeCode(currencyDisplay) : 'YER';
       const ordRate = window.CurrencyService ? window.CurrencyService.getRate(ordCurr) : 1.0;
       let actualPaid = posParams.posPaymentMethod === 'آجل / جزئي' ? (posParams.posCashReceived !== '' ? Math.min(posParams.posReceivedNum, posParams.posNetTotal) : 0) : posParams.posNetTotal;
       const selCust = (customers || []).find(c => (window.getCustomerName ? window.getCustomerName(c) : c.name) === posParams.posCustomerName);
       const selChld = selCust?.measurements?.find(m => m.child_name === posParams.posChildName);
       const posPayload = {
-        id: newId, order_no: ordNo, customer_id: selCust?.customer_id || selCust?.id || 'CUST-GENERAL',
+        id: '', order_no: '', customer_id: selCust?.customer_id || selCust?.id || 'CUST-GENERAL',
         customer_name: posParams.posCustomerName, child_id: selChld?.child_id || selChld?.id || null, child_name: posParams.posChildName || 'الأميرة',
         product_name: posParams.cart.length === 1 ? posParams.cart[0].product_name : `سلة كاشير (${posParams.cart.length} أصناف)`,
         qty: posParams.cart.reduce((s, i) => s + (i.qty || 1), 0), subtotal: posParams.posSubtotal, discount: posParams.posDiscountNum,
@@ -101,11 +100,17 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
         order_date: TODAY_STR_ISO, delivery_date: TODAY_STR_ISO, status: 'جاهز للتسليم 🛍️', production_status: 'جاهز للتسليم 🛍️',
         items: posParams.cart.map(i => ({ product_id: i.product_id, product_name: i.product_name, quantity: i.qty, unit_price: i.unit_price, total_price: i.total_price, selected_color: i.selected_color || i.color || '' }))
       };
-      setOrders && setOrders([posPayload, ...(orders || [])]);
-      if (window.salesAPI?.createOrder) await window.salesAPI.createOrder(posPayload);
-      else await fetch('/api/sales/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(posPayload) });
-      showToast && showToast("تم إتمام عملية البيع وإصدار الفاتورة سحابياً ⚡🧾");
-      openCustomerMessageModal(posPayload);
+      let res = null;
+      if (window.salesAPI?.createOrder) res = await window.salesAPI.createOrder(posPayload);
+      else {
+        const fetchRes = await fetch('/api/sales/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(posPayload) });
+        res = await fetchRes.json().catch(() => ({}));
+      }
+      const savedOrd = (res && (res.data || res.order)) || {};
+      const officialOrd = { ...posPayload, ...savedOrd, order_no: savedOrd.order_no || posPayload.order_no, id: savedOrd.id || posPayload.id };
+      setOrders && setOrders(prev => [officialOrd, ...(prev || []).filter(o => o.id !== posPayload.id && o.order_no !== posPayload.order_no)]);
+      showToast && showToast(`تم إتمام عملية البيع وإصدار الفاتورة (${officialOrd.order_no}) سحابياً ⚡🧾`);
+      openCustomerMessageModal(officialOrd);
       posParams.clearCart();
     } catch (err) { showToast && showToast(err.message || 'خطأ في البيع', 'error'); }
     finally { setIsSubmittingPOS(false); }

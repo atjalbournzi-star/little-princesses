@@ -7,16 +7,39 @@ function JournalVoucherModal({
   if (!isOpen) return null;
 
   const [form, setForm] = useState({
-    entry_no: `JV-CMP-${Date.now().toString().slice(-6)}`,
+    entry_no: '',
     date: typeof TODAY_STR_ISO !== 'undefined' ? TODAY_STR_ISO : new Date().toISOString().slice(0, 10),
     currency: 'YER ﷼', exchange_rate: '1.0', ref_type: 'قيد مركب', general_notes: ''
   });
 
+  const debitAccDefault = useMemo(() => {
+    const list = (accounts || []).filter(a => !a.is_group);
+    const found = list.find(a => a.type === 'أصول' || a.nature === 'debit' || (a.name || '').includes('صندوق') || (a.name || '').includes('نقد'));
+    return found ? String(found.code || found.acc_code) : (list[0] ? String(list[0].code || list[0].acc_code) : '');
+  }, [accounts]);
+  const creditAccDefault = useMemo(() => {
+    const list = (accounts || []).filter(a => !a.is_group);
+    const found = list.find(a => String(a.code || a.acc_code) !== debitAccDefault && (a.type === 'خصوم' || a.type === 'إيرادات' || a.nature === 'credit'));
+    return found ? String(found.code || found.acc_code) : (list.find(a => String(a.code || a.acc_code) !== debitAccDefault)?.code || '');
+  }, [accounts, debitAccDefault]);
+
   const [lines, setLines] = useState([
-    { id: 1, account_code: '101.1', link_subparty: false, party_type: 'customer', party_id: '', debit: '', credit: '', notes: '' },
-    { id: 2, account_code: '301', link_subparty: false, party_type: 'supplier', party_id: '', debit: '', credit: '', notes: '' }
+    { id: 1, account_code: '', link_subparty: false, party_type: 'customer', party_id: '', debit: '', credit: '', notes: '' },
+    { id: 2, account_code: '', link_subparty: false, party_type: 'supplier', party_id: '', debit: '', credit: '', notes: '' }
   ]);
+  const lineCounter = React.useRef(3);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      if (!form.entry_no && window.getNextSequenceNumber) {
+        window.getNextSequenceNumber('JV').then(seq => { if (seq) setForm(prev => ({ ...prev, entry_no: seq })); });
+      }
+      if (accounts && accounts.length > 0) {
+        setLines(prev => prev.map((l, idx) => (!l.account_code ? { ...l, account_code: idx === 0 ? debitAccDefault : creditAccDefault } : l)));
+      }
+    }
+  }, [isOpen, accounts, debitAccDefault, creditAccDefault]);
 
   const currCode = window.CurrencyService ? window.CurrencyService.normalizeCode(form.currency) : 'YER';
   useEffect(() => {
@@ -25,34 +48,16 @@ function JournalVoucherModal({
 
   const totals = useMemo(() => {
     let totalDebit = 0, totalCredit = 0;
-    lines.forEach(l => {
-      totalDebit += parseFloat(l.debit) || 0;
-      totalCredit += parseFloat(l.credit) || 0;
-    });
+    lines.forEach(l => { totalDebit += parseFloat(l.debit) || 0; totalCredit += parseFloat(l.credit) || 0; });
     const diff = Math.abs(totalDebit - totalCredit);
     return { totalDebit, totalCredit, diff, isBalanced: diff < 0.01 && totalDebit > 0 };
   }, [lines]);
 
-  const handleAddLine = () => {
-    setLines(prev => [...prev, { id: Date.now() + Math.random(), account_code: '', link_subparty: false, party_type: 'customer', party_id: '', debit: '', credit: '', notes: '' }]);
-  };
-  const handleDuplicateLine = (idx) => {
-    const next = [...lines];
-    next.splice(idx + 1, 0, { ...lines[idx], id: Date.now() + Math.random() });
-    setLines(next);
-  };
-  const handleDeleteLine = (idx) => {
-    if (lines.length <= 2) return showToast?.('يجب أن يحتوي القيد المركب على سطرين على الأقل ⚠️', 'warning');
-    setLines(prev => prev.filter((_, i) => i !== idx));
-  };
+  const handleAddLine = () => setLines(prev => [...prev, { id: lineCounter.current++, account_code: '', link_subparty: false, party_type: 'customer', party_id: '', debit: '', credit: '', notes: '' }]);
+  const handleDuplicateLine = (idx) => { const next = [...lines]; next.splice(idx + 1, 0, { ...lines[idx], id: lineCounter.current++ }); setLines(next); };
+  const handleDeleteLine = (idx) => (lines.length <= 2 ? showToast?.('يجب أن يحتوي القيد المركب على سطرين على الأقل ⚠️', 'warning') : setLines(prev => prev.filter((_, i) => i !== idx)));
   const handleLineChange = (idx, field, val) => {
-    setLines(prev => {
-      const copy = [...prev];
-      if (field === 'debit' && val) copy[idx] = { ...copy[idx], debit: val, credit: '' };
-      else if (field === 'credit' && val) copy[idx] = { ...copy[idx], credit: val, debit: '' };
-      else copy[idx] = { ...copy[idx], [field]: val };
-      return copy;
-    });
+    setLines(prev => prev.map((l, i) => i === idx ? (field === 'debit' && val ? { ...l, debit: val, credit: '' } : (field === 'credit' && val ? { ...l, credit: val, debit: '' } : { ...l, [field]: val })) : l));
   };
 
   const handleSubmit = async (e) => {
@@ -65,15 +70,18 @@ function JournalVoucherModal({
     setIsSubmitting(true);
     try {
       const rate = parseFloat(form.exchange_rate) || 1.0;
-      const txId = `TX-CMP-${Date.now()}`;
-      const entryNo = form.entry_no || `JV-CMP-${Date.now().toString().slice(-6)}`;
+      let entryNo = form.entry_no;
+      if (!entryNo && window.getNextSequenceNumber) {
+        entryNo = await window.getNextSequenceNumber('JV');
+      }
+      const txId = `TX-${entryNo || 'JV'}`;
       const debits = lines.filter(l => (parseFloat(l.debit) || 0) > 0);
       const credits = lines.filter(l => (parseFloat(l.credit) || 0) > 0);
       const primaryDebitLabel = debits.map(d => `${d.account_code}: ${(parseFloat(d.debit) || 0).toLocaleString('en-US')} ${currCode}`).join(' + ');
       const primaryCreditLabel = credits.map(c => `${c.account_code}: ${(parseFloat(c.credit) || 0).toLocaleString('en-US')} ${currCode}`).join(' + ');
 
       const generated = [];
-      lines.forEach(l => {
+      lines.forEach((l, idx) => {
         const dAmt = parseFloat(l.debit) || 0, cAmt = parseFloat(l.credit) || 0;
         const lineAmt = dAmt > 0 ? dAmt : cAmt;
         if (lineAmt <= 0) return;
@@ -83,7 +91,7 @@ function JournalVoucherModal({
         const subPartyNote = (l.link_subparty && l.party_id) ? ` [الجهة: ${l.party_id}]` : '';
 
         generated.push({
-          id: Date.now() + Math.random(), transaction_id: txId, entry_no: entryNo,
+          id: `${entryNo}-L${idx + 1}`, transaction_id: txId, entry_no: entryNo,
           debit: isDebitLine ? accLabel : primaryDebitLabel, credit: !isDebitLine ? accLabel : primaryCreditLabel,
           debit_code: isDebitLine ? l.account_code : '', credit_code: !isDebitLine ? l.account_code : '',
           amount: lineAmt, currency: currCode, exchange_rate: rate, base_amount: lineAmt * rate,
@@ -104,54 +112,49 @@ function JournalVoucherModal({
               delta += (acc.type === 'أصول' || acc.type === 'مصروفات' || acc.nature === 'debit') ? (d - cr) : (cr - d);
             }
           });
-          if (delta !== 0) {
-            const curBal = (parseFloat(acc.current_balance ?? acc.balance) || 0) + delta;
-            return { ...acc, current_balance: curBal, balance: curBal };
-          }
-          return acc;
+          return delta !== 0 ? { ...acc, current_balance: (parseFloat(acc.current_balance ?? acc.balance) || 0) + delta, balance: (parseFloat(acc.current_balance ?? acc.balance) || 0) + delta } : acc;
         }));
       }
 
-      if (typeof window.callGAS === 'function') {
-        generated.forEach(j => window.callGAS('addJournalEntry', j).catch(e => console.error(e)));
+      for (const j of generated) {
+        fetch('/api/journal/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(j) }).catch(() => {});
+        if (typeof window.callGAS === 'function') window.callGAS('addJournalEntry', j).catch(e => console.error(e));
       }
       showToast?.(`تم ترحيل واعتماد القيد المركب (${entryNo}) بنجاح 📑✨`);
       onClose();
     } catch (err) {
       console.error("Compound entry submit error:", err);
       showToast?.('حدث خطأ أثناء اعتماد القيد المركب', 'error');
-    } finally {
-      setIsSubmitting(false);
-    }
+    } finally { setIsSubmitting(false); }
   };
 
   const suppliers = useMemo(() => [...new Set((purchases || []).map(p => p.supplier || p.vendor_name).filter(Boolean))], [purchases]);
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn overflow-y-auto" dir="rtl">
-      <div className="bg-[#1e2433] text-white rounded-3xl border border-[#2d3748] shadow-2xl w-full max-w-5xl overflow-hidden my-8">
-        <div className="px-6 py-4 border-b border-[#2d3748] flex items-center justify-between bg-[#181d2a]">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-cyan-500/10 text-[#00E5FF] border border-[#00E5FF]/20 flex items-center justify-center text-lg font-bold">📑</div>
+  const createPortal = (typeof ReactDOM !== 'undefined' && ReactDOM.createPortal) ? ReactDOM.createPortal : null;
+  const content = (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-black/65 backdrop-blur-[4px] animate-fadeIn" dir="rtl" onClick={onClose}>
+      <div className="bg-[#1e2433] text-white rounded-3xl border border-[#2d3748] shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="px-5 py-3.5 border-b border-[#2d3748] flex items-center justify-between bg-[#181d2a] shrink-0">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-2xl bg-cyan-500/10 text-[#00E5FF] border border-[#00E5FF]/20 flex items-center justify-center text-base font-bold">📑</div>
             <div>
-              <h3 className="text-sm font-bold text-white">محرر قيد اليومية المركب (القيود المزدوجة المتزنة)</h3>
-              <p className="text-[11px] text-[#94a3b8]">إنشاء قيد محاسبي مركب مع التحقق الفوري من التوازن</p>
+              <h3 className="text-xs sm:text-sm font-bold text-white">محرر قيد اليومية المركب (القيود المزدوجة المتزنة)</h3>
+              <p className="text-[10.5px] text-[#94a3b8]">إنشاء قيد محاسبي مركب مع التحقق الفوري من التوازن</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <button type="button" onClick={handleAddLine} className="px-3 py-1.5 rounded-xl text-xs font-bold text-[#00E5FF] bg-[#00E5FF]/10 hover:bg-[#00E5FF]/20 border border-[#00E5FF]/30 cursor-pointer">+ إضافة سطر</button>
-            <button type="button" onClick={onClose} className="w-8 h-8 rounded-xl bg-[#2d3748] hover:bg-[#374151] text-gray-300 flex items-center justify-center cursor-pointer">✕</button>
+            <button type="button" onClick={onClose} className="w-7 h-7 rounded-lg bg-[#2d3748] hover:bg-[#374151] text-gray-300 flex items-center justify-center cursor-pointer text-xs">✕</button>
           </div>
         </div>
 
-        <div className="p-4 bg-[#181d2a]/60 border-b border-[#2d3748] grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-          <div><label className="block text-[11px] font-bold text-gray-300 mb-1">رقم القيد</label><input type="text" value={form.entry_no} onChange={e => setForm({ ...form, entry_no: e.target.value })} className="w-full h-8 px-2 rounded-lg border border-[#374151] bg-[#111827] text-white font-mono" /></div>
-          <div><label className="block text-[11px] font-bold text-gray-300 mb-1">تاريخ القيد</label><input type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} className="w-full h-8 px-2 rounded-lg border border-[#374151] bg-[#111827] text-white font-mono" /></div>
+        <div className="p-3 bg-[#181d2a]/60 border-b border-[#2d3748] grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs shrink-0">
+          <div><label className="block text-[11px] font-bold text-gray-300 mb-1">رقم القيد</label><input type="text" value={form.entry_no} onChange={e => setForm({ ...form, entry_no: e.target.value })} className="w-full h-8 px-2 rounded-lg border border-[#374151] bg-[#111827] text-white font-mono text-left" dir="ltr" /></div>
+          <div><label className="block text-[11px] font-bold text-gray-300 mb-1">تاريخ القيد</label><input type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} className="w-full h-8 px-2 rounded-lg border border-[#374151] bg-[#111827] text-white font-mono text-left" dir="ltr" /></div>
           <div><label className="block text-[11px] font-bold text-gray-300 mb-1">العملة</label><select value={form.currency} onChange={e => setForm({ ...form, currency: e.target.value })} className="w-full h-8 px-2 rounded-lg border border-[#374151] bg-[#111827] text-white">{["YER ﷼", "SAR ﷼", "USD $"].map(c => <option key={c} value={c}>{c}</option>)}</select></div>
-          <div><label className="block text-[11px] font-bold text-gray-300 mb-1">سعر الصرف</label><input type="number" step="any" value={form.exchange_rate} onChange={e => setForm({ ...form, exchange_rate: e.target.value })} className="w-full h-8 px-2 rounded-lg border border-[#374151] bg-[#111827] text-amber-400 font-mono" /></div>
+          <div><label className="block text-[11px] font-bold text-gray-300 mb-1">سعر الصرف</label><input type="number" step="any" value={form.exchange_rate} onChange={e => setForm({ ...form, exchange_rate: e.target.value })} className="w-full h-8 px-2 rounded-lg border border-[#374151] bg-[#111827] text-amber-400 font-mono text-left" dir="ltr" /></div>
         </div>
 
-        <div className="p-4 overflow-x-auto max-h-[40vh]">
+        <div className="p-3 overflow-y-auto overflow-x-auto flex-1 custom-scrollbar">
           <table className="w-full text-xs text-right border-collapse">
             <thead>
               <tr className="bg-[#111827] text-gray-300 font-bold border-b border-[#2d3748]">
@@ -174,13 +177,13 @@ function JournalVoucherModal({
                   <td className="p-2">
                     <select value={l.party_id} onChange={e => handleLineChange(idx, 'party_id', e.target.value)} className="w-full h-8 px-2 rounded border border-[#374151] bg-[#111827] text-white text-[11px]">
                       <option value="">-- اختياري --</option>
-                      <optgroup label="عميلات">{(customers || []).map(c => <option key={c.id || c.name} value={c.name}>{c.name}</option>)}</optgroup>
+                      <optgroup label="عملاء">{(customers || []).map(c => <option key={c.id || c.name} value={c.name}>{c.name}</option>)}</optgroup>
                       <optgroup label="موردون">{suppliers.map(s => <option key={s} value={s}>{s}</option>)}</optgroup>
                       <optgroup label="موظفون">{(employees || []).map(emp => <option key={emp.id || emp.name} value={emp.name}>{emp.name}</option>)}</optgroup>
                     </select>
                   </td>
-                  <td className="p-2"><input type="number" step="any" placeholder="0.00" value={l.debit} onChange={e => handleLineChange(idx, 'debit', e.target.value)} className="w-full h-8 px-2 rounded border border-[#374151] bg-[#111827] text-[#00E5FF] font-mono text-center text-xs" /></td>
-                  <td className="p-2"><input type="number" step="any" placeholder="0.00" value={l.credit} onChange={e => handleLineChange(idx, 'credit', e.target.value)} className="w-full h-8 px-2 rounded border border-[#374151] bg-[#111827] text-amber-400 font-mono text-center text-xs" /></td>
+                  <td className="p-2"><input type="number" step="any" placeholder="0.00" value={l.debit} onChange={e => handleLineChange(idx, 'debit', e.target.value)} dir="ltr" className="w-full h-8 px-2 rounded border border-[#374151] bg-[#111827] text-[#00E5FF] font-mono text-center text-xs" /></td>
+                  <td className="p-2"><input type="number" step="any" placeholder="0.00" value={l.credit} onChange={e => handleLineChange(idx, 'credit', e.target.value)} dir="ltr" className="w-full h-8 px-2 rounded border border-[#374151] bg-[#111827] text-amber-400 font-mono text-center text-xs" /></td>
                   <td className="p-2 text-center">
                     <button type="button" onClick={() => handleDuplicateLine(idx)} className="text-gray-400 hover:text-white px-1 cursor-pointer">+</button>
                     <button type="button" onClick={() => handleDeleteLine(idx)} className="text-rose-400 hover:text-rose-300 px-1 cursor-pointer">🗑️</button>
@@ -191,13 +194,11 @@ function JournalVoucherModal({
           </table>
         </div>
 
-        <div className="p-4 border-t border-[#2d3748] bg-[#111827] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+        <div className="px-5 py-3 border-t border-[#2d3748] bg-[#111827] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs shrink-0">
           <div className="flex gap-4 items-center">
-            <span>المدين: <b className="text-[#00E5FF] font-mono">{totals.totalDebit.toLocaleString()} {currCode}</b></span>
-            <span>الدائن: <b className="text-amber-400 font-mono">{totals.totalCredit.toLocaleString()} {currCode}</b></span>
-            <span className={`px-2 py-0.5 rounded-full font-bold ${totals.isBalanced ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}`}>
-              {totals.isBalanced ? '✓ متزن' : `الفرق: ${totals.diff.toLocaleString()}`}
-            </span>
+            <span>المدين: <b className="text-[#00E5FF] font-mono" dir="ltr">{totals.totalDebit.toLocaleString()} {currCode}</b></span>
+            <span>الدائن: <b className="text-amber-400 font-mono" dir="ltr">{totals.totalCredit.toLocaleString()} {currCode}</b></span>
+            <span className={`px-2 py-0.5 rounded-full font-bold ${totals.isBalanced ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}`}>{totals.isBalanced ? '✓ متزن' : `الفرق: ${totals.diff.toLocaleString()}`}</span>
           </div>
           <div className="flex gap-2">
             <button type="button" onClick={onClose} className="px-4 py-2 rounded-xl border border-[#374151] text-gray-300 cursor-pointer">إلغاء</button>
@@ -209,6 +210,7 @@ function JournalVoucherModal({
       </div>
     </div>
   );
+  return (typeof document !== 'undefined' && createPortal) ? createPortal(content, document.body) : content;
 }
 
 window.JournalVoucherModal = JournalVoucherModal;

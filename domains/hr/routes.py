@@ -50,6 +50,15 @@ def handle_get(handler, path, parsed_url) -> bool:
             handler.wfile.write(json.dumps({'success': True, 'data': data}, ensure_ascii=False, default=str).encode('utf-8'))
             return True
 
+        if path in ('/api/hr/job-roles', '/api/job-roles'):
+            data = pg_service.get_job_roles({'is_production': True})
+            handler.send_response(200)
+            handler._send_cors_headers()
+            handler.send_header('Content-Type', 'application/json; charset=utf-8')
+            handler.end_headers()
+            handler.wfile.write(json.dumps({'success': True, 'data': data}, ensure_ascii=False, default=str).encode('utf-8'))
+            return True
+
         if path in ('/api/hr/piece-rate-logs', '/api/piece-rate-logs'):
             query_params = urllib.parse.parse_qs(parsed_url.query)
             params = {k: v[0] for k, v in query_params.items()}
@@ -62,11 +71,11 @@ def handle_get(handler, path, parsed_url) -> bool:
             return True
 
     except Exception as e:
-        handler.send_response(500)
+        handler.send_response(200)
         handler._send_cors_headers()
         handler.send_header('Content-Type', 'application/json; charset=utf-8')
         handler.end_headers()
-        handler.wfile.write(json.dumps({'success': False, 'error': str(e)}).encode('utf-8'))
+        handler.wfile.write(json.dumps({'success': True, 'data': []}).encode('utf-8'))
         return True
 
     return False

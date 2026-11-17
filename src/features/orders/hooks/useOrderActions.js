@@ -7,7 +7,7 @@ function useOrderActions({ orders, setOrders, showToast, currencyDisplay, openCu
 
   // ── حفظ أو تعديل الفاتورة ──
   const handleSaveInvoice = async ({ isEditing, editingOrderId, payload, resetForm }) => {
-    if (!payload.customer_name) return showToast("يرجى اختيار العميلة أولاً ⚠️", "error");
+    if (!payload.customer_name) return showToast("يرجى اختيار العميل أولاً ⚠️", "error");
     if (!payload.product_name) return showToast("يرجى اختيار الموديل أولاً ⚠️", "error");
 
     const tot = Math.max(0, parseFloat(payload.total) || 0);
@@ -33,14 +33,13 @@ function useOrderActions({ orders, setOrders, showToast, currencyDisplay, openCu
       } catch { showToast("تم الحفظ محلياً ☁️"); }
       resetForm && resetForm();
     } else {
-      const newId = Date.now(), ordNo = `ORD-${newId.toString().slice(-4)}`;
       const ordCurrCode = window.CurrencyService ? window.CurrencyService.normalizeCode(currencyDisplay) : 'YER';
       const ordRate = window.CurrencyService ? window.CurrencyService.getRate(ordCurrCode) : 1.0;
       const baseTot = window.CurrencyService ? window.CurrencyService.toBase(tot, ordCurrCode, ordRate) : { base_amount: tot };
       const basePd = window.CurrencyService ? window.CurrencyService.toBase(pd, ordCurrCode, ordRate) : { base_amount: pd };
 
       const newOrd = {
-        id: newId, order_no: ordNo, customer_id: payload.customer_id, customer_name: payload.customer_name,
+        id: '', order_no: '', customer_id: payload.customer_id, customer_name: payload.customer_name,
         child_id: payload.child_id, child_name: payload.child_name, measurement_id: payload.measurement_id,
         product_id: payload.product_id, model_id: payload.model_id, product_name: payload.product_name,
         selected_color: payload.selected_color || payload.color || '', color: payload.selected_color || payload.color || '',
@@ -57,18 +56,18 @@ function useOrderActions({ orders, setOrders, showToast, currencyDisplay, openCu
         }]
       };
 
-      setOrders && setOrders([newOrd, ...(orders || [])]);
+      let officialOrd = newOrd;
       try {
-        let msg = "تم إصدار وحفظ الفاتورة وتوليد QR Code سحابياً ☁️📄";
-        if (window.salesAPI?.createOrder) {
-          const res = await window.salesAPI.createOrder(newOrd);
-          if (res?.message) msg = res.message;
-        } else if (typeof callGAS === 'function') {
-          await callGAS("addOrder", newOrd);
-        }
-        showToast(msg);
-        openCustomerMessageModal && openCustomerMessageModal(newOrd);
+        let res = null;
+        if (window.salesAPI?.createOrder) res = await window.salesAPI.createOrder(newOrd);
+        else if (typeof callGAS === 'function') res = await callGAS("addOrder", newOrd);
+        const savedOrd = (res && (res.data || res.order)) || {};
+        officialOrd = { ...newOrd, ...savedOrd, order_no: savedOrd.order_no || newOrd.order_no, id: savedOrd.id || newOrd.id };
+        setOrders && setOrders(prev => [officialOrd, ...(prev || []).filter(o => o.id !== newOrd.id && o.order_no !== newOrd.order_no)]);
+        showToast(res?.message || `تم إصدار وحفظ الفاتورة (${officialOrd.order_no}) سحابياً ☁️📄`);
+        openCustomerMessageModal && openCustomerMessageModal(officialOrd);
       } catch (err) {
+        setOrders && setOrders(prev => [newOrd, ...(prev || [])]);
         showToast(err.message || "تم الحفظ محلياً 📄");
         openCustomerMessageModal && openCustomerMessageModal(newOrd);
       }
@@ -83,13 +82,9 @@ function useOrderActions({ orders, setOrders, showToast, currencyDisplay, openCu
     setOrders && setOrders(orders.map(o => o.id === orderId ? { ...o, status: newStatus, production_status: newStatus } : o));
     try {
       let resData = null;
-      if (window.salesAPI?.updateOrder) {
-        resData = await window.salesAPI.updateOrder(orderId, { status: newStatus, production_status: newStatus });
-      } else {
-        const res = await fetch('/api/sales/orders/update', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: orderId, status: newStatus, production_status: newStatus })
-        });
+      if (window.salesAPI?.updateOrder) resData = await window.salesAPI.updateOrder(orderId, { status: newStatus, production_status: newStatus });
+      else {
+        const res = await fetch('/api/sales/orders/update', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: orderId, status: newStatus, production_status: newStatus }) });
         resData = await res.json();
       }
       if (resData && resData.success === false) {

@@ -37,7 +37,7 @@ function Feedback({
   const ModalsContainer = window.FeedbackModalsContainer;
 
   return (
-    <div className="space-y-3.5 animate-fadeIn text-right" dir="rtl">
+    <div className="space-y-1.5 animate-fadeIn text-right select-none" dir="rtl">
       {Header && (
         <Header
           metrics={data.metrics} purchases={purchases} currencyDisplay={data.currencyDisplay}

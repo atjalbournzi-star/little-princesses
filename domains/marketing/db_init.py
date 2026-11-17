@@ -42,29 +42,21 @@ def init_marketing_db(conn=None):
         ('sc_01','Snapchat','social','','','disconnected','','','','["stories","ads"]','','inactive'),
         ('pin_01','Pinterest','social','','','disconnected','','','','["posts","insights"]','','inactive'),
     ]
-    for pid,pname,ptype,accname,accid,pstatus,actok,reftok,exp,perms,lsync,whstat in platforms_seed:
-        c.execute('''
-            INSERT OR IGNORE INTO marketing_platforms (
-                platform_id, platform_name, platform_type, account_name, account_id,
-                status, access_token_reference, refresh_token_reference, token_expiry,
-                permissions, last_sync, webhook_status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (pid,pname,ptype,accname,accid,pstatus,actok,reftok,exp,perms,lsync,whstat))
+    c.executemany('''
+        INSERT OR IGNORE INTO marketing_platforms (
+            platform_id, platform_name, platform_type, account_name, account_id,
+            status, access_token_reference, refresh_token_reference, token_expiry,
+            permissions, last_sync, webhook_status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', platforms_seed)
 
     # 2. capability_matrix
     c.execute('''
         CREATE TABLE IF NOT EXISTS capability_matrix (
-            platform TEXT PRIMARY KEY,
-            posts INTEGER DEFAULT 0,
-            reels INTEGER DEFAULT 0,
-            stories INTEGER DEFAULT 0,
-            comments INTEGER DEFAULT 0,
-            messages INTEGER DEFAULT 0,
-            insights INTEGER DEFAULT 0,
-            ads INTEGER DEFAULT 0,
-            audience INTEGER DEFAULT 0,
-            webhooks INTEGER DEFAULT 0,
-            notes TEXT DEFAULT ''
+            platform TEXT PRIMARY KEY, posts INTEGER DEFAULT 0, reels INTEGER DEFAULT 0,
+            stories INTEGER DEFAULT 0, comments INTEGER DEFAULT 0, messages INTEGER DEFAULT 0,
+            insights INTEGER DEFAULT 0, ads INTEGER DEFAULT 0, audience INTEGER DEFAULT 0,
+            webhooks INTEGER DEFAULT 0, notes TEXT DEFAULT ''
         )
     ''')
     matrix_seed = [
@@ -77,12 +69,11 @@ def init_marketing_db(conn=None):
         ('Snapchat', 0, 0, 1, 0, 0, 1, 1, 0, 1, 'دعم قنوات السناب والإعلانات الموجهة'),
         ('Pinterest', 1, 0, 0, 1, 0, 1, 0, 0, 0, 'دعم لوحات الموضة والأزياء والكتالوج التفاعلي')
     ]
-    for p, posts, reels, stories, comments, msgs, ins, ads, aud, wh, n in matrix_seed:
-        c.execute('''
-            INSERT OR IGNORE INTO capability_matrix (
-                platform, posts, reels, stories, comments, messages, insights, ads, audience, webhooks, notes
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (p, posts, reels, stories, comments, msgs, ins, ads, aud, wh, n))
+    c.executemany('''
+        INSERT OR IGNORE INTO capability_matrix (
+            platform, posts, reels, stories, comments, messages, insights, ads, audience, webhooks, notes
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', matrix_seed)
 
     # 3. raw_platform_events (Webhooks)
     c.execute('''
@@ -121,12 +112,8 @@ def init_marketing_db(conn=None):
     c.execute("PRAGMA table_info(campaigns)")
     existing_camp_cols = set(r[1] if isinstance(r, (list, tuple)) else r['name'] for r in c.fetchall())
     camp_needed = {
-        'campaign_id': "TEXT DEFAULT ''",
-        'product_id': 'INTEGER',
-        'budget': 'REAL DEFAULT 0.0',
-        'start_date': "TEXT DEFAULT ''",
-        'end_date': "TEXT DEFAULT ''",
-        'status': "TEXT DEFAULT 'نشط'",
+        'campaign_id': "TEXT DEFAULT ''", 'product_id': 'INTEGER', 'budget': 'REAL DEFAULT 0.0',
+        'start_date': "TEXT DEFAULT ''", 'end_date': "TEXT DEFAULT ''", 'status': "TEXT DEFAULT 'نشط'",
         'payment_account': "TEXT DEFAULT '505 - مصاريف التسويق والإعلانات'"
     }
     for col, col_def in camp_needed.items():
@@ -160,21 +147,11 @@ def init_marketing_db(conn=None):
         CREATE TABLE IF NOT EXISTS content_metrics (
             metric_id INTEGER PRIMARY KEY AUTOINCREMENT,
             content_id TEXT NOT NULL,
-            date TEXT NOT NULL,
-            reach INTEGER DEFAULT 0,
-            impressions INTEGER DEFAULT 0,
-            views INTEGER DEFAULT 0,
-            likes INTEGER DEFAULT 0,
-            comments INTEGER DEFAULT 0,
-            shares INTEGER DEFAULT 0,
-            saves INTEGER DEFAULT 0,
-            clicks INTEGER DEFAULT 0,
-            profile_visits INTEGER DEFAULT 0,
-            messages INTEGER DEFAULT 0,
-            leads INTEGER DEFAULT 0,
-            orders INTEGER DEFAULT 0,
-            revenue REAL DEFAULT 0.0,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            date TEXT NOT NULL, reach INTEGER DEFAULT 0, impressions INTEGER DEFAULT 0,
+            views INTEGER DEFAULT 0, likes INTEGER DEFAULT 0, comments INTEGER DEFAULT 0,
+            shares INTEGER DEFAULT 0, saves INTEGER DEFAULT 0, clicks INTEGER DEFAULT 0,
+            profile_visits INTEGER DEFAULT 0, messages INTEGER DEFAULT 0, leads INTEGER DEFAULT 0,
+            orders INTEGER DEFAULT 0, revenue REAL DEFAULT 0.0, created_at TEXT DEFAULT CURRENT_TIMESTAMP
         )
     ''')
 

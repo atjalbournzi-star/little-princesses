@@ -16,6 +16,7 @@
     { id: 'orders', label: 'أوامر المبيعات ونقاط البيع (POS)', icon: I.ShoppingBag || (() => null) },
     { id: 'products', label: 'المنتجات ومواصفات التشغيل', icon: I.Calculator || (() => null) },
     { id: 'factory', label: 'خطوط التصنيع والتشغيل', icon: I.Factory || (() => null) },
+    { id: 'measurement', label: 'استوديو المقاسات (A4)', icon: I.Scissors || (() => null) },
     { id: 'inventory', label: 'المخزون وسلاسل الإمداد', icon: I.Scissors || (() => null) },
     { id: 'purchases', label: 'المشتريات وإدارة الموردين', icon: I.Purchases || (() => null) },
     { id: 'accounts', label: 'شجرة الحسابات والدليل المالي', icon: I.Accounts || (() => null) },

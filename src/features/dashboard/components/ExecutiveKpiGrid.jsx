@@ -72,7 +72,7 @@ function ExecutiveKpiGrid({
             <span className="text-[10px] font-normal text-slate-400">وحدة</span>
           </div>
           <div className="flex items-center gap-1 mt-0.5 text-[9px] font-bold py-0.5 px-1.5 rounded bg-purple-950/60 text-purple-300 border border-purple-800/60 w-fit">
-            <span>{atelierStages.completionRate || 74}% إنجاز</span>
+            <span>{atelierStages.completionRate !== undefined ? atelierStages.completionRate : 0}% إنجاز</span>
           </div>
         </div>
       </div>

@@ -14,7 +14,8 @@ from services.pg.pg_customers import get_customers, add_customer, delete_custome
 from services.pg.pg_financial_sync import sync_customer_order_from_voucher, retroactive_financial_sync
 from services.pg.pg_products import (
     get_products, add_product, delete_product,
-    get_bom_models, save_bom_model, delete_bom_model
+    get_bom_models, save_bom_model, delete_bom_model, get_product_by_id,
+    get_next_product_sku, get_product_categories
 )
 from services.pg.pg_inventory import (
     get_inventory, add_or_update_inventory,
@@ -28,7 +29,7 @@ from services.pg.pg_warehouses import (
 from services.pg.pg_orders import get_orders, add_order, update_order, delete_order
 from services.pg.pg_order_stages import create_order_stages, resolve_product_stages, get_order_stages_by_order
 from services.pg.pg_purchases import (
-    get_purchases, add_purchase, delete_purchase,
+    get_purchases, get_purchase_by_id, add_purchase, update_purchase, delete_purchase,
     purge_purchases, cancel_purchase, reconcile_inventory_governance
 )
 from services.pg.pg_suppliers import get_suppliers, add_supplier, delete_supplier
@@ -62,6 +63,7 @@ from services.pg.pg_factory import (
 )
 from services.pg.pg_payroll import (
     get_employees, add_employee, delete_employee,
+    get_job_roles, add_job_role,
     add_advance, get_advances, get_payroll,
     update_payroll_record, calculate_payroll,
     add_payroll_batch, post_payroll,
@@ -82,13 +84,27 @@ from services.pg.pg_quality import (
     get_quality_summary
 )
 from services.pg.pg_auth import get_users_pg, sync_user_to_pg
-from services.pg.pg_audit import log_audit_event, get_audit_logs, add_audit_log
+from services.pg.pg_audit import (
+    log_audit_event, get_audit_logs, add_audit_log,
+    set_current_user_context, get_active_user_context, resolve_active_user_id
+)
+from services.pg.pg_sequences import (
+    get_next_sequence_number, get_number_sequences, update_number_sequence, fetch_next_sequence,
+    preview_next_sequence, preview_next_sequence_number
+)
 from services.pg.pg_backup import get_backup_status, create_backup_snapshot, restore_backup_data
 from services.pg.pg_system import (
     get_system_settings, save_system_settings, clear_all_transactional_data
 )
 from services.pg.pg_dashboard import get_dashboard_stats
 from services.pg.pg_customer_tracking import get_customer_order_tracking, confirm_customer_fitting
+from services.pg.pg_measurement_studio import (
+    ensure_measurement_studio_schema,
+    save_measurement_session,
+    get_measurement_session_by_order,
+    get_recent_measurement_sessions,
+    approve_measurement_session
+)
 from services.pg.dispatcher import dispatch_action
 from services.pg.action_map import ACTION_HANDLERS
 

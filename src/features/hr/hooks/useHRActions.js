@@ -31,18 +31,24 @@ function useHRActions({
     if (!empSalary && empType === 'راتب شهري') return showToast("يرجى إدخال الراتب الأساسي ⚠️", "error");
     const numSal = parseFloat(empSalary) || 0;
     const empData = {
-      id: id || ('EMP-' + Date.now()), name: empName, full_name: empName, role: empRole,
-      type: empType, employment_type: empType, baseSalary: numSal, base_salary: numSal,
-      phone: empPhone, hireDate: empDate, hire_date: empDate, status: empStatus || 'نشط'
+      name: empName, full_name: empName, role: empRole, type: empType, employment_type: empType,
+      baseSalary: numSal, base_salary: numSal, phone: empPhone, hireDate: empDate, hire_date: empDate, status: empStatus || 'نشط'
     };
+    if (id) empData.id = id;
     try {
-      if (window.hrAPI?.addEmployee) await window.hrAPI.addEmployee(empData);
-      else await window.callGAS(id ? 'updateEmployee' : 'addEmployee', empData);
-      setEmployees(id ? employees.map(emp => emp.id === id ? { ...emp, ...empData } : emp) : [empData, ...employees]);
+      let res;
+      if (window.hrAPI && typeof window.hrAPI.addEmployee === 'function') {
+        res = await window.hrAPI.addEmployee(empData);
+      } else if (typeof window.callGAS === 'function') {
+        res = await window.callGAS(id ? 'updateEmployee' : 'addEmployee', empData);
+      }
+      const saved = (res && res.data) ? res.data : res;
+      const record = (saved && saved.id) ? { ...empData, ...saved } : empData;
+      setEmployees(id ? employees.map(emp => emp.id === id ? { ...emp, ...record } : emp) : [record, ...employees]);
       showToast(id ? "تم تحديث بيانات الموظف بنجاح ✅" : "تم تسجيل الموظف بنجاح 👤");
     } catch (err) {
-      setEmployees(id ? employees.map(emp => emp.id === id ? { ...emp, ...empData } : emp) : [empData, ...employees]);
-      showToast("تم الحفظ محلياً ⚡");
+      if (id) setEmployees(employees.map(emp => emp.id === id ? { ...emp, ...empData } : emp));
+      showToast("تعذر حفظ بيانات الموظف بالخادم ⚠️", "error");
     }
     if (resetForm) resetForm();
   };
@@ -52,8 +58,8 @@ function useHRActions({
     if (!emp) return;
     const updated = { ...emp, status: emp.status === 'نشط' ? 'موقوف' : 'نشط' };
     try {
-      if (window.hrAPI?.addEmployee) await window.hrAPI.addEmployee(updated);
-      else await window.callGAS('updateEmployee', updated);
+      if (window.hrAPI && typeof window.hrAPI.addEmployee === 'function') await window.hrAPI.addEmployee(updated);
+      else if (typeof window.callGAS === 'function') await window.callGAS('updateEmployee', updated);
       showToast("تم تحديث حالة الموظف 🔄");
     } catch (err) { showToast("تم التحديث محلياً ⚡"); }
     setEmployees(employees.map(e => e.id === id ? updated : e));
@@ -62,8 +68,8 @@ function useHRActions({
   const deleteEmp = async (id) => {
     if (!confirm("هل أنت متأكد من حذف الموظف نهائياً؟ 🗑️")) return;
     try {
-      if (window.hrAPI?.deleteEmployee) await window.hrAPI.deleteEmployee(id);
-      else await window.callGAS('deleteEmployee', { id });
+      if (window.hrAPI && typeof window.hrAPI.deleteEmployee === 'function') await window.hrAPI.deleteEmployee(id);
+      else if (typeof window.callGAS === 'function') await window.callGAS('deleteEmployee', { id });
       showToast("تم حذف الموظف 🗑️");
     } catch (err) { showToast("تم الحذف محلياً ⚡"); }
     setEmployees(employees.filter(e => e.id !== id));
@@ -96,7 +102,7 @@ function useHRActions({
       }
       const b = bonus[emp.id] ? parseFloat(bonus[emp.id]) : 0;
       const d = deduction[emp.id] ? parseFloat(deduction[emp.id]) : 0;
-      return { id: Date.now() + index, month: payrollMonth, empName: emp.name, type: emp.type || 'راتب شهري', baseValue: emp.baseSalary, piecesCount, totalDue: p, deductions: d, bonus: b, netSalary: p + b - d, status: 'معلق', piecesStatement };
+      return { id: `DRAFT-${emp.id || index}-${payrollMonth}`, month: payrollMonth, empName: emp.name, type: emp.type || 'راتب شهري', baseValue: emp.baseSalary, piecesCount, totalDue: p, deductions: d, bonus: b, netSalary: p + b - d, status: 'معلق', piecesStatement };
     });
 
     try {

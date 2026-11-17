@@ -98,6 +98,13 @@ def sync_production_order_commissions(cur, po_id_or_data):
                 WHERE id = %s;
             """, (emp_id, w_name, final_wage, p_count, comm['id']))
 
+        cur.execute("SELECT id FROM piece_rate_logs WHERE (production_order_id = %s OR production_order_id = %s) AND stage_id = %s LIMIT 1;", (po_id, order_no, stg_title))
+        if not cur.fetchone():
+            cur.execute("""
+                INSERT INTO piece_rate_logs (id, worker_id, worker_name, production_order_id, stage_id, piece_rate_amount, pieces_count, payment_status, qa_status, completed_at, created_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, 'Pending', 'Approved', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+            """, (generate_id("PRL"), emp_id, w_name, po_id, stg_title, final_wage, p_count))
+
         synced_emps.add((emp_id, w_name))
 
     target_m = str(o_date)[:7] if o_date else datetime.date.today().strftime("%Y-%m")

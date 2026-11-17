@@ -1,18 +1,27 @@
 # services/pg/pg_vouchers.py
 # Payment & Receipt vouchers, automated balanced journal entries, reversals & audit
 from .db_pool import get_db_cursor, clean_str, clean_num, generate_id, today_str
-from .account_resolver import resolve_exchange_rate, resolve_account_id
+from .account_resolver import (
+    resolve_exchange_rate, resolve_account_id, resolve_cash_account_by_currency,
+    resolve_bank_account_by_currency, resolve_receiving_account,
+    resolve_customer_advance_account, resolve_receivables_account, resolve_payables_account
+)
 from .pg_vouchers_query import get_vouchers, get_voucher_card_data
 from .pg_financial_sync import sync_customer_order_from_voucher
+from .pg_sequences import get_next_sequence_number
+from .pg_audit import log_audit_event, get_active_user_context, resolve_active_user_id
+from .pg_vouchers_reverse import reverse_voucher
 
 
 def add_voucher(payload):
-    """إصدار أو تعديل سند مالي وترحيل القيد المحاسبي المزدوج آلياً"""
+    """إصدار أو تعديل سند مالي وترحيل القيد المحاسبي المزدوج آلياً مع الترقيم المتسلسل والتدقيق"""
     data = payload.get('data') or payload
-    pay_id = clean_str(data.get('id') or data.get('voucher_id')) or generate_id("PAY")
-    pay_no = clean_str(data.get('payment_no') or data.get('voucher_no') or data.get('v_no')) or pay_id
+    raw_uid = clean_str(data.get('created_by') or data.get('user_id') or '')
+
+    pay_id = clean_str(data.get('id') or data.get('voucher_id'))
+    pay_no = clean_str(data.get('payment_no') or data.get('voucher_no') or data.get('v_no'))
     raw_type = clean_str(data.get('voucher_type') or data.get('payment_type') or data.get('v_type') or 'سند قبض')
-    is_rcpt = ('قبض' in raw_type or raw_type.lower() in ('receipt', 'receipt_voucher', 'rv') or str(pay_no).upper().startswith('RV'))
+    is_rcpt = ('قبض' in raw_type or raw_type.lower() in ('receipt', 'receipt_voucher', 'rv') or (pay_no and str(pay_no).upper().startswith('RV')))
     p_type = 'Receipt' if is_rcpt else 'Payment'
     v_type = 'سند قبض' if is_rcpt else 'سند صرف'
     amt = clean_num(data.get('amount') or 0.0)
@@ -28,20 +37,31 @@ def add_voucher(payload):
     supp_id = clean_str(data.get('supplier_id') or '') or None
 
     with get_db_cursor(commit=True) as cur:
+        resolved_user = resolve_active_user_id(cur, raw_uid)
         rate = resolve_exchange_rate(cur, curr, rate)
         if curr != 'YER' and (base_amt <= 0 or base_amt == amt):
             base_amt = amt * rate
 
         raw_cash = data.get('account_id') or data.get('acc_code') or data.get('source_acc')
-        resolved_cash_acc = resolve_account_id(cur, raw_cash, default_id='ACC-101-1', currency=curr)
-        if resolved_cash_acc in ('ACC-101', 'ACC-101-1', '101', '101.1'):
-            if curr == 'SAR': resolved_cash_acc = 'ACC-101-2'
-            elif curr == 'USD': resolved_cash_acc = 'ACC-101-3'
-            else: resolved_cash_acc = 'ACC-101-1'
-        default_target = 'ACC-104' if p_type == 'Receipt' else 'ACC-201'
-        if p_type == 'Receipt' and (target_acc_input in ('202', 'ACC-202') or 'عربون' in notes or 'حجز' in notes or data.get('is_advance')):
-            default_target = 'ACC-202'
-        resolved_target_acc = resolve_account_id(cur, target_acc_input, default_target) if target_acc_input else default_target
+        resolved_cash_acc = None
+        if raw_cash:
+            cur.execute("SELECT id FROM chart_of_accounts WHERE (id = %s OR account_code = %s) AND is_postable = TRUE AND is_active = TRUE LIMIT 1;", (clean_str(raw_cash), clean_str(raw_cash)))
+            acc_row = cur.fetchone()
+            resolved_cash_acc = acc_row['id'] if acc_row else resolve_account_id(cur, raw_cash, currency=curr)
+        if not resolved_cash_acc:
+            resolved_cash_acc = resolve_receiving_account(cur, pay_method, curr)
+
+        if p_type == 'Receipt':
+            if 'عربون' in notes or 'حجز' in notes or data.get('is_advance') or target_acc_input in ('202', 'ACC-202'):
+                default_target = resolve_customer_advance_account(cur)
+            else:
+                default_target = resolve_receivables_account(cur)
+        else:
+            default_target = resolve_payables_account(cur)
+
+        resolved_target_acc = resolve_account_id(cur, target_acc_input, default_id=default_target) if target_acc_input else default_target
+        if not resolved_target_acc:
+            resolved_target_acc = default_target
 
         if cust_id:
             cur.execute("SELECT id FROM customers WHERE id = %s LIMIT 1;", (cust_id,))
@@ -57,8 +77,11 @@ def add_voucher(payload):
             o_row = cur.fetchone()
             if o_row: resolved_order_id = o_row['id']
 
-        cur.execute("SELECT id, amount, payment_type, customer_id, supplier_id, payment_no FROM payments WHERE id = %s OR payment_no = %s LIMIT 1 FOR UPDATE;", (pay_id, pay_no))
-        existing_v = cur.fetchone()
+        existing_v = None
+        if pay_id or (pay_no and not str(pay_no).startswith('RV-') and not str(pay_no).startswith('PV-')):
+            cur.execute("SELECT id, amount, payment_type, customer_id, supplier_id, payment_no FROM payments WHERE id = %s OR payment_no = %s LIMIT 1 FOR UPDATE;", (pay_id or '', pay_no or ''))
+            existing_v = cur.fetchone()
+
         if existing_v:
             pay_id = existing_v['id']
             pay_no = existing_v.get('payment_no') or pay_no
@@ -68,26 +91,29 @@ def add_voucher(payload):
                     cur.execute("UPDATE customers SET current_balance = current_balance + %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s;", (old_amt, existing_v['customer_id']))
                 elif existing_v.get('payment_type') == 'Payment' and existing_v.get('supplier_id'):
                     cur.execute("UPDATE suppliers SET current_balance = current_balance + %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s;", (old_amt, existing_v['supplier_id']))
-        elif not pay_no or pay_no == pay_id or pay_no.startswith('RV-CUST-') or pay_no.startswith('REC-') or pay_no.startswith('PAY-'):
-            from .pg_account_code import generate_sequential_voucher_no
-            pay_no = generate_sequential_voucher_no(cur, p_type, p_date)
+        else:
+            # التوليد الذري المركزي للرقم المتسلسل الرسمي للسند
+            seq_key = 'RV' if is_rcpt else 'PV'
+            pay_no = get_next_sequence_number(cur, seq_key, fallback_prefix=f"{seq_key}-")
+            pay_id = pay_no
 
         query = """
             INSERT INTO payments (
                 id, payment_no, customer_id, supplier_id, payment_type, amount, currency,
                 exchange_rate, base_amount, payment_method, account_id, date, status, notes,
-                party_name, target_account_id, order_id, reference_no
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'Confirmed', %s, %s, %s, %s, %s)
+                party_name, target_account_id, order_id, reference_no, created_by
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'Confirmed', %s, %s, %s, %s, %s, %s)
             ON CONFLICT (id) DO UPDATE SET
                 payment_no = EXCLUDED.payment_no, customer_id = EXCLUDED.customer_id, supplier_id = EXCLUDED.supplier_id,
                 payment_type = EXCLUDED.payment_type, amount = EXCLUDED.amount, currency = EXCLUDED.currency,
                 exchange_rate = EXCLUDED.exchange_rate, base_amount = EXCLUDED.base_amount, payment_method = EXCLUDED.payment_method,
                 account_id = EXCLUDED.account_id, date = EXCLUDED.date, notes = EXCLUDED.notes,
                 party_name = EXCLUDED.party_name, target_account_id = EXCLUDED.target_account_id,
-                order_id = COALESCE(EXCLUDED.order_id, payments.order_id), reference_no = COALESCE(EXCLUDED.reference_no, payments.reference_no)
+                order_id = COALESCE(EXCLUDED.order_id, payments.order_id), reference_no = COALESCE(EXCLUDED.reference_no, payments.reference_no),
+                created_by = COALESCE(payments.created_by, EXCLUDED.created_by)
             RETURNING *, payment_no as voucher_no, payment_type as voucher_type;
         """
-        cur.execute(query, (pay_id, pay_no, cust_id, supp_id, p_type, amt, curr, rate, base_amt, pay_method, resolved_cash_acc, p_date, notes, party_val, resolved_target_acc, resolved_order_id, order_ref or None))
+        cur.execute(query, (pay_id, pay_no, cust_id, supp_id, p_type, amt, curr, rate, base_amt, pay_method, resolved_cash_acc, p_date, notes, party_val, resolved_target_acc, resolved_order_id, order_ref or None, resolved_user))
         res = dict(cur.fetchone())
 
         if amt > 0:
@@ -104,13 +130,14 @@ def add_voucher(payload):
             cur.execute("""
                 INSERT INTO journal_entries (
                     id, entry_no, entry_date, description, debit_account_id, credit_account_id,
-                    amount, total_amount, base_amount, ref_type, ref_id, currency, exchange_rate, status, notes
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'Payment', %s, %s, %s, 'Posted', %s)
+                    amount, total_amount, base_amount, ref_type, ref_id, currency, exchange_rate, status, notes, created_by
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'Payment', %s, %s, %s, 'Posted', %s, %s)
                 ON CONFLICT (entry_no) DO UPDATE SET
                     amount = EXCLUDED.amount, total_amount = EXCLUDED.total_amount, base_amount = EXCLUDED.base_amount,
                     debit_account_id = EXCLUDED.debit_account_id, credit_account_id = EXCLUDED.credit_account_id,
-                    currency = EXCLUDED.currency, exchange_rate = EXCLUDED.exchange_rate, description = EXCLUDED.description, notes = EXCLUDED.notes;
-            """, (f"JV-{pay_id}", auto_jv_no, p_date, f"{v_type} رقم {pay_no}: {party_val or 'طرف عام'}", deb_acc, crd_acc, amt, amt, base_amt, pay_id, curr, rate, f"سند {pay_no} - {party_val or 'طرف عام'}"))
+                    currency = EXCLUDED.currency, exchange_rate = EXCLUDED.exchange_rate, description = EXCLUDED.description,
+                    notes = EXCLUDED.notes, created_by = COALESCE(journal_entries.created_by, EXCLUDED.created_by);
+            """, (f"JV-{pay_id}", auto_jv_no, p_date, f"{v_type} رقم {pay_no}: {party_val or 'طرف عام'}", deb_acc, crd_acc, amt, amt, base_amt, pay_id, curr, rate, f"سند {pay_no} - {party_val or 'طرف عام'}", resolved_user))
 
             cur.execute("SELECT id FROM journal_entries WHERE entry_no = %s LIMIT 1;", (auto_jv_no,))
             actual_entry_id = cur.fetchone()['id']
@@ -120,72 +147,25 @@ def add_voucher(payload):
             cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, %s, %s, 0.0, %s, 0.0, %s);",
                         (generate_id("JVL"), actual_entry_id, crd_acc, f"دائن - {v_type} {pay_no} ({party_val or 'طرف عام'})", amt, base_amt))
 
+        # توثيق الحدث في سجل التدقيق الآلي المركزي
+        log_audit_event(
+            entity_type='payments',
+            entity_id=pay_id,
+            action='UPDATE' if existing_v else 'INSERT',
+            new_values={'payment_no': pay_no, 'amount': amt, 'currency': curr, 'party': party_val, 'type': p_type},
+            user_id=resolved_user,
+            document_no=pay_no,
+            details=f"إصدار {v_type} رقم {pay_no} بمبلغ {amt} {curr} للطرف {party_val or 'عام'}",
+            cur=cur
+        )
+
+        res['voucher_no'] = pay_no
+        res['payment_no'] = pay_no
+        res['v_no'] = pay_no
+        res['id'] = pay_id
+        res['entry_no'] = f"AUTO-VCH-{pay_no}"
         if res.get('created_at'): res['created_at'] = str(res['created_at'])
         return res
-
-
-def reverse_voucher(payload):
-    """إلغاء السند المالي وتوليد قيد عكسي متزن وحفظ الأثر المحاسبي في سجل التدقيق"""
-    data = payload.get('data') or payload
-    v_id = clean_str(data.get('id') or data.get('voucher_no') or data.get('v_no'))
-    reason = clean_str(data.get('reason') or 'إلغاء السند بطلب المحاسب')
-    user_id = clean_str(data.get('user_id') or 'admin')
-    if not v_id: return {"success": False, "error": "المعرف المطلوب للإلغاء غير محدد"}
-
-    with get_db_cursor(commit=True) as cur:
-        cur.execute("SELECT * FROM payments WHERE id = %s OR payment_no = %s LIMIT 1 FOR UPDATE;", (v_id, v_id))
-        p_row = cur.fetchone()
-        cur.execute("SELECT * FROM journal_entries WHERE id = %s OR entry_no = %s OR entry_no = %s OR ref_id = %s LIMIT 1 FOR UPDATE;", (v_id, v_id, f"AUTO-VCH-{v_id}", v_id))
-        j_row = cur.fetchone()
-
-        if not p_row and not j_row:
-            return {"success": False, "error": "لم يتم العثور على السند المالي أو القيد المقترن"}
-
-        status = (p_row.get('status') if p_row else j_row.get('status')) or ''
-        if status.lower() == 'reversed':
-            return {"success": False, "error": "هذا السند تم إلغاؤه مسبقاً بقيد عكسي"}
-
-        amt = clean_num((p_row.get('amount') if p_row else j_row.get('amount')) or 0.0)
-        curr = clean_str((p_row.get('currency') if p_row else j_row.get('currency')) or 'YER')
-        rate = clean_num((p_row.get('exchange_rate') if p_row else j_row.get('exchange_rate')) or 1.0)
-        base_amt = clean_num((p_row.get('base_amount') if p_row else j_row.get('base_amount')) or (amt * rate))
-        v_no = clean_str((p_row.get('payment_no') if p_row else j_row.get('entry_no')).replace('AUTO-VCH-', ''))
-        rev_entry_no = f"REV-{v_no}"
-
-        if p_row:
-            cur.execute("UPDATE payments SET status = 'reversed', notes = COALESCE(notes, '') || %s WHERE id = %s;", (f" | [ملغى بقيد عكسي {rev_entry_no}: {reason}]", p_row['id']))
-            if amt > 0 and p_row.get('payment_type') == 'Receipt' and p_row.get('customer_id'):
-                cur.execute("UPDATE customers SET current_balance = current_balance + %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s;", (amt, p_row['customer_id']))
-                sync_customer_order_from_voucher(cur, p_row['customer_id'])
-            elif amt > 0 and p_row.get('payment_type') == 'Payment' and p_row.get('supplier_id'):
-                cur.execute("UPDATE suppliers SET current_balance = current_balance + %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s;", (amt, p_row['supplier_id']))
-
-        if j_row:
-            cur.execute("UPDATE journal_entries SET status = 'Reversed', notes = COALESCE(notes, '') || %s WHERE id = %s;", (f" | [ملغى بقيد عكسي {rev_entry_no}: {reason}]", j_row['id']))
-
-        # Flip debit & credit to make balanced reversing entry
-        deb_acc = (p_row.get('account_id') if p_row and p_row.get('payment_type') == 'Receipt' else (p_row.get('target_account_id') if p_row else j_row.get('debit_account_id'))) or 'ACC-101-1'
-        crd_acc = (p_row.get('target_account_id') if p_row and p_row.get('payment_type') == 'Receipt' else (p_row.get('account_id') if p_row else j_row.get('credit_account_id'))) or 'ACC-104'
-        rev_deb, rev_crd = crd_acc, deb_acc
-
-        rev_id = generate_id("JV")
-        cur.execute("""
-            INSERT INTO journal_entries (id, entry_no, entry_date, description, debit_account_id, credit_account_id, amount, total_amount, base_amount, ref_type, ref_id, currency, exchange_rate, status, notes)
-            VALUES (%s, %s, CURRENT_DATE, %s, %s, %s, %s, %s, %s, 'Reversal', %s, %s, %s, 'Posted', %s)
-            ON CONFLICT (entry_no) DO UPDATE SET description = EXCLUDED.description;
-        """, (rev_id, rev_entry_no, f"قيد عكسي لإلغاء السند {v_no}: {reason}", rev_deb, rev_crd, amt, amt, base_amt, v_id, curr, rate, f"إلغاء سند {v_no} - {reason}"))
-
-        cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, %s, %s, %s, 0.0, %s, 0.0);",
-                    (generate_id("JVL"), rev_id, rev_deb, f"مدين - قيد عكسي لسند {v_no} ({reason})", amt, base_amt))
-        cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, %s, %s, 0.0, %s, 0.0, %s);",
-                    (generate_id("JVL"), rev_id, rev_crd, f"دائن - قيد عكسي لسند {v_no} ({reason})", amt, base_amt))
-
-        try:
-            cur.execute("INSERT INTO audit_logs (entity_type, entity_id, action, notes, user_id) VALUES ('vouchers', %s, 'REVERSE', %s, %s);", (v_no, reason, user_id))
-        except Exception:
-            pass
-
-        return {"success": True, "reversal_entry_no": rev_entry_no, "voucher_no": v_no, "message": f"تم إلغاء السند {v_no} وتوليد القيد العكسي {rev_entry_no} بنجاح ⚖️"}
 
 
 def delete_voucher(payload):

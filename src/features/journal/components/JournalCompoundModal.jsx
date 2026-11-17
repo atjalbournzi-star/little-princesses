@@ -79,7 +79,7 @@ function JournalCompoundModal({
                       {line.link_subparty && (
                         <div className="flex gap-1.5">
                           <select value={line.party_type} onChange={e => handleCompoundLineChange(idx, 'party_type', e.target.value)} className="w-1/3 h-8 px-1.5 rounded-lg border border-[#374151] bg-[#111827] text-white text-[11px] outline-none">
-                            <option value="customer">عميلة 👗</option><option value="supplier">مورد 🧵</option><option value="employee">موظف ✂️</option>
+                            <option value="customer">عميل 👗</option><option value="supplier">مورد 🧵</option><option value="employee">موظف ✂️</option>
                           </select>
                           <select value={line.party_id} onChange={e => handleCompoundLineChange(idx, 'party_id', e.target.value)} className="w-2/3 h-8 px-2 rounded-lg border border-[#374151] bg-[#111827] text-white text-[11px] outline-none">
                             <option value="">-- اختر --</option>

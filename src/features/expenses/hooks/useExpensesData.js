@@ -21,21 +21,11 @@ function useExpensesData({ expenses = [], setExpenses, accounts = [], vouchers =
         if (res && res.success && Array.isArray(res.data)) data = res.data;
       }
 
-      if (Array.isArray(data) && data.length > 0) {
+      if (Array.isArray(data)) {
         if (setExpenses) setExpenses(data);
-        try { localStorage.setItem('erp_sb_expense_transactions', JSON.stringify(data)); } catch (_) {}
-        return;
-      }
-
-      const sb = typeof window !== 'undefined' ? (window.supabaseClient || window.supabase) : null;
-      if (sb) {
-        const { data: sbData, error } = await sb.from('expense_transactions').select('*').order('date', { ascending: false });
-        if (!error && Array.isArray(sbData) && sbData.length > 0) {
-          if (setExpenses) setExpenses(sbData);
-        }
       }
     } catch (e) {
-      console.warn("fetchFreshExpenses notice:", e);
+      console.warn("fetchFreshExpenses error:", e);
     } finally {
       setIsSyncing(false);
     }
@@ -67,12 +57,12 @@ function useExpensesData({ expenses = [], setExpenses, accounts = [], vouchers =
         list.push({
           id: v.id || vNo,
           expense_no: vNo,
-          category: targetAcc || '6 - المصروفات',
-          exp_category: targetAcc || '6 - المصروفات',
+          category: targetAcc || '',
+          exp_category: targetAcc || '',
           amount: v.amount,
           currency: v.currency || 'YER',
-          account_id: v.acc_code || v.account_id || '101 - الصندوق الرئيسي',
-          payment_source: v.acc_code || v.account_id || '101 - الصندوق الرئيسي',
+          account_id: v.acc_code || v.account_id || '',
+          payment_source: v.acc_code || v.account_id || '',
           payment_method: v.pay_method || v.payment_method || 'نقدي',
           date: v.date || (typeof TODAY_STR_ISO !== 'undefined' ? TODAY_STR_ISO : new Date().toISOString().slice(0, 10)),
           notes: v.notes || (v.party ? `سند صرف: ${v.party}` : '—'),

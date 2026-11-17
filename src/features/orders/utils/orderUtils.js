@@ -9,7 +9,7 @@ const ORDER_STATUSES = [
 
 const getCustomerName = (c) => {
   if (!c || typeof c !== 'object') return "";
-  return c.name || c["اسم العميلة"] || c["اسم العميل"] || c.customer_name ||
+  return c.name || c["اسم العميل"] || c["اسم العميل"] || c.customer_name ||
     c.Name || c.CLIENT_NAME || "";
 };
 

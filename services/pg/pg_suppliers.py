@@ -1,7 +1,9 @@
 # services/pg/pg_suppliers.py
-# Suppliers directory, credit terms, phone deduplication, and financial soft deletion
+# Suppliers directory, credit terms, phone deduplication, and atomic sequence numbering
 
 from .db_pool import get_db_cursor, clean_str, clean_num, generate_id, execute_query
+from .pg_sequences import get_next_sequence_number
+from .pg_audit import log_audit_event, get_active_user_context
 
 
 def get_suppliers(params=None):
@@ -29,8 +31,11 @@ def get_suppliers(params=None):
 
 
 def add_supplier(payload):
-    """إضافة أو تحديث مورد مع التحقق الصارم من عدم تكرار أرقام الهواتف"""
+    """إضافة أو تحديث مورد مع التحقق الصارم من عدم تكرار أرقام الهواتف والتسلسل التلقائي"""
     data = payload.get('data') or payload
+    raw_uid = clean_str(data.get('created_by') or data.get('user_id') or '')
+    resolved_user = raw_uid or get_active_user_context('admin')
+
     supp_id = clean_str(data.get('id') or data.get('supplier_id'))
     name = clean_str(data.get('name') or data.get('supplier_name'))
     if not name:
@@ -44,15 +49,16 @@ def add_supplier(payload):
     address = clean_str(data.get('address') or '')
     init_balance = clean_num(data.get('current_balance') or data.get('balance') or 0.0)
     is_active = True if data.get('is_active') is not False else False
-    created_by = clean_str(data.get('created_by') or 'admin')
 
     with get_db_cursor(commit=True) as cur:
-        if not supp_id:
+        is_new = False
+        if not supp_id or supp_id.startswith('SUP-NEW'):
             cur.execute("SELECT id, name FROM suppliers WHERE phone = %s AND is_active = TRUE LIMIT 1;", (phone,))
             dup = cur.fetchone()
             if dup:
                 raise ValueError(f"رقم الهاتف ({phone}) مسجل بالفعل للمورد ({dup['name']})، يرجى استخدام رقم هاتف فريد.")
-            supp_id = generate_id("SUPP")
+            supp_id = get_next_sequence_number(cur, 'SUP', fallback_prefix='SUP-')
+            is_new = True
         else:
             cur.execute("SELECT id, name FROM suppliers WHERE phone = %s AND id != %s AND is_active = TRUE LIMIT 1;", (phone, supp_id))
             dup = cur.fetchone()
@@ -70,11 +76,25 @@ def add_supplier(payload):
                 created_by = COALESCE(suppliers.created_by, EXCLUDED.created_by), updated_at = CURRENT_TIMESTAMP
             RETURNING *;
         """
-        cur.execute(query, (supp_id, name, phone, phone_alt, email, city, address, init_balance, is_active, created_by))
+        cur.execute(query, (supp_id, name, phone, phone_alt, email, city, address, init_balance, is_active, resolved_user))
         res = dict(cur.fetchone())
+
+        log_audit_event(
+            entity_type='suppliers',
+            entity_id=supp_id,
+            action='INSERT' if is_new else 'UPDATE',
+            new_values={'id': supp_id, 'name': name, 'phone': phone},
+            user_id=resolved_user,
+            document_no=supp_id,
+            details=f"حفظ بيانات المورد {name} ({supp_id})",
+            cur=cur
+        )
+
         if res.get('created_at'): res['created_at'] = str(res['created_at'])
         if res.get('updated_at'): res['updated_at'] = str(res['updated_at'])
         res['supplier_name'] = res.get('name')
+        res['supplier_id'] = supp_id
+        res['id'] = supp_id
         res['balance'] = float(res.get('current_balance') or 0.0)
         res['success'] = True
         return res
@@ -84,6 +104,7 @@ def delete_supplier(payload):
     """التعطيل الآمن للمورد (Soft Delete) لحماية الفواتير التاريخية وتوازن القيود"""
     data = payload.get('data') or payload
     supp_id = clean_str(data.get('id') or data.get('supplier_id'))
+    u_id = get_active_user_context('admin')
     if not supp_id or supp_id == 'SUPP-GENERAL':
         raise ValueError("معرف المورد مطلوب")
     with get_db_cursor(commit=True) as cur:
@@ -91,6 +112,7 @@ def delete_supplier(payload):
         row = cur.fetchone()
         if not row:
             raise ValueError("المورد غير موجود أو تم حذفه مسبقاً")
+        log_audit_event('suppliers', supp_id, 'DEACTIVATE', user_id=u_id, document_no=supp_id, details=f"تعطيل المورد {row['name']}", cur=cur)
         return {
             "deleted": False, "deactivated": True, "id": supp_id, "success": True,
             "message": f"تم تعطيل المورد ({row['name']}) بنجاح (الحذف الآمن Soft Delete) لحماية سلامة الفواتير التاريخية وتوازن القيود المالية."

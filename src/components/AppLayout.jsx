@@ -5,7 +5,7 @@
  */
 function AppLayout({
   activeTab = 'dashboard', setActiveTab = () => {}, currentUser, systemCurrency,
-  setSystemCurrency, onOpenLogin, onOpenUsersModal, onLogout, children, modals,
+  setSystemCurrency, onOpenLogin, onOpenUsersModal, onLogout, children, modals, footer,
   isSidebarCollapsed: propCollapsed, setIsSidebarCollapsed: propSetCollapsed
 }) {
   const Icons = window.Icons || {};
@@ -46,6 +46,7 @@ function AppLayout({
     { title: 'إدارة العمليات والإنتاج', items: [
       { id: 'products', label: 'المنتجات ومواصفات التشغيل', icon: Icons.Calculator, roles: ['admin','workshop_manager'] },
       { id: 'factory', label: 'خطوط التصنيع والتشغيل', icon: Icons.Factory, roles: ['admin','workshop_manager'] },
+      { id: 'measurement', label: 'استوديو المقاسات (A4)', icon: Icons.Scissors, roles: ['admin','workshop_manager','data_entry','sales_rep','accountant'] },
       { id: 'inventory', label: 'المخزون وسلاسل الإمداد', icon: Icons.Scissors, roles: ['admin','workshop_manager'] },
       { id: 'purchases', label: 'المشتريات وإدارة الموردين', icon: Icons.Purchases, roles: ['admin','accountant'] }
     ]},
@@ -64,7 +65,7 @@ function AppLayout({
   ], [role]);
   const SW = isCollapsed ? 64 : 256;
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-slate-50 dark:bg-[#0B132B] text-slate-900 dark:text-slate-100 font-sans" dir="rtl">
+    <div className="flex min-h-screen h-screen w-screen overflow-hidden bg-slate-50 dark:bg-[#0B132B] text-slate-900 dark:text-slate-100 font-sans" dir="rtl">
       <aside style={{ width: SW }} className={`${isCollapsed ? 'w-16 min-w-[64px]' : 'w-64 min-w-[256px]'} h-screen fixed right-0 top-0 bottom-0 flex flex-col bg-white dark:bg-[#0F172A] border-l border-slate-200 dark:border-slate-800/80 z-40 select-none transition-[width] duration-200 ease-in-out`}>
         <div className={`h-11 py-1 flex items-center border-b border-slate-200 dark:border-slate-800 flex-shrink-0 ${isCollapsed ? 'justify-center px-1.5' : 'justify-between px-3 gap-2'}`}>
           <div className="flex items-center gap-2 min-w-0">
@@ -110,7 +111,7 @@ function AppLayout({
           {!isCollapsed && (<div className="flex items-center gap-1 shrink-0">{role === 'admin' && onOpenUsersModal && (<button type="button" onClick={onOpenUsersModal} className="p-1 rounded-md text-slate-500 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer text-xs" title="إدارة المستخدمين">👥</button>)}{onLogout && (<button type="button" onClick={onLogout} className="p-1 rounded-md text-slate-500 dark:text-slate-200 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer text-xs" title="تسجيل الخروج">↩️</button>)}</div>)}
         </div>
       </aside>
-      <div style={{ marginRight: SW }} className="flex-1 flex flex-col h-screen overflow-hidden transition-[margin-right] duration-200 ease-in-out">
+      <div style={{ marginRight: SW }} className="flex-1 flex flex-col min-h-screen h-screen overflow-hidden transition-[margin-right] duration-200 ease-in-out">
         <header className="h-11 min-h-[44px] px-3 bg-[#0B132B]/95 backdrop-blur border-b border-slate-800/80 flex items-center justify-between shrink-0 z-30 select-none">
           {/* Right: Sidebar toggle & Tenant Badge & Branch selector */}
           <div className="flex items-center gap-2 shrink-0">
@@ -143,7 +144,7 @@ function AppLayout({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="بحث سريع في السجلات... (⌘K)"
+              placeholder="بحث سريع في السجلات... (Ctrl+K)"
               className="w-full h-[30px] text-xs text-white placeholder-slate-400 bg-slate-900/90 border border-slate-700 rounded-lg pr-7 pl-2.5 outline-none font-medium focus:border-pink-500 transition-colors"
             />
             <span className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-xs">🔍</span>
@@ -182,9 +183,10 @@ function AppLayout({
             <button type="button" onClick={() => setActiveTab('factory')} className="w-[30px] h-[30px] rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-300 hover:text-white transition cursor-pointer text-xs" title="التنبيهات">🔔</button>
           </div>
         </header>
-        <main className={`flex-1 overflow-y-auto custom-scrollbar overflow-x-hidden ${activeTab === 'dashboard' ? 'px-2.5 pb-2 pt-0' : activeTab === 'orders' ? 'p-0 overflow-hidden flex flex-col' : activeTab === 'products' ? 'p-2 overflow-hidden flex flex-col' : activeTab === 'hr' ? 'p-0 overflow-hidden flex flex-col' : 'p-6 space-y-6'}`}>
-          {children || (typeof Outlet !== 'undefined' ? <Outlet /> : null)}
+        <main className={`flex-1 overflow-y-auto custom-scrollbar flex flex-col min-h-0 overflow-x-hidden ${activeTab === 'dashboard' ? 'px-2.5 pb-2 pt-0' : activeTab === 'orders' ? 'p-0 overflow-hidden' : activeTab === 'products' ? 'p-2 overflow-hidden' : activeTab === 'measurement' ? 'p-2 overflow-hidden' : activeTab === 'hr' ? 'p-0 overflow-hidden' : 'p-4 sm:p-6'}`}>
+          <div className="flex-1 flex flex-col">{children || (typeof Outlet !== 'undefined' ? <Outlet /> : null)}</div>
         </main>
+        {footer}
       </div>
       {modals}
     </div>

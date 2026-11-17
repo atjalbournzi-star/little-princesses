@@ -13,69 +13,54 @@ DEFAULT_WAREHOUSES = [
     {"id": "WH-SHOWROOM", "code": "WH-SHOWROOM", "name": "معرض وصالة التسليم", "location": "صالة العرض والمبيعات والتسليم", "is_active": True}
 ]
 
-WAREHOUSE_NORMALIZE = {
-    "WH-MAIN": "WH-MAIN", "المستودع الرئيسي": "WH-MAIN", "الرئيسي": "WH-MAIN", "main": "WH-MAIN",
-    "WH-WORKSHOP": "WH-WORKSHOP", "معمل وورشة الخياطة": "WH-WORKSHOP", "ورشة المصنع": "WH-WORKSHOP",
-    "المعمل": "WH-WORKSHOP", "الورشة": "WH-WORKSHOP", "workshop": "WH-WORKSHOP", "factory": "WH-WORKSHOP",
-    "WH-SHOWROOM": "WH-SHOWROOM", "معرض وصالة التسليم": "WH-SHOWROOM", "صالة العرض / المعرض": "WH-SHOWROOM",
-    "المعرض": "WH-SHOWROOM", "صالة العرض": "WH-SHOWROOM", "showroom": "WH-SHOWROOM"
-}
-
 
 def normalize_warehouse_id(val, default="WH-MAIN"):
+    """مطابقة معرّف المستودع ديناميكياً من جدول warehouses في قاعدة البيانات"""
     clean = clean_str(val).strip()
-    return WAREHOUSE_NORMALIZE.get(clean, WAREHOUSE_NORMALIZE.get(clean.upper(), default))
+    if not clean: return default
+    try:
+        with get_db_cursor() as cur:
+            cur.execute("SELECT id FROM warehouses WHERE id = %s OR UPPER(code) = UPPER(%s) OR UPPER(name) = UPPER(%s) LIMIT 1;", (clean, clean, clean))
+            row = cur.fetchone()
+            if row: return row['id']
+            cur.execute("SELECT id FROM warehouses WHERE name ILIKE %s OR code ILIKE %s ORDER BY is_active DESC, id ASC LIMIT 1;", (f"%{clean}%", f"%{clean}%"))
+            row = cur.fetchone()
+            if row: return row['id']
+    except Exception as ex:
+        logger.warning(f"Dynamic warehouse normalization note: {ex}")
+    return default
 
 
 def ensure_warehouses_schema():
-    """التحقق من إنشاء جداول المستودعات والأرصدة وغرس المستودعات الافتراضية"""
+    """التحقق من إنشاء جداول المستودعات والأرصدة مع تهيئة المواقع الأساسية إذا كان الجدول فارغاً تماماً"""
     try:
         with get_db_cursor(commit=True) as cur:
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS warehouses (
-                    id VARCHAR(64) PRIMARY KEY,
-                    code VARCHAR(50) UNIQUE NOT NULL,
-                    name VARCHAR(150) NOT NULL,
-                    location VARCHAR(200),
-                    is_active BOOLEAN DEFAULT TRUE,
-                    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+                    id VARCHAR(64) PRIMARY KEY, code VARCHAR(50) UNIQUE NOT NULL,
+                    name VARCHAR(150) NOT NULL, location VARCHAR(200), is_active BOOLEAN DEFAULT TRUE,
+                    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
                 );
-            """)
-            cur.execute("""
                 CREATE TABLE IF NOT EXISTS warehouse_stock (
                     id VARCHAR(64) PRIMARY KEY,
                     warehouse_id VARCHAR(64) NOT NULL REFERENCES warehouses(id) ON DELETE CASCADE,
                     inventory_id VARCHAR(64) NOT NULL REFERENCES inventory(id) ON DELETE CASCADE,
-                    quantity NUMERIC(14, 4) NOT NULL DEFAULT 0.0000,
-                    reserved_qty NUMERIC(14, 4) NOT NULL DEFAULT 0.0000,
+                    quantity NUMERIC(14, 4) NOT NULL DEFAULT 0.0000, reserved_qty NUMERIC(14, 4) NOT NULL DEFAULT 0.0000,
                     available_qty NUMERIC(14, 4) GENERATED ALWAYS AS (quantity - reserved_qty) STORED,
-                    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-                    CONSTRAINT uq_warehouse_item UNIQUE(warehouse_id, inventory_id)
+                    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP, CONSTRAINT uq_warehouse_item UNIQUE(warehouse_id, inventory_id)
                 );
             """)
-            for w in DEFAULT_WAREHOUSES:
-                cur.execute("""
-                    INSERT INTO warehouses (id, code, name, location, is_active)
-                    VALUES (%s, %s, %s, %s, %s)
-                    ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, location = EXCLUDED.location;
-                """, (w["id"], w["code"], w["name"], w["location"], w["is_active"]))
+            cur.execute("SELECT COUNT(*) as count FROM warehouses;")
+            w_cnt = cur.fetchone()
+            if not w_cnt or int(w_cnt.get('count') or 0) == 0:
+                for w in DEFAULT_WAREHOUSES:
+                    cur.execute("INSERT INTO warehouses (id, code, name, location, is_active) VALUES (%s, %s, %s, %s, %s) ON CONFLICT (id) DO NOTHING;", (w["id"], w["code"], w["name"], w["location"], w["is_active"]))
 
             # تنظيف آمن لأي أرصدة وهمية في المستودع الرئيسي ليس لها حركات فعلية
             cur.execute("""
-                DELETE FROM warehouse_stock ws
-                WHERE ws.warehouse_id = 'WH-MAIN'
-                  AND (ws.id LIKE '%-MAIN' OR ws.id LIKE 'WS-%-MAIN')
-                  AND NOT EXISTS (
-                      SELECT 1 FROM inventory_transactions it
-                      WHERE it.inventory_id = ws.inventory_id
-                        AND it.warehouse_id = 'WH-MAIN'
-                  )
-                  AND EXISTS (
-                      SELECT 1 FROM warehouse_stock other_ws
-                      WHERE other_ws.inventory_id = ws.inventory_id
-                        AND other_ws.warehouse_id != 'WH-MAIN'
-                  );
+                DELETE FROM warehouse_stock ws WHERE ws.warehouse_id = 'WH-MAIN' AND (ws.id LIKE '%-MAIN' OR ws.id LIKE 'WS-%-MAIN')
+                AND NOT EXISTS (SELECT 1 FROM inventory_transactions it WHERE it.inventory_id = ws.inventory_id AND it.warehouse_id = 'WH-MAIN')
+                AND EXISTS (SELECT 1 FROM warehouse_stock other_ws WHERE other_ws.inventory_id = ws.inventory_id AND other_ws.warehouse_id != 'WH-MAIN');
             """)
     except Exception as ex:
         logger.warning(f"Warehouses schema check note: {ex}")

@@ -15,11 +15,14 @@ def handle_get(handler, path, parsed_url) -> bool:
             deduped_rows = pg_service.get_accounts()
         except Exception:
             deduped_rows = []
+        payload = json.dumps({'success': True, 'data': deduped_rows}, ensure_ascii=False).encode('utf-8')
         handler.send_response(200)
         handler._send_cors_headers()
         handler.send_header('Content-Type', 'application/json; charset=utf-8')
+        handler.send_header('Content-Length', str(len(payload)))
+        handler.send_header('Connection', 'close')
         handler.end_headers()
-        handler.wfile.write(json.dumps({'success': True, 'data': deduped_rows}, ensure_ascii=False).encode('utf-8'))
+        handler.wfile.write(payload)
         return True
 
     if path == '/api/accounts/summary':

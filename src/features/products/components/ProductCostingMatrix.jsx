@@ -1,31 +1,42 @@
 // src/features/products/components/ProductCostingMatrix.jsx
-// مراحل التشغيل ومصفوفة تكاليف الإنتاج: القص، الخياطة، التطريز، التشطيب، والتغليف
+// مراحل التشغيل ومصفوفة تكاليف الإنتاج المقروءة ديناميكياً من المسميات الوظيفية
 
-function ProductCostingMatrix({
-  actions
-}) {
+function ProductCostingMatrix({ actions }) {
   const {
-    cutterWage, setCutterWage,
-    tailorWage, setTailorWage,
-    embroidWage, setEmbroidWage,
-    finisherWage, setFinisherWage,
-    packagingCost, setPackagingCost,
-    computedFabricTotal,
-    computedTotalLabor,
-    computedTotalCost,
-    activeModelCurrencyLabel,
-    targetSegment = 'kids',
-    ageChart = [],
-    updateAgeChart,
-    womenSizeChart = [],
-    updateWomenSizeChart
+    computedFabricTotal, computedTotalLabor, computedTotalCost,
+    activeModelCurrencyLabel, targetSegment = 'kids',
+    ageChart = [], updateAgeChart, womenSizeChart = [], updateWomenSizeChart
   } = actions;
+
+  const [prodRoles, setProdRoles] = React.useState([]);
+  const [measUnit, setMeasUnit] = React.useState('سم');
+  const isInch = measUnit === 'إنش';
+
+  React.useEffect(() => {
+    if (actions.productionRoles?.length) {
+      setProdRoles(actions.productionRoles);
+    } else {
+      fetch('/api/job-roles').then(r => r.json()).then(d => {
+        const list = Array.isArray(d?.data) ? d.data : (Array.isArray(d) ? d : []);
+        const prod = list.filter(r => r.is_production !== false || r.wage_key === 'packaging_cost' || r.wage_key === 'packager_wage' || r.role_key === 'packager');
+        if (prod.length) setProdRoles(prod);
+      }).catch(() => {});
+    }
+  }, [actions.productionRoles]);
+
+  const effectiveRoles = React.useMemo(() => {
+    if (prodRoles.length > 0) return prodRoles;
+    return [
+      { role_code: 'ROLE-0001', role_key: 'cutter', role_name: 'قصاس', display_name: 'القصاس (قص وتفصيل)', wage_key: 'cutter_wage', icon: '✂️' },
+      { role_code: 'ROLE-0002', role_key: 'tailor', role_name: 'خياط', display_name: 'خياط', wage_key: 'tailor_wage', icon: '🪡' },
+      { role_code: 'ROLE-0003', role_key: 'embroiderer', role_name: 'تطريز', display_name: 'التطريز والشك', wage_key: 'embroiderer_wage', icon: '✨' },
+      { role_code: 'ROLE-0004', role_key: 'finisher', role_name: 'تشطيب', display_name: 'التشطيب والكي', wage_key: 'finisher_wage', icon: '👔' },
+      { role_code: 'ROLE-0005', role_key: 'packager', role_name: 'تغليف', display_name: 'تكلفة التغليف والإكسسوارات', wage_key: 'packaging_cost', icon: '📦' }
+    ];
+  }, [prodRoles]);
 
   const wageInputCls = "h-6.5 w-20 font-mono text-xs font-bold text-white text-center bg-slate-900 border border-slate-700 rounded-lg outline-none focus:border-pink-500 transition";
   const microInputCls = "h-6 text-xs text-center font-mono font-bold text-white bg-slate-900 border border-slate-700 rounded-md outline-none focus:border-pink-500";
-
-  const [measUnit, setMeasUnit] = React.useState('سم'); // 'سم' | 'إنش'
-  const isInch = measUnit === 'إنش';
 
   const formatDisp = (cmVal) => {
     if (cmVal === '' || cmVal == null || isNaN(cmVal)) return '';
@@ -42,17 +53,9 @@ function ProductCostingMatrix({
     }
   };
 
-  const totalWorkshopWages = (
-    parseFloat(cutterWage || 0) +
-    parseFloat(tailorWage || 0) +
-    parseFloat(embroidWage || 0) +
-    parseFloat(finisherWage || 0) +
-    parseFloat(packagingCost || 0)
-  );
-
   return (
     <div className="grid grid-cols-2 gap-2.5 p-2.5 flex-1 select-none min-h-0 overflow-hidden" dir="rtl">
-      {/* 1. اليمين: أجور المراحل الفنية وتكاليف التشغيل (5 صفوف متناسقة ومريحة) */}
+      {/* 1. اليمين: أجور مراحل التصنيع المقروءة ديناميكياً من الباك إند */}
       <div className="p-2.5 bg-[#0F172A] rounded-xl border border-slate-800 flex flex-col justify-between shadow-md">
         <div className="flex items-center justify-between pb-1 border-b border-slate-800">
           <span className="text-xs font-bold text-white block">
@@ -63,56 +66,30 @@ function ProductCostingMatrix({
           </span>
         </div>
 
-        <div className="space-y-1.5 my-auto">
-          {/* مرحلة القص والباترون */}
-          <div className="flex items-center justify-between gap-1 bg-slate-900/80 py-1 px-2.5 rounded-lg border border-slate-800">
-            <div className="flex items-center gap-2">
-              <span className="text-sm">✂️</span>
-              <span className="text-xs font-semibold text-slate-200">1. أجرة القص والباترون:</span>
-            </div>
-            <input type="number" min="0" step="0.5" value={cutterWage} onChange={e => setCutterWage(e.target.value)} className={wageInputCls} />
-          </div>
-
-          {/* مرحلة الخياطة والتجميع */}
-          <div className="flex items-center justify-between gap-1 bg-slate-900/80 py-1 px-2.5 rounded-lg border border-slate-800">
-            <div className="flex items-center gap-2">
-              <span className="text-sm">🪡</span>
-              <span className="text-xs font-semibold text-slate-200">2. أجرة الخياطة والتفصيل:</span>
-            </div>
-            <input type="number" min="0" step="0.5" value={tailorWage} onChange={e => setTailorWage(e.target.value)} className={wageInputCls} />
-          </div>
-
-          {/* مرحلة التطريز والشك اليدوي */}
-          <div className="flex items-center justify-between gap-1 bg-slate-900/80 py-1 px-2.5 rounded-lg border border-slate-800">
-            <div className="flex items-center gap-2">
-              <span className="text-sm">✨</span>
-              <span className="text-xs font-semibold text-slate-200">3. أجرة التطريز والشك:</span>
-            </div>
-            <input type="number" min="0" step="0.5" value={embroidWage} onChange={e => setEmbroidWage(e.target.value)} className={wageInputCls} />
-          </div>
-
-          {/* مرحلة الكي والتشطيب النهائي */}
-          <div className="flex items-center justify-between gap-1 bg-slate-900/80 py-1 px-2.5 rounded-lg border border-slate-800">
-            <div className="flex items-center gap-2">
-              <span className="text-sm">👔</span>
-              <span className="text-xs font-semibold text-slate-200">4. أجرة التشطيب والكي:</span>
-            </div>
-            <input type="number" min="0" step="0.5" value={finisherWage} onChange={e => setFinisherWage(e.target.value)} className={wageInputCls} />
-          </div>
-
-          {/* التغليف ومستلزمات التسليم */}
-          <div className="flex items-center justify-between gap-1 bg-slate-900/80 py-1 px-2.5 rounded-lg border border-slate-800">
-            <div className="flex items-center gap-2">
-              <span className="text-sm">📦</span>
-              <span className="text-xs font-semibold text-slate-200">5. التغليف والإكسسوار:</span>
-            </div>
-            <input type="number" min="0" step="0.5" value={packagingCost} onChange={e => setPackagingCost(e.target.value)} className={wageInputCls} />
-          </div>
+        <div className="space-y-1.5 my-auto max-h-[220px] overflow-y-auto custom-scrollbar pr-0.5">
+          {effectiveRoles.map((role, idx) => {
+            const wKey = role.wage_key || `${role.role_key}_wage`;
+            const val = actions.getStageWage ? actions.getStageWage(wKey, role) : (actions[wKey] || '');
+            return (
+              <div key={role.role_code || role.role_key || idx} className="flex items-center justify-between gap-1 bg-slate-900/80 py-1 px-2.5 rounded-lg border border-slate-800">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm">{role.icon || '🧵'}</span>
+                  <span className="text-xs font-semibold text-slate-200">
+                    {idx + 1}. {(role.role_key === 'packager' || role.wage_key === 'packaging_cost' || role.wage_key === 'packager_wage') ? '' : 'أجرة '}{role.display_name || role.role_name}:
+                  </span>
+                </div>
+                <input
+                  type="number" min="0" step="0.5" value={val}
+                  onChange={e => actions.setStageWage ? actions.setStageWage(wKey, e.target.value) : null}
+                  className={wageInputCls}
+                />
+              </div>
+            );
+          })}
         </div>
 
-        {/* ملخص الأجور الشامل ديناميكياً لكافة المراحل الخمس */}
         <div className="text-[11px] text-slate-300 text-center py-1 bg-slate-900/60 rounded-lg border border-slate-800/80">
-          مجموع أجور الورشة: <strong className="text-pink-400 font-mono font-bold">+{totalWorkshopWages.toFixed(1)} {activeModelCurrencyLabel}</strong>
+          مجموع أجور الورشة: <strong className="text-pink-400 font-mono font-bold">+{parseFloat(computedTotalLabor || 0).toFixed(1)} {activeModelCurrencyLabel}</strong>
         </div>
       </div>
 
@@ -127,21 +104,15 @@ function ProductCostingMatrix({
               type="button"
               onClick={() => setMeasUnit(p => p === 'سم' ? 'إنش' : 'سم')}
               className="h-5 px-2 text-[10px] font-bold bg-cyan-950/60 text-cyan-300 border border-cyan-800/60 hover:bg-cyan-900/60 rounded cursor-pointer flex items-center gap-1 transition"
-              title="التبديل بين السنتيمتر والإنش"
             >
-              <span>الوحدة:</span>
-              <span className="text-white font-mono">{measUnit}</span>
-              <span>🔄</span>
+              <span>الوحدة:</span><span className="text-white font-mono">{measUnit}</span><span>🔄</span>
             </button>
           </div>
 
           {targetSegment === 'women_adults' ? (
             <div className="space-y-1">
               <div className="grid grid-cols-4 gap-1 text-[10px] font-bold text-slate-400 px-1 pb-0.5 border-b border-slate-800 text-center">
-                <span>المقاس</span>
-                <span>الصدر ({measUnit})</span>
-                <span>الخصر ({measUnit})</span>
-                <span>الطول ({measUnit})</span>
+                <span>المقاس</span><span>الصدر ({measUnit})</span><span>الخصر ({measUnit})</span><span>الطول ({measUnit})</span>
               </div>
               {womenSizeChart.map(row => (
                 <div key={row.id} className="grid grid-cols-4 gap-1 items-center bg-slate-900/80 p-0.5 px-1 rounded-lg border border-slate-800 text-xs h-6">
@@ -155,10 +126,7 @@ function ProductCostingMatrix({
           ) : (
             <div className="space-y-1">
               <div className="grid grid-cols-4 gap-1 text-[10px] font-bold text-slate-400 px-1 pb-0.5 border-b border-slate-800 text-center">
-                <span>المقاس / العمر</span>
-                <span>الصدر ({measUnit})</span>
-                <span>الخصر ({measUnit})</span>
-                <span>الطول ({measUnit})</span>
+                <span>المقاس / العمر</span><span>الصدر ({measUnit})</span><span>الخصر ({measUnit})</span><span>الطول ({measUnit})</span>
               </div>
               {ageChart.slice(0, 4).map(row => (
                 <div key={row.id} className="grid grid-cols-4 gap-1 items-center bg-slate-900/80 p-0.5 px-1 rounded-lg border border-slate-800 text-xs h-6">

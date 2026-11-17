@@ -96,7 +96,8 @@ function ProductBasicInfoForm({
         <div>
           <label className={labelCls}>التصنيف الفني</label>
           <select value={category} onChange={e => setCategory(e.target.value)} className={inputCls + " cursor-pointer"}>
-            {(availableCategories.length ? availableCategories : ['فساتين وبدلات خاصة', 'فساتين أميرات سهرة', 'أطقم مواليد وسبوع']).map(c => (
+            <option value="">-- اختر التصنيف --</option>
+            {availableCategories.map(c => (
               <option key={c} value={c}>{c}</option>
             ))}
           </select>
@@ -184,12 +185,15 @@ function ProductBasicInfoForm({
           </button>
         </div>
         <div className="flex items-center gap-1.5 flex-wrap min-h-[22px]">
-          {(selectedColors || []).length > 0 ? (selectedColors || []).map((color, idx) => (
-            <span key={idx} className="h-5.5 px-2 bg-pink-600/20 text-pink-300 border border-pink-500/30 rounded-md text-[10px] font-medium flex items-center gap-1.5 shrink-0">
-              <span>{color}</span>
-              <button type="button" onClick={() => removeColor(color)} className="text-pink-400 hover:text-white font-bold cursor-pointer text-sm leading-none">&times;</button>
-            </span>
-          )) : (
+          {(selectedColors || []).length > 0 ? (selectedColors || []).map((color, idx) => {
+            const colorStr = typeof color === 'object' && color !== null ? (color.name || color.color || color.label || JSON.stringify(color)) : String(color);
+            return (
+              <span key={idx} className="h-5.5 px-2 bg-pink-600/20 text-pink-300 border border-pink-500/30 rounded-md text-[10px] font-medium flex items-center gap-1.5 shrink-0">
+                <span>{colorStr}</span>
+                <button type="button" onClick={() => removeColor(color)} className="text-pink-400 hover:text-white font-bold cursor-pointer text-sm leading-none">&times;</button>
+              </span>
+            );
+          }) : (
             <span className="text-[10px] text-slate-500 italic">لم يتم إضافة ألوان بعد (أضف ألوان الموديل بالأعلى)</span>
           )}
         </div>

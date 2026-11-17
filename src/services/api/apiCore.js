@@ -122,12 +122,33 @@
   }
 
   window.callGAS = callGAS;
+
+  // ── Centralized Number Sequence Client ──
+  window.getNextSequenceNumber = async function(sequenceKey) {
+    try {
+      const res = await fetch(`/api/sequences/next?key=${encodeURIComponent(sequenceKey)}`).then(r => r.json());
+      if (res && res.success && (res.sequence_number || res.next_number)) {
+        return res.sequence_number || res.next_number;
+      }
+    } catch(e) {}
+    if (typeof callGAS === 'function') {
+      try {
+        const gasRes = await callGAS('getNextSequenceNumber', { sequence_key: sequenceKey });
+        if (gasRes && (gasRes.sequence_number || gasRes.next_number)) {
+          return gasRes.sequence_number || gasRes.next_number;
+        }
+      } catch(e) {}
+    }
+    return null;
+  };
+
   window.ApiCore = {
     getActiveTenantId: window.getActiveTenantId,
     getActiveTenantInfo: window.getActiveTenantInfo,
     setActiveTenant: window.setActiveTenant,
     generateUUIDv7: window.generateUUIDv7,
-    callGAS: callGAS
+    callGAS: callGAS,
+    getNextSequenceNumber: window.getNextSequenceNumber
   };
 
 })(typeof window !== 'undefined' ? window : globalThis);

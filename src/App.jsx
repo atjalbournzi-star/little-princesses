@@ -49,13 +49,13 @@ function App() {
     const role = currentUser?.role || 'admin';
     let allowed = [];
     if (role === 'data_entry' || role === 'sales_rep') {
-      allowed = ['dashboard', 'orders', 'customers', 'marketing'];
+      allowed = ['dashboard', 'orders', 'customers', 'marketing', 'measurement'];
     } else if (role === 'workshop_manager') {
-      allowed = ['dashboard', 'factory', 'products', 'inventory', 'feedback'];
+      allowed = ['dashboard', 'factory', 'products', 'inventory', 'feedback', 'measurement'];
     } else if (role === 'accountant') {
-      allowed = ['dashboard', 'accounts', 'vouchers', 'expenses', 'reports', 'purchases', 'settings'];
+      allowed = ['dashboard', 'accounts', 'vouchers', 'expenses', 'reports', 'purchases', 'settings', 'measurement'];
     } else {
-      allowed = ['dashboard', 'customers', 'products', 'orders', 'factory', 'inventory', 'purchases', 'accounts', 'vouchers', 'expenses', 'journal', 'reports', 'marketing', 'hr', 'feedback', 'settings'];
+      allowed = ['dashboard', 'customers', 'products', 'orders', 'factory', 'measurement', 'inventory', 'purchases', 'accounts', 'vouchers', 'expenses', 'journal', 'reports', 'marketing', 'hr', 'feedback', 'settings'];
     }
     if (!allowed.includes(activeTab)) setActiveTab(allowed[0] || 'dashboard');
   }, [currentUser, activeTab]);
@@ -118,16 +118,8 @@ function App() {
           onOpenLogin={() => setLoginModalOpen(true)}
           onOpenUsersModal={() => setUsersModalOpen(true)}
           onLogout={handleLogout}
-        >
-          <RouterComp
-            activeTab={activeTab}
-            setActiveTab={setActiveTab}
-            systemCurrency={systemCurrency}
-            showToast={showToast}
-            {...appData}
-          />
-          {activeTab !== 'orders' && activeTab !== 'hr' && (
-            <footer className="py-1 px-4 text-[10px] text-slate-500 dark:text-slate-400 border-t border-slate-200/60 dark:border-slate-800/60 flex items-center justify-between shrink-0 select-none">
+          footer={activeTab !== 'orders' && activeTab !== 'hr' && activeTab !== 'measurement' && (
+            <footer className="mt-auto h-7 min-h-[28px] px-4 text-[10.5px] bg-white dark:bg-[#0B132B] text-slate-500 dark:text-slate-400 border-t border-slate-200/80 dark:border-slate-800/80 flex items-center justify-between shrink-0 select-none z-20">
               <div className="flex items-center gap-1.5 truncate">
                 <span className="font-bold text-[#B0005A]">{(typeof window !== 'undefined' && window.BrandService) ? window.BrandService.getProfile().name : 'نظام الإدارة المتكامل الذكي'}</span>
                 <span>•</span>
@@ -138,6 +130,14 @@ function App() {
               </span>
             </footer>
           )}
+        >
+          <RouterComp
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            systemCurrency={systemCurrency}
+            showToast={showToast}
+            {...appData}
+          />
         </AppLayoutComp>
       ) : (
         <div className="flex h-screen w-screen overflow-hidden bg-slate-50 dark:bg-[#0B132B] text-slate-900 dark:text-slate-100" dir="rtl">

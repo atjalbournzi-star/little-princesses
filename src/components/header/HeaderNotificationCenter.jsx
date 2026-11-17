@@ -122,7 +122,7 @@ function HeaderNotificationCenter({ watchdogData, totalAlerts, setActiveTab }) {
                     <div className="space-y-0.5">
                       <div className="font-bold text-[#25232A] dark:text-slate-100 flex items-center gap-1.5">
                         <span className="font-mono text-[10px] text-purple-700 dark:text-purple-300">#{item.order_no}</span>
-                        <span>{item.customer_name || 'عميلة'}</span>
+                        <span>{item.customer_name || 'عميل'}</span>
                       </div>
                       <div className="text-[10.5px] text-[#6F6B75] dark:text-slate-400 truncate max-w-[200px]">
                         {item.alteration_reason}: {item.adjustment_notes}

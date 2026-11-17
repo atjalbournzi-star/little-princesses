@@ -6,6 +6,10 @@ import pg_service
 
 
 def handle_post(handler, path, parsed_url) -> bool:
+    from domains.tailoring import routes_measurement
+    if routes_measurement.handle_post(handler, path, parsed_url):
+        return True
+
     if path in ('/api/factory', '/api/factory/update', '/api/production/update-stage', '/api/production/assign', '/api/atelier/orders', '/api/job-orders', '/api/factory/orders'):
         content_length = int(handler.headers.get('Content-Length', 0))
         post_data = handler.rfile.read(content_length)

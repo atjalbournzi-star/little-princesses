@@ -29,8 +29,8 @@ function QualityModalsPart3({
             <form onSubmit={onSubmitComplaint} className="space-y-4">
               <div className="grid grid-cols-2 gap-3.5">
                 <div>
-                  <label className={labelCls}>اسم العميلة</label>
-                  <input type="text" value={complaintForm.customer_name} onChange={e => setComplaintForm({ ...complaintForm, customer_name: e.target.value })} className={inputCls} required placeholder="اسم العميلة..." />
+                  <label className={labelCls}>اسم العميل</label>
+                  <input type="text" value={complaintForm.customer_name} onChange={e => setComplaintForm({ ...complaintForm, customer_name: e.target.value })} className={inputCls} required placeholder="اسم العميل..." />
                 </div>
                 <div>
                   <label className={labelCls}>رقم الطلب (اختياري)</label>
@@ -61,7 +61,7 @@ function QualityModalsPart3({
                   >
                     <option value="low">منخفضة (تعديل بسيط)</option>
                     <option value="medium">متوسطة (إعادة ضبط وتنسيق)</option>
-                    <option value="high">عالية (استياء عميلة / موعد ضاغط)</option>
+                    <option value="high">عالية (استياء عميل / موعد ضاغط)</option>
                     <option value="critical">حرجة (طلب استرداد / مناسبة قريبة)</option>
                   </select>
                 </div>
@@ -110,8 +110,8 @@ function QualityModalsPart3({
             <form onSubmit={onSubmitReturn} className="space-y-4">
               <div className="grid grid-cols-2 gap-3.5">
                 <div>
-                  <label className={labelCls}>اسم العميلة</label>
-                  <input type="text" value={returnForm.customer_name} onChange={e => setReturnForm({ ...returnForm, customer_name: e.target.value })} className={inputCls} required placeholder="اسم العميلة..." />
+                  <label className={labelCls}>اسم العميل</label>
+                  <input type="text" value={returnForm.customer_name} onChange={e => setReturnForm({ ...returnForm, customer_name: e.target.value })} className={inputCls} required placeholder="اسم العميل..." />
                 </div>
                 <div>
                   <label className={labelCls}>رقم الطلب</label>
@@ -130,7 +130,7 @@ function QualityModalsPart3({
                     <option value="عيب خياطة أو تشطيب">عيب خياطة أو تشطيب ✂️</option>
                     <option value="تلف أثناء الشحن">تلف أثناء الشحن 📦</option>
                     <option value="عدم مطابقة للتصميم المعتمد">عدم مطابقة للتصميم 🎨</option>
-                    <option value="رغبة العميلة">رغبة العميلة</option>
+                    <option value="رغبة العميل">رغبة العميل</option>
                   </select>
                 </div>
                 <div>
@@ -158,7 +158,7 @@ function QualityModalsPart3({
               </div>
               <div className="grid grid-cols-2 gap-3.5">
                 <div>
-                  <label className={labelCls}>مبلغ الاسترداد للعميلة إن وجد ({currencyDisplay})</label>
+                  <label className={labelCls}>مبلغ الاسترداد للعميل إن وجد ({currencyDisplay})</label>
                   <input
                     type="number"
                     min="0"

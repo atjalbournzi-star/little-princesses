@@ -195,8 +195,8 @@ function useReportsData({ orders = [], expenses = [], vouchers = [], journal = [
     return [];
   }, [products, orders, u]);
 
-  const productionStats = useMemo(() => u.computeProductionStats ? u.computeProductionStats(orders) : { totalOrders: 0, inProdCount: 0, completedCount: 0, totalWages: 0, totalFabricUsed: 0 }, [orders, u]);
-  const inventoryStats = useMemo(() => u.computeInventoryStats ? u.computeInventoryStats(inventory) : { totalItems: 0, totalValuation: 0, lowStockCount: 0, totalFabrics: 0 }, [inventory, u]);
+  const productionStats = useMemo(() => (u.computeProductionStats ? u.computeProductionStats(orders) : null) || { totalOrders: 0, inProdCount: 0, completedCount: 0, totalWages: 0, totalFabricUsed: 0 }, [orders, u]);
+  const inventoryStats = useMemo(() => (u.computeInventoryStats ? u.computeInventoryStats(inventory) : null) || { totalItems: 0, totalValuation: 0, lowStockCount: 0, totalFabrics: 0 }, [inventory, u]);
 
   return {
     activeTab, setActiveTab, financialSubTab, setFinancialSubTab,

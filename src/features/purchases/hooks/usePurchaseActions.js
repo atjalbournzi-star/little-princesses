@@ -1,177 +1,174 @@
 const { useState, useCallback } = React;
 
-function usePurchaseActions({ headerData, setHeaderData, emptyHeader, billItems, setBillItems, emptyItem, setItemData, setEditingIndex, setSupplierSearch, fetchSuppliers, purchases, setPurchases, inventory, setInventory, accounts, setAccounts, vouchers, setVouchers, journal, setJournal, showToast, defaultCurrency, defaultPayType, todayStrIso, genBillNo, discountVal, grandTotal, rawItemsSum: propRawItemsSum }) {
-  const [isSaving, setIsSaving] = useState(false), [editSaving, setEditSaving] = useState(false);
+function usePurchaseActions({
+  headerData, setHeaderData, emptyHeader, billItems, setBillItems, emptyItem,
+  setItemData, setEditingIndex, setSupplierSearch, fetchSuppliers,
+  purchases, setPurchases, inventory, setInventory, accounts, setAccounts,
+  vouchers, setVouchers, journal, setJournal, showToast, defaultCurrency,
+  defaultPayType, todayStrIso, discountVal, grandTotal, rawItemsSum: propRawItemsSum,
+  setIsEditMode, setIsAddModalOpen
+}) {
+  const [isSaving, setIsSaving] = useState(false);
+  const [editSaving, setEditSaving] = useState(false);
 
-  // ── حفظ الفاتورة الجديدة مع التوريد والقيود المحاسبية ──
+  // إعادة تحميل كافة بيانات المشتريات والمخزون والحسابات والقيود من السيرفر
+  const refreshServerData = async () => {
+    try {
+      const [purRes, invRes, accRes, jvRes] = await Promise.all([
+        fetch('/api/purchases'), fetch('/api/inventory'), fetch('/api/accounts'), fetch('/api/accounting/journal')
+      ]);
+      const [pJson, iJson, aJson, jJson] = await Promise.all([
+        purRes.json().catch(() => ({})), invRes.json().catch(() => ({})),
+        accRes.json().catch(() => ({})), jvRes.json().catch(() => ({}))
+      ]);
+      if (pJson?.data && typeof setPurchases === 'function') setPurchases(pJson.data);
+      if (iJson?.data && typeof setInventory === 'function') setInventory(iJson.data);
+      if (aJson?.data && typeof setAccounts === 'function') setAccounts(aJson.data);
+      if (jJson?.data && typeof setJournal === 'function') setJournal(jJson.data);
+    } catch (err) { console.warn('Backend refresh warning:', err); }
+  };
+
+  const buildPayload = (hData, itemsList) => {
+    const targetWh = hData.warehouse_id || 'WH-MAIN';
+    const fCost = parseFloat(hData.freight_cost) || 0, tFees = parseFloat(hData.transfer_fees) || 0;
+    const discountAmount = parseFloat(hData.discount || 0) || 0;
+    const rawSum = (itemsList || []).reduce((sum, itm) => sum + (Number(itm.qty || itm.quantity || 0) * Number(itm.price || itm.cost || itm.unit_price || 0)), 0);
+    return {
+      id: hData.id || '', bill_no: (hData.bill_no || '').trim(), invoice_no: (hData.bill_no || '').trim(),
+      supplier_id: hData.supplier_id || '', supplier: hData.supplier, supplier_name: hData.supplier,
+      supplier_phone: hData.supplier_phone || '', discount: discountAmount, notes: hData.notes || '',
+      pay_type: hData.pay_type || defaultPayType, payment_method: hData.pay_type || defaultPayType,
+      payment_source: hData.payment_source || '', payment_account_code: hData.payment_source || '',
+      transfer_no: hData.transfer_no || '', transaction_ref: hData.transfer_no || '',
+      currency: hData.currency || defaultCurrency, exchange_rate: hData.exchange_rate || '',
+      date: hData.date || todayStrIso, invoice_date: hData.date || todayStrIso, warehouse_id: targetWh,
+      freight_cost: fCost, shipping_cost: fCost, transfer_fees: tFees, transfer_fee: tFees, original_amount: rawSum,
+      grand_total: Math.max(0, rawSum - discountAmount + fCost + tFees),
+      receipt_url: hData.receipt_url || '', receipt_attachment: hData.receipt_url || '',
+      invoice_image_url: hData.invoice_image_url || '', invoice_attachment: hData.invoice_image_url || '',
+      items: (itemsList || []).map(itm => ({
+        item_name: itm.item || itm.item_name || '', unit: itm.unit || 'متر',
+        qty: parseFloat(itm.qty || itm.quantity) || 0, price: parseFloat(itm.price || itm.cost || itm.unit_price) || 0,
+        cost: parseFloat(itm.price || itm.cost || itm.unit_price) || 0,
+        total: parseFloat(itm.total || itm.total_price) || ((parseFloat(itm.qty || 0)) * (parseFloat(itm.price || 0))),
+        warehouse_id: targetWh
+      }))
+    };
+  };
+
+  // ── فتح نافذة إضافة فاتورة جديدة ──
+  const handleOpenAdd = useCallback(() => {
+    setHeaderData(emptyHeader());
+    setSupplierSearch(''); setBillItems([]); setItemData(emptyItem()); setEditingIndex(null);
+    if (typeof setIsEditMode === 'function') setIsEditMode(false);
+    if (typeof setIsAddModalOpen === 'function') setIsAddModalOpen(true);
+  }, [emptyHeader, emptyItem, setHeaderData, setSupplierSearch, setBillItems, setItemData, setEditingIndex, setIsEditMode, setIsAddModalOpen]);
+
+  // ── فتح نافذة تعديل فاتورة مع جلب بنودها التفصيلية من السيرفر ──
+  const handleOpenEdit = useCallback(async (p) => {
+    let pur = p;
+    try {
+      const res = await fetch(`/api/purchases/${encodeURIComponent(p.id || p.bill_no)}`);
+      const json = await res.json();
+      if (json?.success && json.data) pur = json.data;
+    } catch (e) { console.warn("Direct fetch warning:", e); }
+    const whs = Array.isArray(window.inventoryUtils?.WAREHOUSES) ? window.inventoryUtils.WAREHOUSES : [];
+    const whId = pur.warehouse_id || whs[0]?.id || whs[0]?.code || 'WH-MAIN';
+    setHeaderData({
+      id: pur.id, bill_no: pur.invoice_no || pur.bill_no || pur.id || '',
+      supplier_id: pur.supplier_id || '', supplier: pur.supplier_name || pur.supplier || '',
+      supplier_phone: pur.supplier_phone || pur.phone || '', warehouse_id: whId,
+      discount: pur.discount !== undefined && pur.discount !== null ? String(pur.discount) : '',
+      notes: pur.notes || '', currency: pur.currency || defaultCurrency,
+      exchange_rate: pur.exchange_rate ? String(pur.exchange_rate) : '',
+      pay_type: pur.payment_method || pur.pay_type || defaultPayType,
+      transfer_no: pur.transaction_ref || pur.transfer_no || '',
+      payment_source: pur.payment_account_code || pur.payment_source || '',
+      receipt_url: pur.receipt_attachment || pur.receipt_url || '',
+      invoice_image_url: pur.invoice_attachment || pur.invoice_image_url || '',
+      date: pur.invoice_date || pur.date || todayStrIso,
+      freight_cost: pur.shipping_cost !== undefined ? String(pur.shipping_cost) : (pur.freight_cost ? String(pur.freight_cost) : ''),
+      transfer_fees: pur.transfer_fee !== undefined ? String(pur.transfer_fee) : (pur.transfer_fees ? String(pur.transfer_fees) : '')
+    });
+    setSupplierSearch(pur.supplier_name || pur.supplier || '');
+    const items = (pur.items && pur.items.length > 0)
+      ? pur.items.map(it => ({
+          item: it.item_name || it.item || '', unit: it.unit || 'متر',
+          qty: String(it.qty || it.quantity || 1), price: String(it.cost || it.unit_price || it.price || 0),
+          total: String(it.total || it.total_price || 0)
+        }))
+      : [{ item: pur.item_name || pur.item || '', unit: pur.unit || 'متر', qty: String(pur.qty || 1), price: String(pur.unit_price || 0), total: String(pur.original_amount || 0) }];
+    setBillItems(items); setItemData(emptyItem()); setEditingIndex(null);
+    if (typeof setIsEditMode === 'function') setIsEditMode(true);
+    if (typeof setIsAddModalOpen === 'function') setIsAddModalOpen(true);
+  }, [defaultCurrency, defaultPayType, todayStrIso, emptyItem, setHeaderData, setSupplierSearch, setBillItems, setItemData, setEditingIndex, setIsEditMode, setIsAddModalOpen]);
+
+  // ── حفظ الفاتورة الجديدة ──
   const handleSaveFullBill = async (onSuccess) => {
     if (isSaving) return;
-    if (!headerData.supplier.trim()) return showToast('اسم المورد مطلوب ⚠️', 'error');
+    if (!headerData.supplier || !headerData.supplier.trim()) return showToast('اسم المورد مطلوب ⚠️', 'error');
     if (!headerData.warehouse_id) return showToast('يرجى تحديد المستودع المستلم ⚠️', 'error');
-    if (billItems.length === 0) return showToast('الفاتورة فارغة! أضف صنفاً ⚠️', 'error');
+    if (!billItems || billItems.length === 0) return showToast('الفاتورة فارغة! أضف صنفاً واحداً على الأقل ⚠️', 'error');
+
     setIsSaving(true);
-    const billNo = (headerData.bill_no || '').trim() || genBillNo();
-    const purCurrCode = window.CurrencyService ? window.CurrencyService.normalizeCode(headerData.currency || defaultCurrency) : 'YER';
-    const purRate = purCurrCode === 'YER' ? 1.0 : (parseFloat(headerData.exchange_rate) || (window.CurrencyService ? window.CurrencyService.getRate(purCurrCode) : 1.0));
-
     try {
-      const targetWh = headerData.warehouse_id || (window.inventoryUtils?.WAREHOUSES?.[0]?.id || '');
-      const fCost = parseFloat(headerData.freight_cost) || 0, tFees = parseFloat(headerData.transfer_fees) || 0, shippingFees = fCost + tFees;
-      const discountAmount = parseFloat(discountVal !== undefined ? discountVal : (headerData.discount || 0)) || 0;
-      const rawItemsSum = (typeof propRawItemsSum === 'number' && propRawItemsSum > 0) ? propRawItemsSum : (billItems || []).reduce((sum, item) => {
-        const qty = Number(item.quantity || item.qty || 0);
-        const price = Number(item.unit_price || item.price || item.cost || 0);
-        return sum + (qty * price);
-      }, 0);
-      const netTotal = Math.max(0, rawItemsSum - discountAmount + shippingFees);
-      const invoiceGrandTotal = (typeof grandTotal === 'number' && grandTotal > 0) ? grandTotal : netTotal;
-
-      const payload = {
-        bill_no: billNo, supplier_id: headerData.supplier_id || '', supplier: headerData.supplier,
-        supplier_phone: headerData.supplier_phone || '', created_by: 'admin', discount: discountAmount,
-        notes: headerData.notes || '', pay_type: headerData.pay_type || defaultPayType,
-        payment_source: headerData.payment_source || '', transfer_no: headerData.transfer_no || '',
-        currency: headerData.currency || defaultCurrency, date: headerData.date || todayStrIso,
-        warehouse_id: targetWh, branch_id: targetWh, location: targetWh, freight_cost: fCost,
-        shipping_cost: fCost, transfer_fees: tFees, transfer_fee: tFees, original_amount: rawItemsSum,
-        grand_total: invoiceGrandTotal, net_amount: invoiceGrandTotal, receipt_url: headerData.receipt_url || '',
-        invoice_image_url: headerData.invoice_image_url || '',
-        items: billItems.map(itm => ({ item_name: itm.item, unit: itm.unit || 'متر', qty: parseFloat(itm.qty) || 0, cost: parseFloat(itm.price) || 0, warehouse_id: targetWh }))
-      };
-
+      const payload = buildPayload(headerData, billItems);
       const res = await fetch("/api/purchases", {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload)
       });
       const resData = await res.json().catch(() => ({}));
-      if (!res.ok || resData.success === false) throw new Error(resData.error || 'تعذر حفظ الفاتورة في السيرفر');
+      if (!res.ok || resData.success === false) throw new Error(resData.message || resData.error || `خطأ (${res.status})`);
 
-      if (setPurchases) {
-        const savedPur = resData.data || {};
-        const newPur = {
-          id: savedPur.id || `PUR-${Date.now()}`, bill_no: billNo, purchase_no: billNo,
-          supplier_id: headerData.supplier_id || '', supplier: headerData.supplier, supplier_name: headerData.supplier,
-          supplier_phone: headerData.supplier_phone || '', discount: discountAmount, notes: headerData.notes || '',
-          warehouse_id: targetWh, item_name: billItems.map(i => i.item).join(' + '), unit: billItems[0].unit || 'متر',
-          qty: billItems.reduce((acc, c) => acc + (parseFloat(c.qty) || 0), 0),
-          price: billItems.length === 1 ? (parseFloat(billItems[0].price) || 0) : Math.round((invoiceGrandTotal / (billItems.reduce((acc, c) => acc + (parseFloat(c.qty) || 0), 0) || 1)) * 100) / 100,
-          total: invoiceGrandTotal, grand_total_yer: invoiceGrandTotal * purRate, currency: headerData.currency || defaultCurrency,
-          pay_type: headerData.pay_type || defaultPayType, payment_source: headerData.payment_source || '',
-          date: headerData.date || todayStrIso, transfer_no: headerData.transfer_no || '',
-          freight_cost: fCost, transfer_fees: tFees,
-          receipt_url: headerData.receipt_url || '', invoice_image_url: headerData.invoice_image_url || '',
-          payment_status: headerData.pay_type !== 'آجل' ? 'مدفوع' : 'غير مدفوع', status: 'تم الاستلام',
-          items: billItems.map((itm, idx) => ({ id: `PITM-${Date.now()}-${idx}`, item_name: itm.item, unit: itm.unit || 'متر', qty: parseFloat(itm.qty) || 0, cost: parseFloat(itm.price) || 0, total: (parseFloat(itm.qty) || 0) * (parseFloat(itm.price) || 0), warehouse_id: targetWh }))
-        };
-        setPurchases(prev => [newPur, ...(prev || []).filter(p => (p.bill_no || p.invoice_no) !== billNo)]);
-      }
-
-      if (setInventory) {
-        setInventory(prev => {
-          let updated = [...(prev || [])];
-          for (const itm of billItems) {
-            const idx = updated.findIndex(i => (i.item_name || i.name) === itm.item);
-            const q = parseFloat(itm.qty) || 0, p = parseFloat(itm.price) || 0, pYer = p * purRate;
-            if (idx !== -1) {
-              const curQ = parseFloat(updated[idx].quantity || updated[idx].quantity_meters || 0);
-              const curC = parseFloat(updated[idx].unit_cost || updated[idx].cost_per_meter || 0);
-              const newQ = curQ + q, newC = newQ > 0 ? (((curQ * curC) + (q * pYer)) / newQ) : pYer, weightedCost = parseFloat(newC.toFixed(2));
-              updated[idx] = { ...updated[idx], quantity: newQ, quantity_meters: newQ, available_qty: (parseFloat(updated[idx].available_qty || curQ) + q), unit_cost: weightedCost, cost_per_meter: weightedCost, total_value: parseFloat((newQ * weightedCost).toFixed(2)), currency: 'YER', location: targetWh, updated_at: todayStrIso };
-            } else {
-              updated.unshift({ id: `MAT-${Date.now()}`, item_name: itm.item, name: itm.item, item_code: `MAT-${Math.floor(100 + Math.random() * 900)}`, category: 'أقمشة وخامات', type: 'خامة', quantity: q, quantity_meters: q, available_qty: q, unit_cost: pYer, cost_per_meter: pYer, total_value: parseFloat((q * pYer).toFixed(2)), unit: itm.unit || 'متر', currency: 'YER', supplier_id: headerData.supplier, location: targetWh, status: 'Available', created_at: todayStrIso });
-            }
-          }
-          return updated;
-        });
-      }
-
-      const purBaseObj = window.CurrencyService ? window.CurrencyService.toBase(invoiceGrandTotal, purCurrCode, purRate) : { base_amount: invoiceGrandTotal, exchange_rate: purRate };
-      if (setVouchers && headerData.pay_type !== 'آجل') {
-        setVouchers(prev => [{ id: `VOUCH-${Date.now()}`, voucher_no: `PV-${billNo}`, voucher_type: 'سند صرف', party_name: headerData.supplier, supplier_id: headerData.supplier, amount: invoiceGrandTotal, currency: purCurrCode, exchange_rate: purRate, base_amount: purBaseObj.base_amount, pay_method: headerData.pay_type || defaultPayType, payment_source: headerData.payment_source || '1111 - الصندوق الرئيسي', transfer_no: headerData.transfer_no || '', image_path: headerData.receipt_url || '', receipt_url: headerData.receipt_url || '', date_created: headerData.date || todayStrIso, date: headerData.date || todayStrIso, statement: `سند صرف مشتريات للفاتورة ${billNo} - المورد: ${headerData.supplier}`, notes: `سند صرف مشتريات للفاتورة ${billNo}` }, ...(prev || [])]);
-      }
-
-      if (setJournal) {
-        setJournal(prev => [{ id: Date.now() + 2, transaction_id: `TX-PUR-${billNo}`, entry_no: `JV-PUR-${billNo}`, debit: 'ACC-105', credit: headerData.pay_type !== 'آجل' ? (headerData.payment_source ? headerData.payment_source.split(' - ')[0] : 'ACC-101-1') : 'ACC-201', amount: invoiceGrandTotal, currency: purCurrCode, exchange_rate: purRate, base_amount: purBaseObj.base_amount, ref_type: 'PURCHASE', ref_id: billNo, date: headerData.date || todayStrIso, notes: `قيد مشتريات الفاتورة ${billNo} - المورد: ${headerData.supplier}` }, ...(prev || [])]);
-      }
-
-      if (setAccounts) {
-        setAccounts(prev => (prev || []).map(acc => {
-          const code = String(acc.acc_code || acc.code || acc.account_code || '');
-          const paySourceCode = headerData.payment_source ? headerData.payment_source.split(' - ')[0] : '101';
-          if (headerData.pay_type !== 'آجل' && code === paySourceCode) {
-            const curBal = parseFloat(acc.balance || acc.current_balance || 0);
-            return { ...acc, balance: curBal - invoiceGrandTotal, current_balance: curBal - invoiceGrandTotal };
-          }
-          if (headerData.pay_type === 'آجل' && (code === '201' || code === '2101' || code === 'ACC-201')) {
-            const curBal = parseFloat(acc.balance || acc.current_balance || 0);
-            return { ...acc, balance: curBal + invoiceGrandTotal, current_balance: curBal + invoiceGrandTotal };
-          }
-          return acc;
-        }));
-      }
-
-      try {
-        const [flRes, fiRes] = await Promise.all([fetch('/api/purchases'), fetch('/api/inventory')]);
-        const [flData, fiData] = await Promise.all([flRes.json(), fiRes.json()]);
-        if (flData && Array.isArray(flData.data) && typeof setPurchases === 'function') setPurchases(flData.data);
-        if (fiData && Array.isArray(fiData.data) && typeof setInventory === 'function') setInventory(fiData.data);
-      } catch (e) { console.warn('Refresh error:', e); }
-
-      showToast(`✅ تم حفظ الفاتورة ${billNo} وتوريد الأصناف للمخزون وترحيل القيود وسندات الصرف بنجاح 📦✨`);
-      setHeaderData(emptyHeader());
-      setSupplierSearch('');
-      setBillItems([]); setItemData(emptyItem()); setEditingIndex(null);
-      fetchSuppliers();
+      await refreshServerData();
+      showToast(resData.message || `✅ تم حفظ الفاتورة وتوريد الأصناف للمخزون وترحيل القيود بنجاح`);
+      setHeaderData(emptyHeader()); setSupplierSearch(''); setBillItems([]); setItemData(emptyItem()); setEditingIndex(null);
+      if (typeof fetchSuppliers === 'function') fetchSuppliers();
       if (typeof onSuccess === 'function') onSuccess();
     } catch(err) {
-      console.error(err);
-      showToast('خطأ أثناء الحفظ ⚠️ ' + (err.message || 'يرجى المحاولة مرة أخرى'), 'error');
+      console.error("Purchase save error:", err);
+      showToast(`خطأ أثناء الحفظ ⚠️ ${err.message || 'يرجى المحاولة مرة أخرى'}`, 'error');
     } finally {
       setIsSaving(false);
     }
   };
 
-  // ── تعديل سجل مشتريات موجود ──
-  const handleSaveEditRecord = async (editRecord, setEditRecord) => {
-    if (!editRecord) return;
-    if (!editRecord.item || !String(editRecord.item).trim()) return showToast('اسم الصنف مطلوب ⚠️', 'error');
-    const qty = parseFloat(editRecord.qty) || 0;
-    if (qty <= 0) return showToast('الكمية مطلوبة ⚠️', 'error');
-    let price = parseFloat(editRecord.price) || 0, total = parseFloat(editRecord.total) || 0;
-    if (total > 0 && price <= 0) price = total / qty;
-    else if (price > 0 && total <= 0) total = qty * price;
+  // ── حفظ تعديلات فاتورة المشتريات بالربط الذري وقاعدة البيانات ──
+  const handleSaveEditPurchase = async (customHeader, customItems, onSuccess) => {
+    if (editSaving) return;
+    const h = customHeader || headerData, items = customItems || billItems;
+    if (!h.supplier || !String(h.supplier).trim()) return showToast('اسم المورد مطلوب ⚠️', 'error');
+    if (!items || items.length === 0) return showToast('الفاتورة فارغة! أضف صنفاً واحداً على الأقل ⚠️', 'error');
+
     setEditSaving(true);
     try {
-      const payload = {
-        id: String(editRecord.id), bill_no: editRecord.bill_no, supplier_id: editRecord.supplier_id || '',
-        supplier: editRecord.supplier, supplier_name: editRecord.supplier, supplier_phone: editRecord.supplier_phone || '',
-        discount: parseFloat(editRecord.discount) || 0, notes: editRecord.notes || '', item: String(editRecord.item).trim(),
-        item_name: String(editRecord.item).trim(), unit: editRecord.unit || 'متر', qty, price: parseFloat(price.toFixed(2)),
-        total: parseFloat(total.toFixed(2)), currency: editRecord.currency, pay_type: editRecord.pay_type,
-        transfer_no: editRecord.transfer_no || '', payment_source: editRecord.payment_source || '',
-        warehouse_id: editRecord.warehouse_id || '', location: editRecord.warehouse_id || '',
-        date: editRecord.date, receipt_url: editRecord.receipt_url || '', invoice_image_url: editRecord.invoice_image_url || ''
-      };
-
+      const payload = buildPayload(h, items);
       const res = await fetch('/api/purchases/update', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
       });
       const resData = await res.json().catch(() => ({}));
-      if (!res.ok || resData.success === false) throw new Error(resData.error || 'تعذر تحديث الفاتورة');
+      if (!res.ok || resData.success === false) throw new Error(resData.message || resData.error || `خطأ في استجابة الخادم (${res.status})`);
 
-      if (setPurchases) setPurchases(prev => prev.map(r => String(r.id) === String(editRecord.id) ? { ...r, ...payload } : r));
-      if (typeof callGAS === 'function') callGAS('updatePurchase', payload).catch(e => console.warn('GAS warning:', e));
-
-      showToast('✅ تم تحديث الفاتورة بنجاح في النظام وقاعدة البيانات السحابية');
-      setEditRecord(null);
+      await refreshServerData();
+      showToast(resData.message || '✅ تم حفظ التعديلات في النظام وتحديث المخزون والقيود بنجاح');
+      if (typeof onSuccess === 'function') onSuccess();
     } catch(err) {
-      console.error(err);
-      showToast('خطأ أثناء التحديث ⚠️ ' + (err.message || ''), 'error');
+      console.error("Purchase update error:", err);
+      showToast(`خطأ أثناء حفظ التعديلات ⚠️ ${err.message || 'يرجى المحاولة مرة أخرى'}`, 'error');
     } finally {
       setEditSaving(false);
     }
   };
 
-  // ── حذف وإلغاء فاتورة وعكس أثرها المالي والمخزني ──
+  // ── تعديل سجل منفرد (دعم التوافقية السابقة) ──
+  const handleSaveEditRecord = async (editRecord, setEditRecord) => {
+    if (!editRecord) return;
+    const items = (editRecord.items && editRecord.items.length > 0)
+      ? editRecord.items
+      : [{ item: editRecord.item || editRecord.item_name, unit: editRecord.unit || 'متر', qty: editRecord.qty, price: editRecord.price, total: editRecord.total }];
+    await handleSaveEditPurchase(editRecord, items, () => { if (typeof setEditRecord === 'function') setEditRecord(null); });
+  };
+
+  // ── إلغاء فاتورة وعكس أثرها المالي والمخزني ──
   const handleDeleteRecord = async (p) => {
     const billIdentifier = p.bill_no || p.invoice_no || p.id;
     if (!window.confirm(`هل أنت متأكد من إلغاء وحذف الفاتورة ${billIdentifier}؟ سيتم عكس القيود وإرجاع المخزون نظامياً.`)) return;
@@ -181,30 +178,16 @@ function usePurchaseActions({ headerData, setHeaderData, emptyHeader, billItems,
         body: JSON.stringify({ id: p.id, bill_no: p.bill_no, invoice_no: p.invoice_no, purchase_no: p.purchase_no })
       });
       const resData = await res.json().catch(() => ({}));
-      if (!res.ok || resData.success === false) {
-        if (resData.error && resData.error.includes('غير موجودة')) {
-          if (setPurchases) setPurchases(prev => (prev || []).filter(r => String(r.id) !== String(p.id) && (p.bill_no ? String(r.bill_no) !== String(p.bill_no) : true)));
-          showToast(`تمت إزالة السجل ${billIdentifier} من الشاشة`, 'info');
-          return;
-        }
-        throw new Error(resData.error || 'تعذر إلغاء الفاتورة في السيرفر');
-      }
-      if (setPurchases) setPurchases(prev => (prev || []).filter(r => String(r.id) !== String(p.id) && String(r.bill_no) !== String(p.bill_no)));
-      try {
-        const [flRes, fiRes] = await Promise.all([fetch('/api/purchases'), fetch('/api/inventory')]);
-        const [flData, fiData] = await Promise.all([flRes.json(), fiRes.json()]);
-        if (flData?.data && typeof setPurchases === 'function') setPurchases(flData.data);
-        if (fiData?.data && typeof setInventory === 'function') setInventory(fiData.data);
-      } catch (syncErr) { console.warn('Sync warning:', syncErr); }
-      if (typeof callGAS === 'function') callGAS('deletePurchase', { id: String(p.id), bill_no: p.bill_no }).catch(e => console.warn('GAS warning:', e));
-      showToast(`🗑️ ${resData.message || `تم إلغاء الفاتورة ${billIdentifier} وعكس أثرها المالي والمخزني بنجاح`}`);
+      if (!res.ok || resData.success === false) throw new Error(resData.error || 'تعذر إلغاء الفاتورة');
+      await refreshServerData();
+      showToast(`🗑️ ${resData.message || `تم إلغاء الفاتورة ${billIdentifier} وعكس أثرها بنجاح`}`);
     } catch(err) {
       console.error(err);
       showToast('خطأ أثناء إلغاء الفاتورة ⚠️ ' + (err.message || ''), 'error');
     }
   };
 
-  return { isSaving, editSaving, handleSaveFullBill, handleSaveEditRecord, handleDeleteRecord };
+  return { isSaving, editSaving, handleOpenAdd, handleOpenEdit, handleSaveFullBill, handleSaveEditPurchase, handleSaveEditRecord, handleDeleteRecord, refreshServerData };
 }
 
 window.usePurchaseActions = usePurchaseActions;

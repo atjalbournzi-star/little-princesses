@@ -4,7 +4,7 @@
 
 
 function useProductsData({ products = [], currency }) {
-  const { useState, useMemo } = React;
+  const { useState, useMemo, useEffect } = React;
   const currencyDisplay = currency?.display || "YER ﷼";
 
   const [search, setSearch] = useState("");
@@ -13,25 +13,36 @@ function useProductsData({ products = [], currency }) {
   const [statusFilter, setStatusFilter] = useState("الكل");
   const [sortBy, setSortBy] = useState("latest"); // 'latest' | 'name' | 'price_asc' | 'price_desc' | 'profit_desc'
   const [viewMode, setViewMode] = useState("table"); // 'table' | 'grid'
+  const [dbCategories, setDbCategories] = useState([]);
 
-  // استخراج التصنيفات المتاحة من الثوابت والمنتجات
+  useEffect(() => {
+    fetch('/api/products/categories').then(r => r.json()).then(res => {
+      const list = Array.isArray(res?.data) ? res.data : (Array.isArray(res?.categories) ? res.categories : []);
+      if (list.length > 0) setDbCategories(list);
+    }).catch(() => {});
+  }, []);
+
+  // استخراج التصنيفات المتاحة حصرياً من قاعدة البيانات والمنتجات دون قيم افتراضية
   const availableCategories = useMemo(() => {
-    const defaultCats = typeof PRODUCT_CATEGORIES !== 'undefined' ? PRODUCT_CATEGORIES : [
-      'فساتين وبدلات خاصة', 'فساتين أميرات سهرة', 'أطقم مواليد وسبوع', 'تفصيل راقي حسب الطلب'
-    ];
-    const set = new Set(defaultCats);
+    const set = new Set(dbCategories);
     (products || []).forEach(p => {
-      if (p.category) set.add(p.category);
+      const cat = p?.category || p?.classification;
+      if (cat && typeof cat === 'string') {
+        const clean = cat.trim();
+        if (clean && !clean.includes('???')) set.add(clean);
+      }
     });
-    return Array.from(set);
-  }, [products]);
+    return Array.from(set).sort();
+  }, [products, dbCategories]);
 
-  // استخراج التشكيلات والمجموعات المتاحة
+  // استخراج التشكيلات والمجموعات المتاحة حصرياً من قاعدة البيانات والمنتجات
   const availableCollections = useMemo(() => {
-    const set = new Set(["تشكيلة العيد 2026", "تشكيلة الصيف", "تشكيلة الأميرات الفاخرة", "فساتين سهرة وأعراس"]);
+    const set = new Set();
     (products || []).forEach(p => {
-      if (p.collection && String(p.collection).trim()) {
-        set.add(String(p.collection).trim());
+      const coll = p?.collection;
+      if (coll && typeof coll === 'string') {
+        const clean = coll.trim();
+        if (clean && !clean.includes('???')) set.add(clean);
       }
     });
     return Array.from(set);

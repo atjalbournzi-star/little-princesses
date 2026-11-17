@@ -192,7 +192,7 @@ function useCustomerActions({
       child_name: latestMeas?.child_name || (c.children?.[0]?.child_name || 'الأميرة'),
       product: prodName, product_name: prodName, measurements: latestMeas, quantity: 1,
       total_amount: totS, paid_amount: 0, remaining_amount: totS, currency: currency?.display || 'YER',
-      notes: isRepeat ? `أمر تفصيل مكرر (${cOrders.length + 1}) - العميلة: ${c.name}` : `أمر تفصيل للعميلة: ${c.name}`
+      notes: isRepeat ? `أمر تفصيل مكرر (${cOrders.length + 1}) - العميل: ${c.name}` : `أمر تفصيل للعميل: ${c.name}`
     });
     showToast && showToast(`✨ تم إعداد أمر تشغيل جديد (${newOrdNo}) ونقله للمعمل ✂️🧵`, 'success');
   }, [onSendToFactory, orders, currency, showToast]);

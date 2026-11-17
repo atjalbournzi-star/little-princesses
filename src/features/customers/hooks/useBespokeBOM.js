@@ -79,11 +79,17 @@
       resolvedPrice = parseFloat(selectedProduct.sell_price || selectedProduct.price || selectedProduct.base_price || 0);
     }
 
-    const bomSummary = items.map(i => `${i.name}: ${Number(i.qty).toFixed(2)} ${i.unit}`).join(' | ');
+    const totalStandardMeters = items.reduce((acc, it) => {
+      const q = parseFloat(it.qty) || 0, u = it.unit || 'متر', uom = window.UnitConversionService;
+      return acc + (uom?.toMeters ? uom.toMeters(q, u) : (u.includes('وار') ? q * 0.9144 : (u.includes('سم') ? q * 0.01 : (u.includes('إنش') || u.includes('انش') ? q * 0.0254 : q))));
+    }, 0);
+    const standardTotalStr = totalStandardMeters.toFixed(2);
+    const bomSummary = `${items.map(i => `${i.name}: ${Number(i.qty).toFixed(2)} ${i.unit}`).join(' | ')}${items.length > 0 ? ` [إجمالي موحد: ${standardTotalStr} متر]` : ''}`;
 
     return {
       ageTier,
       calculatedBomItems: items,
+      totalStandardMeters: parseFloat(standardTotalStr),
       calculatedPrice: Math.round(resolvedPrice),
       jumboFactor: 1,
       bomSummary

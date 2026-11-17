@@ -35,6 +35,8 @@ DB_TIMEOUT = int(os.getenv("DB_POOL_TIMEOUT", "30"))
 
 _db_pool = None
 _pool_lock = threading.Lock()
+_last_fail_time = 0
+_last_fail_err = None
 
 
 def get_active_database_url(mode=None):
@@ -54,28 +56,32 @@ def get_active_database_url(mode=None):
 
 
 def init_pool(minconn=None, maxconn=None, mode=None):
-    global _db_pool
+    global _db_pool, _last_fail_time, _last_fail_err
     import time
     with _pool_lock:
         if _db_pool is not None and not _db_pool.closed:
             return _db_pool
+        if time.time() - _last_fail_time < 3 and _last_fail_err:
+            raise _last_fail_err
         min_c = minconn or DB_POOL_MIN
         max_c = maxconn or DB_POOL_MAX
         db_url, active_mode = get_active_database_url(mode)
         if not db_url or not db_url.strip():
             raise ValueError(f"DATABASE_URL not configured for mode ({active_mode})")
         logger.info(f"🔄 Initializing PostgreSQL connection pool ({active_mode})...")
-        last_err = None
-        for attempt in range(3):
+        for attempt in range(2):
             try:
-                _db_pool = pool.ThreadedConnectionPool(minconn=min_c, maxconn=max_c, dsn=db_url, connect_timeout=DB_TIMEOUT)
+                _db_pool = pool.ThreadedConnectionPool(minconn=min_c, maxconn=max_c, dsn=db_url, connect_timeout=min(DB_TIMEOUT, 15))
                 logger.info("✅ PostgreSQL connection pool created successfully.")
+                _last_fail_err = None
                 return _db_pool
             except Exception as e:
-                last_err = e
-                if attempt < 2:
+                if attempt == 0:
                     time.sleep(1)
-        raise last_err
+                    continue
+                _last_fail_time = time.time()
+                _last_fail_err = e
+                raise e
 
 
 def get_pool(mode=None):
@@ -98,9 +104,14 @@ def close_pool():
 def get_db_connection(mode=None):
     p = get_pool(mode=mode)
     conn = None
+    is_bad = False
     try:
-        conn = p.getconn()
-        is_bad = False
+        try:
+            conn = p.getconn()
+        except Exception:
+            close_pool()
+            p = get_pool(mode=mode)
+            conn = p.getconn()
         try:
             if conn.closed != 0:
                 is_bad = True
@@ -112,7 +123,12 @@ def get_db_connection(mode=None):
         if is_bad:
             try: p.putconn(conn, close=True)
             except Exception: pass
-            conn = p.getconn()
+            try:
+                conn = p.getconn()
+            except Exception:
+                close_pool()
+                p = get_pool(mode=mode)
+                conn = p.getconn()
             is_bad = False
         yield conn
     except Exception as e:

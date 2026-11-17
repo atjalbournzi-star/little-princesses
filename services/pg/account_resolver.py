@@ -38,23 +38,111 @@ def resolve_exchange_rate(cur, currency_code, provided_rate=1.0):
     return 1.0
 
 
-def resolve_cash_account_by_currency(currency_code, default_id="ACC-101-1"):
-    curr = clean_str(currency_code or 'YER').upper()
-    if 'SAR' in curr: return 'ACC-101-2'
-    if 'USD' in curr: return 'ACC-101-3'
-    return 'ACC-101-1'
+def resolve_cash_account_by_currency(cur, currency_code=None, default_id=None):
+    curr = normalize_currency_code(currency_code)
+    if cur:
+        try:
+            cur.execute("SELECT id FROM chart_of_accounts WHERE is_postable = TRUE AND is_active = TRUE AND (account_category ILIKE %s OR account_code LIKE %s OR account_name ILIKE %s) AND currency = %s ORDER BY level DESC, account_code ASC LIMIT 1;", ('%Cash%', '101%', '%صندوق%', curr))
+            row = cur.fetchone()
+            if row: return row['id']
+            cur.execute("SELECT id FROM chart_of_accounts WHERE is_postable = TRUE AND is_active = TRUE AND (account_category ILIKE %s OR account_code LIKE %s OR account_name ILIKE %s) ORDER BY level DESC, account_code ASC LIMIT 1;", ('%Cash%', '101%', '%صندوق%'))
+            row = cur.fetchone()
+            if row: return row['id']
+        except Exception: pass
+    return default_id
 
 
-def resolve_account_id(cur, acc_input, default_id="ACC-101-1", currency=None):
+def resolve_bank_account_by_currency(cur, currency_code=None, default_id=None):
+    curr = normalize_currency_code(currency_code)
+    if cur:
+        try:
+            cur.execute("SELECT id FROM chart_of_accounts WHERE is_postable = TRUE AND is_active = TRUE AND (account_category ILIKE %s OR account_code LIKE %s OR account_name ILIKE %s OR account_name ILIKE %s) AND currency = %s ORDER BY level DESC, account_code ASC LIMIT 1;", ('%Banks%', '102%', '%بنك%', '%كريمي%', curr))
+            row = cur.fetchone()
+            if row: return row['id']
+            cur.execute("SELECT id FROM chart_of_accounts WHERE is_postable = TRUE AND is_active = TRUE AND (account_category ILIKE %s OR account_code LIKE %s OR account_name ILIKE %s) ORDER BY level DESC, account_code ASC LIMIT 1;", ('%Banks%', '102%', '%بنك%'))
+            row = cur.fetchone()
+            if row: return row['id']
+        except Exception: pass
+    return default_id
+
+
+def resolve_receiving_account(cur, payment_method, currency_code):
+    p_meth = clean_str(payment_method).lower()
+    if any(w in p_meth for w in ['بنك', 'bank', 'حوالة', 'transfer', 'كريمي', 'kuraimi', 'محفظ', 'شبك', 'إلكتروني', 'الكتروني']):
+        b_acc = resolve_bank_account_by_currency(cur, currency_code)
+        if b_acc: return b_acc
+    return resolve_cash_account_by_currency(cur, currency_code)
+
+
+def resolve_customer_advance_account(cur, default_id=None):
+    if cur:
+        try:
+            cur.execute("SELECT id FROM chart_of_accounts WHERE is_postable = TRUE AND (account_category ILIKE 'Customer_Deposits' OR account_name ILIKE '%عربون%' OR account_name ILIKE '%أمانات%' OR account_name ILIKE '%دفعات مقدمة%') ORDER BY level DESC, account_code ASC LIMIT 1;")
+            row = cur.fetchone()
+            if row: return row['id']
+            cur.execute("SELECT id FROM chart_of_accounts WHERE is_postable = TRUE AND (account_category ILIKE 'Receivables' OR account_name ILIKE '%عملاء%') ORDER BY level DESC, account_code ASC LIMIT 1;")
+            row = cur.fetchone()
+            if row: return row['id']
+        except Exception: pass
+    return default_id
+
+
+def resolve_receivables_account(cur, default_id=None):
+    if cur:
+        try:
+            cur.execute("SELECT id FROM chart_of_accounts WHERE is_postable = TRUE AND (account_category ILIKE 'Receivables' OR account_name ILIKE '%عملاء%' OR account_name ILIKE '%مدينون%') ORDER BY level DESC, account_code ASC LIMIT 1;")
+            row = cur.fetchone()
+            if row: return row['id']
+        except Exception: pass
+    return default_id
+
+
+def resolve_payables_account(cur, default_id=None):
+    if cur:
+        try:
+            cur.execute("SELECT id FROM chart_of_accounts WHERE is_postable = TRUE AND (account_category ILIKE 'Payables' OR account_name ILIKE '%مورد%' OR account_name ILIKE '%دائنون%') ORDER BY level DESC, account_code ASC LIMIT 1;")
+            row = cur.fetchone()
+            if row: return row['id']
+        except Exception: pass
+    return default_id
+
+
+def resolve_inventory_account(cur, default_id=None):
+    if cur:
+        try:
+            cur.execute("SELECT id FROM chart_of_accounts WHERE is_postable = TRUE AND (account_category ILIKE 'Inventory' OR account_name ILIKE '%مخزون%' OR account_name ILIKE '%أقمشة%') ORDER BY level DESC, account_code ASC LIMIT 1;")
+            row = cur.fetchone()
+            if row: return row['id']
+        except Exception: pass
+    return default_id
+
+
+def resolve_labor_expense_account(cur, default_id=None):
+    if cur:
+        try:
+            cur.execute("SELECT id FROM chart_of_accounts WHERE is_postable = TRUE AND (account_category ILIKE 'Salaries' OR account_name ILIKE '%أجور%' OR account_name ILIKE '%رواتب%') ORDER BY level DESC, account_code ASC LIMIT 1;")
+            row = cur.fetchone()
+            if row: return row['id']
+        except Exception: pass
+    return default_id
+
+
+def resolve_labor_liability_account(cur, default_id=None):
+    if cur:
+        try:
+            cur.execute("SELECT id FROM chart_of_accounts WHERE is_postable = TRUE AND (account_name ILIKE '%مستحق%' OR account_name ILIKE '%أجور%') AND (account_type ILIKE 'Liability' OR account_type ILIKE 'خصوم') ORDER BY level DESC, account_code ASC LIMIT 1;")
+            row = cur.fetchone()
+            if row: return row['id']
+        except Exception: pass
+    return default_id
+
+
+def resolve_account_id(cur, acc_input, default_id=None, currency=None):
     if not acc_input:
-        return resolve_cash_account_by_currency(currency, default_id) if currency else default_id
+        return resolve_cash_account_by_currency(cur, currency, default_id) if (cur and currency) else default_id
     acc_str = str(acc_input).strip()
-
-    if acc_str in ('ACC-101', '101', 'ACC-101-1', '101.1') and currency:
-        curr = clean_str(currency).upper()
-        if 'SAR' in curr: return 'ACC-101-2'
-        if 'USD' in curr: return 'ACC-101-3'
-        return 'ACC-101-1'
+    if not cur:
+        return default_id or acc_str
 
     cur.execute("SELECT id FROM chart_of_accounts WHERE id = %s OR account_code = %s LIMIT 1;", (acc_str, acc_str))
     row = cur.fetchone()
@@ -79,27 +167,28 @@ def resolve_account_id(cur, acc_input, default_id="ACC-101-1", currency=None):
 
     clean_name = re.sub(r'^(ACC[-_]?)?[0-9]+(?:\.[0-9]+)?[\s\-_:/|]*', '', acc_str).strip()
     if clean_name:
-        cur.execute("SELECT id FROM chart_of_accounts WHERE account_name = %s OR account_name ILIKE %s LIMIT 1;", (clean_name, f"%{clean_name}%"))
+        cur.execute("SELECT id FROM chart_of_accounts WHERE account_name = %s OR account_name ILIKE %s ORDER BY level DESC LIMIT 1;", (clean_name, f"%{clean_name}%"))
         row = cur.fetchone()
         if row: return row['id']
 
     low = acc_str.lower()
-    if any(k in low for k in ['سعودي', 'sar', '101.2', '101-2']): return 'ACC-101-2'
-    if any(k in low for k in ['دولار', 'usd', '101.3', '101-3']): return 'ACC-101-3'
-    if any(k in low for k in ['يمني', 'yer', '101.1', '101-1']): return 'ACC-101-1'
-    if 'كريمي' in low or '102.02' in low or '102-2' in low or '103' in low: return 'ACC-102-2'
-    if any(k in low for k in ['رئيسي', '101', 'خزينة', '1111']): return 'ACC-101-1'
-    if any(k in low for k in ['5121', '501', 'رواتب', 'راتب', 'أجور']): return 'ACC-501'
-    if any(k in low for k in ['1141', '107', 'سلف', 'سلفة']): return 'ACC-107'
-    if any(k in low for k in ['5211', '502', 'ورشة', 'معمل', 'إيجار', 'ايجار']): return 'ACC-502'
-    if any(k in low for k in ['503', 'كهرباء', 'ماء', 'مياه']): return 'ACC-503'
-    if '504' in low or 'تشغيل' in low: return 'ACC-504'
-    if any(k in low for k in ['505', 'صيانة', 'نظافة', 'تسويق', 'ضيافة', 'عام', 'إداري', 'اداري']): return 'ACC-505'
-    if '506' in low or 'فروق' in low or 'صرف' in low: return 'ACC-506'
-    if '507' in low or 'شحن' in low or 'نقل' in low: return 'ACC-507'
-    if '508' in low or 'عمولة' in low or 'تحويل' in low: return 'ACC-508'
-    if '509' in low or 'تالف' in low or 'هالك' in low: return 'ACC-509'
-    if any(k in low for k in ['2111', '201', 'مورد', 'أقمشة']): return 'ACC-201'
-    if any(k in low for k in ['1121', '104', 'عميل', 'ذمم عملاء']): return 'ACC-104'
-    if any(k in low for k in ['3111', '301', 'رأس مال', 'راس مال']): return 'ACC-301'
+    keywords = []
+    if any(k in low for k in ['رواتب', 'راتب', 'أجور']): keywords.extend(['رواتب', 'أجور'])
+    elif any(k in low for k in ['إيجار', 'ايجار', 'ورشة']): keywords.extend(['إيجار', 'ايجار'])
+    elif any(k in low for k in ['كهرباء', 'ماء', 'مياه']): keywords.extend(['كهرباء', 'ماء'])
+    elif any(k in low for k in ['صيانة', 'نظافة', 'تسويق', 'إداري']): keywords.extend(['صيانة', 'تسويق'])
+    elif any(k in low for k in ['مورد', 'أقمشة']): keywords.extend(['مورد', 'أقمشة'])
+    elif any(k in low for k in ['عميل', 'ذمم']): keywords.extend(['عملاء', 'عميل'])
+    elif any(k in low for k in ['رأس مال', 'راس مال']): keywords.extend(['رأس مال'])
+
+    if keywords:
+        likes = " OR ".join(["account_name ILIKE %s" for _ in keywords])
+        cur.execute(f"SELECT id FROM chart_of_accounts WHERE is_postable = TRUE AND ({likes}) ORDER BY level DESC, account_code ASC LIMIT 1;", tuple(f"%{k}%" for k in keywords))
+        row = cur.fetchone()
+        if row: return row['id']
+
+    if currency:
+        cash_acc = resolve_cash_account_by_currency(cur, currency)
+        if cash_acc: return cash_acc
+
     return default_id

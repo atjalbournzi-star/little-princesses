@@ -30,7 +30,7 @@ function PrintModal({ order, customer, measurements, product, products, isOpen, 
       };
 
   const orderNo = order.order_no || `ORD-${order.id}`;
-  const custName = order.customer_name || customer?.name || 'عميلة راقية';
+  const custName = order.customer_name || customer?.name || 'عميل راقٍ';
   const prodName = order.product_name || order.item_name || 'فستان سهرة وتطريز فاخر';
   const qty = parseInt(order.qty || order.quantity || 1);
   const total = parseFloat(order.total_amount !== undefined ? order.total_amount : (order.total || 0));
@@ -149,10 +149,11 @@ function PrintModal({ order, customer, measurements, product, products, isOpen, 
     { id: 'dress_card', label: '👑 وثيقة فستان الأميرة (Dress Card)' }
   ];
 
-  return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-fadeIn" dir="rtl">
-      <div className="bg-white rounded-3xl w-full max-w-3xl shadow-2xl border border-[#E8E5EA] overflow-hidden flex flex-col my-auto max-h-[92vh]">
-        <div className="px-6 py-4 border-b border-[#E8E5EA] bg-[#FAFAFB] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+  const createPortal = (typeof ReactDOM !== 'undefined' && ReactDOM.createPortal) ? ReactDOM.createPortal : null;
+  const content = (
+    <div className="fixed inset-0 z-[9999] bg-black/65 backdrop-blur-[4px] flex items-center justify-center p-3 sm:p-4 animate-fadeIn" dir="rtl" onClick={onClose}>
+      <div className="bg-white rounded-3xl w-full max-w-4xl max-h-[90vh] shadow-2xl border border-[#E8E5EA] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="px-6 py-3.5 border-b border-[#E8E5EA] bg-[#FAFAFB] flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-[#FCE8F2] text-[#B0005A] border border-[#F2A4CB] flex items-center justify-center text-lg font-bold shadow-2xs">🖨️</div>
             <div>
@@ -168,7 +169,7 @@ function PrintModal({ order, customer, measurements, product, products, isOpen, 
           </div>
         </div>
 
-        <div className="px-6 py-3 border-b border-[#E8E5EA] bg-white flex items-center gap-2 overflow-x-auto">
+        <div className="px-6 py-2.5 border-b border-[#E8E5EA] bg-white flex items-center gap-2 overflow-x-auto shrink-0">
           {tabs.map(t => (
             <button key={t.id} type="button" onClick={() => setActiveTemplate(t.id)} className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer shrink-0 ${activeTemplate === t.id ? 'bg-[#8F2A87] text-white shadow-xs' : 'bg-[#FAFAFB] text-[#6F6B75] hover:bg-[#F2E7F3] border border-[#E8E5EA]'}`}>
               <span>{t.label}</span>
@@ -176,7 +177,7 @@ function PrintModal({ order, customer, measurements, product, products, isOpen, 
           ))}
         </div>
 
-        <div className="p-6 bg-[#F0EEF2] overflow-y-auto flex-1 flex justify-center items-start">
+        <div className="p-6 bg-[#F0EEF2] overflow-y-auto flex-1 flex justify-center items-start custom-scrollbar">
           <div ref={printAreaRef} className="bg-white shadow-xl rounded-2xl p-6 transition-all border border-[#CCC]" style={{ width: activeTemplate === 'thermal' ? '340px' : (activeTemplate === 'hangtag' ? '300px' : (activeTemplate === 'garment_bag' ? '410px' : '100%')), maxWidth: (activeTemplate === 'job_ticket' || activeTemplate === 'dress_card') ? '720px' : 'none' }}>
             {activeTemplate === 'thermal' && (
               <ThermalComp brandProfile={brandProfile} orderNo={orderNo} orderDate={orderDate} custName={custName} phone={phone} childName={childName} order={order} prodName={prodName} qty={qty} total={total} paid={paid} remaining={remaining} cur={cur} deliveryDate={deliveryDate} />
@@ -204,6 +205,8 @@ function PrintModal({ order, customer, measurements, product, products, isOpen, 
       </div>
     </div>
   );
+  if (typeof document !== 'undefined' && createPortal) return createPortal(content, document.body);
+  return content;
 }
 
 window.PrintModal = PrintModal;

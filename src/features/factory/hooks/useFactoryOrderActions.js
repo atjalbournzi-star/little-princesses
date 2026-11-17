@@ -23,7 +23,7 @@ function useFactoryOrderActions(props) {
     const autoCalc = utils.calculateMetersForModel ? utils.calculateMetersForModel(pName, ch, c.name, products, customers, fabricInventory) : { fabric: 'تفتة تركي', meters: 3 };
     const due = ord?.delivery_date || (utils.addDays ? utils.addDays(todayStrIso, 4) : ''), autoM = utils.autoDistributeMilestones ? utils.autoDistributeMilestones(todayStrIso, due) : {};
     setForm(p => ({
-      ...p, order_no: ord ? (ord.order_no || ord.id) : `ORD-${c.customer_id || c.id || '1001'}-${Date.now().toString().slice(-4)}`,
+      ...p, order_no: ord ? (ord.order_no || ord.id) : '',
       customer: c.name || c.customer_name, customer_name: c.name || c.customer_name, child_name: ch, product: pName, product_name: pName, product_id: ord?.product_id || '',
       quantity: ord?.qty || 1, tailor: p.tailor || (employees?.find(e => e.status === 'نشط')?.name || ''),
       stage: stages[0], progress: '0', start_date: todayStrIso, due_date: due, cutting_due_date: autoM.cutting, sewing_due_date: autoM.sewing,
@@ -56,7 +56,8 @@ function useFactoryOrderActions(props) {
     const baseDressTot = unitPrice > 0 ? (unitPrice * orderQty) : (ordTotNum - (isPrepaid ? delFee : 0)), finalTot = ordTotNum > 0 ? ordTotNum : (baseDressTot + (isPrepaid ? delFee : 0));
     const ordPd = parseFloat(ord.paid_amount ?? ord.advance_paid ?? ord.paid ?? ord.deposit ?? ord.deposit_amount ?? ord.paid_total ?? 0) || 0, ordRem = Math.max(0, finalTot - ordPd);
     const targetDueDate = ord.delivery_date || ord.due_date || ord.delivery_date_iso || ord.target_date || (utils.addDays ? utils.addDays(todayStrIso, 4) : ''), autoM = utils.autoDistributeMilestones ? utils.autoDistributeMilestones(todayStrIso, targetDueDate) : {};
-    const wageSvc = window.WageMatrixService || {}, stageWages = wageSvc.resolveStageWages ? wageSvc.resolveStageWages(form, prod) : {};
+    const wageSvc = window.WageMatrixService || {}, stageWages = wageSvc.resolveStageWages ? wageSvc.resolveStageWages(prod, form) : {};
+    const pkgW = String(prod?.packaging_cost || prod?.packager_wage || stageWages.packaging_cost || stageWages.packager_wage || p.packager_wage || '');
 
     setForm(p => ({
       ...p, order_no: ord.order_no || val, customer: ord.customer_name || ord.customer || '', customer_name: ord.customer_name || ord.customer || '',
@@ -64,14 +65,15 @@ function useFactoryOrderActions(props) {
       product_id: prod?.id || ord.product_id || '', image_url: prod?.image_url || prod?.image || p.image_url || '', target_segment: prod?.target_segment || 'kids', quantity: orderQty,
       measurements_spec: childMeas, size_code: selectedSize, size_badge: `[ الفئة: ${selectedSize} - طول ${dressInches.toFixed(1)}" ]`,
       tailor: p.tailor || (employees?.find(e => e.status === 'نشط' && e.role === 'خياط')?.name || employees?.find(e => e.status === 'نشط')?.name || ''),
-      tailor_name: p.tailor_name || '', cutter_name: p.cutter_name || '', cutter_wage: String(prod?.cutter_wage || prod?.meta?.cutter_wage || p.cutter_wage || stageWages.cutter_wage || ''),
-      tailor_wage: String(prod?.tailor_wage || prod?.meta?.tailor_wage || p.tailor_wage || stageWages.tailor_wage || ''),
-      embroiderer_name: p.embroiderer_name || '', embroiderer_wage: String(prod?.embroiderer_wage || prod?.meta?.embroiderer_wage || p.embroiderer_wage || stageWages.embroiderer_wage || ''),
-      finisher_name: p.finisher_name || '', finisher_wage: String(prod?.finisher_wage || prod?.meta?.finisher_wage || p.finisher_wage || stageWages.finisher_wage || ''),
-      packager_name: p.packager_name || '', packager_wage: String(prod?.packager_wage || prod?.meta?.packager_wage || p.packager_wage || stageWages.packager_wage || ''),
-      stage: p.stage || stages[0], progress: p.progress || '0', start_date: todayStrIso, due_date: targetDueDate, cutting_due_date: autoM.cutting, sewing_due_date: autoM.sewing,
-      embroidery_due_date: autoM.embroidery, finishing_due_date: autoM.finishing, fabric_name: firstBom.fabric_name || p.fabric_name, cut_meters: firstBom.cut_meters || '1.50',
-      cut_unit: firstBom.cut_unit || 'متر', deduct_inventory: true, production_type: 'bespoke', bom_items: bomItems, bom: bomItems, materials: bomItems,
+      tailor_name: p.tailor_name || '', cutter_name: p.cutter_name || '', cutter_wage: String(stageWages.cutter_wage ?? prod?.cutter_wage ?? p.cutter_wage ?? ''),
+      tailor_wage: String(stageWages.tailor_wage ?? prod?.tailor_wage ?? p.tailor_wage ?? ''),
+      embroiderer_name: p.embroiderer_name || '', embroiderer_wage: String(stageWages.embroiderer_wage ?? prod?.embroiderer_wage ?? p.embroiderer_wage ?? ''),
+      finisher_name: p.finisher_name || '', finisher_wage: String(stageWages.finisher_wage ?? prod?.finisher_wage ?? p.finisher_wage ?? ''),
+      packager_name: p.packager_name || '', packager_wage: pkgW, packaging_cost: pkgW,
+      stage: p.stage || stages[0], progress: p.progress || '0', start_date: todayStrIso, due_date: targetDueDate,
+      cutting_due_date: autoM.cutting, sewing_due_date: autoM.sewing, embroidery_due_date: autoM.embroidery, finishing_due_date: autoM.finishing, packaging_due_date: autoM.packaging || targetDueDate,
+      fabric_name: firstBom.fabric_name || p.fabric_name, cut_meters: firstBom.cut_meters || '1.50',
+      cut_unit: firstBom.cut_unit || firstBom.unit || 'متر', deduct_inventory: true, production_type: 'bespoke', bom_items: bomItems, bom: bomItems, materials: bomItems,
       delivery_fee: delFee, delivery_payment_mode: delMode, price: unitPrice, total_price: finalTot, total_amount: finalTot, paid_amount: ordPd, advance_paid: ordPd, deposit: ordPd,
       remaining_balance: ordRem, remaining_amount: ordRem, remaining: ordRem, subtotal: Number(ord.subtotal ?? (finalTot - delFee)), currency: ord.currency || 'YER'
     }));
@@ -84,18 +86,18 @@ function useFactoryOrderActions(props) {
   };
 
   const loadIntoForm = (f) => {
-    const fTot = parseFloat(f.total_amount ?? f.total_price ?? f.total ?? 0);
-    const fPd = parseFloat(f.paid_amount ?? f.advance_paid ?? f.paid ?? f.deposit ?? 0);
-    const fRem = Math.max(0, fTot - fPd);
+    const fTot = parseFloat(f.total_amount ?? f.total_price ?? f.total ?? 0), fPd = parseFloat(f.paid_amount ?? f.advance_paid ?? f.paid ?? f.deposit ?? 0), fRem = Math.max(0, fTot - fPd);
+    const pkgW = String(f.packaging_cost || f.packager_wage || '');
     setForm({
       order_no: f.order_no || f.id, customer: f.customer || f.customer_name || '', customer_name: f.customer_name || f.customer || '',
       child_name: f.child_name || '', product: f.product || f.product_name || '', product_name: f.product || f.product_name || '',
       product_id: f.product_id || '', quantity: f.quantity || 1, tailor: f.tailor_name || f.tailor || '', tailor_name: f.tailor_name || f.tailor || '',
       stage: f.stage || stages[0], progress: f.progress ? String(f.progress).replace('%', '') : (utils.calculateDynamicProgress ? String(utils.calculateDynamicProgress(f.stage)) : '0'),
       start_date: f.start_date || todayStrIso, due_date: f.due_date || '', cutting_due_date: f.cutting_due_date || '', sewing_due_date: f.sewing_due_date || '',
-      embroidery_due_date: f.embroidery_due_date || '', finishing_due_date: f.finishing_due_date || '', cutter_name: f.cutter_name || '', cutter_wage: String(f.cutter_wage || ''),
-      tailor_wage: String(f.tailor_wage || ''), embroiderer_name: f.embroiderer_name || '', embroidery_wage: String(f.embroiderer_wage || ''),
-      finisher_name: f.finisher_name || '', finisher_wage: String(f.finisher_wage || ''), packager_name: f.packager_name || '', packager_wage: String(f.packager_wage || ''),
+      embroidery_due_date: f.embroidery_due_date || '', finishing_due_date: f.finishing_due_date || '', packaging_due_date: f.packaging_due_date || f.due_date || '',
+      cutter_name: f.cutter_name || '', cutter_wage: String(f.cutter_wage || ''), tailor_wage: String(f.tailor_wage || ''),
+      embroiderer_name: f.embroiderer_name || '', embroiderer_wage: String(f.embroiderer_wage || f.embroidery_wage || ''),
+      finisher_name: f.finisher_name || '', finisher_wage: String(f.finisher_wage || ''), packager_name: f.packager_name || '', packager_wage: pkgW, packaging_cost: pkgW,
       fabric_name: f.fabric_name || '', cut_meters: f.cut_meters ? String(f.cut_meters) : '', cut_unit: f.cut_unit || 'متر', bom_items: f.bom_items || [],
       delivery_fee: f.delivery_fee || 0, total_amount: fTot, paid_amount: fPd, advance_paid: fPd, deposit: fPd, remaining_balance: fRem, remaining_amount: fRem, remaining: fRem, subtotal: f.subtotal, deduct_inventory: false
     });
@@ -108,8 +110,7 @@ function useFactoryOrderActions(props) {
     if (!form.order_no) return showToast('يرجى اختيار الطلب أو الزبون ⚠️', 'error');
     if (!form.tailor) return showToast('يرجى تحديد الفني المسند إليه ⚠️', 'error');
 
-    const rawBom = (Array.isArray(form.bom_items) && form.bom_items.length > 0)
-      ? form.bom_items : [{ fabric_name: form.fabric_name || '', cut_meters: form.cut_meters || '', cut_unit: form.cut_unit || 'متر' }];
+    const rawBom = (Array.isArray(form.bom_items) && form.bom_items.length > 0) ? form.bom_items : [{ fabric_name: form.fabric_name || '', cut_meters: form.cut_meters || '', cut_unit: form.cut_unit || 'متر' }];
 
     if (form.deduct_inventory && typeof setInventory === 'function') {
       setInventory(prev => {
@@ -125,20 +126,18 @@ function useFactoryOrderActions(props) {
       });
     }
 
-    const first = rawBom[0] || {};
-    const existing = (factory || []).find(f => f.order_no === form.order_no || f.id === form.order_no);
-    const subTot = parseFloat(form.total_amount ?? form.total_price ?? form.total ?? 0);
-    const subPd = parseFloat(form.paid_amount ?? form.advance_paid ?? form.paid ?? form.deposit ?? 0);
-    const subRem = Math.max(0, subTot - subPd);
+    const first = rawBom[0] || {}, existing = (factory || []).find(f => f.order_no === form.order_no || f.id === form.order_no);
+    const subTot = parseFloat(form.total_amount ?? form.total_price ?? form.total ?? 0), subPd = parseFloat(form.paid_amount ?? form.advance_paid ?? form.paid ?? form.deposit ?? 0), subRem = Math.max(0, subTot - subPd);
     const newF = {
-      id: existing ? existing.id : Date.now(), ...form, customer_name: form.customer || form.customer_name, child_name: form.child_name,
+      id: existing ? existing.id : (form.id || form.production_order_no || ''), ...form, customer_name: form.customer || form.customer_name, child_name: form.child_name,
       product_name: form.product || form.product_name, quantity: form.quantity || 1, cut_meters: parseFloat(first.cut_meters || form.cut_meters || 0),
       cut_quantity: parseFloat(first.cut_meters || form.cut_meters || 0), cut_unit: first.cut_unit || form.cut_unit || 'متر', fabric_name: first.fabric_name || form.fabric_name,
       total_amount: subTot, paid_amount: subPd, advance_paid: subPd, deposit: subPd, remaining_amount: subRem, remaining_balance: subRem, remaining: subRem,
       bom_items: rawBom, bom: rawBom, materials: rawBom, fabrics: rawBom, deduct_inventory: form.deduct_inventory !== false,
       cutter_name: form.cutter_name, cutter_wage: parseFloat(form.cutter_wage || 0), tailor_name: form.tailor_name || form.tailor, tailor: form.tailor_name || form.tailor,
       tailor_wage: parseFloat(form.tailor_wage || 0), embroiderer_name: form.embroiderer_name, embroiderer_wage: parseFloat(form.embroiderer_wage || 0),
-      finisher_name: form.finisher_name, finisher_wage: parseFloat(form.finisher_wage || 0), packager_name: form.packager_name, packager_wage: parseFloat(form.packager_wage || 0)
+      finisher_name: form.finisher_name, finisher_wage: parseFloat(form.finisher_wage || 0), packager_name: form.packager_name, packager_wage: parseFloat(form.packager_wage || form.packaging_cost || 0),
+      packaging_cost: parseFloat(form.packaging_cost || form.packager_wage || 0)
     };
 
     try {

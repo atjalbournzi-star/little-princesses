@@ -4,6 +4,7 @@
 from .db_pool import get_db_cursor, clean_str, clean_num, generate_id, execute_query
 from .account_resolver import resolve_exchange_rate
 from .pg_inventory_adjust import adjust_inventory
+from .uom_service import convert_uom, normalize_uom
 
 
 def get_inventory(params=None):
@@ -16,15 +17,11 @@ def get_inventory(params=None):
     if wh_filter:
         query = """
             SELECT i.id, i.item_code, i.name, i.name as item_name, i.type, i.category, i.unit,
-                   COALESCE(ws.quantity, 0.0) as quantity, COALESCE(ws.quantity, 0.0) as qty,
-                   COALESCE(ws.quantity, 0.0) as current_balance,
-                   COALESCE(ws.reserved_qty, 0.0) as reserved_qty,
-                   COALESCE(ws.available_qty, ws.quantity - COALESCE(ws.reserved_qty, 0), 0.0) as available_qty,
-                   COALESCE(i.min_limit, 5.0) as min_limit, i.min_limit as reorder_level,
-                   COALESCE(i.unit_cost, 0.0) as unit_cost, i.unit_cost as avg_cost,
-                   COALESCE(ws.quantity, 0.0) * COALESCE(i.unit_cost, 0.0) as total_value,
-                   COALESCE(i.currency, 'YER') as currency, COALESCE(s.name, 'مورد عام') as supplier,
-                   i.supplier_id, w.name as location, w.id as warehouse_id,
+                   COALESCE(ws.quantity, 0.0) as quantity, COALESCE(ws.quantity, 0.0) as qty, COALESCE(ws.quantity, 0.0) as current_balance,
+                   COALESCE(ws.reserved_qty, 0.0) as reserved_qty, COALESCE(ws.available_qty, ws.quantity - COALESCE(ws.reserved_qty, 0), 0.0) as available_qty,
+                   COALESCE(i.min_limit, 5.0) as min_limit, i.min_limit as reorder_level, COALESCE(i.unit_cost, 0.0) as unit_cost, i.unit_cost as avg_cost,
+                   COALESCE(ws.quantity, 0.0) * COALESCE(i.unit_cost, 0.0) as total_value, COALESCE(i.currency, 'YER') as currency,
+                   COALESCE(s.name, 'مورد عام') as supplier, i.supplier_id, w.name as location, w.id as warehouse_id,
                    COALESCE(i.status, 'Available') as status, i.created_at, i.updated_at
             FROM inventory i
             LEFT JOIN warehouse_stock ws ON i.id = ws.inventory_id AND ws.warehouse_id = %s
@@ -37,15 +34,11 @@ def get_inventory(params=None):
         query = """
             SELECT i.id, i.item_code, i.name, i.name as item_name, i.type, i.category, i.unit,
                    i.quantity, i.quantity as qty, i.quantity as quantity_meters, i.quantity as current_balance,
-                   COALESCE(i.reserved_qty, 0) as reserved_qty,
-                   COALESCE(i.available_qty, i.quantity - COALESCE(i.reserved_qty, 0), i.quantity) as available_qty,
-                   COALESCE(i.min_limit, 5.0) as min_limit, i.min_limit as reorder_level,
-                   COALESCE(i.unit_cost, 0.0) as unit_cost, i.unit_cost as avg_cost,
+                   COALESCE(i.reserved_qty, 0) as reserved_qty, COALESCE(i.available_qty, i.quantity - COALESCE(i.reserved_qty, 0), i.quantity) as available_qty,
+                   COALESCE(i.min_limit, 5.0) as min_limit, i.min_limit as reorder_level, COALESCE(i.unit_cost, 0.0) as unit_cost, i.unit_cost as avg_cost,
                    i.unit_cost as cost, i.unit_cost as cost_per_meter, i.unit_cost as cost_per_unit,
-                   COALESCE(i.total_value, i.quantity * i.unit_cost, 0.0) as total_value,
-                   COALESCE(i.currency, 'YER') as currency,
-                   COALESCE(s.name, i.supplier_id, 'مورد عام') as supplier,
-                   i.supplier_id, i.location,
+                   COALESCE(i.quantity, 0.0) * COALESCE(i.unit_cost, 0.0) as total_value, COALESCE(i.currency, 'YER') as currency,
+                   COALESCE(s.name, i.supplier_id, 'مورد عام') as supplier, i.supplier_id, i.location,
                    COALESCE(i.status, 'Available') as status, i.created_at, i.updated_at
             FROM inventory i
             LEFT JOIN suppliers s ON i.supplier_id = s.id
@@ -94,6 +87,16 @@ def get_inventory(params=None):
         else:
             r['warehouse_id'] = r.get('warehouse_id') or ''
             r['warehouse_name'] = r.get('location') or ''
+        # High-precision cost & valuation & standardized unit conversion to meters
+        q_val, c_val = float(r.get('quantity') or 0.0), float(r.get('unit_cost') or 0.0)
+        r['quantity'] = q_val
+        r['qty'] = q_val
+        r['current_balance'] = q_val
+        r['unit_cost'] = c_val
+        r['avg_cost'] = c_val
+        r['total_value'] = round(q_val * c_val, 4)
+        u_norm = normalize_uom(r.get('unit') or 'متر')
+        r['quantity_meters'] = round(convert_uom(q_val, u_norm, 'متر'), 4) if u_norm in ('متر', 'وار', 'إنش', 'سم', 'رول') else 0.0
     return rows
 
 
@@ -117,7 +120,7 @@ def add_or_update_inventory(payload):
 
     with get_db_cursor(commit=True) as cur:
         rate = resolve_exchange_rate(cur, curr, clean_num(data.get('exchange_rate') or 1.0))
-        unit_cost_yer = round(unit_cost * rate, 2)
+        unit_cost_yer = round(unit_cost * rate, 4)
 
         if not inv_id:
             cur.execute("SELECT id, item_code FROM inventory WHERE name = %s OR (item_code IS NOT NULL AND item_code = %s) LIMIT 1;", (name, item_code or name))
@@ -128,20 +131,21 @@ def add_or_update_inventory(payload):
         if not inv_id: inv_id = generate_id("MAT")
         if not item_code: item_code = inv_id
 
+        tot_val = round(qty * unit_cost_yer, 4)
         query = """
             INSERT INTO inventory (
                 id, item_code, name, type, category, unit, quantity, reserved_qty,
-                min_limit, unit_cost, currency, supplier_id, location, status, updated_at
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'YER', %s, %s, 'Available', CURRENT_TIMESTAMP)
+                min_limit, unit_cost, total_value, currency, supplier_id, location, status, updated_at
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'YER', %s, %s, 'Available', CURRENT_TIMESTAMP)
             ON CONFLICT (id) DO UPDATE SET
-                item_code = EXCLUDED.item_code, name = EXCLUDED.name, type = EXCLUDED.type,
-                category = EXCLUDED.category, unit = EXCLUDED.unit, quantity = EXCLUDED.quantity,
-                reserved_qty = EXCLUDED.reserved_qty, min_limit = EXCLUDED.min_limit, unit_cost = EXCLUDED.unit_cost,
+                item_code = EXCLUDED.item_code, name = EXCLUDED.name, type = EXCLUDED.type, category = EXCLUDED.category,
+                unit = EXCLUDED.unit, quantity = EXCLUDED.quantity, reserved_qty = EXCLUDED.reserved_qty,
+                min_limit = EXCLUDED.min_limit, unit_cost = EXCLUDED.unit_cost, total_value = ROUND(EXCLUDED.quantity * EXCLUDED.unit_cost, 4),
                 currency = 'YER', supplier_id = COALESCE(NULLIF(EXCLUDED.supplier_id, ''), inventory.supplier_id),
                 location = EXCLUDED.location, updated_at = CURRENT_TIMESTAMP
             RETURNING *, name as item_name, quantity as qty, quantity as current_balance, unit_cost as avg_cost, unit_cost as cost, 'YER' as currency;
         """
-        params = (inv_id, item_code, name, m_type, cat, unit, qty, res_qty, min_lim, unit_cost_yer, supplier_id, location)
+        params = (inv_id, item_code, name, m_type, cat, unit, qty, res_qty, min_lim, unit_cost_yer, tot_val, supplier_id, location)
         cur.execute(query, params)
         res = dict(cur.fetchone())
 
@@ -186,12 +190,12 @@ def update_inventory_qty(payload):
         old_q = float(row['quantity'] or 0.0)
         u_cost = float(row['unit_cost'] or 0.0)
         new_q = max(0.0, old_q + change)
-        new_total = round(new_q * u_cost, 2)
+        new_total = round(new_q * u_cost, 4)
 
         cur.execute("""
-            UPDATE inventory SET quantity = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s
+            UPDATE inventory SET quantity = %s, total_value = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s
             RETURNING *, name as item_name, quantity as current_balance, quantity as qty;
-        """, (new_q, row['id']))
+        """, (new_q, new_total, row['id']))
         updated_row = dict(cur.fetchone())
 
         cur.execute("""
@@ -205,11 +209,5 @@ def update_inventory_qty(payload):
         return updated_row
 
 
-def delete_inventory(payload):
-    """حذف صنف المخزون وحركاته المرتبطة بأمان"""
-    data = payload.get('data') or payload
-    iid = clean_str(data.get('id') or data.get('item_id'))
-    with get_db_cursor(commit=True) as cur:
-        cur.execute("DELETE FROM inventory_transactions WHERE inventory_id = %s;", (iid,))
-        cur.execute("DELETE FROM inventory WHERE id = %s;", (iid,))
-    return {"deleted": True, "id": iid}
+# Re-export deletion facade
+from .pg_inventory_delete import delete_inventory

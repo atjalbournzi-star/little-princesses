@@ -5,7 +5,7 @@ from .db_pool import get_db_cursor, clean_str, clean_num
 
 
 def get_customer_order_tracking(order_target):
-    """جلب بيانات تتبع فستان الأميرة ومراحل الإنتاج والبروفة لبوابة العميلة track.html"""
+    """جلب بيانات تتبع فستان الأميرة ومراحل الإنتاج والبروفة لبوابة العميل track.html"""
     if not order_target:
         return {"error": "رقم الطلب أو الفاتورة مطلوب"}
     target = clean_str(order_target)
@@ -190,7 +190,7 @@ def confirm_customer_fitting(order_target, notes=""):
     with get_db_cursor(commit=True) as cur:
         cur.execute("""
             UPDATE orders
-            SET notes = COALESCE(notes, '') || ' | ✅ تم تأكيد موعد البروفة من العميلة عبر البوابة الإلكترونية',
+            SET notes = COALESCE(notes, '') || ' | ✅ تم تأكيد موعد البروفة من العميل عبر البوابة الإلكترونية',
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = %s OR order_no = %s OR order_no = 'ORD-' || %s OR id = 'ORD-' || %s
             RETURNING *;
@@ -199,7 +199,7 @@ def confirm_customer_fitting(order_target, notes=""):
         if not row:
             cur.execute("""
                 UPDATE production_orders
-                SET notes = COALESCE(notes, '') || ' | ✅ تم تأكيد موعد البروفة من العميلة عبر البوابة الإلكترونية',
+                SET notes = COALESCE(notes, '') || ' | ✅ تم تأكيد موعد البروفة من العميل عبر البوابة الإلكترونية',
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = %s OR production_order_no = %s OR order_id = %s
                 RETURNING *;

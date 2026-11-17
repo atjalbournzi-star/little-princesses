@@ -8,6 +8,10 @@ from .pg_employees import (
     add_employee,
     delete_employee
 )
+from .pg_job_roles import (
+    get_job_roles,
+    add_job_role
+)
 from .pg_advances import (
     add_advance,
     get_advances
@@ -33,6 +37,8 @@ __all__ = [
     "get_employees",
     "add_employee",
     "delete_employee",
+    "get_job_roles",
+    "add_job_role",
     "add_advance",
     "get_advances",
     "get_payroll",

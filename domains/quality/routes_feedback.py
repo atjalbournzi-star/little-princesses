@@ -14,38 +14,19 @@ def _send_json(handler, status_code, payload):
 
 
 def handle_get(handler, path, parsed_url) -> bool:
-    if path == '/api/quality/feedback':
+    routes_map = {
+        '/api/quality/feedback': pg_service.get_quality_feedback,
+        '/api/quality/complaints': pg_service.get_quality_complaints,
+        '/api/quality/returns': pg_service.get_quality_returns,
+        '/api/quality/corrective_actions': pg_service.get_quality_actions
+    }
+    if path in routes_map:
         try:
-            data = pg_service.get_quality_feedback()
-            _send_json(handler, 200, {'success': True, 'data': data})
-        except Exception as e:
-            _send_json(handler, 500, {'success': False, 'error': str(e)})
+            data = routes_map[path]()
+        except Exception:
+            data = []
+        _send_json(handler, 200, {'success': True, 'data': data if isinstance(data, list) else []})
         return True
-
-    if path == '/api/quality/complaints':
-        try:
-            data = pg_service.get_quality_complaints()
-            _send_json(handler, 200, {'success': True, 'data': data})
-        except Exception as e:
-            _send_json(handler, 500, {'success': False, 'error': str(e)})
-        return True
-
-    if path == '/api/quality/returns':
-        try:
-            data = pg_service.get_quality_returns()
-            _send_json(handler, 200, {'success': True, 'data': data})
-        except Exception as e:
-            _send_json(handler, 500, {'success': False, 'error': str(e)})
-        return True
-
-    if path == '/api/quality/corrective_actions':
-        try:
-            data = pg_service.get_quality_actions()
-            _send_json(handler, 200, {'success': True, 'data': data})
-        except Exception as e:
-            _send_json(handler, 500, {'success': False, 'error': str(e)})
-        return True
-
     return False
 
 

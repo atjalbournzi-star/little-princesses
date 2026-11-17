@@ -81,12 +81,20 @@ function useJournalActions({ journal, setJournal, accounts, setAccounts, voucher
     const validation = window.AccountingEngine ? window.AccountingEngine.validateEntry({ ...formData, exchange_rate: parseFloat(formData.exchange_rate) || 1 }, accounts) : { valid: true };
     if (!validation.valid) return showToast(validation.error || 'خطأ في التحقق', 'error');
     const newJ = buildEntryObject(formData, currencyCode, accounts);
-    if (setJournal) setJournal(p => [newJ, ...(p || [])]);
     try {
-      fetch('/api/journal/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newJ) }).catch(() => {});
-      const res = await callGAS('addJournalEntry', newJ);
-      showToast((res.status === 'success' || res.id) ? 'تم حفظ القيد المحاسبي بنجاح 📑' : 'حدث خطأ أثناء الحفظ', (res.status === 'success' || res.id) ? 'success' : 'error');
-    } catch { showToast('تم حفظ القيد محلياً ⚡'); }
+      let officialJ = newJ;
+      const res = await fetch('/api/journal/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newJ) });
+      const apiData = await res.json().catch(() => ({}));
+      const savedJ = (apiData && (apiData.data || apiData.entry)) || {};
+      const officialNo = savedJ.entry_no || newJ.entry_no;
+      officialJ = { ...newJ, ...savedJ, entry_no: officialNo, id: savedJ.id || officialNo };
+      if (setJournal) setJournal(p => [officialJ, ...(p || []).filter(j => j.id !== newJ.id && j.entry_no !== newJ.entry_no && j.entry_no !== officialNo)]);
+      if (typeof callGAS === 'function') callGAS('addJournalEntry', officialJ).catch(() => {});
+      showToast(`تم حفظ القيد المحاسبي (${officialNo}) بنجاح 📑`, 'success');
+    } catch {
+      if (setJournal) setJournal(p => [newJ, ...(p || [])]);
+      showToast('تم حفظ القيد محلياً ⚡');
+    }
     setFormData({ entry_no: '', debit: '', credit: '', amount: '', currency: 'YER ﷼', exchange_rate: '1.0', date: TODAY_STR_ISO, notes: '', ref_type: 'قيد يدوي' });
   };
 

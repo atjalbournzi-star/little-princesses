@@ -80,7 +80,7 @@ function ThermalReceiptTemplate({
           <span className="font-mono">{orderDate}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-600">العميلة:</span>
+          <span className="text-gray-600">العميل:</span>
           <span className="font-bold">{custName}</span>
         </div>
         <div className="flex justify-between">

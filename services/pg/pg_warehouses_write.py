@@ -3,7 +3,7 @@
 
 import logging
 from .db_pool import get_db_cursor, clean_str
-from .pg_warehouses import WAREHOUSE_NORMALIZE, ensure_warehouses_schema
+from .pg_warehouses import ensure_warehouses_schema
 
 logger = logging.getLogger("LittlePrincesses_PG_Warehouses_Write")
 
@@ -53,9 +53,6 @@ def add_warehouse(payload):
         """, (acc_id, acc_code, acc_name, f"Warehouse Inventory - {name}", "أصول",
               "Inventory", "105", 3, False, True, "Debit", "YER",
               f"حساب جرد آلي مرتبط بالمستودع {code}"))
-
-    WAREHOUSE_NORMALIZE[code] = code
-    WAREHOUSE_NORMALIZE[name] = code
 
     logger.info(f"New warehouse created: {code} | Account: {acc_code}")
     wh_clean = {k: str(v) if not isinstance(v, (str, int, float, bool, type(None))) else v for k, v in wh.items()}

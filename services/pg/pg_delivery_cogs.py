@@ -81,7 +81,7 @@ def record_delivery_cogs(cur, real_order_id, order_no, cust_name=None, child_nam
     inv_acc = 'ACC-105'
     jv_cogs_id = generate_id("JV")
     jv_cogs_no = f"JV-COGS-{order_no}"
-    desc = f"تكلفة الخامات والأقمشة المستهلكة (COGS) لطلب {order_no} ({cust_name or 'العميلة'})"
+    desc = f"تكلفة الخامات والأقمشة المستهلكة (COGS) لطلب {order_no} ({cust_name or 'العميل'})"
 
     cur.execute("""
         INSERT INTO journal_entries (

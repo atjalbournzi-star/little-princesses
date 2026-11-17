@@ -7,7 +7,8 @@ function ProductModal({
   actions,
   inventory = [],
   availableCategories = [],
-  availableCollections = []
+  availableCollections = [],
+  jobRoles = []
 }) {
   if (!isOpen || !actions) return null;
 
@@ -53,7 +54,7 @@ function ProductModal({
             </button>
             <div className="text-xs font-bold text-white flex items-center gap-1.5 truncate">
               <span className="text-purple-400 text-xs">🧮</span>
-              <span>{editId ? `تعديل الموديل: ${modelName || 'بدون اسم'}` : "تسجيل موديل جديد وهندسة التكاليف (BOM)"}</span>
+              <span>{editId ? `تعديل الموديل: ${modelName || ''}` : "تسجيل موديل جديد وهندسة التكاليف (BOM)"}</span>
             </div>
             {actions.smartCode && (
               <span className="text-[11px] font-mono font-bold text-pink-300 bg-slate-800/90 px-2 py-0.5 rounded border border-slate-700 shrink-0">
@@ -135,6 +136,7 @@ function ProductModal({
             {step === 3 && CostingComp && (
               <CostingComp
                 actions={actions}
+                jobRoles={jobRoles || actions.jobRoles}
               />
             )}
 

@@ -18,10 +18,15 @@
     var accList = Array.isArray(accounts) ? accounts : [];
 
     var sorted = entries.slice().sort(function(a, b) {
-      var dateA = a.date || a.entry_date || '';
-      var dateB = b.date || b.entry_date || '';
+      var dateA = String(a.entry_date || a.date || '').trim();
+      var dateB = String(b.entry_date || b.date || '').trim();
       if (dateA !== dateB) return dateA.localeCompare(dateB);
-      return (a.id || 0) - (b.id || 0);
+      var timeA = String(a.created_at || '').trim();
+      var timeB = String(b.created_at || '').trim();
+      if (timeA !== timeB) return timeA.localeCompare(timeB);
+      var idA = String(a.id || '');
+      var idB = String(b.id || '');
+      return idA.localeCompare(idB, undefined, { numeric: true });
     });
 
     var targetAcc = (filterAccountId && filterAccountId !== 'ALL') ? findAcc(accList, filterAccountId, filterAccountId) : null;
@@ -137,19 +142,19 @@
       }
     });
 
-    if (filterAccountId && filterAccountId !== 'ALL' && startDate) {
+    if (filterAccountId && filterAccountId !== 'ALL' && (startDate || openingBalanceBase !== 0)) {
       ledgerRows.unshift({
-        id: 'OPENING-' + targetAccCode, journal_id: 'OPENING', entry_no: 'رصيد سابق', date: startDate,
+        id: 'OPENING-' + targetAccCode, journal_id: 'OPENING', entry_no: 'رصيد سابق', date: startDate || '—',
         account_code: targetAccCode, account_name: targetAccName, account_nature: targetNature,
         side: targetNature === 'credit' ? 'credit' : 'debit',
         debit_orig: 0, credit_orig: 0, debit_base: 0, credit_base: 0, currency: 'YER', exchange_rate: 1.0,
-        ref_type: 'رصيد افتتاحي / سابق', ref_id: '', notes: 'الرصيد السابق / الافتتاحي حتى تاريخ ' + startDate,
+        ref_type: 'رصيد افتتاحي / سابق', ref_id: '', notes: startDate ? ('الرصيد السابق / الافتتاحي حتى تاريخ ' + startDate) : 'الرصيد الافتتاحي للحساب',
         running_balance_base: openingBalanceBase, running_balance_orig: openingBalanceOrig, is_opening: true
       });
     }
 
-    var runningBase = (filterAccountId && filterAccountId !== 'ALL' && startDate) ? openingBalanceBase : 0;
-    var runningOrig = (filterAccountId && filterAccountId !== 'ALL' && startDate) ? openingBalanceOrig : 0;
+    var runningBase = (filterAccountId && filterAccountId !== 'ALL') ? openingBalanceBase : 0;
+    var runningOrig = (filterAccountId && filterAccountId !== 'ALL') ? openingBalanceOrig : 0;
 
 
     ledgerRows.forEach(function(row) {

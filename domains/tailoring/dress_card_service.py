@@ -50,7 +50,7 @@ def get_dress_card_payload(target_id: str) -> dict:
 
     meas = d.get('measurements') or {}
     child_name = str(d.get('real_child_name') or d.get('child_name') or 'الأميرة الجميلة')
-    customer_name = str(d.get('real_customer_name') or d.get('customer_name') or 'عزيزتنا العميلة')
+    customer_name = str(d.get('real_customer_name') or d.get('customer_name') or 'عزيزنا العميل')
     product_name = str(d.get('real_product_name') or d.get('product_name') or 'موديل أزياء راقي خاص')
 
     meas_unit = str(meas.get('unit') or 'سم').strip()

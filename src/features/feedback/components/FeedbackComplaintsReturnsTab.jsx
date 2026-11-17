@@ -38,7 +38,7 @@ function FeedbackComplaintsReturnsTab({
               <thead>
                 <tr className="bg-[#FAFAFB] text-[#6F6B75] font-semibold border-b border-[#E8E5EA]">
                   <th className="p-3">رقم الشكوى والتاريخ</th>
-                  <th className="p-3">اسم العميلة والطلب</th>
+                  <th className="p-3">اسم العميل والطلب</th>
                   <th className="p-3">نوع الشكوى</th>
                   <th className="p-3 text-center">الخطورة</th>
                   <th className="p-3">التفاصيل</th>
@@ -58,7 +58,7 @@ function FeedbackComplaintsReturnsTab({
                         <div className="text-[11px] text-[#6F6B75] font-mono">{String(c.complaint_date || c.created_at || '').split('T')[0]}</div>
                       </td>
                       <td className="p-3">
-                        <div className="font-bold text-[#25232A]">{c.customer_name || 'عميلة راقية'}</div>
+                        <div className="font-bold text-[#25232A]">{c.customer_name || 'عميل راقٍ'}</div>
                         {c.order_id && <div className="text-[11px] text-[#8F2A87] font-mono">طلب #{c.order_id}</div>}
                       </td>
                       <td className="p-3 font-semibold text-[#25232A]">
@@ -140,7 +140,7 @@ function FeedbackComplaintsReturnsTab({
               <thead>
                 <tr className="bg-[#FAFAFB] text-[#6F6B75] font-semibold border-b border-[#E8E5EA]">
                   <th className="p-3">رقم المرتجع والتاريخ</th>
-                  <th className="p-3">العميلة والطلب</th>
+                  <th className="p-3">العميل والطلب</th>
                   <th className="p-3">سبب الإرجاع</th>
                   <th className="p-3 text-center">حالة الفستان</th>
                   <th className="p-3">الإجراء المتخذ</th>
@@ -161,7 +161,7 @@ function FeedbackComplaintsReturnsTab({
                         <div className="text-[11px] text-[#6F6B75] font-mono">{String(ret.return_date || ret.created_at || '').split('T')[0]}</div>
                       </td>
                       <td className="p-3">
-                        <div className="font-bold text-[#25232A]">{ret.customer_name || 'عميلة الأميرات'}</div>
+                        <div className="font-bold text-[#25232A]">{ret.customer_name || 'عميل الأميرات'}</div>
                         {ret.order_id && <div className="text-[11px] text-[#8F2A87] font-mono">طلب #{ret.order_id}</div>}
                       </td>
                       <td className="p-3 font-semibold text-[#25232A]">{ret.return_reason || 'عيب جودة'}</td>

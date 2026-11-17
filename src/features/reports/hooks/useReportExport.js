@@ -22,7 +22,7 @@ function useReportExport({
         case 'statements': {
           if (statementType === 'treasury') return 'مطابقة حركة وأرصدة الصناديق والبنوك والخزائن';
           if (statementType === 'supplier') return 'كشف حساب ومطابقات موردي الأقمشة والذمم الدائنة';
-          return 'كشف حساب ومطابقات العميلات والذمم المدينة';
+          return 'كشف حساب ومطابقات العملاء والذمم المدينة';
         }
         default: return 'التقرير المالي والمحاسبي';
       }

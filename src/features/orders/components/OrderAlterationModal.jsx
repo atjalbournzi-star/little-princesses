@@ -24,7 +24,7 @@ function OrderAlterationModal({
       payload: {
         order_id: order.id,
         order_no: order.order_no || `ORD-${order.id}`,
-        customer_name: order.customer_name || 'عميلة',
+        customer_name: order.customer_name || 'عميل',
         dress_type: order.product_name || 'فستان',
         alteration_reason: alterationForm.reason,
         adjustment_notes: alterationForm.notes,
@@ -78,7 +78,7 @@ function OrderAlterationModal({
               <option value="طول الفستان (طويل/قصير)">طول الفستان (طويل / قصير)</option>
               <option value="تعديل خصر/صدر">تعديل الخصر أو الصدر</option>
               <option value="تعديل سحاب/أزرار">تعديل سحاب / أزرار / مشابك</option>
-              <option value="رغبة العميل/تغيير تفاصيل">رغبة العميلة / إضافة أو إزالة تفاصيل</option>
+              <option value="رغبة العميل/تغيير تفاصيل">رغبة العميل / إضافة أو إزالة تفاصيل</option>
               <option value="عيب خياطة/جودة">ملاحظة فحص جودة / عيب تشطيب</option>
             </select>
           </div>

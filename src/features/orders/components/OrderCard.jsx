@@ -33,7 +33,7 @@ function OrderCard({
             {order.order_no || ('ORD-' + order.id)}
           </span>
           <h4 className="font-bold text-xs text-[#25232A] dark:text-slate-100 mt-0.5">
-            {order.customer_name || "عميلة"}
+            {order.customer_name || "عميل"}
           </h4>
         </div>
         <span className="text-[11px] px-2.5 py-1 rounded-full font-bold bg-[#FCE8F2] dark:bg-rose-950/40 text-[#B0005A] dark:text-rose-300 border border-[#F2A4CB] dark:border-rose-900/50">

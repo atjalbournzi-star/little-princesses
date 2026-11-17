@@ -110,6 +110,7 @@ function Factory(props) {
                 setModelPreviewData={setModelPreviewData}
                 handleSubmit={actions.handleSubmit} showToast={showToast}
                 showOrderForm={showOrderForm} setShowOrderForm={setShowOrderForm}
+                jobRoles={props.jobRoles}
               />
             </div>
           )}

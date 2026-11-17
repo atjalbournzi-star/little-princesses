@@ -41,7 +41,7 @@ function Settings({ showToast, currency }) {
   const AuditModal = window.AuditLogsModal;
 
   return (
-    <div className="space-y-6 animate-fadeIn text-right" dir="rtl">
+    <div className="space-y-1.5 animate-fadeIn select-none text-right" dir="rtl">
       {/* الترويسة الرئيسية وشريط التبويبات */}
       {HeaderComp && (
         <HeaderComp

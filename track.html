@@ -520,7 +520,7 @@
       // Princess Info
       const childName = ord.real_child_name || ord.child_name || 'الأميرة الجميلة';
       document.getElementById('childName').innerText = `الأميرة ${childName} 👧`;
-      document.getElementById('motherName').innerText = `والدتها الكريمة: ${ord.real_customer_name || ord.customer_name || 'عميلتنا المميزة'}`;
+      document.getElementById('motherName').innerText = `والدتها الكريمة: ${ord.real_customer_name || ord.customer_name || 'عميلنا المميز'}`;
       document.getElementById('orderBadge').innerText = ord.order_no || ('ORD-' + ord.id);
       document.getElementById('childAgeBadge').innerText = ord.child_age ? `العمر: ${ord.child_age}` : 'مقاس خاص';
 
@@ -655,7 +655,7 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             order: orderParam,
-            notes: 'تأكيد الحضور من العميلة عبر بوابة التتبع الإلكترونية'
+            notes: 'تأكيد الحضور من العميل عبر بوابة التتبع الإلكترونية'
           })
         });
 
@@ -711,7 +711,7 @@
         const payload = {
           order_id: currentOrder.id || orderParam,
           customer_id: currentOrder.real_customer_id || currentOrder.customer_id || null,
-          customer_name: currentOrder.real_customer_name || currentOrder.customer_name || 'عميلة راقية',
+          customer_name: currentOrder.real_customer_name || currentOrder.customer_name || 'عميل راقٍ',
           product_id: currentOrder.product_id || null,
           rating: selectedRating,
           feedback_category: category,

@@ -1,83 +1,76 @@
 // src/features/reports/components/ReportsHeader.jsx
 // ترويسة التقارير والمركز المالي والتبويبات الرئيسية (Executive Header)
+// الهوية البصرية المطابقة لشاشة السندات والمعاملات المالية | Standard Compliant (< 220 lines)
 
 function ReportsHeader({ activeTab, setActiveTab, handleExportExcel, handlePrint, brandProfile }) {
   const tabs = [
-    { id: 'financial', label: 'التقارير المالية والمحاسبية', icon: '📑', badge: 'P&L / ميزانية' },
-    { id: 'orders', label: 'حركة المبيعات والطلبات', icon: '🛍️', badge: 'تحصيل وربحية' },
-    { id: 'production', label: 'إنتاجية ومراحل المعمل', icon: '🏭', badge: 'أجور وإنجاز' },
-    { id: 'inventory', label: 'حركة وتقييم المخزون', icon: '📦', badge: 'أقمشة ونواقص' },
+    { id: 'financial', label: 'المالية والمحاسبية' },
+    { id: 'orders', label: 'المبيعات والطلبات' },
+    { id: 'production', label: 'إنتاجية المعمل' },
+    { id: 'inventory', label: 'حركة المخزون' },
   ];
 
   return (
-    <div className="print-hidden bg-[#111C38] rounded-xl border border-slate-800 shadow-sm overflow-hidden text-white transition-all select-none">
-      <div className="px-3 py-2 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-[#0F172A]">
-        <div className="flex items-center gap-2">
-          <div className="w-6.5 h-6.5 rounded-lg bg-slate-800/90 text-pink-400 border border-pink-500/30 flex items-center justify-center text-xs shadow-xs">
-            📊
-          </div>
-          <div>
-            <h2 className="text-xs sm:text-[13px] font-bold text-white tracking-wide">المركز المالي والتقارير التحليلية الشاملة</h2>
-            <p className="text-[10px] text-slate-400">
-              {brandProfile?.name || 'مؤسسة الأميرات الصغيرات'} — قوائم الدخل، المبيعات، خطوط الإنتاج، والمخزون
-            </p>
+    <div className="print-hidden shrink-0 space-y-1 select-none" dir="rtl">
+      {/* 1. ترويسة مدمجة ورشيقة في سطر واحد مع أزرار الإجراءات والتبويبات المصغرة */}
+      <div className="h-8 min-h-[32px] px-2.5 bg-white dark:bg-[#111C38] border border-slate-200 dark:border-slate-800 rounded-lg flex items-center justify-between shrink-0 flex-wrap sm:flex-nowrap gap-1">
+        {/* Right: عنوان الشاشة المدمج في سطر واحد */}
+        <div className="flex items-center gap-1.5 min-w-0">
+          <div className="text-[11.5px] font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5 shrink-0">
+            <svg className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
+            <span>التقارير المالية والتشغيلية</span>
           </div>
         </div>
 
-        {/* أزرار الإجراءات والطباعة وتصدير Excel كأيقونات رمادية هادئة ناعمة وصغيرة الحجم */}
-        <div className="flex items-center gap-1.5 shrink-0">
+        {/* Center: شريط التبويبات الرئيسي الأربعة المدمج في نفس السطر */}
+        <div className="h-6 p-0.5 bg-slate-100 dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 rounded-md flex items-center gap-0.5 text-[10.5px] overflow-x-auto">
+          {tabs.map(tab => {
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={`h-5 px-2 rounded transition flex items-center gap-1 cursor-pointer font-medium whitespace-nowrap ${
+                  isActive
+                    ? 'bg-white dark:bg-slate-800 text-teal-600 dark:text-teal-400 font-bold shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                }`}
+              >
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Left: أزرار التصدير والطباعة المصغرة */}
+        <div className="flex items-center gap-1 shrink-0">
           <button
             type="button"
             onClick={handleExportExcel}
-            title="تصدير جدول التقرير النشط حالياً إلى ملف Excel منسق (XLSX)"
-            className="w-6.5 h-6.5 rounded-lg text-slate-400 hover:text-white bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 transition-all flex items-center justify-center cursor-pointer shadow-xs"
+            title="تصدير جدول التقرير النشط إلى Excel"
+            className="h-6 px-2 text-[10.5px] font-medium bg-white hover:bg-slate-50 dark:bg-[#0F172A] dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 rounded-md shadow-xs flex items-center gap-1 transition cursor-pointer"
           >
-            <span className="text-xs">📊</span>
+            <svg className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <span className="hidden sm:inline">Excel</span>
           </button>
 
           <button
             type="button"
             onClick={handlePrint}
-            title="حفظ التقرير المالي المنسق كملف PDF رسمي"
-            className="w-6.5 h-6.5 rounded-lg text-slate-400 hover:text-white bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 transition-all flex items-center justify-center cursor-pointer shadow-xs"
+            title="طباعة التقرير أو حفظه كملف PDF رسمي"
+            className="h-6 px-2 text-[10.5px] font-medium bg-white hover:bg-slate-50 dark:bg-[#0F172A] dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 rounded-md shadow-xs flex items-center gap-1 transition cursor-pointer"
           >
-            <span className="text-xs">📑</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={handlePrint}
-            title="طباعة التقرير المالي الرسمي"
-            className="w-6.5 h-6.5 rounded-lg text-slate-400 hover:text-white bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 transition-all flex items-center justify-center cursor-pointer shadow-xs"
-          >
-            <span className="text-xs">🖨️</span>
+            <svg className="w-2.5 h-2.5 text-slate-600 dark:text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+            </svg>
+            <span className="hidden sm:inline">طباعة</span>
           </button>
         </div>
-      </div>
-
-      {/* شريط التبويبات الرئيسي لأنواع التقارير بخط أنيق ومدمج بتدرج وردي ملكي */}
-      <div className="flex items-center gap-1 px-2 pt-0.5 overflow-x-auto border-b border-slate-800 bg-[#111C38]">
-        {tabs.map(tab => {
-          const isActive = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveTab(tab.id)}
-              className={`px-2.5 py-1.5 text-[11px] border-b-2 transition-all duration-200 flex items-center gap-1.5 cursor-pointer shrink-0 rounded-t-md ${
-                isActive
-                  ? 'border-pink-500 text-white font-bold bg-slate-800/80 shadow-xs'
-                  : 'border-transparent text-slate-300 font-medium hover:text-white hover:bg-slate-800/40'
-              }`}
-            >
-              <span className="text-[11px]">{tab.icon}</span>
-              <span className="font-semibold text-white">{tab.label}</span>
-              <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-mono font-medium ${isActive ? 'bg-pink-600 text-white' : 'bg-slate-800 text-slate-400 border border-slate-700/80'}`}>
-                {tab.badge}
-              </span>
-            </button>
-          );
-        })}
       </div>
     </div>
   );

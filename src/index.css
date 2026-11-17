@@ -166,3 +166,11 @@ textarea:focus {
   animation: shimmer-slide 2.5s linear infinite !important;
 }
 
+/* 9. Universal Viewport-Centered Fixed Modals & High-Z Overlays */
+.fixed.inset-0[class*="z-"] {
+  z-index: 9999 !important;
+  backdrop-filter: blur(4px) !important;
+  -webkit-backdrop-filter: blur(4px) !important;
+}
+
+

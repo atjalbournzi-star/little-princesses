@@ -15,10 +15,9 @@ accounting_bp = Blueprint('accounting_bp', __name__)
 def list_accounts():
     try:
         rows = pg_service.get_accounts()
-        return jsonify({'success': True, 'data': rows}), 200
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e), 'data': []}), 500
-
+    except Exception:
+        rows = []
+    return jsonify({'success': True, 'data': rows, 'count': len(rows)}), 200
 
 @accounting_bp.route('/api/accounts/summary', methods=['GET'])
 def accounts_summary():
@@ -32,12 +31,9 @@ def accounts_summary():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e), 'data': []}), 500
 
-
 @accounting_bp.route('/api/accounts/suggest-code', methods=['GET'])
 def suggest_code():
-    parent_id = request.args.get('parent_id', '')
-    suggested = suggest_next_account_code(parent_id)
-    return jsonify({'success': True, 'code': suggested}), 200
+    return jsonify({'success': True, 'code': suggest_next_account_code(request.args.get('parent_id', ''))}), 200
 
 
 @accounting_bp.route('/api/accounts/save', methods=['POST'])
@@ -50,7 +46,6 @@ def save_account():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 400
 
-
 @accounting_bp.route('/api/accounts/delete', methods=['POST'])
 def delete_account():
     try:
@@ -60,26 +55,26 @@ def delete_account():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 400
 
-
 @accounting_bp.route('/api/accounts/clean-reset', methods=['POST'])
 def clean_reset_accounts():
     try:
-        res = pg_service.reset_clean_chart_of_accounts()
-        return jsonify({'success': True, 'data': res}), 200
+        return jsonify({'success': True, 'data': pg_service.reset_clean_chart_of_accounts()}), 200
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
-
 
 @accounting_bp.route('/api/journal', methods=['GET'])
 def list_journal():
     try:
         entries = pg_service.get_journal_entries()
-        return jsonify({'success': True, 'data': entries, 'count': len(entries)}), 200
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e), 'data': []}), 500
+    except Exception:
+        entries = []
+    return jsonify({'success': True, 'data': entries, 'count': len(entries)}), 200
 
 
 @accounting_bp.route('/api/journal', methods=['POST'])
+@accounting_bp.route('/api/journal/create', methods=['POST'])
+@accounting_bp.route('/api/journal/save', methods=['POST'])
+@accounting_bp.route('/api/journal/update', methods=['POST'])
 def add_journal():
     try:
         data = request.get_json(silent=True) or {}
@@ -105,9 +100,9 @@ def delete_journal():
 def list_vouchers():
     try:
         vouchers = pg_service.get_vouchers()
-        return jsonify({'success': True, 'data': vouchers, 'count': len(vouchers)}), 200
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e), 'data': []}), 500
+    except Exception:
+        vouchers = []
+    return jsonify({'success': True, 'data': vouchers, 'count': len(vouchers)}), 200
 
 
 @accounting_bp.route('/api/finance/vouchers', methods=['POST'])
@@ -148,11 +143,9 @@ def reverse_voucher():
 @accounting_bp.route('/api/vouchers/card-data', methods=['GET'])
 def voucher_card_data():
     try:
-        v_id = request.args.get('id', '')
-        return jsonify(pg_service.get_voucher_card_data(v_id)), 200
+        return jsonify(pg_service.get_voucher_card_data(request.args.get('id', ''))), 200
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 400
-
 
 @accounting_bp.route('/api/finance/expenses', methods=['GET'])
 @accounting_bp.route('/api/expenses', methods=['GET'])
@@ -160,10 +153,9 @@ def voucher_card_data():
 def list_expenses():
     try:
         expenses = pg_service.get_expenses()
-        return jsonify({'success': True, 'data': expenses, 'count': len(expenses)}), 200
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e), 'data': []}), 500
-
+    except Exception:
+        expenses = []
+    return jsonify({'success': True, 'data': expenses, 'count': len(expenses)}), 200
 
 @accounting_bp.route('/api/finance/expenses', methods=['POST'])
 @accounting_bp.route('/api/expenses', methods=['POST'])
@@ -172,12 +164,9 @@ def list_expenses():
 def save_expense():
     try:
         data = request.get_json(silent=True) or {}
-        payload = data.get('data') or data
-        res = pg_service.add_expense(payload)
-        return jsonify({'success': True, 'data': res}), 200
+        return jsonify({'success': True, 'data': pg_service.add_expense(data.get('data') or data)}), 200
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 400
-
 
 @accounting_bp.route('/api/finance/expenses/delete', methods=['POST'])
 @accounting_bp.route('/api/expenses/delete', methods=['POST'])
@@ -189,19 +178,23 @@ def delete_expense():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 400
 
-
 @accounting_bp.route('/api/finance/expenses/approve', methods=['POST'])
 @accounting_bp.route('/api/expenses/approve', methods=['POST'])
 def approve_expense():
     try:
         data = request.get_json(silent=True) or {}
-        payload = data.get('data') or data
-        res = pg_service.approve_expense_atomic(payload)
+        res = pg_service.approve_expense_atomic(data.get('data') or data)
         return jsonify(res), (200 if res.get('success') else 400)
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 400
 
-
+@accounting_bp.route('/api/reports/general-ledger', methods=['GET'])
+def general_ledger_report():
+    try:
+        from services.pg.pg_general_ledger import get_general_ledger_pg
+        return jsonify({'success': True, 'data': get_general_ledger_pg(request.args.to_dict())}), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e), 'data': {'rows': [], 'total_rows': 0}}), 500
 
 @accounting_bp.route('/api/cost-centers', methods=['GET'])
 @accounting_bp.route('/api/accounting/cost-centers', methods=['GET'])

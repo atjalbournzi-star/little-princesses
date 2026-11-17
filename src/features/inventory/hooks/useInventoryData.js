@@ -144,13 +144,18 @@ function useInventoryData({ inventory = [], setInventory, purchases = [], showTo
     (inventory || []).forEach(i => {
       const qty = getItemQty(i);
       const rawCost = getItemCost(i);
-      const rawVal = parseFloat(i.total_value) || (qty * rawCost) || 0;
+      const rawVal = qty * rawCost;
       const iCurr = window.CurrencyService ? window.CurrencyService.normalizeCode(i.currency || 'YER') : 'YER';
       const baseVal = iCurr === 'YER' ? rawVal : (window.CurrencyService ? window.CurrencyService.toBase(rawVal, iCurr).base_amount : rawVal);
       baseTotal += baseVal;
 
-      if (isReadyDress(i)) readyPieces += qty;
-      else fabricMeters += qty;
+      if (isReadyDress(i)) {
+        readyPieces += qty;
+      } else {
+        const uom = u.getItemUnit ? u.getItemUnit(i) : (i.unit || 'متر');
+        const meters = u.convertUomToMeters ? u.convertUomToMeters(qty, uom) : (i.quantity_meters !== undefined ? parseFloat(i.quantity_meters) : qty);
+        fabricMeters += meters;
+      }
 
       if (isLowStock(i) || isOutOfStock(i)) lowCount++;
     });

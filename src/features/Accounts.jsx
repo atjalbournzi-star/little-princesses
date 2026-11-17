@@ -136,48 +136,58 @@ function Accounts({
     if (typeVal !== 'ALL') expandAll();
   };
 
+  const Header = window.AccountsHeader || (typeof AccountsHeader !== 'undefined' ? AccountsHeader : null);
+  const TreeView = window.AccountsTreeView || (typeof AccountsTreeView !== 'undefined' ? AccountsTreeView : null);
+  const Table = window.AccountsTable || (typeof AccountsTable !== 'undefined' ? AccountsTable : null);
+
   // ── العرض ────────────────────────────────────────────────────────────────
   return (
-    <div className="space-y-1.5 animate-fadeIn text-right" dir="rtl">
+    <div className="space-y-1 animate-fadeIn text-right" dir="rtl">
 
-      <AccountsHeader
-        searchTerm={searchTerm} setSearchTerm={setSearchTerm}
-        filterType={filterType} onFilterTypeChange={handleFilterTypeChange}
-        maxDepthFilter={maxDepthFilter} onMaxDepthChange={handleMaxDepthChange}
-        viewMode={viewMode} setViewMode={setViewMode}
-        onExpandAll={expandAll} onCollapseAll={collapseAll}
-        onAddAccount={() => handleOpenAddModal(null)}
-        onAuditLog={handleOpenAuditModal}
-        accountsCount={accountsWithRollupBalances.length}
-        groupCount={accountsWithRollupBalances.filter(a => a.is_group === 1).length}
-        postingCount={accountsWithRollupBalances.filter(a => a.is_group === 0).length}
-      />
+      {Header && (
+        <Header
+          searchTerm={searchTerm} setSearchTerm={setSearchTerm}
+          filterType={filterType} onFilterTypeChange={handleFilterTypeChange}
+          maxDepthFilter={maxDepthFilter} onMaxDepthChange={handleMaxDepthChange}
+          viewMode={viewMode} setViewMode={setViewMode}
+          onExpandAll={expandAll} onCollapseAll={collapseAll}
+          onAddAccount={() => handleOpenAddModal(null)}
+          onAuditLog={handleOpenAuditModal}
+          accountsCount={accountsWithRollupBalances.length}
+          groupCount={accountsWithRollupBalances.filter(a => a.is_group === 1).length}
+          postingCount={accountsWithRollupBalances.filter(a => a.is_group === 0).length}
+        />
+      )}
 
       {viewMode === 'tree' ? (
-        <AccountsTreeView
-          rootNodes={rootNodes}
-          accountsWithRollupBalances={accountsWithRollupBalances}
-          expandedNodes={expandedNodes} toggleExpand={toggleExpand}
-          filterMatches={filterMatches} isChildOf={isChildOf}
-          filterType={filterType} maxDepthFilter={maxDepthFilter} searchTerm={searchTerm}
-          isBaseCurrency={isBaseCurrency} activeTargetCurr={activeTargetCurr} currDef={currDef}
-          onOpenAddModal={handleOpenAddModal}
-          onOpenAddExpenseModal={handleOpenAddExpenseModal}
-          onOpenAddPartnerModal={handleOpenAddPartnerModal}
-          onOpenEditModal={handleOpenEditModal}
-          onToggleStatus={handleToggleStatus}
-          onDeleteAccount={(acc) => handleDeleteAccount(acc, isChildOf)}
-          onViewDetail={(acc) => setSelectedDetailAcc(acc)}
-        />
+        TreeView && (
+          <TreeView
+            rootNodes={rootNodes}
+            accountsWithRollupBalances={accountsWithRollupBalances}
+            expandedNodes={expandedNodes} toggleExpand={toggleExpand}
+            filterMatches={filterMatches} isChildOf={isChildOf}
+            filterType={filterType} maxDepthFilter={maxDepthFilter} searchTerm={searchTerm}
+            isBaseCurrency={isBaseCurrency} activeTargetCurr={activeTargetCurr} currDef={currDef}
+            onOpenAddModal={handleOpenAddModal}
+            onOpenAddExpenseModal={handleOpenAddExpenseModal}
+            onOpenAddPartnerModal={handleOpenAddPartnerModal}
+            onOpenEditModal={handleOpenEditModal}
+            onToggleStatus={handleToggleStatus}
+            onDeleteAccount={(acc) => handleDeleteAccount(acc, isChildOf)}
+            onViewDetail={(acc) => setSelectedDetailAcc(acc)}
+          />
+        )
       ) : (
-        <AccountsTable
-          accountsWithRollupBalances={accountsWithRollupBalances}
-          isBaseCurrency={isBaseCurrency} activeTargetCurr={activeTargetCurr} currDef={currDef}
-          onOpenEditModal={handleOpenEditModal}
-          onToggleStatus={handleToggleStatus}
-          onDeleteAccount={(acc) => handleDeleteAccount(acc, isChildOf)}
-          onViewDetail={(acc) => setSelectedDetailAcc(acc)}
-        />
+        Table && (
+          <Table
+            accountsWithRollupBalances={accountsWithRollupBalances}
+            isBaseCurrency={isBaseCurrency} activeTargetCurr={activeTargetCurr} currDef={currDef}
+            onOpenEditModal={handleOpenEditModal}
+            onToggleStatus={handleToggleStatus}
+            onDeleteAccount={(acc) => handleDeleteAccount(acc, isChildOf)}
+            onViewDetail={(acc) => setSelectedDetailAcc(acc)}
+          />
+        )
       )}
 
       <AccountModal

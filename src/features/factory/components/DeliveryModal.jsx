@@ -122,7 +122,7 @@ function DeliveryModal({
             <div className="p-3.5 rounded-2xl bg-[#F2E7F3]/60 border border-[#E5CEE7] space-y-1.5 text-xs">
               <div className="flex justify-between items-center">
                 <span className="font-bold text-[#8F2A87]">👧 الأميرة: {deliveryModalData.child_name || ord.child_name || 'الأميرة'}</span>
-                <span className="text-[#6F6B75]">العميلة: {deliveryModalData.customer_name || deliveryModalData.customer || ord.customer_name || ord.customer}</span>
+                <span className="text-[#6F6B75]">العميل: {deliveryModalData.customer_name || deliveryModalData.customer || ord.customer_name || ord.customer}</span>
               </div>
               <div className="flex justify-between items-center text-[11px] pt-1 border-t border-[#E5CEE7]">
                 <span>👗 الموديل: <strong>{deliveryModalData.product || deliveryModalData.product_name || ord.product || ord.product_name}</strong></span>

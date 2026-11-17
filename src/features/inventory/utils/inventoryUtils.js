@@ -77,9 +77,32 @@ function getItemCost(item) {
 
 function getItemTotalValue(item) {
   if (!item) return 0;
-  const rawTot = parseFloat(item.total_value);
-  if (!isNaN(rawTot) && rawTot > 0) return rawTot;
   return getItemQty(item) * getItemCost(item);
+}
+
+function normalizeUom(unitStr) {
+  if (!unitStr) return 'متر';
+  const u = String(unitStr).trim().toLowerCase();
+  if (u.includes('وار') || u.includes('يارد') || ['yd', 'yard', 'yards'].includes(u)) return 'وار';
+  if (u.includes('إنش') || u.includes('انش') || u.includes('بوص') || ['in', 'inch', 'inches', '"'].includes(u)) return 'إنش';
+  if (u.includes('سم') || u.includes('سنتيمتر') || u === 'cm') return 'سم';
+  if (u.includes('رول') || u.includes('طاق') || ['roll', 'bolt'].includes(u)) return 'رول';
+  if (u.includes('حب') || u.includes('قطع') || ['pc', 'piece', 'pieces'].includes(u)) return 'قطعة';
+  if (u.includes('متر') || ['m', 'meter', 'meters'].includes(u)) return 'متر';
+  return u;
+}
+
+function convertUomToMeters(qty, fromUnit) {
+  const val = parseFloat(qty) || 0;
+  if (!val) return 0;
+  const f = normalizeUom(fromUnit);
+  if (f === 'متر') return val;
+  if (f === 'وار') return val * 0.9144;
+  if (f === 'سم') return val * 0.01;
+  if (f === 'إنش') return val * 0.0254;
+  if (f === 'رول') return val * 25.0 * 0.9144;
+  if (f === 'قطعة') return 0;
+  return val;
 }
 
 function getItemReorderLevel(item) {
@@ -143,7 +166,9 @@ const inventoryUtils = {
   isItemLowStock,
   getItemUnit,
   isReadyDressItem,
-  getInitialInventoryForm
+  getInitialInventoryForm,
+  normalizeUom,
+  convertUomToMeters
 };
 
 window.inventoryUtils = inventoryUtils;

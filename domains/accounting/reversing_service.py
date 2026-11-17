@@ -40,7 +40,7 @@ def ensure_reversal_columns():
 
     _columns_ensured = True
 
-def reverse_voucher(voucher_id_or_no: str, reason: str, user_id: str = 'admin') -> dict:
+def reverse_voucher(voucher_id_or_no: str, reason: str, user_id: str = None) -> dict:
     """
     إلغاء السند المالي محاسبياً بإنشاء قيد يومية عكسي متزن دون حذف السجل الأصلي
     """
@@ -54,6 +54,7 @@ def reverse_voucher(voucher_id_or_no: str, reason: str, user_id: str = 'admin') 
     target = str(voucher_id_or_no).strip()
 
     with pg_service.get_db_cursor(commit=True) as cur:
+        resolved_user = pg_service.resolve_active_user_id(cur, user_id)
         # 1. جلب السند الأصلي من PostgreSQL
         cur.execute("""
             SELECT id, payment_no, amount, base_amount, currency, exchange_rate,
@@ -107,14 +108,14 @@ def reverse_voucher(voucher_id_or_no: str, reason: str, user_id: str = 'admin') 
                 INSERT INTO journal_entries (
                     id, entry_no, entry_date, description, debit_account_id,
                     credit_account_id, amount, total_amount, base_amount, ref_type,
-                    ref_id, currency, exchange_rate, status, notes
+                    ref_id, currency, exchange_rate, status, notes, created_by
                 ) VALUES (
                     %s, %s, %s, %s, %s, %s, %s, %s, %s, 'PaymentReversal',
-                    %s, %s, %s, 'Posted', %s
+                    %s, %s, %s, 'Posted', %s, %s
                 ) ON CONFLICT (entry_no) DO UPDATE SET
                     description = EXCLUDED.description,
                     status = 'Posted';
-            """, (rev_jv_id, rev_jv_no, now_str, desc, rev_deb, rev_crd, float(amt), float(amt), float(base_amt), actual_id, curr, rate, clean_reason))
+            """, (rev_jv_id, rev_jv_no, now_str, desc, rev_deb, rev_crd, float(amt), float(amt), float(base_amt), actual_id, curr, rate, clean_reason, resolved_user))
 
             cur.execute("SELECT id FROM journal_entries WHERE entry_no = %s LIMIT 1;", (rev_jv_no,))
             entry_row = cur.fetchone()
@@ -147,7 +148,7 @@ def reverse_voucher(voucher_id_or_no: str, reason: str, user_id: str = 'admin') 
                 reversed_by = %s,
                 reversal_entry_id = %s
             WHERE id = %s;
-        """, (clean_reason, user_id, rev_jv_no, actual_id))
+        """, (clean_reason, resolved_user, rev_jv_no, actual_id))
 
     # 5. مزامنة SQLite لتحديث حالة السند وإدراج القيد العكسي
     try:
@@ -161,7 +162,7 @@ def reverse_voucher(voucher_id_or_no: str, reason: str, user_id: str = 'admin') 
                 reversed_by = ?,
                 reversal_entry_id = ?
             WHERE id = ? OR voucher_no = ?;
-        """, (clean_reason, now_ts, user_id, rev_jv_no, actual_id, pay_no))
+        """, (clean_reason, now_ts, resolved_user, rev_jv_no, actual_id, pay_no))
 
         c.execute("""
             INSERT OR REPLACE INTO journal_entries (
@@ -179,8 +180,8 @@ def reverse_voucher(voucher_id_or_no: str, reason: str, user_id: str = 'admin') 
         pg_service.log_audit_event(
             'VOUCHER', actual_id, 'REVERSE',
             old_values={'status': v_dict.get('status') or 'Confirmed'},
-            new_values={'status': 'reversed', 'reversal_reason': clean_reason, 'reversal_entry': rev_jv_no},
-            user_id=user_id
+            new_values={'status': 'reversed', 'reversal_reason': clean_reason, 'reversal_entry': rev_jv_no, 'reversed_by': resolved_user},
+            user_id=resolved_user
         )
     except Exception:
         pass

@@ -8,7 +8,8 @@ function WorkerAssignModal({
   fabricInventory = [], stages = [], handleOrderSelect, handleStageEmpChange,
   handleStageChange, handleProductionTypeChange, handleProductChange,
   handleSizeChange, selectLatestCustomer, handleSubmit, setModelPreviewData,
-  showToast, showOrderForm: propShowOrderForm, setShowOrderForm: propSetShowOrderForm
+  showToast, showOrderForm: propShowOrderForm, setShowOrderForm: propSetShowOrderForm,
+  jobRoles = []
 }) {
   const safeForm = form || {};
   const isReadyToWear = safeForm.production_type === 'ready_to_wear';
@@ -83,6 +84,7 @@ function WorkerAssignModal({
             <WagesMatrixComponent
               form={safeForm} setForm={setForm} employees={employees}
               handleStageEmpChange={handleStageEmpChange} showToast={showToast}
+              jobRoles={jobRoles}
             />
           )}
 

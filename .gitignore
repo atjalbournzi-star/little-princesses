@@ -1,16 +1,26 @@
 # Environment & Secrets
 .env
-.env*.local
+.env.*
+!.env.example
 *.env
+*.pem
+*.key
 
-# Python & Build
+# Dependencies & Virtual Envs
+node_modules/
+.venv/
+venv/
+ENV/
+env/
+
+# Python Cache & Build
 __pycache__/
-*.pyc
-*.pyo
+*.py[cod]
+*$py.class
 build/
 dist/
+*.egg-info/
 *.exe_extracted/
-node_modules/
 
 # Logs & Dumps
 *.log
@@ -24,4 +34,9 @@ chrome_dump.txt
 *.db-wal
 backups/
 scratch/
+
+# OS Artifacts
+.DS_Store
+Thumbs.db
+
 

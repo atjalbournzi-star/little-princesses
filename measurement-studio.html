@@ -1,0 +1,3688 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>استوديو أخذ المقاسات الداخلي للمعمل | معايرة A4 Homography</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Cairo & JetBrains Mono for numbers -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Cairo', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        studio: {
+                            950: '#090d16',
+                            900: '#0f172a',
+                            800: '#1e293b',
+                            700: '#334155',
+                            600: '#475569',
+                            accent: '#10b981',
+                            gold: '#f59e0b',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        body {
+            font-family: 'Cairo', sans-serif;
+            background-color: #090d16;
+            color: #f1f5f9;
+            overflow-x: hidden;
+        }
+        /* Custom Scrollbars */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 9999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+        /* Blueprint Canvas Pattern */
+        .canvas-bg {
+            background-color: #0b1120;
+            background-image: 
+                linear-gradient(rgba(30, 41, 59, 0.45) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(30, 41, 59, 0.45) 1px, transparent 1px);
+            background-size: 24px 24px;
+        }
+        input[type="range"] {
+            accent-color: #10b981;
+        }
+        .num-font {
+            font-family: 'JetBrains Mono', monospace;
+            direction: ltr;
+            display: inline-block;
+        }
+    </style>
+</head>
+<body class="min-h-screen lg:h-screen flex flex-col overflow-y-auto lg:overflow-hidden bg-studio-950 text-slate-100">
+
+    <!-- ==================== TOP STUDIO HEADER ==================== -->
+    <header class="min-h-14 py-1.5 bg-studio-900 border-b border-slate-800 px-3 md:px-4 flex flex-wrap items-center justify-between gap-2 shrink-0 z-20 shadow-lg">
+        <!-- Brand & Title -->
+        <div class="flex items-center gap-2.5">
+            <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-700 flex items-center justify-center shadow-md shadow-emerald-900/50 shrink-0">
+                <i class="fa-solid fa-ruler-combined text-white text-lg"></i>
+            </div>
+            <div>
+                <div class="flex items-center gap-2">
+                    <h1 class="font-bold text-xs sm:text-sm md:text-base text-white tracking-wide">استوديو أخذ المقاسات الداخلي للمعمل</h1>
+                    <span class="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                        4-Point A4 Homography v2.0
+                    </span>
+                </div>
+                <p class="text-[11px] text-slate-400 hidden xl:block">معايرة هندسية دقيقة لصور الواتساب وتصحيح ميلان الكاميرا لتفصيل الفساتين</p>
+            </div>
+        </div>
+
+        <!-- Quick Actions & Unit Toggle -->
+        <div class="flex flex-wrap items-center gap-1.5 md:gap-2">
+            <!-- Auto-Measure AI/CV Button -->
+            <button id="btnAutoDetectHeader" onclick="runAutomaticMeasurementPipeline(true)" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-slate-950 shadow-md shadow-amber-950/60 text-xs font-extrabold transition-all" title="التعرف التلقائي على ورقة الـ A4 والفستان وأخذ المقاسات آلياً">
+                <i class="fa-solid fa-wand-magic-sparkles"></i>
+                <span>قياس تلقائي ذكي (Auto)</span>
+            </button>
+
+            <!-- Unit Switcher (CM / Inch) -->
+            <div class="flex items-center bg-slate-950 p-0.5 rounded-xl border border-slate-800">
+                <button id="btnUnitCm" onclick="setUnit('cm')" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all bg-emerald-600 text-white shadow">
+                    سم (CM)
+                </button>
+                <button id="btnUnitInch" onclick="setUnit('inch')" class="px-2.5 py-1 rounded-lg text-xs font-bold transition-all text-slate-400 hover:text-white">
+                    إنش (In)
+                </button>
+            </div>
+
+            <!-- Primary Export Buttons -->
+            <button onclick="exportAnnotatedImage()" class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold transition-all" title="حفظ صورة الفستان وعليها المقاسات">
+                <i class="fa-solid fa-camera-retro text-amber-400"></i>
+                <span class="hidden md:inline">حفظ صورة موثقة</span>
+            </button>
+
+            <button onclick="copyFormattedWhatsAppText()" class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 text-xs font-semibold transition-all" title="نسخ المقاسات كنص منسق للواتساب">
+                <i class="fa-brands fa-whatsapp text-emerald-400 text-sm"></i>
+                <span class="hidden md:inline">نسخ للواتساب</span>
+            </button>
+
+            <button onclick="openErpJsonModal()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-md shadow-emerald-950 text-xs font-bold transition-all">
+                <i class="fa-solid fa-file-export"></i>
+                <span>اعتماد للنظام (JSON)</span>
+            </button>
+
+            <button onclick="openAntigravityBridgeModal()" class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-purple-600/25 hover:bg-purple-600/40 text-purple-300 border border-purple-500/40 text-xs font-bold transition-all" title="طريقة نقل وربط الأداة مع مشروعك في Antigravity">
+                <i class="fa-solid fa-rocket text-purple-400"></i>
+                <span class="hidden sm:inline">دمج في Antigravity</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- ==================== MAIN 3-COLUMN STUDIO WORKSPACE ==================== -->
+    <main class="flex-1 flex flex-col lg:flex-row overflow-visible lg:overflow-hidden relative">
+
+        <!-- 1. RIGHT SIDEBAR: IMAGE INPUT, ENHANCEMENTS & A4 CALIBRATION -->
+        <aside class="w-full lg:w-80 bg-studio-900 border-b lg:border-b-0 lg:border-l border-slate-800 flex flex-col shrink-0 lg:overflow-y-auto z-10">
+            
+            <!-- Order / Customer Reference Card -->
+            <div class="p-3.5 border-b border-slate-800/80 bg-slate-900/50">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                        <i class="fa-solid fa-tag text-emerald-400"></i>
+                        بيانات طلب التفصيل
+                    </span>
+                    <span id="autoSaveIndicator" class="text-[10px] text-emerald-400/80 flex items-center gap-1">
+                        <i class="fa-solid fa-cloud-check"></i>حفظ تلقائي نشط
+                    </span>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="text-[11px] text-slate-400 block mb-1">رقم الطلب / الفاتورة</label>
+                        <input id="orderIdInput" type="text" value="" placeholder="رقم الطلب" oninput="updateSummaryTable(); saveStudioStateToStorage();" class="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono outline-none">
+                    </div>
+                    <div>
+                        <label class="text-[11px] text-slate-400 block mb-1">اسم الزبونة / الموديل</label>
+                        <input id="customerNameInput" type="text" value="أم ريما - فستان العيد" oninput="updateSummaryTable(); saveStudioStateToStorage();" class="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-lg px-2.5 py-1.5 text-xs text-white outline-none">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Image Input & WhatsApp Paste Section -->
+            <div class="p-3.5 border-b border-slate-800/80">
+                <h2 class="text-xs font-bold text-slate-200 mb-2.5 flex items-center gap-1.5">
+                    <i class="fa-solid fa-image text-emerald-400"></i>
+                    1. إدخال صورة الفستان (واتساب / ملف)
+                </h2>
+
+                <!-- Drag & Drop / Upload Zone -->
+                <div id="dropZone" onclick="document.getElementById('fileInput').click()" class="border-2 border-dashed border-slate-700 hover:border-emerald-500/70 bg-slate-950/60 hover:bg-slate-900/80 rounded-xl p-3 text-center cursor-pointer transition-all group">
+                    <input id="fileInput" type="file" accept="image/*" class="hidden" onchange="handleFileSelect(event)">
+                    <div class="w-9 h-9 rounded-full bg-slate-800 group-hover:bg-emerald-500/20 mx-auto flex items-center justify-center mb-1.5 transition-all">
+                        <i class="fa-solid fa-cloud-arrow-up text-emerald-400"></i>
+                    </div>
+                    <p class="text-xs font-semibold text-slate-200">اضغط لرفع صورة أو اسحبها هنا</p>
+                    <p class="text-[11px] text-slate-400 mt-0.5">أو انسخ الصورة من الواتساب واضغط <span class="text-emerald-400 font-mono">Ctrl+V</span></p>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2 mt-2.5">
+                    <button onclick="pasteFromClipboardButton()" class="flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 border border-slate-700 transition">
+                        <i class="fa-regular fa-paste text-emerald-400"></i>
+                        <span>لصق الحافظة</span>
+                    </button>
+                    <button onclick="loadRealisticSampleDress()" class="flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-xs font-semibold text-amber-300 border border-amber-500/30 transition">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i>
+                        <span>نموذج تجريبي</span>
+                    </button>
+                </div>
+
+                <!-- Auto-Detect Mode Toggle & Trigger -->
+                <div class="mt-2.5 p-2.5 rounded-xl bg-emerald-950/40 border border-emerald-500/30">
+                    <div class="flex items-center justify-between mb-2">
+                        <label class="flex items-center gap-2 cursor-pointer text-xs font-bold text-emerald-300">
+                            <input id="chkAutoDetectOnLoad" type="checkbox" class="rounded accent-emerald-500 w-3.5 h-3.5">
+                            <span>أخذ المقاسات تلقائياً فور لصق الصورة (اختياري)</span>
+                        </label>
+                        <span id="autoDetectConfidenceBadge" class="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-300">
+                            دقة 98%
+                        </span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-1.5">
+                        <button onclick="runAutomaticMeasurementPipeline(true)" class="py-1.5 px-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold flex items-center justify-center gap-1 shadow transition">
+                            <i class="fa-solid fa-bolt"></i>
+                            <span>مسح تلقائي فوري (CV)</span>
+                        </button>
+                        <button onclick="runGeminiVisionAutoDetect()" class="py-1.5 px-2 rounded-lg bg-purple-600/80 hover:bg-purple-500 text-white text-[11px] font-bold flex items-center justify-center gap-1 shadow transition" title="استخدام نموذج الرؤية الحاسوبية Gemini Vision للصور المعقدة">
+                            <i class="fa-solid fa-brain"></i>
+                            <span>تحليل عميق (Gemini AI)</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Image Vision Enhancement Controls -->
+            <div class="p-3.5 border-b border-slate-800/80">
+                <div class="flex items-center justify-between mb-2.5">
+                    <h2 class="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                        <i class="fa-solid fa-sliders text-emerald-400"></i>
+                        2. تحسين الرؤية وتدوير الصورة
+                    </h2>
+                    <button onclick="resetImageFilters()" class="text-[11px] text-slate-400 hover:text-emerald-400 transition">
+                        <i class="fa-solid fa-rotate-left ml-0.5"></i>إعادة ضبط
+                    </button>
+                </div>
+
+                <!-- Brightness -->
+                <div class="mb-2.5">
+                    <div class="flex justify-between text-[11px] mb-1">
+                        <span class="text-slate-300"><i class="fa-regular fa-sun text-amber-400 ml-1"></i>السطوع (Brightness)</span>
+                        <span id="lblBrightness" class="num-font text-emerald-400">100%</span>
+                    </div>
+                    <input id="sliderBrightness" type="range" min="40" max="220" value="100" oninput="updateImageFilters()" class="w-full h-1.5 bg-slate-800 rounded-lg cursor-pointer">
+                </div>
+
+                <!-- Contrast -->
+                <div class="mb-2.5">
+                    <div class="flex justify-between text-[11px] mb-1">
+                        <span class="text-slate-300"><i class="fa-solid fa-circle-half-stroke text-sky-400 ml-1"></i>التباين وإبراز الخياطة (Contrast)</span>
+                        <span id="lblContrast" class="num-font text-emerald-400">100%</span>
+                    </div>
+                    <input id="sliderContrast" type="range" min="50" max="260" value="100" oninput="updateImageFilters()" class="w-full h-1.5 bg-slate-800 rounded-lg cursor-pointer">
+                </div>
+
+                <!-- Fine Rotation & 90 deg buttons -->
+                <div class="mb-2">
+                    <div class="flex justify-between text-[11px] mb-1">
+                        <span class="text-slate-300"><i class="fa-solid fa-compass-drafting text-purple-400 ml-1"></i>تدوير حر بالدرجات</span>
+                        <span id="lblFineAngle" class="num-font text-emerald-400">0°</span>
+                    </div>
+                    <input id="sliderFineAngle" type="range" min="-45" max="45" step="0.5" value="0" oninput="updateImageFilters()" class="w-full h-1.5 bg-slate-800 rounded-lg cursor-pointer">
+                </div>
+
+                <div class="grid grid-cols-3 gap-1.5 mt-2">
+                    <button onclick="rotateImage90(90)" class="py-1.5 px-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] font-semibold text-slate-200 border border-slate-700 flex items-center justify-center gap-1" title="تدوير 90 درجة مع عقارب الساعة">
+                        <i class="fa-solid fa-rotate-right"></i>
+                        <span>90° يمين</span>
+                    </button>
+                    <button onclick="rotateImage90(-90)" class="py-1.5 px-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] font-semibold text-slate-200 border border-slate-700 flex items-center justify-center gap-1" title="تدوير 90 درجة عكس عقارب الساعة">
+                        <i class="fa-solid fa-rotate-left"></i>
+                        <span>90° يسار</span>
+                    </button>
+                    <button id="btnInvertFilter" onclick="toggleHighContrastSeam()" class="py-1.5 px-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] font-semibold text-slate-200 border border-slate-700 flex items-center justify-center gap-1" title="تعزيز حواف القماش الداكن">
+                        <i class="fa-solid fa-wand-sparkles text-amber-400"></i>
+                        <span>إبراز الحواف</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 4-Point A4 Homography Calibration Section -->
+            <div class="p-3.5 flex-1">
+                <div class="flex items-center justify-between mb-2">
+                    <h2 class="text-xs font-bold text-amber-400 flex items-center gap-1.5">
+                        <i class="fa-solid fa-vector-square"></i>
+                        3. معايرة ورقة الـ A4 (Homography)
+                    </h2>
+                    <span id="homographyStatusBadge" class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                        معايرة نشطة
+                    </span>
+                </div>
+
+                <p class="text-[11px] text-slate-400 leading-relaxed mb-2.5">
+                    ضع الدبابيس البرتقالية الأربعة <span class="text-amber-400 font-bold">(1، 2، 3، 4)</span> على زوايا ورقة الـ A4 لتعويض ميلان زاوية تصوير الجوال تلقائياً.
+                </p>
+
+                <!-- A4 Orientation Switcher -->
+                <div class="mb-2.5">
+                    <label class="text-[11px] text-slate-300 block mb-1.5 font-semibold">اتجاه ورقة الـ A4 على الأرض:</label>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button id="btnA4Portrait" onclick="setA4Orientation('portrait')" class="py-2 px-2.5 rounded-xl border text-xs font-bold flex flex-col items-center gap-0.5 transition-all bg-amber-500/20 border-amber-500 text-amber-300">
+                            <div class="flex items-center gap-1.5">
+                                <i class="fa-regular fa-file"></i>
+                                <span>عمودي (Portrait)</span>
+                            </div>
+                            <span class="num-font text-[10px] text-amber-200/80">21.0 × 29.7 cm</span>
+                        </button>
+                        <button id="btnA4Landscape" onclick="setA4Orientation('landscape')" class="py-2 px-2.5 rounded-xl border text-xs font-bold flex flex-col items-center gap-0.5 transition-all bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200">
+                            <div class="flex items-center gap-1.5">
+                                <i class="fa-regular fa-file fa-rotate-90"></i>
+                                <span>أفقي (Landscape)</span>
+                            </div>
+                            <span class="num-font text-[10px] text-slate-500">29.7 × 21.0 cm</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Visual Verification Grid & Smart A4 Actions -->
+                <div class="bg-slate-950/80 border border-slate-800 rounded-xl p-2.5 mb-2.5 space-y-2">
+                    <div class="flex items-center justify-between">
+                        <label class="flex items-center gap-2 cursor-pointer text-xs text-slate-300">
+                            <input id="chkShowA4Grid" type="checkbox" checked onchange="renderCanvas()" class="rounded accent-amber-500 w-3.5 h-3.5">
+                            <span>إظهار شبكة التحقق المنظورية</span>
+                        </label>
+                    </div>
+                    <button id="btnManualA4Calibration" onclick="startManualA4Calibration()" class="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg transition">
+                        <i class="fa-solid fa-crosshairs"></i>
+                        <span id="lblManualA4Calibration">تحديد زوايا الورقة يدوياً (4 نقرات)</span>
+                    </button>
+                    <div class="grid grid-cols-2 gap-1.5 pt-1 border-t border-slate-800/80">
+                        <button onclick="autoDetectA4SheetOnly()" class="py-1 px-2 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-[11px] text-amber-300 font-semibold flex items-center justify-center gap-1 transition">
+                            <i class="fa-solid fa-crosshairs"></i>
+                            <span>التقاط الورقة آلياً</span>
+                        </button>
+                        <button onclick="autoSortA4CornersClockwise()" class="py-1 px-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[11px] text-slate-200 font-semibold flex items-center justify-center gap-1 transition" title="إعادة ترتيب أرقام الزوايا (1، 2، 3، 4) باتجاه عقارب الساعة لمنع التقاطع">
+                            <i class="fa-solid fa-arrow-Down-1-9"></i>
+                            <span>ترتيب الزوايا 1-4</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Live Homography Diagnostics Box -->
+                <div class="bg-slate-950 border border-slate-800/90 rounded-xl p-2.5 text-[11px] space-y-1.5">
+                    <div class="flex justify-between items-center">
+                        <span class="text-slate-400">فحص النسبة الهندسية للورقة (<span class="font-mono">√2</span>):</span>
+                        <span id="lblA4AspectCheck" class="num-font font-bold text-emerald-400">مطابق (1.41) ✓</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-slate-400">زاوية ميلان الكاميرا المقدرة:</span>
+                        <span id="lblCameraTilt" class="num-font font-bold text-amber-400">14.2°</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-slate-400">متوسط الدقة المكانية:</span>
+                        <span id="lblPixelDensity" class="num-font font-bold text-emerald-400">12.4 px/cm</span>
+                    </div>
+                    <div class="pt-1 border-t border-slate-800/80 flex justify-between items-center">
+                        <span class="text-slate-500">مصفوفة التحويل <span class="font-mono">H[3×3]</span>:</span>
+                        <button onclick="toggleMatrixInspector()" class="text-sky-400 hover:underline text-[11px]">عرض المصفوفة الرياضية</button>
+                    </div>
+                    <pre id="matrixInspectorBox" class="hidden mt-1.5 p-2 bg-slate-900 rounded text-[10px] font-mono text-emerald-300 overflow-x-auto leading-tight dir-ltr text-left"></pre>
+                </div>
+            </div>
+        </aside>
+
+        <!-- 2. CENTER INTERACTIVE CANVAS & 3X MAGNIFIER LOUPE -->
+        <section class="flex-1 flex flex-col relative overflow-hidden canvas-bg min-h-[480px] h-[62vh] lg:h-auto lg:min-h-0">
+            
+            <!-- AI / CV Scanning Overlay Indicator -->
+            <div id="aiScanningOverlay" class="hidden absolute inset-0 bg-slate-950/70 backdrop-blur-sm z-30 flex-col items-center justify-center pointer-events-auto">
+                <div class="bg-studio-900 border border-emerald-500/50 rounded-2xl p-5 shadow-2xl max-w-sm w-full mx-4 text-center">
+                    <div class="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center mx-auto mb-3 animate-pulse">
+                        <i class="fa-solid fa-wand-magic-sparkles text-emerald-400 text-xl"></i>
+                    </div>
+                    <h3 id="aiScanTitle" class="text-sm font-bold text-white mb-1">جاري التعرف التلقائي وأخذ المقاسات...</h3>
+                    <p id="aiScanStepText" class="text-xs text-slate-300 mb-3">تحليل زوايا ورقة الـ A4 وعزل حواف الفستان عن الأرضية</p>
+                    <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                        <div id="aiScanProgressBar" class="bg-gradient-to-r from-emerald-500 to-amber-400 h-full transition-all duration-300" style="width: 45%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Floating Top Canvas Toolbar -->
+            <div class="absolute top-3 left-3 right-3 flex flex-wrap items-center justify-between gap-2 pointer-events-none z-10">
+                <!-- Interaction Mode Selector + Undo/Redo -->
+                <div class="flex items-center gap-1 bg-slate-900/90 backdrop-blur-md p-1 rounded-xl border border-slate-700/80 shadow-xl pointer-events-auto">
+                    <button id="btnModeEdit" onclick="setCanvasTool('edit')" class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 text-white shadow transition">
+                        <i class="fa-solid fa-location-crosshairs"></i>
+                        <span>تحريك الدبابيس</span>
+                    </button>
+                    <button id="btnModePan" onclick="setCanvasTool('pan')" class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold text-slate-300 hover:text-white transition">
+                        <i class="fa-solid fa-hand"></i>
+                        <span>تحريك اللوحة</span>
+                    </button>
+                    <div class="h-4 w-[1px] bg-slate-700 mx-0.5"></div>
+                    <button id="btnUndo" onclick="undoHistory()" class="w-7 h-7 rounded-lg hover:bg-slate-800 text-slate-300 disabled:opacity-35 flex items-center justify-center transition" title="تراجع (Ctrl+Z)">
+                        <i class="fa-solid fa-rotate-right"></i>
+                    </button>
+                    <button id="btnRedo" onclick="redoHistory()" class="w-7 h-7 rounded-lg hover:bg-slate-800 text-slate-300 disabled:opacity-35 flex items-center justify-center transition" title="إعادة (Ctrl+Y)">
+                        <i class="fa-solid fa-rotate-left"></i>
+                    </button>
+                </div>
+
+                <!-- Zoom & Loupe Controls -->
+                <div class="flex items-center gap-1 bg-slate-900/90 backdrop-blur-md p-1 rounded-xl border border-slate-700/80 shadow-xl pointer-events-auto">
+                    <button onclick="zoomBy(1.25)" class="w-7 h-7 rounded-lg hover:bg-slate-800 text-slate-200 flex items-center justify-center transition" title="تقريب (Zoom In)">
+                        <i class="fa-solid fa-magnifying-glass-plus"></i>
+                    </button>
+                    <span id="lblZoomLevel" class="num-font text-xs font-bold text-emerald-400 px-1 min-w-[48px] text-center">100%</span>
+                    <button onclick="zoomBy(0.8)" class="w-7 h-7 rounded-lg hover:bg-slate-800 text-slate-200 flex items-center justify-center transition" title="تبعيد (Zoom Out)">
+                        <i class="fa-solid fa-magnifying-glass-minus"></i>
+                    </button>
+                    <button onclick="fitImageToCanvas()" class="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] font-semibold text-slate-200 transition" title="ملاءمة الصورة للشاشة">
+                        ملاءمة
+                    </button>
+                    <div class="h-4 w-[1px] bg-slate-700 mx-0.5"></div>
+                    <!-- Magnifier Loupe Toggle -->
+                    <button id="btnToggleLoupe" onclick="cycleLoupePower()" class="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-300 text-[11px] font-bold transition" title="تغيير قوة العدسة المكبرة عند السحب">
+                        <i class="fa-solid fa-crosshairs"></i>
+                        <span id="lblLoupePower">عدسة 3x</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Interactive HTML5 Canvas -->
+            <div id="canvasContainer" class="flex-1 w-full h-full min-h-[420px] relative overflow-hidden">
+                <canvas id="studioCanvas" tabindex="0" class="block w-full h-full cursor-crosshair outline-none"></canvas>
+            </div>
+
+            <!-- Bottom Live Coordinate & Instruction Bar -->
+            <div class="min-h-9 py-1 bg-slate-900/95 border-t border-slate-800 px-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400 shrink-0 z-10">
+                <div class="flex items-center gap-2">
+                    <span id="statusInstruction" class="text-slate-200 flex items-center gap-1.5 text-[11px]">
+                        <i class="fa-solid fa-circle-info text-emerald-400"></i>
+                        <span>اسحب أي دبوس بالماوس، أو اضغط عليه وحرّكه بدقة متناهية بأسهم الكيبورد (<kbd class="px-1 bg-slate-800 rounded text-emerald-300">↑↓←→</kbd>).</span>
+                    </span>
+                </div>
+                <div class="hidden sm:flex items-center gap-3 font-mono text-[11px]">
+                    <div>
+                        <span class="text-slate-500">البكسل:</span>
+                        <span id="lblCursorPixel" class="text-slate-300">X: -- , Y: --</span>
+                    </div>
+                    <div>
+                        <span class="text-slate-500">الأرضية (Homography):</span>
+                        <span id="lblCursorWorld" class="text-emerald-400 font-bold">X: -- cm , Y: -- cm</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 3. LEFT SIDEBAR: TAILORING MEASUREMENTS, EASE & LIVE ERP SUMMARY TABLE -->
+        <aside class="w-full lg:w-[430px] bg-studio-900 border-r border-slate-800 flex flex-col shrink-0 overflow-hidden z-10">
+            
+            <!-- Section Header + Add Custom Measurement Button -->
+            <div class="p-3.5 border-b border-slate-800 flex items-center justify-between bg-slate-900/90">
+                <div>
+                    <h2 class="text-sm font-bold text-white flex items-center gap-1.5">
+                        <i class="fa-solid fa-scissors text-emerald-400"></i>
+                        4. خطوط قياس التفصيل والخياطة
+                    </h2>
+                    <p class="text-[11px] text-slate-400">يمكنك تحريك طرفي الخط أو سحب الشارة من المنتصف</p>
+                </div>
+                <button onclick="openAddCustomMeasurementModal()" class="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 text-xs font-bold transition">
+                    <i class="fa-solid fa-plus"></i>
+                    <span>إضافة قياس مخصص</span>
+                </button>
+            </div>
+
+            <!-- Scrollable Measurement Lines List -->
+            <div id="measurementsListContainer" class="flex-1 overflow-y-auto p-3 space-y-2.5 max-h-[420px] lg:max-h-none">
+                <!-- Populated dynamically via JS -->
+            </div>
+
+            <!-- Compact Live Final Summary Table & Export Footer -->
+            <div class="border-t border-slate-800 bg-slate-950/90 p-3 shrink-0">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                        <i class="fa-solid fa-table-list text-amber-400"></i>
+                        ملخص المقاسات المعتمدة للطلب
+                    </span>
+                    <span id="lblActiveCount" class="text-[11px] text-emerald-400 font-semibold">6 مقاسات مفعلة</span>
+                </div>
+
+                <!-- Mini Scrollable Table -->
+                <div class="max-h-36 overflow-y-auto rounded-xl border border-slate-800 bg-slate-900/70 mb-2.5">
+                    <table class="w-full text-right text-[11px]">
+                        <thead class="bg-slate-950 text-slate-400 sticky top-0">
+                            <tr>
+                                <th class="py-1.5 px-2.5 font-semibold">القياس</th>
+                                <th class="py-1.5 px-2 font-semibold text-center">المسطح</th>
+                                <th class="py-1.5 px-2 font-semibold text-center">الراحة</th>
+                                <th class="py-1.5 px-2 font-semibold text-center text-emerald-400">النهائي (سم)</th>
+                                <th class="py-1.5 px-2 font-semibold text-center text-sky-400">بالإنش</th>
+                            </tr>
+                        </thead>
+                        <tbody id="summaryTableBody" class="divide-y divide-slate-800/70">
+                            <!-- Populated via JS -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Bottom Action Row -->
+                <div class="grid grid-cols-3 gap-2">
+                    <button onclick="copyFormattedWhatsAppText()" class="py-2 px-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700 text-xs font-bold flex items-center justify-center gap-1.5 transition">
+                        <i class="fa-regular fa-copy text-emerald-400"></i>
+                        <span>نسخ نص منسق</span>
+                    </button>
+                    <button onclick="exportAnnotatedImage()" class="py-2 px-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700 text-xs font-bold flex items-center justify-center gap-1.5 transition">
+                        <i class="fa-solid fa-download text-amber-400"></i>
+                        <span>حفظ الصورة</span>
+                    </button>
+                    <button onclick="openErpJsonModal()" class="py-2 px-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-950 transition">
+                        <i class="fa-solid fa-check-double"></i>
+                        <span>اعتماد (JSON)</span>
+                    </button>
+                </div>
+            </div>
+        </aside>
+    </main>
+
+    <!-- ==================== MODAL 1: ADD CUSTOM MEASUREMENT ==================== -->
+    <div id="customMeasurementModal" class="fixed inset-0 bg-black/75 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+        <div class="bg-studio-900 border border-slate-700 rounded-2xl max-w-md w-full p-5 shadow-2xl">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-base font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-plus-circle text-emerald-400"></i>
+                    إضافة خط قياس مخصص للموديل
+                </h3>
+                <button onclick="closeAddCustomMeasurementModal()" class="text-slate-400 hover:text-white">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <div class="space-y-3.5">
+                <div>
+                    <label class="text-xs text-slate-300 block mb-1 font-semibold">اسم القياس (بالعربية):</label>
+                    <input id="customMeasureName" type="text" placeholder="مثال: وسع الرقبة، عرض الذيل، طول التنورة..." class="w-full bg-slate-950 border border-slate-700 focus:border-emerald-500 rounded-xl px-3 py-2 text-sm text-white outline-none">
+                </div>
+
+                <div>
+                    <label class="text-xs text-slate-300 block mb-1 font-semibold">طريقة حساب المقاس:</label>
+                    <div class="grid grid-cols-2 gap-2">
+                        <label class="flex items-center gap-2 p-2.5 rounded-xl border border-slate-700 bg-slate-950 cursor-pointer">
+                            <input type="radio" name="customMeasureMultiplier" value="1" checked class="accent-emerald-500">
+                            <div>
+                                <div class="text-xs font-bold text-white">مقاس مباشر (1:1)</div>
+                                <div class="text-[10px] text-slate-400">للأطوال والعروض المفردة</div>
+                            </div>
+                        </label>
+                        <label class="flex items-center gap-2 p-2.5 rounded-xl border border-slate-700 bg-slate-950 cursor-pointer">
+                            <input type="radio" name="customMeasureMultiplier" value="2" class="accent-emerald-500">
+                            <div>
+                                <div class="text-xs font-bold text-white">محيط كامل (×2)</div>
+                                <div class="text-[10px] text-slate-400">للدوران (الأرداف، الأسورة...)</div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="text-xs text-slate-300 block mb-1 font-semibold">لون خط القياس على الفستان:</label>
+                    <div class="flex items-center gap-2">
+                        <input id="customMeasureColor" type="color" value="#f43f5e" class="w-10 h-9 rounded-lg bg-transparent border border-slate-700 cursor-pointer">
+                        <span class="text-xs text-slate-400">اختر لوناً مميزاً يسهل رؤيته على القماش</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex items-center justify-end gap-2 mt-5 pt-3 border-t border-slate-800">
+                <button onclick="closeAddCustomMeasurementModal()" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300">
+                    إلغاء
+                </button>
+                <button onclick="confirmAddCustomMeasurement()" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-xs font-bold text-white">
+                    إضافة للوحة الرسم
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== MODAL 2: ERP JSON & WHATSAPP EXPORT ==================== -->
+    <div id="erpExportModal" class="fixed inset-0 bg-black/75 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+        <div class="bg-studio-900 border border-slate-700 rounded-2xl max-w-2xl w-full p-5 shadow-2xl flex flex-col max-h-[90vh]">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
+                        <i class="fa-solid fa-code"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-bold text-white">اعتماد وإرسال البيانات للنظام المحاسبي والإداري (ERP JSON)</h3>
+                        <p class="text-[11px] text-slate-400">كائن البيانات جاهز للربط مع شاشة الفواتير وأوامر التفصيل عبر <span class="font-mono text-emerald-400">postMessage</span> أو النسخ المباشر</p>
+                    </div>
+                </div>
+                <button onclick="closeErpJsonModal()" class="text-slate-400 hover:text-white">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 my-3 overflow-y-auto flex-1">
+                <!-- JSON Payload Box -->
+                <div class="flex flex-col">
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="text-xs font-bold text-emerald-400">كائن البيانات المهيكل (JSON Payload):</span>
+                        <button onclick="copyJsonPayload()" class="text-[11px] bg-slate-800 hover:bg-slate-700 px-2 py-0.5 rounded text-slate-200">
+                            <i class="fa-regular fa-copy ml-1"></i>نسخ JSON
+                        </button>
+                    </div>
+                    <pre id="erpJsonPreview" class="flex-1 bg-slate-950 border border-slate-800 rounded-xl p-3 text-[11px] font-mono text-emerald-300 overflow-auto dir-ltr text-left max-h-72"></pre>
+                </div>
+
+                <!-- Formatted WhatsApp Text Box -->
+                <div class="flex flex-col">
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="text-xs font-bold text-amber-400">النص المنسق للزبونة / ملاحظات الخياط:</span>
+                        <button onclick="copyFormattedWhatsAppText()" class="text-[11px] bg-slate-800 hover:bg-slate-700 px-2 py-0.5 rounded text-slate-200">
+                            <i class="fa-brands fa-whatsapp text-emerald-400 ml-1"></i>نسخ النص
+                        </button>
+                    </div>
+                    <textarea id="whatsappTextPreview" readonly class="flex-1 bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-200 leading-relaxed outline-none resize-none max-h-72"></textarea>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-slate-800">
+                <div class="text-[11px] text-slate-400">
+                    <i class="fa-solid fa-plug text-emerald-400 ml-1"></i>
+                    تم إطلاق الحدث البرمجي <code class="text-emerald-300 font-mono">ERP_MEASUREMENT_APPROVED</code> للربط التلقائي.
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="downloadJsonFile()" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 border border-slate-700">
+                        <i class="fa-solid fa-file-arrow-down ml-1"></i>تنزيل ملف .JSON
+                    </button>
+                    <button onclick="copyJsonPayload(); closeErpJsonModal();" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-xs font-bold text-white shadow-lg">
+                        <i class="fa-solid fa-check ml-1"></i>نسخ JSON وإغلاق
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== MODAL 3: ANTIGRAVITY IDE & ERP INTEGRATION GUIDE ==================== -->
+    <div id="antigravityBridgeModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+        <div class="bg-studio-900 border border-purple-500/40 rounded-2xl max-w-3xl w-full p-5 shadow-2xl flex flex-col max-h-[90vh]">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-9 h-9 rounded-xl bg-purple-500/20 border border-purple-500/40 flex items-center justify-center text-purple-400">
+                        <i class="fa-solid fa-rocket text-lg"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-bold text-white">ربط استوديو المقاسات مع مشروعك في Antigravity IDE</h3>
+                        <p class="text-[11px] text-slate-400">خطوات نقل هذا الملف إلى مشروعك وربطه بشاشة أوامر التفصيل والفواتير تلقائياً</p>
+                    </div>
+                </div>
+                <button onclick="closeAntigravityBridgeModal()" class="text-slate-400 hover:text-white">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <div class="my-3 overflow-y-auto flex-1 space-y-4 text-xs leading-relaxed">
+                <!-- Step 1: Save file into project -->
+                <div class="bg-slate-950/90 border border-slate-800 rounded-xl p-3.5">
+                    <h4 class="font-bold text-emerald-400 mb-1.5 flex items-center gap-1.5">
+                        <span class="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-300 flex items-center justify-center font-mono">1</span>
+                        الخطوة الأولى: وضع الملف داخل مجلد مشروعك في Antigravity
+                    </h4>
+                    <p class="text-slate-300">
+                        في أعلى نافذة الكود اضغط على زر <strong class="text-white">"الرمز" (Code)</strong> بجانب كلمة "معاينة"، ثم انسخ الكود بالكامل، وافتح برنامج <strong class="text-purple-300">Antigravity</strong> وأنشئ ملفاً جديداً داخل مجلد مشروعك باسم <code class="text-emerald-300 font-mono bg-slate-900 px-1.5 py-0.5 rounded">measurement-studio.html</code> والصق الكود فيه واحفظه.
+                    </p>
+                </div>
+
+                <!-- Step 2: Copy Prompt for Antigravity Agent -->
+                <div class="bg-slate-950/90 border border-purple-500/30 rounded-xl p-3.5">
+                    <div class="flex items-center justify-between mb-1.5">
+                        <h4 class="font-bold text-purple-300 flex items-center gap-1.5">
+                            <span class="w-5 h-5 rounded-full bg-purple-500/20 text-purple-300 flex items-center justify-center font-mono">2</span>
+                            الخطوة الثانية: انسخ هذا الأمر والصقه لمساعد الذكاء الاصطناعي داخل Antigravity
+                        </h4>
+                        <button onclick="copyAntigravityAgentPrompt()" class="px-3 py-1 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold text-[11px] flex items-center gap-1 shadow">
+                            <i class="fa-regular fa-copy"></i>
+                            <span>نسخ الأمر لـ Antigravity</span>
+                        </button>
+                    </div>
+                    <p class="text-slate-400 mb-2 text-[11px]">
+                        بمجرد لصق هذا الأمر في محادثة Antigravity، سيقوم المساعد البرمجي بربط ملف <code class="font-mono text-purple-300">measurement-studio.html</code> مع شاشة الطلبات/التصنيع في برنامجك تلقائياً:
+                    </p>
+                    <textarea id="antigravityPromptText" readonly class="w-full h-36 bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-[11px] text-slate-200 outline-none resize-none">لدي ملف جاهز في المشروع باسم measurement-studio.html وهو (استوديو أخذ المقاسات الداخلي للمعمل بمعايرة A4 Homography).
+أريد منك دمج هذا الاستوديو داخل نظامي بحيث:
+1. تضيف زر "فتح استوديو المقاسات (A4)" داخل شاشة طلب التفصيل / الفاتورة / خطوط التصنيع.
+2. عند الضغط على الزر، يفتح measurement-studio.html داخل نافذة منبثقة (Modal iframe) ويرسل له رقم الطلب واسم الزبونة عبر الرابط (?orderId=...&customer=...) أو عبر postMessage({ type: 'ERP_INIT_ORDER', orderId, customerName }).
+3. يستمع النظام للحدث window.addEventListener('message') من النوع 'ERP_MEASUREMENT_APPROVED' الذي يرسله الاستوديو عند ضغط زر الاعتماد، ويقوم بتعبئة حقول المقاسات المعتمدة (الصدر، الخصر، الكتف، طول الصدر، الطول الكلي، الكم) وحفظها مع الطلب في قاعدة البيانات تلقائياً.</textarea>
+                </div>
+
+                <!-- Step 3: Optional Gemini API Key for Deep AI inside Antigravity -->
+                <div class="bg-slate-950/90 border border-slate-800 rounded-xl p-3.5">
+                    <div class="flex items-center justify-between mb-1.5">
+                        <h4 class="font-bold text-amber-400 flex items-center gap-1.5">
+                            <span class="w-5 h-5 rounded-full bg-amber-500/20 text-amber-300 flex items-center justify-center font-mono">3</span>
+                            إعداد مفتاح Gemini Vision API (اختياري للتحليل العميق خارج المتصفح)
+                        </h4>
+                    </div>
+                    <p class="text-slate-400 text-[11px] mb-2">
+                        محرك المسح التلقائي الفوري (CV) يعمل مجاناً 100% بدون إنترنت وبدون مفتاح. إذا أردت تفعيل زر "تحليل عميق (Gemini AI)" داخل بيئة Antigravity المحلية، يمكنك وضع مفتاح Gemini API هنا ليُحفظ في متصفحك:
+                    </p>
+                    <div class="flex gap-2">
+                        <input id="geminiApiKeyInput" type="password" placeholder="AIzaSy... (اختياري)" class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs font-mono text-emerald-300 outline-none">
+                        <button onclick="saveCustomGeminiApiKey()" class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs">
+                            حفظ المفتاح
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
+                <button onclick="closeAntigravityBridgeModal()" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200">
+                    إغلاق
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== TOAST NOTIFICATION CONTAINER ==================== -->
+    <div id="toastContainer" class="fixed bottom-5 left-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- ==================== COMPLETE APPLICATION LOGIC & HOMOGRAPHY ENGINE ==================== -->
+    <script>
+        /*************************************************************************
+         * 1. MATHEMATICAL 4-POINT HOMOGRAPHY ENGINE & GEOMETRIC VALIDATORS
+         * Solves the exact 2D Projective Transformation Matrix H (3x3) between
+         * 4 image pixel coordinates and 4 real-world A4 floor coordinates (cm).
+         *************************************************************************/
+
+        /**
+         * Solves a linear system A * x = b of size n x n using
+         * Gaussian Elimination with Partial Pivoting.
+         */
+        function solveLinearSystemGaussian(A, b) {
+            const n = b.length;
+            const M = [];
+            for (let i = 0; i < n; i++) {
+                M.push([...A[i], b[i]]);
+            }
+
+            for (let col = 0; col < n; col++) {
+                let maxRow = col;
+                let maxVal = Math.abs(M[col][col]);
+                for (let row = col + 1; row < n; row++) {
+                    const absVal = Math.abs(M[row][col]);
+                    if (absVal > maxVal) {
+                        maxVal = absVal;
+                        maxRow = row;
+                    }
+                }
+
+                if (maxVal < 1e-11) {
+                    return null;
+                }
+
+                if (maxRow !== col) {
+                    const temp = M[col];
+                    M[col] = M[maxRow];
+                    M[maxRow] = temp;
+                }
+
+                for (let row = col + 1; row < n; row++) {
+                    const factor = M[row][col] / M[col][col];
+                    for (let k = col; k <= n; k++) {
+                        M[row][k] -= factor * M[col][k];
+                    }
+                }
+            }
+
+            const x = new Array(n).fill(0);
+            for (let row = n - 1; row >= 0; row--) {
+                let sum = M[row][n];
+                for (let col = row + 1; col < n; col++) {
+                    sum -= M[row][col] * x[col];
+                }
+                x[row] = sum / M[row][row];
+            }
+            return x;
+        }
+
+        function getHartleyNorm(pts) {
+            let cx = 0, cy = 0;
+            for (const p of pts) { cx += p.x; cy += p.y; }
+            cx /= pts.length; cy /= pts.length;
+            let dSum = 0;
+            for (const p of pts) dSum += Math.hypot(p.x - cx, p.y - cy);
+            const s = (Math.SQRT2 * pts.length) / Math.max(1e-4, dSum);
+            const T = [[s, 0, -s * cx], [0, s, -s * cy], [0, 0, 1]];
+            const T_inv = [[1 / s, 0, cx], [0, 1 / s, cy], [0, 0, 1]];
+            const normPts = pts.map(p => ({ x: s * (p.x - cx), y: s * (p.y - cy) }));
+            return { T, T_inv, normPts };
+        }
+
+        function mult3x3(A, B) {
+            const R = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
+            for (let i = 0; i < 3; i++) {
+                for (let j = 0; j < 3; j++) {
+                    for (let k = 0; k < 3; k++) R[i][j] += A[i][k] * B[k][j];
+                }
+            }
+            return R;
+        }
+
+        /**
+         * Computes the 3x3 Homography Matrix H that maps srcPts[i] -> dstPts[i]
+         * using Normalized DLT (Hartley Isotropic Normalization)
+         */
+        function computeHomographyMatrix(srcPts, dstPts) {
+            if (!srcPts || !dstPts || srcPts.length !== 4 || dstPts.length !== 4) {
+                return null;
+            }
+            if (!isQuadStrictlyConvex(srcPts)) {
+                return null;
+            }
+
+            const nSrc = getHartleyNorm(srcPts);
+            const nDst = getHartleyNorm(dstPts);
+
+            const A = [];
+            const b = [];
+
+            for (let i = 0; i < 4; i++) {
+                const { x, y } = nSrc.normPts[i];
+                const { x: X, y: Y } = nDst.normPts[i];
+
+                A.push([x, y, 1, 0, 0, 0, -x * X, -y * X]);
+                b.push(X);
+
+                A.push([0, 0, 0, x, y, 1, -x * Y, -y * Y]);
+                b.push(Y);
+            }
+
+            const h = solveLinearSystemGaussian(A, b);
+            if (!h) return null;
+
+            const H_norm = [
+                [h[0], h[1], h[2]],
+                [h[3], h[4], h[5]],
+                [h[6], h[7], 1.0]
+            ];
+
+            const H_raw = mult3x3(nDst.T_inv, mult3x3(H_norm, nSrc.T));
+            const scale = H_raw[2][2] || 1.0;
+            return H_raw.map(row => row.map(v => v / scale));
+        }
+
+        /**
+         * Applies 3x3 Homography Matrix H to a 2D point (x, y).
+         */
+        function applyHomographyPoint(H, pt) {
+            if (!H || !pt) return null;
+            const denom = H[2][0] * pt.x + H[2][1] * pt.y + H[2][2];
+            if (Math.abs(denom) < 1e-8) return null;
+            const X = (H[0][0] * pt.x + H[0][1] * pt.y + H[0][2]) / denom;
+            const Y = (H[1][0] * pt.x + H[1][1] * pt.y + H[1][2]) / denom;
+            if (!Number.isFinite(X) || !Number.isFinite(Y)) return null;
+            return { x: X, y: Y };
+        }
+
+        /**
+         * Calculates true real-world Euclidean distance in Centimeters (cm)
+         * between two pixel points p1 and p2 on the floor plane using H.
+         */
+        function calculateTrueDistanceCm(H, p1, p2) {
+            const worldP1 = applyHomographyPoint(H, p1);
+            const worldP2 = applyHomographyPoint(H, p2);
+            if (!worldP1 || !worldP2) return 0;
+            const dx = worldP2.x - worldP1.x;
+            const dy = worldP2.y - worldP1.y;
+            const dist = Math.hypot(dx, dy);
+            return Number.isFinite(dist) ? Math.min(999, dist) : 0;
+        }
+
+        /**
+         * Computes polygon area using the Shoelace Formula.
+         * Rotation-invariant for tilted A4 sheets.
+         */
+        function computePolygonAreaShoelace(pts) {
+            if (!pts || pts.length < 3) return 0;
+            let sum = 0;
+            for (let i = 0; i < pts.length; i++) {
+                const p1 = pts[i];
+                const p2 = pts[(i + 1) % pts.length];
+                sum += (p1.x * p2.y - p2.x * p1.y);
+            }
+            return Math.abs(sum) / 2;
+        }
+
+        /**
+         * Checks if a 4-point quadrilateral is strictly convex and non-self-intersecting.
+         */
+        function isQuadStrictlyConvex(pts) {
+            if (!pts || pts.length !== 4) return false;
+            let sign = 0;
+            for (let i = 0; i < 4; i++) {
+                const a = pts[i];
+                const b = pts[(i + 1) % 4];
+                const c = pts[(i + 2) % 4];
+                const cross = (b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x);
+                if (Math.abs(cross) < 10) return false; // Collinear or degenerate
+                const currentSign = cross > 0 ? 1 : -1;
+                if (sign === 0) sign = currentSign;
+                else if (sign !== currentSign) return false; // Bowtie / concave
+            }
+            return computePolygonAreaShoelace(pts) > 100;
+        }
+
+        /**
+         * Automatically sorts 4 arbitrary corner points into strict clockwise order:
+         * [0: Top-Left, 1: Top-Right, 2: Bottom-Right, 3: Bottom-Left]
+         */
+        function normalizeQuadCornersClockwise(pts) {
+            if (!pts || pts.length !== 4) return pts;
+            const cx = (pts[0].x + pts[1].x + pts[2].x + pts[3].x) / 4;
+            const cy = (pts[0].y + pts[1].y + pts[2].y + pts[3].y) / 4;
+
+            // Sort by polar angle around centroid
+            const sorted = [...pts].sort((a, b) => {
+                return Math.atan2(a.y - cy, a.x - cx) - Math.atan2(b.y - cy, b.x - cx);
+            });
+
+            // Rotate array so index 0 is Top-Left (minimum x + y)
+            let tlIdx = 0;
+            let minSum = Infinity;
+            sorted.forEach((pt, idx) => {
+                const s = pt.x + pt.y;
+                if (s < minSum) {
+                    minSum = s;
+                    tlIdx = idx;
+                }
+            });
+
+            const ordered = [];
+            for (let i = 0; i < 4; i++) {
+                ordered.push({ ...sorted[(tlIdx + i) % 4] });
+            }
+            return ordered;
+        }
+
+
+        /*************************************************************************
+         * 2. STUDIO STATE, UNDO/REDO HISTORY & CONFIGURATION
+         *************************************************************************/
+        const A4_DIMENSIONS = {
+            portrait: { widthCm: 21.0, heightCm: 29.7 },
+            landscape: { widthCm: 29.7, heightCm: 21.0 }
+        };
+
+        const state = {
+            unit: 'cm',
+            a4Orientation: 'portrait',
+            
+            // Image & Preprocessing
+            rawImage: null,
+            processedCanvas: document.createElement('canvas'),
+            brightness: 100,
+            contrast: 100,
+            fineAngle: 0,
+            baseRotation90: 0,
+            highContrastSeam: false,
+
+            // Viewport Zoom & Pan
+            zoom: 1.0,
+            panX: 0,
+            panY: 0,
+            tool: 'edit',
+            loupePower: 8,
+            manualA4Step: -1,
+            drawingLineId: null,
+            drawingStep: -1,
+
+            // 4-Point A4 Calibration Corners in Image Pixel Coordinates
+            // Order: 0:Top-Left, 1:Top-Right, 2:Bottom-Right, 3:Bottom-Left
+            a4Corners: [
+                { x: 135, y: 225 },
+                { x: 312, y: 238 },
+                { x: 294, y: 505 },
+                { x: 104, y: 488 }
+            ],
+            H_imgToWorld: null,
+            H_worldToImg: null,
+
+            // Interaction & Selection State
+            draggingTarget: null,    // { type: 'a4', index } | { type: 'measure', id, end: 'p1'|'p2'|'both', startImgPt, origP1, origP2 }
+            hoveredTarget: null,
+            selectedPinTarget: { type: 'a4', index: 0 }, // Remembers last clicked pin for Arrow Key micro-nudging
+            activeMeasurementId: 'chest',
+            isPanning: false,
+            panStartMouse: { x: 0, y: 0 },
+            currentMouseCanvas: { x: 0, y: 0 },
+            currentMouseImage: { x: 0, y: 0 },
+            lastPinchDist: null,
+
+            // Undo / Redo History Stack
+            historyStack: [],
+            historyIndex: -1,
+
+            // Ready-Made Tailoring & Dressmaking Measurement Lines
+            measurements: [
+                {
+                    id: 'chest',
+                    nameAr: 'الصدر (من الإبط للإبط)',
+                    shortName: 'الصدر',
+                    color: '#10b981',
+                    multiplier: 2,
+                    easeCm: 0,
+                    visible: true,
+                    isCustom: false,
+                    p1: { x: 495, y: 245 },
+                    p2: { x: 755, y: 245 }
+                },
+                {
+                    id: 'waist',
+                    nameAr: 'الخصر',
+                    shortName: 'الخصر',
+                    color: '#f59e0b',
+                    multiplier: 2,
+                    easeCm: 0,
+                    visible: true,
+                    isCustom: false,
+                    p1: { x: 510, y: 360 },
+                    p2: { x: 740, y: 360 }
+                },
+                {
+                    id: 'shoulder',
+                    nameAr: 'عرض الكتف',
+                    shortName: 'عرض الكتف',
+                    color: '#38bdf8',
+                    multiplier: 1,
+                    easeCm: 0,
+                    visible: true,
+                    isCustom: false,
+                    p1: { x: 515, y: 150 },
+                    p2: { x: 735, y: 150 }
+                },
+                {
+                    id: 'bodice_length',
+                    nameAr: 'طول الصدر (من الكتف للخصر)',
+                    shortName: 'طول الصدر',
+                    color: '#ec4899',
+                    multiplier: 1,
+                    easeCm: 0,
+                    visible: true,
+                    isCustom: false,
+                    p1: { x: 565, y: 145 },
+                    p2: { x: 565, y: 360 }
+                },
+                {
+                    id: 'total_length',
+                    nameAr: 'الطول الكلي للفستان',
+                    shortName: 'الطول الكلي',
+                    color: '#a855f7',
+                    multiplier: 1,
+                    easeCm: 0,
+                    visible: true,
+                    isCustom: false,
+                    p1: { x: 625, y: 145 },
+                    p2: { x: 625, y: 736 }
+                },
+                {
+                    id: 'sleeve_armhole',
+                    nameAr: 'طول الكم / حردة الإبط',
+                    shortName: 'الكم / الإبط',
+                    color: '#fb7185',
+                    multiplier: 1,
+                    easeCm: 0,
+                    visible: true,
+                    isCustom: false,
+                    p1: { x: 735, y: 150 },
+                    p2: { x: 865, y: 295 }
+                }
+            ]
+        };
+
+        const canvas = document.getElementById('studioCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Snapshot management for Undo / Redo (Ctrl+Z / Ctrl+Y)
+        function pushHistorySnapshot() {
+            const snapshot = JSON.stringify({
+                a4Orientation: state.a4Orientation,
+                a4Corners: state.a4Corners,
+                measurements: state.measurements
+            });
+
+            if (state.historyIndex >= 0 && state.historyStack[state.historyIndex] === snapshot) {
+                return;
+            }
+
+            state.historyStack = state.historyStack.slice(0, state.historyIndex + 1);
+            state.historyStack.push(snapshot);
+            if (state.historyStack.length > 30) {
+                state.historyStack.shift();
+            } else {
+                state.historyIndex++;
+            }
+            updateUndoRedoButtonsUI();
+            saveStudioStateToStorage();
+        }
+
+        function restoreHistorySnapshot(snapshotStr) {
+            try {
+                const parsed = JSON.parse(snapshotStr);
+                state.a4Orientation = parsed.a4Orientation || 'portrait';
+                state.a4Corners = parsed.a4Corners.map(p => ({ ...p }));
+                state.measurements = parsed.measurements.map(m => ({
+                    ...m,
+                    p1: { ...m.p1 },
+                    p2: { ...m.p2 }
+                }));
+                syncA4OrientationButtonsUI();
+                recalculateAllMeasurements();
+                updateUndoRedoButtonsUI();
+                saveStudioStateToStorage();
+            } catch (e) {}
+        }
+
+        function undoHistory() {
+            if (state.historyIndex > 0) {
+                state.historyIndex--;
+                restoreHistorySnapshot(state.historyStack[state.historyIndex]);
+                showToast('تم التراجع عن آخر تعديل (Ctrl+Z)', 'info');
+            }
+        }
+
+        function redoHistory() {
+            if (state.historyIndex < state.historyStack.length - 1) {
+                state.historyIndex++;
+                restoreHistorySnapshot(state.historyStack[state.historyIndex]);
+                showToast('تمت إعادة التعديل (Ctrl+Y)', 'info');
+            }
+        }
+
+        function updateUndoRedoButtonsUI() {
+            const btnUndo = document.getElementById('btnUndo');
+            const btnRedo = document.getElementById('btnRedo');
+            if (btnUndo) btnUndo.disabled = state.historyIndex <= 0;
+            if (btnRedo) btnRedo.disabled = state.historyIndex >= state.historyStack.length - 1;
+        }
+
+        function saveStudioStateToStorage() {
+            try {
+                const payload = {
+                    orderId: document.getElementById('orderIdInput')?.value || 'ORD-1048',
+                    customerName: document.getElementById('customerNameInput')?.value || '',
+                    unit: state.unit,
+                    a4Orientation: state.a4Orientation,
+                    a4Corners: state.a4Corners,
+                    measurements: state.measurements
+                };
+                localStorage.setItem('TAILOR_STUDIO_STATE_V2', JSON.stringify(payload));
+            } catch (e) {}
+        }
+
+
+        /*************************************************************************
+         * 3. REALISTIC DEMO SCENE GENERATOR (GIRL'S DRESS + PERSPECTIVE A4)
+         *************************************************************************/
+        function createRealisticDemoSceneCanvas() {
+            const demoCanvas = document.createElement('canvas');
+            demoCanvas.width = 1100;
+            demoCanvas.height = 850;
+            const dCtx = demoCanvas.getContext('2d');
+
+            // 1. Realistic Floor Background
+            const floorGrad = dCtx.createLinearGradient(0, 0, 1100, 850);
+            floorGrad.addColorStop(0, '#2a2421');
+            floorGrad.addColorStop(0.5, '#362f2b');
+            floorGrad.addColorStop(1, '#231e1b');
+            dCtx.fillStyle = floorGrad;
+            dCtx.fillRect(0, 0, 1100, 850);
+
+            dCtx.strokeStyle = 'rgba(0,0,0,0.22)';
+            dCtx.lineWidth = 2;
+            for (let y = 40; y < 850; y += 85) {
+                dCtx.beginPath();
+                dCtx.moveTo(0, y - 15);
+                dCtx.lineTo(1100, y + 20);
+                dCtx.stroke();
+            }
+
+            // 2. Perspective A4 Sheet Corners
+            const trueA4Corners = [
+                { x: 135, y: 225 },
+                { x: 312, y: 238 },
+                { x: 294, y: 505 },
+                { x: 104, y: 488 }
+            ];
+
+            // Paper Shadow
+            dCtx.save();
+            dCtx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+            dCtx.beginPath();
+            dCtx.moveTo(trueA4Corners[0].x + 6, trueA4Corners[0].y + 8);
+            dCtx.lineTo(trueA4Corners[1].x + 6, trueA4Corners[1].y + 8);
+            dCtx.lineTo(trueA4Corners[2].x + 6, trueA4Corners[2].y + 8);
+            dCtx.lineTo(trueA4Corners[3].x + 6, trueA4Corners[3].y + 8);
+            dCtx.closePath();
+            dCtx.fill();
+
+            // Paper Surface
+            const paperGrad = dCtx.createLinearGradient(110, 220, 310, 500);
+            paperGrad.addColorStop(0, '#f8fafc');
+            paperGrad.addColorStop(1, '#e2e8f0');
+            dCtx.fillStyle = paperGrad;
+            dCtx.beginPath();
+            dCtx.moveTo(trueA4Corners[0].x, trueA4Corners[0].y);
+            dCtx.lineTo(trueA4Corners[1].x, trueA4Corners[1].y);
+            dCtx.lineTo(trueA4Corners[2].x, trueA4Corners[2].y);
+            dCtx.lineTo(trueA4Corners[3].x, trueA4Corners[3].y);
+            dCtx.closePath();
+            dCtx.fill();
+
+            dCtx.strokeStyle = 'rgba(100, 116, 139, 0.35)';
+            dCtx.lineWidth = 2;
+            for (let i = 1; i <= 6; i++) {
+                const t = i / 8;
+                const lx = trueA4Corners[0].x + (trueA4Corners[3].x - trueA4Corners[0].x) * t;
+                const ly = trueA4Corners[0].y + (trueA4Corners[3].y - trueA4Corners[0].y) * t;
+                const rx = trueA4Corners[1].x + (trueA4Corners[2].x - trueA4Corners[1].x) * t;
+                const ry = trueA4Corners[1].y + (trueA4Corners[2].y - trueA4Corners[1].x) * t;
+                dCtx.beginPath();
+                dCtx.moveTo(lx + 18, ly);
+                dCtx.lineTo(rx - 18, ry);
+                dCtx.stroke();
+            }
+            dCtx.fillStyle = '#475569';
+            dCtx.font = 'bold 14px Cairo, sans-serif';
+            dCtx.fillText('ورقة معايرة قياسية A4', 150, 340);
+            dCtx.font = '12px monospace';
+            dCtx.fillText('21.0 cm x 29.7 cm', 155, 362);
+            dCtx.restore();
+
+            // 3. Detailed Girl's Dress Laid Flat
+            dCtx.save();
+            dCtx.shadowColor = 'rgba(0, 0, 0, 0.55)';
+            dCtx.shadowBlur = 18;
+            dCtx.shadowOffsetX = 4;
+            dCtx.shadowOffsetY = 8;
+
+            const dressGrad = dCtx.createLinearGradient(450, 130, 820, 740);
+            dressGrad.addColorStop(0, '#be185d');
+            dressGrad.addColorStop(0.45, '#9d174d');
+            dressGrad.addColorStop(1, '#831843');
+            dCtx.fillStyle = dressGrad;
+
+            dCtx.beginPath();
+            dCtx.moveTo(565, 145);
+            dCtx.quadraticCurveTo(625, 185, 685, 145);
+            dCtx.lineTo(735, 150);
+            dCtx.lineTo(865, 295);
+            dCtx.lineTo(825, 330);
+            dCtx.lineTo(755, 245);
+            dCtx.lineTo(740, 360);
+            dCtx.quadraticCurveTo(815, 520, 875, 725);
+            dCtx.quadraticCurveTo(625, 755, 385, 715);
+            dCtx.quadraticCurveTo(440, 520, 510, 360);
+            dCtx.lineTo(495, 245);
+            dCtx.lineTo(430, 325);
+            dCtx.lineTo(390, 285);
+            dCtx.lineTo(515, 150);
+            dCtx.closePath();
+            dCtx.fill();
+
+            dCtx.shadowColor = 'transparent';
+            dCtx.strokeStyle = 'rgba(255, 228, 230, 0.45)';
+            dCtx.lineWidth = 2;
+            dCtx.setLineDash([5, 4]);
+
+            dCtx.beginPath();
+            dCtx.moveTo(515, 150);
+            dCtx.quadraticCurveTo(510, 205, 495, 245);
+            dCtx.moveTo(735, 150);
+            dCtx.quadraticCurveTo(740, 205, 755, 245);
+            dCtx.stroke();
+
+            dCtx.setLineDash([]);
+            dCtx.fillStyle = 'rgba(251, 207, 232, 0.28)';
+            dCtx.fillRect(510, 352, 230, 16);
+            dCtx.strokeStyle = 'rgba(255, 255, 255, 0.55)';
+            dCtx.strokeRect(510, 352, 230, 16);
+
+            dCtx.strokeStyle = 'rgba(0, 0, 0, 0.22)';
+            dCtx.lineWidth = 3;
+            const pleats = [
+                [545, 368, 465, 722],
+                [585, 368, 545, 732],
+                [625, 368, 625, 738],
+                [665, 368, 705, 734],
+                [705, 368, 785, 725]
+            ];
+            pleats.forEach(([x1, y1, x2, y2]) => {
+                dCtx.beginPath();
+                dCtx.moveTo(x1, y1);
+                dCtx.lineTo(x2, y2);
+                dCtx.stroke();
+            });
+
+            dCtx.strokeStyle = 'rgba(254, 205, 211, 0.7)';
+            dCtx.lineWidth = 3;
+            dCtx.beginPath();
+            dCtx.moveTo(560, 147);
+            dCtx.quadraticCurveTo(625, 192, 690, 147);
+            dCtx.stroke();
+
+            dCtx.restore();
+            return {
+                canvas: demoCanvas,
+                a4Corners: trueA4Corners
+            };
+        }
+
+        function loadRealisticSampleDress() {
+            const demo = createRealisticDemoSceneCanvas();
+            const img = new Image();
+            img.onload = () => {
+                state.rawImage = img;
+                state.brightness = 100;
+                state.contrast = 100;
+                state.fineAngle = 0;
+                state.baseRotation90 = 0;
+                state.highContrastSeam = false;
+                state.a4Orientation = 'portrait';
+                syncFilterControlsUI();
+                syncA4OrientationButtonsUI();
+
+                state.a4Corners = demo.a4Corners.map(pt => ({ ...pt }));
+
+                const defaults = {
+                    chest:         { p1: { x: 495, y: 245 }, p2: { x: 755, y: 245 } },
+                    waist:         { p1: { x: 510, y: 360 }, p2: { x: 740, y: 360 } },
+                    shoulder:      { p1: { x: 515, y: 150 }, p2: { x: 735, y: 150 } },
+                    bodice_length: { p1: { x: 565, y: 145 }, p2: { x: 565, y: 360 } },
+                    total_length:  { p1: { x: 625, y: 145 }, p2: { x: 625, y: 736 } },
+                    sleeve_armhole:{ p1: { x: 735, y: 150 }, p2: { x: 865, y: 295 } }
+                };
+                state.measurements.forEach(m => {
+                    if (defaults[m.id]) {
+                        m.p1 = { ...defaults[m.id].p1 };
+                        m.p2 = { ...defaults[m.id].p2 };
+                    }
+                });
+
+                rebuildProcessedImageCanvas();
+                fitImageToCanvas();
+                recalculateAllMeasurements();
+                pushHistorySnapshot();
+                showToast('تم تحميل النموذج التجريبي للفستان مع ورقة A4 ومعايرته تلقائياً', 'success');
+            };
+            img.src = demo.canvas.toDataURL('image/png');
+        }
+
+
+        /*************************************************************************
+         * 4. IMAGE PREPROCESSING, ROTATION & VISION FILTERS
+         *************************************************************************/
+        function rebuildProcessedImageCanvas() {
+            if (!state.rawImage) return;
+
+            const srcW = state.rawImage.width;
+            const srcH = state.rawImage.height;
+
+            const normalizedRot = ((state.baseRotation90 % 360) + 360) % 360;
+            const isSwapped = (normalizedRot === 90 || normalizedRot === 270);
+            const targetW = isSwapped ? srcH : srcW;
+            const targetH = isSwapped ? srcW : srcH;
+
+            state.processedCanvas.width = targetW;
+            state.processedCanvas.height = targetH;
+            const pCtx = state.processedCanvas.getContext('2d');
+
+            pCtx.save();
+            pCtx.fillStyle = '#090d16';
+            pCtx.fillRect(0, 0, targetW, targetH);
+
+            let filterStr = `brightness(${state.brightness}%) contrast(${state.contrast}%)`;
+            if (state.highContrastSeam) {
+                filterStr += ` saturate(140%) contrast(135%)`;
+            }
+            pCtx.filter = filterStr;
+
+            pCtx.translate(targetW / 2, targetH / 2);
+            const totalRad = ((normalizedRot + state.fineAngle) * Math.PI) / 180;
+            pCtx.rotate(totalRad);
+            pCtx.drawImage(state.rawImage, -srcW / 2, -srcH / 2);
+            pCtx.restore();
+        }
+
+        function updateImageFilters() {
+            state.brightness = parseFloat(document.getElementById('sliderBrightness').value);
+            state.contrast = parseFloat(document.getElementById('sliderContrast').value);
+            state.fineAngle = parseFloat(document.getElementById('sliderFineAngle').value);
+
+            document.getElementById('lblBrightness').textContent = `${state.brightness}%`;
+            document.getElementById('lblContrast').textContent = `${state.contrast}%`;
+            document.getElementById('lblFineAngle').textContent = `${state.fineAngle}°`;
+
+            rebuildProcessedImageCanvas();
+            renderCanvas();
+        }
+
+        /**
+         * Rotates image & all calibration/measurement pins by +90° (clockwise) or -90° (counter-clockwise).
+         */
+        function rotateImage90(deltaDeg) {
+            if (!state.rawImage) return;
+
+            state.baseRotation90 = (((state.baseRotation90 + deltaDeg) % 360) + 360) % 360;
+            rebuildProcessedImageCanvas();
+
+            const newW = state.processedCanvas.width;
+            const newH = state.processedCanvas.height;
+
+            const rotatePt = (pt) => {
+                if (deltaDeg === 90) {
+                    // +90 deg Clockwise in Canvas
+                    return { x: newW - pt.y, y: pt.x };
+                } else if (deltaDeg === -90) {
+                    // -90 deg Counter-Clockwise in Canvas
+                    return { x: pt.y, y: newH - pt.x };
+                }
+                return pt;
+            };
+
+            state.a4Corners = normalizeQuadCornersClockwise(state.a4Corners.map(rotatePt));
+            state.measurements.forEach(m => {
+                m.p1 = rotatePt(m.p1);
+                m.p2 = rotatePt(m.p2);
+            });
+
+            // Also swap A4 Portrait <-> Landscape orientation since the sheet rotated 90 degrees!
+            state.a4Orientation = state.a4Orientation === 'portrait' ? 'landscape' : 'portrait';
+            syncA4OrientationButtonsUI();
+
+            fitImageToCanvas();
+            recalculateAllMeasurements();
+            pushHistorySnapshot();
+            showToast(`تم تدوير الصورة وورقة الـ A4 بزاوية 90° ${deltaDeg > 0 ? 'يميناً' : 'يساراً'}`, 'info');
+        }
+
+        function toggleHighContrastSeam() {
+            state.highContrastSeam = !state.highContrastSeam;
+            const btn = document.getElementById('btnInvertFilter');
+            if (state.highContrastSeam) {
+                btn.classList.add('bg-amber-500/20', 'border-amber-500', 'text-amber-300');
+                showToast('تم تفعيل فلتر إبراز الحواف والخياطة', 'info');
+            } else {
+                btn.classList.remove('bg-amber-500/20', 'border-amber-500', 'text-amber-300');
+            }
+            rebuildProcessedImageCanvas();
+            renderCanvas();
+        }
+
+        function resetImageFilters() {
+            state.brightness = 100;
+            state.contrast = 100;
+            state.fineAngle = 0;
+            state.highContrastSeam = false;
+            syncFilterControlsUI();
+            rebuildProcessedImageCanvas();
+            renderCanvas();
+            showToast('تمت إعادة ضبط إعدادات السطوع والتباين', 'info');
+        }
+
+        function syncFilterControlsUI() {
+            document.getElementById('sliderBrightness').value = state.brightness;
+            document.getElementById('sliderContrast').value = state.contrast;
+            document.getElementById('sliderFineAngle').value = state.fineAngle;
+            document.getElementById('lblBrightness').textContent = `${state.brightness}%`;
+            document.getElementById('lblContrast').textContent = `${state.contrast}%`;
+            document.getElementById('lblFineAngle').textContent = `${state.fineAngle}°`;
+            const btn = document.getElementById('btnInvertFilter');
+            btn.classList.toggle('bg-amber-500/20', state.highContrastSeam);
+            btn.classList.toggle('border-amber-500', state.highContrastSeam);
+            btn.classList.toggle('text-amber-300', state.highContrastSeam);
+        }
+
+
+        /*************************************************************************
+         * 5. CLIPBOARD PASTE (CTRL+V), FILE UPLOAD & AUTOMATED CV / AI DETECTION
+         *************************************************************************/
+        function loadUploadedImageSource(srcUrl, sourceLabel) {
+            const img = new Image();
+            img.onload = () => {
+                state.rawImage = img;
+                state.baseRotation90 = 0;
+                state.fineAngle = 0;
+                syncFilterControlsUI();
+                rebuildProcessedImageCanvas();
+                fitImageToCanvas();
+
+                const autoOnLoad = Boolean(document.getElementById('chkAutoDetectOnLoad')?.checked);
+                if (autoOnLoad) {
+                    runAutomaticMeasurementPipeline(false, sourceLabel);
+                } else {
+                    state.manualA4Step = 0;
+                    const lbl = document.getElementById('lblManualA4Calibration');
+                    if (lbl) lbl.textContent = 'انقر زاوية #1 (أعلى-يسار)';
+                    showToast('تم فتح الصورة! انقر على زوايا ورقة A4 الأربع لمعايرتها بدقة 📐', 'info');
+                    recalculateAllMeasurements();
+                    pushHistorySnapshot();
+                }
+            };
+            img.src = srcUrl;
+        }
+
+        /**
+         * Upgraded Rotation-Invariant Local Computer Vision Detector:
+         * Uses Shoelace Quad Area & Quadrant Extreme Corner Extraction to find
+         * tilted A4 sheets and dress silhouettes reliably.
+         */
+        function runLocalComputerVisionDetector() {
+            const pCanvas = state.processedCanvas;
+            const W = pCanvas.width;
+            const H = pCanvas.height;
+            if (!W || !H) return null;
+
+            const scale = Math.min(1, 360 / Math.max(W, H));
+            const sW = Math.max(80, Math.round(W * scale));
+            const sH = Math.max(80, Math.round(H * scale));
+
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = sW;
+            tempCanvas.height = sH;
+            const tCtx = tempCanvas.getContext('2d');
+            tCtx.drawImage(pCanvas, 0, 0, sW, sH);
+            const imgData = tCtx.getImageData(0, 0, sW, sH).data;
+
+            const getPixel = (x, y) => {
+                const idx = (y * sW + x) * 4;
+                const r = imgData[idx];
+                const g = imgData[idx + 1];
+                const b = imgData[idx + 2];
+                const maxC = Math.max(r, g, b);
+                const minC = Math.min(r, g, b);
+                const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+                const sat = maxC === 0 ? 0 : ((maxC - minC) / maxC) * 100;
+                return { r, g, b, lum, sat };
+            };
+
+            // 1. Estimate Floor Background Color from border perimeter
+            let sumR = 0, sumG = 0, sumB = 0, sumLum = 0, borderCount = 0;
+            const borderStep = 3;
+            for (let x = 0; x < sW; x += borderStep) {
+                for (const y of [2, 5, sH - 6, sH - 3]) {
+                    const p = getPixel(x, y);
+                    sumR += p.r; sumG += p.g; sumB += p.b; sumLum += p.lum;
+                    borderCount++;
+                }
+            }
+            for (let y = 0; y < sH; y += borderStep) {
+                for (const x of [2, 5, sW - 6, sW - 3]) {
+                    const p = getPixel(x, y);
+                    sumR += p.r; sumG += p.g; sumB += p.b; sumLum += p.lum;
+                    borderCount++;
+                }
+            }
+            const bgR = sumR / borderCount;
+            const bgG = sumG / borderCount;
+            const bgB = sumB / borderCount;
+            const bgLum = sumLum / borderCount;
+
+            // 2. Detect Achromatic White A4 Paper Sheet (Max RGB Diff <= 18)
+            const paperMask = new Uint8Array(sW * sH);
+            const lumThreshold = Math.max(165, Math.min(225, bgLum + 40));
+
+            for (let y = 4; y < sH - 4; y++) {
+                for (let x = 4; x < sW - 4; x++) {
+                    const p = getPixel(x, y);
+                    const rgbDiff = Math.max(Math.abs(p.r - p.g), Math.abs(p.r - p.b), Math.abs(p.g - p.b));
+                    if (p.lum >= lumThreshold && rgbDiff <= 18 && p.sat <= 14) {
+                        paperMask[y * sW + x] = 1;
+                    }
+                }
+            }
+
+            const visited = new Uint8Array(sW * sH);
+            let bestPaperCluster = null;
+            let bestPaperScore = -1;
+            const totalPixels = sW * sH;
+
+            const fitLineLeastSquaresLocal = (pts) => {
+                if (!pts || pts.length < 2) return null;
+                let sx = 0, sy = 0, sxx = 0, syy = 0, sxy = 0, n = pts.length;
+                for (let i = 0; i < n; i++) {
+                    const x = pts[i].x, y = pts[i].y;
+                    sx += x; sy += y; sxx += x * x; syy += y * y; sxy += x * y;
+                }
+                const mx = sx / n, my = sy / n;
+                const cxx = sxx / n - mx * mx, cyy = syy / n - my * my, cxy = sxy / n - mx * my;
+                const theta = 0.5 * Math.atan2(2 * cxy, cxx - cyy) + Math.PI / 2;
+                const a = Math.cos(theta), b = Math.sin(theta);
+                const c = -(a * mx + b * my);
+                return { a, b, c };
+            };
+
+            const intersectTwoLinesLocal = (L1, L2) => {
+                if (!L1 || !L2) return null;
+                const det = L1.a * L2.b - L2.a * L1.b;
+                if (Math.abs(det) < 1e-6) return null;
+                return {
+                    x: (L1.b * L2.c - L2.b * L1.c) / det,
+                    y: (L2.a * L1.c - L1.a * L2.c) / det
+                };
+            };
+
+            const extractSubpixelQuadCorners = (pts) => {
+                if (!pts || pts.length < 30) return null;
+                let cx = 0, cy = 0;
+                for (let i = 0; i < pts.length; i++) { cx += pts[i].x; cy += pts[i].y; }
+                cx /= pts.length; cy /= pts.length;
+
+                const topPts = [], rightPts = [], bottomPts = [], leftPts = [];
+                for (let i = 0; i < pts.length; i++) {
+                    const p = pts[i];
+                    const angle = Math.atan2(p.y - cy, p.x - cx);
+                    if (angle >= -2.35 && angle < -0.78) topPts.push(p);
+                    else if (angle >= -0.78 && angle < 0.78) rightPts.push(p);
+                    else if (angle >= 0.78 && angle < 2.35) bottomPts.push(p);
+                    else leftPts.push(p);
+                }
+
+                if (topPts.length >= 6 && rightPts.length >= 6 && bottomPts.length >= 6 && leftPts.length >= 6) {
+                    const lTop = fitLineLeastSquaresLocal(topPts);
+                    const lRight = fitLineLeastSquaresLocal(rightPts);
+                    const lBottom = fitLineLeastSquaresLocal(bottomPts);
+                    const lLeft = fitLineLeastSquaresLocal(leftPts);
+
+                    const tl = intersectTwoLinesLocal(lLeft, lTop);
+                    const tr = intersectTwoLinesLocal(lTop, lRight);
+                    const br = intersectTwoLinesLocal(lRight, lBottom);
+                    const bl = intersectTwoLinesLocal(lBottom, lLeft);
+
+                    if (tl && tr && br && bl) {
+                        return normalizeQuadCornersClockwise([tl, tr, br, bl]);
+                    }
+                }
+
+                // Fallback to extreme corners if cluster is too small
+                let tl = pts[0], tr = pts[0], br = pts[0], bl = pts[0];
+                let minSum = Infinity, maxSum = -Infinity, minDiff = Infinity, maxDiff = -Infinity;
+                for (const pt of pts) {
+                    const sum = pt.x + pt.y, diff = pt.x - pt.y;
+                    if (sum < minSum) { minSum = sum; tl = pt; }
+                    if (sum > maxSum) { maxSum = sum; br = pt; }
+                    if (diff > maxDiff) { maxDiff = diff; tr = pt; }
+                    if (diff < minDiff) { minDiff = diff; bl = pt; }
+                }
+                return normalizeQuadCornersClockwise([tl, tr, br, bl]);
+            };
+
+            for (let y = 4; y < sH - 4; y++) {
+                for (let x = 4; x < sW - 4; x++) {
+                    const startIdx = y * sW + x;
+                    if (paperMask[startIdx] === 1 && !visited[startIdx]) {
+                        const queue = [startIdx];
+                        visited[startIdx] = 1;
+                        const pts = [];
+                        let minX = x, maxX = x, minY = y, maxY = y;
+
+                        while (queue.length > 0) {
+                            const curr = queue.pop();
+                            const cy = Math.floor(curr / sW);
+                            const cx = curr % sW;
+                            pts.push({ x: cx, y: cy });
+                            if (cx < minX) minX = cx;
+                            if (cx > maxX) maxX = cx;
+                            if (cy < minY) minY = cy;
+                            if (cy > maxY) maxY = cy;
+
+                            const neighbors = [curr - 1, curr + 1, curr - sW, curr + sW];
+                            for (const nIdx of neighbors) {
+                                if (nIdx >= 0 && nIdx < totalPixels && paperMask[nIdx] === 1 && !visited[nIdx]) {
+                                    visited[nIdx] = 1;
+                                    queue.push(nIdx);
+                                }
+                            }
+                        }
+
+                        const areaRatio = pts.length / totalPixels;
+                        if (areaRatio >= 0.012 && areaRatio <= 0.38) {
+                            const quadCorners = extractSubpixelQuadCorners(pts);
+                            if (quadCorners) {
+                                const quadArea = Math.max(1, computePolygonAreaShoelace(quadCorners));
+                                const quadFillRatio = Math.min(1.15, pts.length / quadArea);
+
+                                const edgeTop = Math.hypot(quadCorners[1].x - quadCorners[0].x, quadCorners[1].y - quadCorners[0].y) / scale;
+                                const edgeSide = Math.hypot(quadCorners[3].x - quadCorners[0].x, quadCorners[3].y - quadCorners[0].y) / scale;
+                                const minEdgeFullPx = Math.min(edgeTop, edgeSide);
+                                const aspect = Math.max(edgeTop, edgeSide) / Math.max(1, Math.min(edgeTop, edgeSide));
+
+                                if (minEdgeFullPx >= 55 && quadFillRatio > 0.58 && aspect >= 1.15 && aspect <= 1.85) {
+                                    const aspectDiff = Math.abs(aspect - 1.414);
+                                    const score = pts.length * (quadFillRatio ** 2) / (1 + aspectDiff * 2.0);
+                                    if (score > bestPaperScore) {
+                                        bestPaperScore = score;
+                                        bestPaperCluster = { pts, minX, maxX, minY, maxY, quadCorners };
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            let detectedA4Corners = null;
+            let detectedOrientation = state.a4Orientation;
+
+            if (bestPaperCluster && bestPaperCluster.quadCorners) {
+                detectedA4Corners = bestPaperCluster.quadCorners.map(pt => ({
+                    x: Math.round(pt.x / scale),
+                    y: Math.round(pt.y / scale)
+                }));
+
+                const topW = Math.hypot(detectedA4Corners[1].x - detectedA4Corners[0].x, detectedA4Corners[1].y - detectedA4Corners[0].y);
+                const sideH = Math.hypot(detectedA4Corners[3].x - detectedA4Corners[0].x, detectedA4Corners[3].y - detectedA4Corners[0].y);
+                detectedOrientation = topW > sideH * 1.08 ? 'landscape' : 'portrait';
+            }
+
+            // 3. Segment the Dress Foreground Blob (excluding the A4 paper region)
+            const dressMask = new Uint8Array(sW * sH);
+            const padPaper = 6;
+            const pMinX = bestPaperCluster ? bestPaperCluster.minX - padPaper : -1;
+            const pMaxX = bestPaperCluster ? bestPaperCluster.maxX + padPaper : -1;
+            const pMinY = bestPaperCluster ? bestPaperCluster.minY - padPaper : -1;
+            const pMaxY = bestPaperCluster ? bestPaperCluster.maxY + padPaper : -1;
+
+            for (let y = 5; y < sH - 5; y++) {
+                for (let x = 5; x < sW - 5; x++) {
+                    if (x >= pMinX && x <= pMaxX && y >= pMinY && y <= pMaxY) continue;
+                    const p = getPixel(x, y);
+                    const colorDist = Math.hypot(p.r - bgR, p.g - bgG, p.b - bgB);
+                    if (colorDist > 34) {
+                        dressMask[y * sW + x] = 1;
+                    }
+                }
+            }
+
+            const visitedDress = new Uint8Array(sW * sH);
+            let bestDressCluster = null;
+            for (let y = 5; y < sH - 5; y++) {
+                for (let x = 5; x < sW - 5; x++) {
+                    const startIdx = y * sW + x;
+                    if (dressMask[startIdx] === 1 && !visitedDress[startIdx]) {
+                        const queue = [startIdx];
+                        visitedDress[startIdx] = 1;
+                        const pts = [];
+                        let minX = x, maxX = x, minY = y, maxY = y;
+
+                        while (queue.length > 0) {
+                            const curr = queue.pop();
+                            const cy = Math.floor(curr / sW);
+                            const cx = curr % sW;
+                            pts.push({ x: cx, y: cy });
+                            if (cx < minX) minX = cx;
+                            if (cx > maxX) maxX = cx;
+                            if (cy < minY) minY = cy;
+                            if (cy > maxY) maxY = cy;
+
+                            const neighbors = [curr - 1, curr + 1, curr - sW, curr + sW];
+                            for (const nIdx of neighbors) {
+                                if (nIdx >= 0 && nIdx < totalPixels && dressMask[nIdx] === 1 && !visitedDress[nIdx]) {
+                                    visitedDress[nIdx] = 1;
+                                    queue.push(nIdx);
+                                }
+                            }
+                        }
+
+                        if (!bestDressCluster || pts.length > bestDressCluster.pts.length) {
+                            bestDressCluster = { pts, minX, maxX, minY, maxY };
+                        }
+                    }
+                }
+            }
+
+            let detectedLandmarks = null;
+            if (bestDressCluster && bestDressCluster.pts.length > 120) {
+                const { minX, maxX, minY, maxY, pts } = bestDressCluster;
+                const dressH = Math.max(20, maxY - minY);
+
+                const rowLeft = new Array(sH).fill(Infinity);
+                const rowRight = new Array(sH).fill(-Infinity);
+
+                for (const pt of pts) {
+                    if (pt.x < rowLeft[pt.y]) rowLeft[pt.y] = pt.x;
+                    if (pt.x > rowRight[pt.y]) rowRight[pt.y] = pt.x;
+                }
+
+                const getSpanAtRatio = (ratioY) => {
+                    const targetY = Math.min(maxY - 2, Math.max(minY + 2, Math.round(minY + dressH * ratioY)));
+                    let lSum = 0, rSum = 0, c = 0;
+                    for (let dy = -2; dy <= 2; dy++) {
+                        const ry = targetY + dy;
+                        if (ry >= minY && ry <= maxY && rowLeft[ry] < rowRight[ry]) {
+                            lSum += rowLeft[ry];
+                            rSum += rowRight[ry];
+                            c++;
+                        }
+                    }
+                    if (c === 0) return { y: targetY, leftX: minX + (maxX - minX) * 0.25, rightX: minX + (maxX - minX) * 0.75 };
+                    return { y: targetY, leftX: lSum / c, rightX: rSum / c };
+                };
+
+                const shoulderRow = getSpanAtRatio(0.035);
+
+                let maxUpperRightX = shoulderRow.rightX;
+                let sleeveTipY = Math.round(minY + dressH * 0.24);
+                for (let y = Math.round(minY + dressH * 0.08); y <= Math.round(minY + dressH * 0.34); y++) {
+                    if (rowRight[y] > maxUpperRightX) {
+                        maxUpperRightX = rowRight[y];
+                        sleeveTipY = y;
+                    }
+                }
+
+                let waistY = Math.round(minY + dressH * 0.37);
+                let minWaistWidth = Infinity;
+                for (let y = Math.round(minY + dressH * 0.30); y <= Math.round(minY + dressH * 0.48); y++) {
+                    if (rowLeft[y] < rowRight[y]) {
+                        const w = rowRight[y] - rowLeft[y];
+                        if (w > (maxX - minX) * 0.22 && w < minWaistWidth) {
+                            minWaistWidth = w;
+                            waistY = y;
+                        }
+                    }
+                }
+                const waistSpan = getSpanAtRatio((waistY - minY) / dressH);
+
+                const chestY = Math.round(minY + dressH * 0.175);
+                const rawChestSpan = getSpanAtRatio(0.175);
+                const waistWidth = waistSpan.rightX - waistSpan.leftX;
+                const centerX = (waistSpan.leftX + waistSpan.rightX) / 2;
+
+                let chestLeftX = rawChestSpan.leftX;
+                let chestRightX = rawChestSpan.rightX;
+                if ((chestRightX - chestLeftX) > waistWidth * 1.22) {
+                    const estHalfChest = waistWidth * 0.565;
+                    chestLeftX = centerX - estHalfChest;
+                    chestRightX = centerX + estHalfChest;
+                }
+
+                let shLeftX = shoulderRow.leftX;
+                let shRightX = shoulderRow.rightX;
+                if ((shRightX - shLeftX) < waistWidth * 0.65 || (shRightX - shLeftX) > waistWidth * 1.15) {
+                    shLeftX = centerX - waistWidth * 0.48;
+                    shRightX = centerX + waistWidth * 0.48;
+                }
+
+                const highShoulderX = shLeftX + (shRightX - shLeftX) * 0.22;
+                const hemY = maxY - 2;
+
+                const toImg = (x, y) => ({
+                    x: Math.round(x / scale),
+                    y: Math.round(y / scale)
+                });
+
+                detectedLandmarks = {
+                    chest: {
+                        p1: toImg(chestLeftX, chestY),
+                        p2: toImg(chestRightX, chestY)
+                    },
+                    waist: {
+                        p1: toImg(waistSpan.leftX, waistY),
+                        p2: toImg(waistSpan.rightX, waistY)
+                    },
+                    shoulder: {
+                        p1: toImg(shLeftX, shoulderRow.y),
+                        p2: toImg(shRightX, shoulderRow.y)
+                    },
+                    bodice_length: {
+                        p1: toImg(highShoulderX, minY + 2),
+                        p2: toImg(highShoulderX, waistY)
+                    },
+                    total_length: {
+                        p1: toImg(centerX, minY + 2),
+                        p2: toImg(centerX, hemY)
+                    },
+                    sleeve_armhole: {
+                        p1: toImg(shRightX, shoulderRow.y),
+                        p2: toImg(maxUpperRightX, sleeveTipY)
+                    }
+                };
+            }
+
+            return {
+                a4Corners: detectedA4Corners,
+                a4Orientation: detectedOrientation,
+                landmarks: detectedLandmarks
+            };
+        }
+
+        function setAiOverlayState(visible, title = '', stepText = '', progress = 50) {
+            const overlay = document.getElementById('aiScanningOverlay');
+            if (!overlay) return;
+            if (visible) {
+                overlay.classList.remove('hidden');
+                overlay.classList.add('flex');
+                document.getElementById('aiScanTitle').textContent = title;
+                document.getElementById('aiScanStepText').textContent = stepText;
+                document.getElementById('aiScanProgressBar').style.width = `${progress}%`;
+            } else {
+                overlay.classList.add('hidden');
+                overlay.classList.remove('flex');
+            }
+        }
+
+        function autoDetectA4SheetOnly() {
+            const res = runLocalComputerVisionDetector();
+            if (res && res.a4Corners) {
+                state.a4Corners = normalizeQuadCornersClockwise(res.a4Corners);
+                setA4Orientation(res.a4Orientation);
+                recalculateAllMeasurements();
+                pushHistorySnapshot();
+                showToast('تم التقاط الزوايا الأربع لورقة الـ A4 وترتيبها تلقائياً بنجاح!', 'success');
+            } else {
+                showToast('لم يتم العثور على ورقة بيضاء واضحة، يرجى التحقق من السطوع أو تحريك الزوايا', 'error');
+            }
+        }
+
+        function autoSortA4CornersClockwise() {
+            state.a4Corners = normalizeQuadCornersClockwise(state.a4Corners);
+            recalculateAllMeasurements();
+            pushHistorySnapshot();
+            showToast('تم ترتيب زوايا ورقة الـ A4 الأربع (1-2-3-4) باتجاه عقارب الساعة بنجاح', 'success');
+        }
+
+        function startManualA4Calibration() {
+            if (state.manualA4Step >= 0) {
+                state.manualA4Step = -1;
+                const lbl = document.getElementById('lblManualA4Calibration');
+                if (lbl) lbl.textContent = 'تحديد زوايا الورقة يدوياً (4 نقرات)';
+                showToast('تم إلغاء المعايرة اليدوية', 'info');
+                renderCanvas();
+                return;
+            }
+            state.manualA4Step = 0;
+            const lbl = document.getElementById('lblManualA4Calibration');
+            if (lbl) lbl.textContent = 'انقر زاوية #1 (أعلى-يسار)';
+            showToast('الخطوة 1 من 4: انقر بالماوس على زاوية الورقة أعلى-يسار 📐', 'info');
+            renderCanvas();
+        }
+
+        async function runAutomaticMeasurementPipeline(showVisualAnimation = true, sourceLabel = '') {
+            if (!state.processedCanvas.width) return;
+
+            if (showVisualAnimation) {
+                setAiOverlayState(true, 'جاري المسح التلقائي وأخذ المقاسات...', '1/2 التعرّف على زوايا ورقة الـ A4 وحساب مصفوفة الميلان...', 45);
+                await new Promise(r => setTimeout(r, 200));
+            }
+
+            const result = runLocalComputerVisionDetector();
+
+            if (showVisualAnimation) {
+                setAiOverlayState(true, 'جاري تحديد نقاط الخياطة على الفستان...', '2/2 قياس الصدر، الخصر، الكتف، الطول الكلي، والكم تلقائياً...', 88);
+                await new Promise(r => setTimeout(r, 200));
+            }
+
+            let foundParts = [];
+            if (result?.a4Corners) {
+                state.a4Corners = normalizeQuadCornersClockwise(result.a4Corners);
+                if (result.a4Orientation && result.a4Orientation !== state.a4Orientation) {
+                    state.a4Orientation = result.a4Orientation;
+                    syncA4OrientationButtonsUI();
+                }
+                foundParts.push('ورقة الـ A4');
+            }
+
+            if (result?.landmarks) {
+                state.measurements.forEach(m => {
+                    if (result.landmarks[m.id]) {
+                        m.p1 = { ...result.landmarks[m.id].p1 };
+                        m.p2 = { ...result.landmarks[m.id].p2 };
+                    }
+                });
+                foundParts.push('نقاط الفستان الست');
+            }
+
+            setAiOverlayState(false);
+            recalculateAllMeasurements();
+            pushHistorySnapshot();
+
+            if (foundParts.length > 0) {
+                const msgPrefix = sourceLabel ? `تم استيراد (${sourceLabel}) و` : 'تم ';
+                showToast(`${msgPrefix}أخذ المقاسات تلقائياً (${foundParts.join(' + ')}) — جاهزة للمراجعة والاعتماد!`, 'success');
+            } else {
+                showToast('تم تحليل الصورة، يرجى مراجعة مواقع الدبابيس للتأكد من الدقة', 'info');
+            }
+        }
+
+        function saveCustomGeminiApiKey() {
+            const val = document.getElementById('geminiApiKeyInput')?.value?.trim() || '';
+            try {
+                if (val) {
+                    localStorage.setItem('STUDIO_GEMINI_API_KEY', val);
+                    showToast('تم حفظ مفتاح Gemini API في متصفحك بنجاح', 'success');
+                } else {
+                    localStorage.removeItem('STUDIO_GEMINI_API_KEY');
+                    showToast('تم مسح المفتاح المحفوظ، سيعمل المحرك المحلي تلقائياً', 'info');
+                }
+            } catch (e) {}
+        }
+
+        async function runGeminiVisionAutoDetect() {
+            if (!state.processedCanvas.width) return;
+
+            setAiOverlayState(true, 'تحليل عميق بالذكاء الاصطناعي (Gemini Vision)...', 'إرسال الصورة لنموذج الرؤية الحاسوبية لاستخراج إحداثيات الخياطة والـ A4...', 35);
+
+            try {
+                const dataUrl = state.processedCanvas.toDataURL('image/jpeg', 0.85);
+                const base64ImageData = dataUrl.split(',')[1];
+
+                const prompt = `Analyze this tailoring floor photo containing a flat-laid dress/garment and an A4 calibration paper sheet.
+Return normalized coordinates on a 0 to 1000 scale (where x:0..1000 is left-to-right width, and y:0..1000 is top-to-bottom height) for:
+1. a4Corners: The 4 corners of the A4 paper sheet ordered clockwise: [Top-Left, Top-Right, Bottom-Right, Bottom-Left].
+2. a4Orientation: "portrait" if the paper is vertical, or "landscape" if horizontal.
+3. landmarks: Exact measurement line endpoints (p1 and p2) on the dress:
+   - chest: armpit to armpit across the chest.
+   - waist: left waist seam to right waist seam at the narrowest torso / waistline.
+   - shoulder: left shoulder seam tip to right shoulder seam tip.
+   - bodice_length: top shoulder/neck seam down to the waistline.
+   - total_length: top shoulder/neck seam straight down to the bottom skirt hem.
+   - sleeve_armhole: shoulder tip to the outer end of the sleeve cuff.`;
+
+                let storedKey = '';
+                try { storedKey = localStorage.getItem('STUDIO_GEMINI_API_KEY') || ''; } catch (e) {}
+                const apiKey = storedKey || "";
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+
+                const payload = {
+                    contents: [{
+                        role: "user",
+                        parts: [
+                            { text: prompt },
+                            { inlineData: { mimeType: "image/jpeg", data: base64ImageData } }
+                        ]
+                    }],
+                    generationConfig: {
+                        responseMimeType: "application/json",
+                        responseSchema: {
+                            type: "OBJECT",
+                            properties: {
+                                a4Orientation: { type: "STRING" },
+                                a4Corners: {
+                                    type: "ARRAY",
+                                    items: {
+                                        type: "OBJECT",
+                                        properties: {
+                                            x: { type: "NUMBER" },
+                                            y: { type: "NUMBER" }
+                                        }
+                                    }
+                                },
+                                landmarks: {
+                                    type: "OBJECT",
+                                    properties: {
+                                        chest: { type: "OBJECT", properties: { x1: { type: "NUMBER" }, y1: { type: "NUMBER" }, x2: { type: "NUMBER" }, y2: { type: "NUMBER" } } },
+                                        waist: { type: "OBJECT", properties: { x1: { type: "NUMBER" }, y1: { type: "NUMBER" }, x2: { type: "NUMBER" }, y2: { type: "NUMBER" } } },
+                                        shoulder: { type: "OBJECT", properties: { x1: { type: "NUMBER" }, y1: { type: "NUMBER" }, x2: { type: "NUMBER" }, y2: { type: "NUMBER" } } },
+                                        bodice_length: { type: "OBJECT", properties: { x1: { type: "NUMBER" }, y1: { type: "NUMBER" }, x2: { type: "NUMBER" }, y2: { type: "NUMBER" } } },
+                                        total_length: { type: "OBJECT", properties: { x1: { type: "NUMBER" }, y1: { type: "NUMBER" }, x2: { type: "NUMBER" }, y2: { type: "NUMBER" } } },
+                                        sleeve_armhole: { type: "OBJECT", properties: { x1: { type: "NUMBER" }, y1: { type: "NUMBER" }, x2: { type: "NUMBER" }, y2: { type: "NUMBER" } } }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                };
+
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) throw new Error('API fallback to local CV');
+
+                const result = await response.json();
+                const textJson = result?.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (!textJson) throw new Error('Empty AI JSON');
+
+                const parsed = JSON.parse(textJson);
+                const W = state.processedCanvas.width;
+                const H = state.processedCanvas.height;
+
+                if (parsed.a4Corners && parsed.a4Corners.length === 4) {
+                    const rawPts = parsed.a4Corners.map(pt => ({
+                        x: (pt.x / 1000) * W,
+                        y: (pt.y / 1000) * H
+                    }));
+                    // Local Sub-Pixel Corner Refiner (15px search window on physical edge)
+                    const refinedPts = rawPts.map(pt => {
+                        const snap = findLocalEdgeSnap(pt.x, pt.y, 15);
+                        return snap.snapped ? { x: Math.round(snap.x * 10) / 10, y: Math.round(snap.y * 10) / 10 } : pt;
+                    });
+                    state.a4Corners = normalizeQuadCornersClockwise(refinedPts);
+                }
+                if (parsed.a4Orientation === 'portrait' || parsed.a4Orientation === 'landscape') {
+                    state.a4Orientation = parsed.a4Orientation;
+                    syncA4OrientationButtonsUI();
+                }
+                if (parsed.landmarks) {
+                    state.measurements.forEach(m => {
+                        const lm = parsed.landmarks[m.id];
+                        if (lm && typeof lm.x1 === 'number') {
+                            m.p1 = { x: Math.round((lm.x1 / 1000) * W), y: Math.round((lm.y1 / 1000) * H) };
+                            m.p2 = { x: Math.round((lm.x2 / 1000) * W), y: Math.round((lm.y2 / 1000) * H) };
+                        }
+                    });
+                }
+
+                setAiOverlayState(false);
+                recalculateAllMeasurements();
+                pushHistorySnapshot();
+                showToast('تم استخراج المقاسات وزوايا الورقة تلقائياً عبر Gemini Vision AI بنجاح!', 'success');
+            } catch (err) {
+                await runAutomaticMeasurementPipeline(true);
+            }
+        }
+
+        // Global Ctrl+V Paste & Keyboard Shortcuts (Ctrl+Z, Ctrl+Y, Arrow Keys)
+        window.addEventListener('paste', (e) => {
+            const items = (e.clipboardData || e.originalEvent.clipboardData)?.items;
+            if (!items) return;
+            for (const item of items) {
+                if (item.type.indexOf('image') !== -1) {
+                    const blob = item.getAsFile();
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        loadUploadedImageSource(event.target.result, 'لصق مباشر من الحافظة Ctrl+V');
+                    };
+                    reader.readAsDataURL(blob);
+                    e.preventDefault();
+                    return;
+                }
+            }
+        });
+
+        window.addEventListener('keydown', (e) => {
+            // Ignore shortcuts when typing inside an input or textarea
+            const tag = document.activeElement?.tagName?.toLowerCase();
+            if (tag === 'input' || tag === 'textarea') return;
+
+            // Undo / Redo
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+                e.preventDefault();
+                if (e.shiftKey) redoHistory();
+                else undoHistory();
+                return;
+            }
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+                e.preventDefault();
+                redoHistory();
+                return;
+            }
+
+            // Micro-nudge selected pin with Arrow Keys
+            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) && state.selectedPinTarget) {
+                e.preventDefault();
+                const step = e.shiftKey ? 2.0 : 0.5;
+                let dx = 0, dy = 0;
+                if (e.key === 'ArrowUp') dy = -step;
+                if (e.key === 'ArrowDown') dy = step;
+                if (e.key === 'ArrowLeft') dx = -step;
+                if (e.key === 'ArrowRight') dx = step;
+
+                const W = state.processedCanvas.width || 1100;
+                const H = state.processedCanvas.height || 850;
+
+                if (state.selectedPinTarget.type === 'a4') {
+                    const pt = state.a4Corners[state.selectedPinTarget.index];
+                    if (pt) {
+                        pt.x = Math.max(0, Math.min(W, pt.x + dx));
+                        pt.y = Math.max(0, Math.min(H, pt.y + dy));
+                    }
+                } else if (state.selectedPinTarget.type === 'measure') {
+                    const m = state.measurements.find(item => item.id === state.selectedPinTarget.id);
+                    if (m) {
+                        if (state.selectedPinTarget.end === 'both') {
+                            m.p1.x = Math.max(0, Math.min(W, m.p1.x + dx));
+                            m.p1.y = Math.max(0, Math.min(H, m.p1.y + dy));
+                            m.p2.x = Math.max(0, Math.min(W, m.p2.x + dx));
+                            m.p2.y = Math.max(0, Math.min(H, m.p2.y + dy));
+                        } else {
+                            const pt = m[state.selectedPinTarget.end];
+                            if (pt) {
+                                pt.x = Math.max(0, Math.min(W, pt.x + dx));
+                                pt.y = Math.max(0, Math.min(H, pt.y + dy));
+                            }
+                        }
+                    }
+                }
+                recalculateAllMeasurements();
+            }
+        });
+
+        async function pasteFromClipboardButton() {
+            try {
+                if (navigator.clipboard && navigator.clipboard.read) {
+                    const items = await navigator.clipboard.read();
+                    for (const item of items) {
+                        const imageType = item.types.find(type => type.startsWith('image/'));
+                        if (imageType) {
+                            const blob = await item.getType(imageType);
+                            const reader = new FileReader();
+                            reader.onload = (ev) => loadUploadedImageSource(ev.target.result, 'لصق من الحافظة');
+                            reader.readAsDataURL(blob);
+                            return;
+                        }
+                    }
+                }
+                showToast('اضغط Ctrl+V مباشرة على لوحة المفاتيح للصق الصورة المنسوخة من الواتساب', 'info');
+            } catch (err) {
+                showToast('اضغط Ctrl+V مباشرة على لوحة المفاتيح للصق الصورة من الواتساب', 'info');
+            }
+        }
+
+        function handleFileSelect(event) {
+            const file = event.target.files?.[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => loadUploadedImageSource(e.target.result, file.name);
+            reader.readAsDataURL(file);
+        }
+
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            window.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+            });
+        });
+
+        window.addEventListener('drop', (e) => {
+            const file = e.dataTransfer?.files?.[0];
+            if (file && file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = (ev) => loadUploadedImageSource(ev.target.result, file.name);
+                reader.readAsDataURL(file);
+            }
+        });
+
+
+        /*************************************************************************
+         * 6. HOMOGRAPHY CALIBRATION & MEASUREMENT CALCULATIONS
+         *************************************************************************/
+        function syncA4OrientationButtonsUI() {
+            const btnP = document.getElementById('btnA4Portrait');
+            const btnL = document.getElementById('btnA4Landscape');
+            if (!btnP || !btnL) return;
+
+            if (state.a4Orientation === 'portrait') {
+                btnP.className = 'py-2 px-2.5 rounded-xl border text-xs font-bold flex flex-col items-center gap-0.5 transition-all bg-amber-500/20 border-amber-500 text-amber-300';
+                btnL.className = 'py-2 px-2.5 rounded-xl border text-xs font-bold flex flex-col items-center gap-0.5 transition-all bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200';
+            } else {
+                btnL.className = 'py-2 px-2.5 rounded-xl border text-xs font-bold flex flex-col items-center gap-0.5 transition-all bg-amber-500/20 border-amber-500 text-amber-300';
+                btnP.className = 'py-2 px-2.5 rounded-xl border text-xs font-bold flex flex-col items-center gap-0.5 transition-all bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200';
+            }
+        }
+
+        function setA4Orientation(orientation) {
+            state.a4Orientation = orientation;
+            syncA4OrientationButtonsUI();
+            recalculateAllMeasurements();
+            pushHistorySnapshot();
+            showToast(`تم ضبط أبعاد ورقة الـ A4 على الوضع ${orientation === 'portrait' ? 'العمودي (21.0×29.7 سم)' : 'الأفقي (29.7×21.0 سم)'}`, 'info');
+        }
+
+        function updateHomographyMatrices() {
+            const dim = A4_DIMENSIONS[state.a4Orientation];
+            const W = dim.widthCm;
+            const H = dim.heightCm;
+
+            const worldCorners = [
+                { x: 0, y: 0 },
+                { x: W, y: 0 },
+                { x: W, y: H },
+                { x: 0, y: H }
+            ];
+
+            state.H_imgToWorld = computeHomographyMatrix(state.a4Corners, worldCorners);
+            state.H_worldToImg = computeHomographyMatrix(worldCorners, state.a4Corners);
+
+            const topEdgePx = Math.hypot(
+                state.a4Corners[1].x - state.a4Corners[0].x,
+                state.a4Corners[1].y - state.a4Corners[0].y
+            );
+            const bottomEdgePx = Math.hypot(
+                state.a4Corners[2].x - state.a4Corners[3].x,
+                state.a4Corners[2].y - state.a4Corners[3].y
+            );
+            const leftEdgePx = Math.hypot(
+                state.a4Corners[3].x - state.a4Corners[0].x,
+                state.a4Corners[3].y - state.a4Corners[0].y
+            );
+            const rightEdgePx = Math.hypot(
+                state.a4Corners[2].x - state.a4Corners[1].x,
+                state.a4Corners[2].y - state.a4Corners[1].y
+            );
+
+            const avgPxPerCm = ((topEdgePx + bottomEdgePx) / (2 * W) + (leftEdgePx + rightEdgePx) / (2 * H)) / 2;
+            const foreshorteningRatio = Math.abs(1 - Math.min(topEdgePx, bottomEdgePx) / Math.max(topEdgePx, bottomEdgePx, 1)) +
+                                        Math.abs(1 - Math.min(leftEdgePx, rightEdgePx) / Math.max(leftEdgePx, rightEdgePx, 1));
+            const estimatedTiltDeg = Math.min(65, Math.acos(Math.max(0.2, 1 - foreshorteningRatio * 0.85)) * (180 / Math.PI));
+
+            document.getElementById('lblCameraTilt').textContent = `${estimatedTiltDeg.toFixed(1)}°`;
+            document.getElementById('lblPixelDensity').textContent = `${avgPxPerCm.toFixed(1)} px/cm`;
+
+            const avgW = (topEdgePx + bottomEdgePx) / 2;
+            const avgH = (leftEdgePx + rightEdgePx) / 2;
+            const observedRatio = Math.max(avgW, avgH) / Math.max(1, Math.min(avgW, avgH));
+            const ratioError = Math.abs(observedRatio - 1.414);
+            const aspectEl = document.getElementById('lblA4AspectCheck');
+            const confBadge = document.getElementById('autoDetectConfidenceBadge');
+            const badge = document.getElementById('homographyStatusBadge');
+
+            if (!state.H_imgToWorld) {
+                badge.textContent = 'تقاطع في الزوايا! اضغط (ترتيب 1-4)';
+                badge.className = 'px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30';
+                if (aspectEl) {
+                    aspectEl.textContent = 'زوايا متقاطعة ✗';
+                    aspectEl.className = 'num-font font-bold text-rose-400';
+                }
+                return;
+            }
+
+            badge.textContent = 'معايرة دقيقة نشطة';
+            badge.className = 'px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
+
+            if (aspectEl) {
+                if (ratioError < 0.16) {
+                    aspectEl.textContent = `مطابق (${observedRatio.toFixed(2)}) ✓`;
+                    aspectEl.className = 'num-font font-bold text-emerald-400';
+                    if (confBadge) {
+                        const conf = Math.max(92, Math.min(99, Math.round(100 - ratioError * 50)));
+                        confBadge.textContent = `دقة ${conf}%`;
+                        confBadge.className = 'px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-300';
+                    }
+                } else {
+                    aspectEl.textContent = `تحقق من الزوايا (${observedRatio.toFixed(2)})`;
+                    aspectEl.className = 'num-font font-bold text-amber-400';
+                    if (confBadge) {
+                        confBadge.textContent = `مراجعة يدوية`;
+                        confBadge.className = 'px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300';
+                    }
+                }
+            }
+
+            const matText = state.H_imgToWorld
+                .map(row => '[ ' + row.map(v => v.toExponential(3)).join(', ') + ' ]')
+                .join('\n');
+            document.getElementById('matrixInspectorBox').textContent = matText;
+        }
+
+        function toggleMatrixInspector() {
+            const box = document.getElementById('matrixInspectorBox');
+            box.classList.toggle('hidden');
+        }
+
+        function getComputedMeasurementData(m) {
+            const flatCm = state.H_imgToWorld ? calculateTrueDistanceCm(state.H_imgToWorld, m.p1, m.p2) : 0;
+            const baseCm = flatCm * m.multiplier;
+            const finalCm = Math.max(0, baseCm + (parseFloat(m.easeCm) || 0));
+
+            const CM_TO_INCH = 1 / 2.54;
+            return {
+                ...m,
+                flatCm,
+                flatInch: flatCm * CM_TO_INCH,
+                baseCm,
+                baseInch: baseCm * CM_TO_INCH,
+                easeCm: parseFloat(m.easeCm) || 0,
+                easeInch: (parseFloat(m.easeCm) || 0) * CM_TO_INCH,
+                finalCm,
+                finalInch: finalCm * CM_TO_INCH
+            };
+        }
+
+        function formatValueInActiveUnit(valCm, includeUnit = true) {
+            if (state.unit === 'inch') {
+                const v = (valCm / 2.54).toFixed(2);
+                return includeUnit ? `${v} in` : v;
+            } else {
+                const v = valCm.toFixed(1);
+                return includeUnit ? `${v} سم` : v;
+            }
+        }
+
+        function recalculateAllMeasurements() {
+            updateHomographyMatrices();
+            renderMeasurementsSidebar();
+            updateSummaryTable();
+            renderCanvas();
+        }
+
+
+        /*************************************************************************
+         * 7. SIDEBAR UI RENDERING (MEASUREMENT LINES & LIVE SUMMARY TABLE)
+         *************************************************************************/
+        function setUnit(newUnit) {
+            state.unit = newUnit;
+            const btnCm = document.getElementById('btnUnitCm');
+            const btnInch = document.getElementById('btnUnitInch');
+            if (newUnit === 'cm') {
+                btnCm.className = 'px-2.5 py-1 rounded-lg text-xs font-bold transition-all bg-emerald-600 text-white shadow';
+                btnInch.className = 'px-2.5 py-1 rounded-lg text-xs font-bold transition-all text-slate-400 hover:text-white';
+            } else {
+                btnInch.className = 'px-2.5 py-1 rounded-lg text-xs font-bold transition-all bg-emerald-600 text-white shadow';
+                btnCm.className = 'px-2.5 py-1 rounded-lg text-xs font-bold transition-all text-slate-400 hover:text-white';
+            }
+            recalculateAllMeasurements();
+            saveStudioStateToStorage();
+        }
+
+        function deleteCustomMeasurement(id) {
+            state.measurements = state.measurements.filter(m => m.id !== id);
+            if (state.activeMeasurementId === id) {
+                state.activeMeasurementId = state.measurements[0]?.id || '';
+            }
+            recalculateAllMeasurements();
+            pushHistorySnapshot();
+            showToast('تم حذف خط القياس المخصص', 'info');
+        }
+
+        function centerMeasurementLineOnCanvas(id) {
+            const m = state.measurements.find(item => item.id === id);
+            if (!m) return;
+            const W = state.processedCanvas.width || 1100;
+            const H = state.processedCanvas.height || 850;
+            m.p1 = { x: Math.round(W * 0.48), y: Math.round(H * 0.45) };
+            m.p2 = { x: Math.round(W * 0.68), y: Math.round(H * 0.45) };
+            state.activeMeasurementId = id;
+            recalculateAllMeasurements();
+            pushHistorySnapshot();
+            showToast(`تمت إعادة تموضع خط "${m.nameAr}" في وسط الفستان`, 'info');
+        }
+
+        function renderMeasurementsSidebar() {
+            const container = document.getElementById('measurementsListContainer');
+            container.innerHTML = '';
+
+            state.measurements.forEach((m) => {
+                const data = getComputedMeasurementData(m);
+                const isSelected = state.activeMeasurementId === m.id;
+                const unitLabel = state.unit === 'cm' ? 'سم' : 'إنش';
+                const flatDisplay = state.unit === 'cm' ? data.flatCm.toFixed(1) : data.flatInch.toFixed(2);
+                const baseDisplay = state.unit === 'cm' ? data.baseCm.toFixed(1) : data.baseInch.toFixed(2);
+                const finalDisplay = m.placed === false ? 'انقر للرسم ✏️' : (state.unit === 'cm' ? data.finalCm.toFixed(1) : data.finalInch.toFixed(2));
+                const easeDisplayVal = state.unit === 'cm' ? Number(data.easeCm.toFixed(2)) : Number(data.easeInch.toFixed(2));
+
+                const card = document.createElement('div');
+                card.className = `rounded-xl border transition-all p-2.5 ${
+                    !m.visible
+                        ? 'bg-slate-950/40 border-slate-800/60 opacity-60'
+                        : isSelected
+                        ? 'bg-slate-800/90 border-emerald-500/70 shadow-md'
+                        : 'bg-slate-950/90 border-slate-800 hover:border-slate-700'
+                }`;
+
+                const deleteBtnHtml = m.isCustom
+                    ? `<button onclick="event.stopPropagation(); deleteCustomMeasurement('${m.id}')" class="text-rose-400 hover:text-rose-300 px-1.5 py-0.5 rounded hover:bg-rose-500/10 text-[11px]" title="حذف هذا القياس المخصص"><i class="fa-solid fa-trash-can"></i></button>`
+                    : '';
+
+                card.innerHTML = `
+                    <div class="flex items-center justify-between gap-1.5 mb-2">
+                        <div class="flex items-center gap-2 cursor-pointer flex-1 min-w-0" onclick="selectMeasurement('${m.id}')">
+                            <input type="checkbox" ${m.visible ? 'checked' : ''} onclick="event.stopPropagation(); toggleMeasurementVisibility('${m.id}')" class="w-4 h-4 rounded accent-emerald-500 cursor-pointer shrink-0">
+                            <span class="w-3 h-3 rounded-full shrink-0" style="background-color: ${m.color}; box-shadow: 0 0 8px ${m.color}"></span>
+                            <span class="text-xs font-bold text-white truncate">${m.nameAr}</span>
+                            <span class="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold shrink-0 ${
+                                m.multiplier === 2
+                                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                                    : 'bg-slate-800 text-slate-300'
+                            }">
+                                ${m.multiplier === 2 ? '×2' : '1:1'}
+                            </span>
+                        </div>
+
+                        <div class="flex items-center gap-1 shrink-0">
+                            <button onclick="event.stopPropagation(); centerMeasurementLineOnCanvas('${m.id}')" class="text-slate-400 hover:text-emerald-400 px-1.5 py-0.5 rounded hover:bg-slate-800 text-[11px]" title="إحضار الخط لوسط اللوحة">
+                                <i class="fa-solid fa-arrows-to-dot"></i>
+                            </button>
+                            ${deleteBtnHtml}
+                            <span class="num-font text-sm font-extrabold px-2 py-0.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300">
+                                ${finalDisplay} <span class="text-[10px] font-sans">${unitLabel}</span>
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Metrics & Ease Row -->
+                    <div class="grid grid-cols-3 gap-1.5 items-center bg-slate-900/90 rounded-lg p-1.5 text-[11px]">
+                        <div class="px-1.5">
+                            <span class="text-slate-400 block text-[10px]">المقاس المسطح</span>
+                            <span class="num-font font-bold text-slate-200">${flatDisplay} ${unitLabel}</span>
+                        </div>
+
+                        <div class="px-1.5 border-x border-slate-800">
+                            <span class="text-slate-400 block text-[10px]">${m.multiplier === 2 ? 'المحيط الكامل (×2)' : 'المقاس الأساسي'}</span>
+                            <span class="num-font font-bold text-amber-300">${baseDisplay} ${unitLabel}</span>
+                        </div>
+
+                        <!-- Ease (+/-) Controls -->
+                        <div class="px-1">
+                            <span class="text-slate-400 block text-[10px]">راحة الخياطة (+/-)</span>
+                            <div class="flex items-center gap-1 mt-0.5">
+                                <button onclick="stepMeasurementEase('${m.id}', -0.5)" class="w-5 h-5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center justify-center font-mono text-xs">-</button>
+                                <input type="number" step="0.5" value="${easeDisplayVal}" onchange="setMeasurementEaseFromInput('${m.id}', this.value)" class="w-12 bg-slate-950 border border-slate-700 rounded text-center font-mono text-xs text-emerald-400 py-0.5 outline-none">
+                                <button onclick="stepMeasurementEase('${m.id}', 0.5)" class="w-5 h-5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center justify-center font-mono text-xs">+</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function updateSummaryTable() {
+            const tbody = document.getElementById('summaryTableBody');
+            tbody.innerHTML = '';
+
+            const activeMeasures = state.measurements.filter(m => m.visible);
+            document.getElementById('lblActiveCount').textContent = `${activeMeasures.length} مقاسات مفعلة`;
+
+            activeMeasures.forEach(m => {
+                const d = getComputedMeasurementData(m);
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-slate-800/60 transition cursor-pointer';
+                tr.onclick = () => selectMeasurement(m.id);
+
+                const easeSign = d.easeCm > 0 ? `+${d.easeCm.toFixed(1)}` : d.easeCm < 0 ? d.easeCm.toFixed(1) : '0';
+
+                tr.innerHTML = `
+                    <td class="py-1.5 px-2.5 font-semibold text-slate-200 flex items-center gap-1.5">
+                        <span class="w-2 h-2 rounded-full" style="background:${m.color}"></span>
+                        <span>${m.shortName || m.nameAr}</span>
+                        ${m.multiplier === 2 ? '<span class="text-[9px] text-amber-400">(×2)</span>' : ''}
+                    </td>
+                    <td class="py-1.5 px-2 text-center num-font text-slate-300">${d.flatCm.toFixed(1)}</td>
+                    <td class="py-1.5 px-2 text-center num-font text-slate-400">${easeSign}</td>
+                    <td class="py-1.5 px-2 text-center num-font font-bold text-emerald-400">${d.finalCm.toFixed(1)} سم</td>
+                    <td class="py-1.5 px-2 text-center num-font font-bold text-sky-400">${d.finalInch.toFixed(2)}"</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function selectMeasurement(id) {
+            state.activeMeasurementId = id;
+            state.selectedPinTarget = { type: 'measure', id, end: 'p1' };
+            state.drawingLineId = id;
+            state.drawingStep = 0;
+            const m = state.measurements.find(item => item.id === id);
+            showToast(`انقر نقطة البداية على الفستان لقياس: ${m ? m.nameAr : id} (1/2) 🎯`, 'info');
+            renderMeasurementsSidebar();
+            renderCanvas();
+        }
+
+        function toggleMeasurementVisibility(id) {
+            const m = state.measurements.find(item => item.id === id);
+            if (m) {
+                m.visible = !m.visible;
+                recalculateAllMeasurements();
+                pushHistorySnapshot();
+            }
+        }
+
+        function stepMeasurementEase(id, stepInActiveUnit) {
+            const m = state.measurements.find(item => item.id === id);
+            if (!m) return;
+            const deltaCm = state.unit === 'inch' ? stepInActiveUnit * 2.54 : stepInActiveUnit;
+            m.easeCm = Math.round((m.easeCm + deltaCm) * 100) / 100;
+            recalculateAllMeasurements();
+            pushHistorySnapshot();
+        }
+
+        function setMeasurementEaseFromInput(id, rawValue) {
+            const m = state.measurements.find(item => item.id === id);
+            if (!m) return;
+            const val = parseFloat(rawValue) || 0;
+            m.easeCm = state.unit === 'inch' ? val * 2.54 : val;
+            recalculateAllMeasurements();
+            pushHistorySnapshot();
+        }
+
+
+        /*************************************************************************
+         * 8. INTERACTIVE SMART CANVAS & 3X MAGNIFIER LOUPE RENDERER
+         *************************************************************************/
+        function resizeCanvasToContainer() {
+            const container = document.getElementById('canvasContainer');
+            if (!container) return;
+            canvas.width = Math.max(320, container.clientWidth || 640);
+            canvas.height = Math.max(320, container.clientHeight || 480);
+            renderCanvas();
+        }
+
+        window.addEventListener('resize', resizeCanvasToContainer);
+
+        function fitImageToCanvas() {
+            const container = document.getElementById('canvasContainer');
+            if (!container || !state.processedCanvas.width) return;
+            canvas.width = Math.max(320, container.clientWidth || 640);
+            canvas.height = Math.max(320, container.clientHeight || 480);
+
+            const pad = 40;
+            const availW = Math.max(120, canvas.width - pad * 2);
+            const availH = Math.max(120, canvas.height - pad * 2);
+            const scaleX = availW / state.processedCanvas.width;
+            const scaleY = availH / state.processedCanvas.height;
+            state.zoom = Math.max(0.15, Math.min(scaleX, scaleY, 1.5));
+
+            state.panX = (canvas.width - state.processedCanvas.width * state.zoom) / 2;
+            state.panY = (canvas.height - state.processedCanvas.height * state.zoom) / 2;
+
+            document.getElementById('lblZoomLevel').textContent = `${Math.round(state.zoom * 100)}%`;
+            renderCanvas();
+        }
+
+        function zoomBy(factor, centerX = canvas.width / 2, centerY = canvas.height / 2) {
+            const prevZoom = state.zoom;
+            const nextZoom = Math.min(6.0, Math.max(0.2, prevZoom * factor));
+            const scaleChange = nextZoom / prevZoom;
+
+            state.panX = centerX - (centerX - state.panX) * scaleChange;
+            state.panY = centerY - (centerY - state.panY) * scaleChange;
+            state.zoom = nextZoom;
+
+            document.getElementById('lblZoomLevel').textContent = `${Math.round(state.zoom * 100)}%`;
+            renderCanvas();
+        }
+
+        function setCanvasTool(toolName) {
+            state.tool = toolName;
+            const btnEdit = document.getElementById('btnModeEdit');
+            const btnPan = document.getElementById('btnModePan');
+
+            if (toolName === 'edit') {
+                btnEdit.className = 'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 text-white shadow transition';
+                btnPan.className = 'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold text-slate-300 hover:text-white transition';
+                canvas.style.cursor = 'crosshair';
+            } else {
+                btnPan.className = 'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 text-white shadow transition';
+                btnEdit.className = 'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold text-slate-300 hover:text-white transition';
+                canvas.style.cursor = 'grab';
+            }
+        }
+
+        function cycleLoupePower() {
+            const powers = [3, 4, 0];
+            const nextIdx = (powers.indexOf(state.loupePower) + 1) % powers.length;
+            state.loupePower = powers[nextIdx];
+            const lbl = document.getElementById('lblLoupePower');
+            const btn = document.getElementById('btnToggleLoupe');
+            if (state.loupePower === 0) {
+                lbl.textContent = 'العدسة: متوقفة';
+                btn.className = 'flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 text-[11px] font-bold transition';
+            } else {
+                lbl.textContent = `عدسة ${state.loupePower}x`;
+                btn.className = 'flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-300 text-[11px] font-bold transition';
+            }
+            renderCanvas();
+        }
+
+        function screenToImageCoords(sx, sy) {
+            return {
+                x: (sx - state.panX) / state.zoom,
+                y: (sy - state.panY) / state.zoom
+            };
+        }
+
+        function imageToScreenCoords(ix, iy) {
+            return {
+                x: ix * state.zoom + state.panX,
+                y: iy * state.zoom + state.panY
+            };
+        }
+
+        function renderCanvas() {
+            if (!ctx) return;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (!state.processedCanvas.width) return;
+
+            ctx.save();
+            ctx.translate(state.panX, state.panY);
+            ctx.scale(state.zoom, state.zoom);
+
+            // 1. Draw Preprocessed Dress Image
+            ctx.drawImage(state.processedCanvas, 0, 0);
+
+            // 2. Draw A4 Calibration Polygon & Perspective Verification Grid
+            drawA4CalibrationOverlay(ctx, 1 / state.zoom);
+
+            // 3. Draw All Visible Dress Measurement Lines & Labels
+            state.measurements.forEach(m => {
+                if (m.visible) {
+                    drawMeasurementLineOverlay(ctx, m, 1 / state.zoom);
+                }
+            });
+
+            ctx.restore();
+
+            // 4. Draw Precision Magnifier Loupe when dragging or hovering a single pin or in 4-click/2-click mode
+            let activePinTarget = state.draggingTarget || state.hoveredTarget;
+            let pinImgPt = activePinTarget && activePinTarget.end !== 'both' ? getPinImageCoords(activePinTarget) : null;
+            if (!pinImgPt && (state.manualA4Step >= 0 || state.drawingLineId)) {
+                pinImgPt = state.currentMouseImage;
+                activePinTarget = state.manualA4Step >= 0 ? { type: 'a4', index: state.manualA4Step } : { type: 'measure', id: state.drawingLineId };
+            }
+            if (activePinTarget && pinImgPt && state.loupePower > 0) {
+                drawMagnifierLoupe(ctx, pinImgPt, activePinTarget);
+            }
+        }
+
+        function drawA4CalibrationOverlay(context, invScale) {
+            const pts = state.a4Corners;
+            if (!pts || pts.length !== 4) return;
+
+            const isValidConvex = isQuadStrictlyConvex(pts);
+            const mainColor = isValidConvex ? '#f59e0b' : '#f43f5e';
+
+            context.save();
+
+            context.fillStyle = isValidConvex ? 'rgba(245, 158, 11, 0.14)' : 'rgba(244, 63, 94, 0.22)';
+            context.beginPath();
+            context.moveTo(pts[0].x, pts[0].y);
+            context.lineTo(pts[1].x, pts[1].y);
+            context.lineTo(pts[2].x, pts[2].y);
+            context.lineTo(pts[3].x, pts[3].y);
+            context.closePath();
+            context.fill();
+
+            const showGrid = document.getElementById('chkShowA4Grid')?.checked;
+            if (showGrid && state.H_worldToImg && isValidConvex) {
+                const dim = A4_DIMENSIONS[state.a4Orientation];
+                context.strokeStyle = 'rgba(245, 158, 11, 0.45)';
+                context.lineWidth = 1.2 * invScale;
+                context.setLineDash([4 * invScale, 4 * invScale]);
+
+                for (let xCm = 3; xCm < dim.widthCm; xCm += 3) {
+                    const topPt = applyHomographyPoint(state.H_worldToImg, { x: xCm, y: 0 });
+                    const botPt = applyHomographyPoint(state.H_worldToImg, { x: xCm, y: dim.heightCm });
+                    if (topPt && botPt) {
+                        context.beginPath();
+                        context.moveTo(topPt.x, topPt.y);
+                        context.lineTo(botPt.x, botPt.y);
+                        context.stroke();
+                    }
+                }
+
+                for (let yCm = 3; yCm < dim.heightCm; yCm += 3) {
+                    const leftPt = applyHomographyPoint(state.H_worldToImg, { x: 0, y: yCm });
+                    const rightPt = applyHomographyPoint(state.H_worldToImg, { x: dim.widthCm, y: yCm });
+                    if (leftPt && rightPt) {
+                        context.beginPath();
+                        context.moveTo(leftPt.x, leftPt.y);
+                        context.lineTo(rightPt.x, rightPt.y);
+                        context.stroke();
+                    }
+                }
+                context.setLineDash([]);
+            }
+
+            context.strokeStyle = mainColor;
+            context.lineWidth = 2.5 * invScale;
+            context.beginPath();
+            context.moveTo(pts[0].x, pts[0].y);
+            context.lineTo(pts[1].x, pts[1].y);
+            context.lineTo(pts[2].x, pts[2].y);
+            context.lineTo(pts[3].x, pts[3].y);
+            context.closePath();
+            context.stroke();
+
+            const centerX = (pts[0].x + pts[1].x + pts[2].x + pts[3].x) / 4;
+            const centerY = (pts[0].y + pts[1].y + pts[2].y + pts[3].y) / 4;
+            const dim = A4_DIMENSIONS[state.a4Orientation];
+            drawCanvasBadge(
+                context,
+                centerX,
+                centerY,
+                isValidConvex ? `معايرة A4 (${dim.widthCm}×${dim.heightCm} سم)` : `⚠️ زوايا متقاطعة! اضغط ترتيب 1-4`,
+                mainColor,
+                invScale
+            );
+
+            pts.forEach((pt, idx) => {
+                const isSelectedPin = state.selectedPinTarget?.type === 'a4' && state.selectedPinTarget?.index === idx;
+                const r = (isSelectedPin ? 9.5 : 8) * invScale;
+
+                if (isSelectedPin) {
+                    context.strokeStyle = '#ffffff';
+                    context.lineWidth = 3 * invScale;
+                    context.beginPath();
+                    context.arc(pt.x, pt.y, r + 3 * invScale, 0, Math.PI * 2);
+                    context.stroke();
+                }
+
+                context.fillStyle = mainColor;
+                context.strokeStyle = '#090d16';
+                context.lineWidth = 2 * invScale;
+                context.beginPath();
+                context.arc(pt.x, pt.y, r, 0, Math.PI * 2);
+                context.fill();
+                context.stroke();
+
+                context.fillStyle = '#090d16';
+                context.font = `bold ${Math.round(10 * invScale)}px JetBrains Mono, monospace`;
+                context.textAlign = 'center';
+                context.textBaseline = 'middle';
+                context.fillText(String(idx + 1), pt.x, pt.y);
+            });
+
+            context.restore();
+        }
+
+        function drawMeasurementLineOverlay(context, m, invScale) {
+            if (m.placed === false) return;
+            const data = getComputedMeasurementData(m);
+            const isSelected = state.activeMeasurementId === m.id;
+
+            context.save();
+
+            context.strokeStyle = 'rgba(9, 13, 22, 0.85)';
+            context.lineWidth = (isSelected ? 6 : 4.5) * invScale;
+            context.lineCap = 'round';
+            context.beginPath();
+            context.moveTo(m.p1.x, m.p1.y);
+            context.lineTo(m.p2.x, m.p2.y);
+            context.stroke();
+
+            context.strokeStyle = m.color;
+            context.lineWidth = (isSelected ? 3.5 : 2.5) * invScale;
+            context.beginPath();
+            context.moveTo(m.p1.x, m.p1.y);
+            context.lineTo(m.p2.x, m.p2.y);
+            context.stroke();
+
+            const dx = m.p2.x - m.p1.x;
+            const dy = m.p2.y - m.p1.y;
+            const len = Math.hypot(dx, dy) || 1;
+            const nx = -dy / len;
+            const ny = dx / len;
+            const tickLen = 10 * invScale;
+
+            context.strokeStyle = m.color;
+            context.lineWidth = 2.2 * invScale;
+            [m.p1, m.p2].forEach(pt => {
+                context.beginPath();
+                context.moveTo(pt.x - nx * tickLen, pt.y - ny * tickLen);
+                context.lineTo(pt.x + nx * tickLen, pt.y + ny * tickLen);
+                context.stroke();
+            });
+
+            [['p1', m.p1], ['p2', m.p2]].forEach(([endKey, pt]) => {
+                const isPinSelected = state.selectedPinTarget?.type === 'measure' &&
+                                      state.selectedPinTarget?.id === m.id &&
+                                      state.selectedPinTarget?.end === endKey;
+                const pinRadius = (isPinSelected ? 8.5 : isSelected ? 7.5 : 6) * invScale;
+
+                if (isPinSelected) {
+                    context.strokeStyle = '#fbbf24';
+                    context.lineWidth = 2.5 * invScale;
+                    context.beginPath();
+                    context.arc(pt.x, pt.y, pinRadius + 3 * invScale, 0, Math.PI * 2);
+                    context.stroke();
+                }
+
+                context.fillStyle = m.color;
+                context.strokeStyle = '#ffffff';
+                context.lineWidth = 2 * invScale;
+                context.beginPath();
+                context.arc(pt.x, pt.y, pinRadius, 0, Math.PI * 2);
+                context.fill();
+                context.stroke();
+
+                context.fillStyle = '#090d16';
+                context.beginPath();
+                context.arc(pt.x, pt.y, 2 * invScale, 0, Math.PI * 2);
+                context.fill();
+            });
+
+            const midX = (m.p1.x + m.p2.x) / 2;
+            const midY = (m.p1.y + m.p2.y) / 2;
+
+            let labelText = `${m.shortName || m.nameAr}: ${formatValueInActiveUnit(data.finalCm)}`;
+            if (m.multiplier === 2) {
+                labelText = `${m.shortName}: مسطح ${formatValueInActiveUnit(data.flatCm, false)} | محيط ${formatValueInActiveUnit(data.finalCm)}`;
+            }
+
+            drawCanvasBadge(context, midX, midY, labelText, m.color, invScale, isSelected);
+
+            context.restore();
+        }
+
+        function drawCanvasBadge(context, x, y, text, borderColor, invScale, isHighlighted = false) {
+            context.save();
+            const safeScale = Math.max(0.1, Math.abs(invScale) || 1);
+            const fontSize = Math.max(8, Math.round((isHighlighted ? 13 : 11.5) * safeScale));
+            context.font = `bold ${fontSize}px Cairo, sans-serif`;
+            const metrics = context.measureText(text);
+            const padX = 8 * safeScale;
+            const padY = 5 * safeScale;
+            const boxW = metrics.width + padX * 2;
+            const boxH = fontSize + padY * 2;
+
+            context.fillStyle = 'rgba(9, 13, 22, 0.92)';
+            context.strokeStyle = borderColor;
+            context.lineWidth = (isHighlighted ? 2.2 : 1.5) * safeScale;
+
+            const rx = x - boxW / 2;
+            const ry = y - boxH / 2;
+            const radius = Math.max(0, 6 * safeScale);
+
+            context.beginPath();
+            context.roundRect(rx, ry, boxW, boxH, radius);
+            context.fill();
+            context.stroke();
+
+            context.fillStyle = '#f8fafc';
+            context.textAlign = 'center';
+            context.textBaseline = 'middle';
+            context.fillText(text, x, y + 1 * safeScale);
+            context.restore();
+        }
+
+        function drawMagnifierLoupe(context, imgPt, targetInfo) {
+            const screenPt = imageToScreenCoords(imgPt.x, imgPt.y);
+            const loupeRadius = 74;
+            const zoomFactor = state.loupePower;
+
+            let loupeX = screenPt.x - 105;
+            let loupeY = screenPt.y - 105;
+
+            if (loupeX - loupeRadius < 14) loupeX = screenPt.x + 105;
+            if (loupeY - loupeRadius < 55) loupeY = screenPt.y + 105;
+            if (loupeX + loupeRadius > canvas.width - 14) loupeX = canvas.width - loupeRadius - 14;
+            if (loupeY + loupeRadius > canvas.height - 14) loupeY = canvas.height - loupeRadius - 14;
+
+            context.save();
+            context.shadowColor = 'rgba(0, 0, 0, 0.75)';
+            context.shadowBlur = 16;
+
+            context.beginPath();
+            context.arc(loupeX, loupeY, loupeRadius, 0, Math.PI * 2);
+            context.fillStyle = '#090d16';
+            context.fill();
+
+            context.save();
+            context.beginPath();
+            context.arc(loupeX, loupeY, loupeRadius - 3, 0, Math.PI * 2);
+            context.clip();
+
+            const sampleRadiusImg = loupeRadius / (state.zoom * zoomFactor);
+            const sx = imgPt.x - sampleRadiusImg;
+            const sy = imgPt.y - sampleRadiusImg;
+            const sw = sampleRadiusImg * 2;
+            const sh = sampleRadiusImg * 2;
+
+            context.imageSmoothingEnabled = false;
+            context.drawImage(
+                state.processedCanvas,
+                sx, sy, sw, sh,
+                loupeX - loupeRadius, loupeY - loupeRadius, loupeRadius * 2, loupeRadius * 2
+            );
+
+            const accentColor = targetInfo.type === 'a4' ? '#f59e0b' : '#10b981';
+            context.strokeStyle = accentColor;
+            context.lineWidth = 1.5;
+
+            context.beginPath();
+            context.moveTo(loupeX - loupeRadius, loupeY);
+            context.lineTo(loupeX - 6, loupeY);
+            context.moveTo(loupeX + 6, loupeY);
+            context.lineTo(loupeX + loupeRadius, loupeY);
+
+            context.moveTo(loupeX, loupeY - loupeRadius);
+            context.lineTo(loupeX, loupeY - 6);
+            context.moveTo(loupeX, loupeY + 6);
+            context.lineTo(loupeX, loupeY + loupeRadius);
+            context.stroke();
+
+            context.beginPath();
+            context.arc(loupeX, loupeY, 12, 0, Math.PI * 2);
+            context.stroke();
+
+            context.fillStyle = 'rgba(9, 13, 22, 0.85)';
+            context.fillRect(loupeX - loupeRadius, loupeY + loupeRadius - 26, loupeRadius * 2, 26);
+            context.fillStyle = '#f8fafc';
+            context.font = 'bold 10px JetBrains Mono, monospace';
+            context.textAlign = 'center';
+            context.fillText(
+                `${state.loupePower}x | (${Math.round(imgPt.x)}, ${Math.round(imgPt.y)}) px`,
+                loupeX,
+                loupeY + loupeRadius - 10
+            );
+
+            context.restore();
+
+            context.strokeStyle = targetInfo.type === 'a4' ? '#f59e0b' : '#10b981';
+            context.lineWidth = 3.5;
+            context.beginPath();
+            context.arc(loupeX, loupeY, loupeRadius, 0, Math.PI * 2);
+            context.stroke();
+
+            context.restore();
+        }
+
+
+        /*************************************************************************
+         * 9. MOUSE & TOUCH CANVAS INTERACTION HANDLERS (WITH WHOLE-LINE DRAG & PINCH)
+         *************************************************************************/
+        function getPinImageCoords(target) {
+            if (!target) return null;
+            if (target.type === 'a4') {
+                return state.a4Corners[target.index];
+            } else if (target.type === 'measure') {
+                const m = state.measurements.find(item => item.id === target.id);
+                if (!m) return null;
+                if (target.end === 'both') {
+                    return { x: (m.p1.x + m.p2.x) / 2, y: (m.p1.y + m.p2.y) / 2 };
+                }
+                return m[target.end];
+            }
+            return null;
+        }
+
+        function findPinNearScreenPoint(sx, sy) {
+            const hitRadiusScreen = 16;
+
+            // 1. Check active measurement endpoints (p1, p2)
+            for (let i = state.measurements.length - 1; i >= 0; i--) {
+                const m = state.measurements[i];
+                if (!m.visible) continue;
+
+                const s1 = imageToScreenCoords(m.p1.x, m.p1.y);
+                if (Math.hypot(sx - s1.x, sy - s1.y) <= hitRadiusScreen) {
+                    return { type: 'measure', id: m.id, end: 'p1' };
+                }
+
+                const s2 = imageToScreenCoords(m.p2.x, m.p2.y);
+                if (Math.hypot(sx - s2.x, sy - s2.y) <= hitRadiusScreen) {
+                    return { type: 'measure', id: m.id, end: 'p2' };
+                }
+            }
+
+            // 2. Check A4 calibration corners
+            for (let i = 0; i < state.a4Corners.length; i++) {
+                const sPt = imageToScreenCoords(state.a4Corners[i].x, state.a4Corners[i].y);
+                if (Math.hypot(sx - sPt.x, sy - sPt.y) <= hitRadiusScreen) {
+                    return { type: 'a4', index: i };
+                }
+            }
+
+            // 3. Check Measurement Midpoint Badge (allows dragging the entire line together!)
+            for (let i = state.measurements.length - 1; i >= 0; i--) {
+                const m = state.measurements[i];
+                if (!m.visible) continue;
+                const midScreen = imageToScreenCoords((m.p1.x + m.p2.x) / 2, (m.p1.y + m.p2.y) / 2);
+                if (Math.abs(sx - midScreen.x) <= 55 && Math.abs(sy - midScreen.y) <= 16) {
+                    return {
+                        type: 'measure',
+                        id: m.id,
+                        end: 'both',
+                        startImgPt: screenToImageCoords(sx, sy),
+                        origP1: { ...m.p1 },
+                        origP2: { ...m.p2 }
+                    };
+                }
+            }
+
+            return null;
+        }
+
+        function handlePointerDown(clientX, clientY, isMiddleOrSpace = false) {
+            canvas.focus();
+            const rect = canvas.getBoundingClientRect();
+            const sx = clientX - rect.left;
+            const sy = clientY - rect.top;
+
+            if (state.tool === 'pan' || isMiddleOrSpace) {
+                state.isPanning = true;
+                state.panStartMouse = { x: sx - state.panX, y: sy - state.panY };
+                canvas.style.cursor = 'grabbing';
+                return;
+            }
+
+            // 1. Manual 4-Click A4 Calibration
+            if (state.manualA4Step >= 0 && state.manualA4Step < 4) {
+                const imgPt = screenToImageCoords(sx, sy);
+                state.a4Corners[state.manualA4Step] = { x: Math.round(imgPt.x * 10) / 10, y: Math.round(imgPt.y * 10) / 10 };
+                if (state.manualA4Step === 3) {
+                    state.manualA4Step = -1;
+                    const lbl = document.getElementById('lblManualA4Calibration');
+                    if (lbl) lbl.textContent = 'تحديد زوايا الورقة يدوياً (4 نقرات)';
+                    updateHomographyMatrices();
+                    recalculateAllMeasurements();
+                    pushHistorySnapshot();
+                    showToast('تمت معايرة زوايا ورقة A4 الأربع بدقة تامة! 🎯', 'success');
+                } else {
+                    state.manualA4Step++;
+                    const names = ['أعلى-يسار', 'أعلى-يمين', 'أسفل-يمين', 'أسفل-يسار'];
+                    const lbl = document.getElementById('lblManualA4Calibration');
+                    if (lbl) lbl.textContent = `انقر الزاوية #${state.manualA4Step + 1} (${names[state.manualA4Step]})`;
+                    showToast(`الخطوة ${state.manualA4Step + 1} من 4: انقر زاوية الورقة (${names[state.manualA4Step]}) 📐`, 'info');
+                }
+                renderCanvas();
+                return;
+            }
+
+            // 2. Interactive 2-Click Line Placement
+            if (state.drawingLineId) {
+                const imgPt = screenToImageCoords(sx, sy);
+                const m = state.measurements.find(x => x.id === state.drawingLineId);
+                if (m) {
+                    if (state.drawingStep === 0) {
+                        m.p1 = { x: Math.round(imgPt.x * 10) / 10, y: Math.round(imgPt.y * 10) / 10 };
+                        m.p2 = { ...m.p1 };
+                        m.placed = true;
+                        state.drawingStep = 1;
+                        showToast(`انقر نقطة النهاية لقياس: ${m.nameAr} (2/2) 🎯`, 'info');
+                    } else if (state.drawingStep === 1) {
+                        m.p2 = { x: Math.round(imgPt.x * 10) / 10, y: Math.round(imgPt.y * 10) / 10 };
+                        m.placed = true;
+                        state.drawingLineId = null;
+                        state.drawingStep = -1;
+                        recalculateAllMeasurements();
+                        pushHistorySnapshot();
+                        showToast(`تم قياس ${m.nameAr} بنجاح! ✨`, 'success');
+                    }
+                }
+                renderCanvas();
+                renderMeasurementsSidebar();
+                return;
+            }
+
+            const hitPin = findPinNearScreenPoint(sx, sy);
+            if (hitPin) {
+                state.draggingTarget = hitPin;
+                state.selectedPinTarget = hitPin;
+                if (hitPin.type === 'measure') {
+                    state.activeMeasurementId = hitPin.id;
+                    renderMeasurementsSidebar();
+                }
+                renderCanvas();
+            } else {
+                state.isPanning = true;
+                state.panStartMouse = { x: sx - state.panX, y: sy - state.panY };
+                canvas.style.cursor = 'grabbing';
+            }
+        }
+
+        function handlePointerMove(clientX, clientY) {
+            const rect = canvas.getBoundingClientRect();
+            const sx = clientX - rect.left;
+            const sy = clientY - rect.top;
+
+            state.currentMouseCanvas = { x: sx, y: sy };
+            const imgPt = screenToImageCoords(sx, sy);
+            state.currentMouseImage = imgPt;
+
+            if (state.manualA4Step >= 0 || state.drawingLineId) {
+                renderCanvas();
+            }
+
+            document.getElementById('lblCursorPixel').textContent = `X: ${Math.round(imgPt.x)} , Y: ${Math.round(imgPt.y)}`;
+            if (state.H_imgToWorld) {
+                const worldPt = applyHomographyPoint(state.H_imgToWorld, imgPt);
+                if (worldPt) {
+                    document.getElementById('lblCursorWorld').textContent = `X: ${worldPt.x.toFixed(1)} cm , Y: ${worldPt.y.toFixed(1)} cm`;
+                }
+            }
+
+            if (state.draggingTarget) {
+                const W = state.processedCanvas.width;
+                const H = state.processedCanvas.height;
+                const clampedX = Math.max(0, Math.min(W, imgPt.x));
+                const clampedY = Math.max(0, Math.min(H, imgPt.y));
+
+                if (state.draggingTarget.type === 'a4') {
+                    state.a4Corners[state.draggingTarget.index] = { x: clampedX, y: clampedY };
+                } else if (state.draggingTarget.type === 'measure') {
+                    const m = state.measurements.find(item => item.id === state.draggingTarget.id);
+                    if (m) {
+                        if (state.draggingTarget.end === 'both') {
+                            const dx = imgPt.x - state.draggingTarget.startImgPt.x;
+                            const dy = imgPt.y - state.draggingTarget.startImgPt.y;
+                            m.p1 = {
+                                x: Math.max(0, Math.min(W, state.draggingTarget.origP1.x + dx)),
+                                y: Math.max(0, Math.min(H, state.draggingTarget.origP1.y + dy))
+                            };
+                            m.p2 = {
+                                x: Math.max(0, Math.min(W, state.draggingTarget.origP2.x + dx)),
+                                y: Math.max(0, Math.min(H, state.draggingTarget.origP2.y + dy))
+                            };
+                        } else {
+                            m[state.draggingTarget.end] = { x: clampedX, y: clampedY };
+                        }
+                    }
+                }
+                recalculateAllMeasurements();
+                return;
+            }
+
+            if (state.isPanning) {
+                state.panX = sx - state.panStartMouse.x;
+                state.panY = sy - state.panStartMouse.y;
+                renderCanvas();
+                return;
+            }
+
+            const hoverHit = findPinNearScreenPoint(sx, sy);
+            const prevHoverKey = state.hoveredTarget ? `${state.hoveredTarget.type}_${state.hoveredTarget.id || state.hoveredTarget.index}_${state.hoveredTarget.end}` : null;
+            const nextHoverKey = hoverHit ? `${hoverHit.type}_${hoverHit.id || hoverHit.index}_${hoverHit.end}` : null;
+
+            if (prevHoverKey !== nextHoverKey) {
+                state.hoveredTarget = hoverHit;
+                canvas.style.cursor = hoverHit ? (hoverHit.end === 'both' ? 'move' : 'pointer') : (state.tool === 'pan' ? 'grab' : 'crosshair');
+                renderCanvas();
+            }
+        }
+
+        function handlePointerUp() {
+            if (state.draggingTarget) {
+                pushHistorySnapshot();
+            }
+            state.draggingTarget = null;
+            state.isPanning = false;
+            state.lastPinchDist = null;
+            canvas.style.cursor = state.tool === 'pan' ? 'grab' : 'crosshair';
+            renderCanvas();
+        }
+
+        // Mouse Listeners
+        canvas.addEventListener('mousedown', (e) => {
+            handlePointerDown(e.clientX, e.clientY, e.button === 1);
+        });
+        window.addEventListener('mousemove', (e) => {
+            if (e.target === canvas || state.draggingTarget || state.isPanning) {
+                handlePointerMove(e.clientX, e.clientY);
+            }
+        });
+        window.addEventListener('mouseup', handlePointerUp);
+
+        // Mouse Wheel Zoom centered on cursor
+        canvas.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            const sx = e.clientX - rect.left;
+            const sy = e.clientY - rect.top;
+            const factor = e.deltaY < 0 ? 1.14 : 0.88;
+            zoomBy(factor, sx, sy);
+        }, { passive: false });
+
+        // Touch Listeners (Single Finger Drag/Pan + Two-Finger Pinch Zoom)
+        canvas.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 1) {
+                e.preventDefault();
+                handlePointerDown(e.touches[0].clientX, e.touches[0].clientY);
+            } else if (e.touches.length === 2) {
+                e.preventDefault();
+                state.draggingTarget = null;
+                state.isPanning = false;
+                state.lastPinchDist = Math.hypot(
+                    e.touches[0].clientX - e.touches[1].clientX,
+                    e.touches[0].clientY - e.touches[1].clientY
+                );
+            }
+        }, { passive: false });
+
+        canvas.addEventListener('touchmove', (e) => {
+            if (e.touches.length === 1 && !state.lastPinchDist) {
+                e.preventDefault();
+                handlePointerMove(e.touches[0].clientX, e.touches[0].clientY);
+            } else if (e.touches.length === 2) {
+                e.preventDefault();
+                const dist = Math.hypot(
+                    e.touches[0].clientX - e.touches[1].clientX,
+                    e.touches[0].clientY - e.touches[1].clientY
+                );
+                if (state.lastPinchDist && state.lastPinchDist > 10) {
+                    const rect = canvas.getBoundingClientRect();
+                    const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2 - rect.left;
+                    const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2 - rect.top;
+                    zoomBy(dist / state.lastPinchDist, cx, cy);
+                }
+                state.lastPinchDist = dist;
+            }
+        }, { passive: false });
+
+        canvas.addEventListener('touchend', handlePointerUp);
+
+
+        /*************************************************************************
+         * 10. ADD CUSTOM MEASUREMENT MODAL
+         *************************************************************************/
+        function openAddCustomMeasurementModal() {
+            document.getElementById('customMeasureName').value = '';
+            document.getElementById('customMeasurementModal').classList.remove('hidden');
+            document.getElementById('customMeasurementModal').classList.add('flex');
+            document.getElementById('customMeasureName').focus();
+        }
+
+        function closeAddCustomMeasurementModal() {
+            document.getElementById('customMeasurementModal').classList.add('hidden');
+            document.getElementById('customMeasurementModal').classList.remove('flex');
+        }
+
+        function confirmAddCustomMeasurement() {
+            const nameInput = document.getElementById('customMeasureName').value.trim();
+            if (!nameInput) {
+                showToast('يرجى إدخال اسم القياس المخصص', 'error');
+                return;
+            }
+            const multRadio = document.querySelector('input[name="customMeasureMultiplier"]:checked');
+            const multiplier = multRadio ? parseInt(multRadio.value, 10) : 1;
+            const color = document.getElementById('customMeasureColor').value || '#14b8a6';
+
+            const W = state.processedCanvas.width || 1000;
+            const H = state.processedCanvas.height || 800;
+            const offset = (state.measurements.length % 5) * 35;
+
+            const newId = 'custom_' + Date.now();
+            state.measurements.push({
+                id: newId,
+                nameAr: nameInput,
+                shortName: nameInput,
+                color,
+                multiplier,
+                easeCm: 0,
+                visible: true,
+                isCustom: true,
+                p1: { x: Math.round(W * 0.46), y: Math.round(H * 0.48 + offset) },
+                p2: { x: Math.round(W * 0.68), y: Math.round(H * 0.48 + offset) }
+            });
+
+            state.activeMeasurementId = newId;
+            closeAddCustomMeasurementModal();
+            recalculateAllMeasurements();
+            pushHistorySnapshot();
+            showToast(`تمت إضافة قياس "${nameInput}" — اسحب نقطتي البداية والنهاية على الفستان`, 'success');
+        }
+
+
+        /*************************************************************************
+         * 11. EXPORT FEATURES: WHATSAPP TEXT, ERP JSON & ANNOTATED PNG IMAGE
+         *************************************************************************/
+        function buildFormattedWhatsAppSummary() {
+            const orderId = document.getElementById('orderIdInput').value.trim() || 'بدون رقم';
+            const customerName = document.getElementById('customerNameInput').value.trim() || 'زبونة كريمة';
+            const dateStr = new Date().toLocaleDateString('ar-SA');
+
+            const lines = [
+                `✨ *بطاقة مقاسات التفصيل المعتمدة* ✨`,
+                `▪ رقم الطلب: *${orderId}*`,
+                `▪ الاسم / الموديل: *${customerName}*`,
+                `▪ تاريخ المعايرة: ${dateStr}`,
+                `────────────────────`
+            ];
+
+            state.measurements.filter(m => m.visible).forEach(m => {
+                const d = getComputedMeasurementData(m);
+                const easeInfo = d.easeCm !== 0 ? ` (شامل راحة ${d.easeCm > 0 ? '+' : ''}${d.easeCm.toFixed(1)} سم)` : '';
+                if (m.multiplier === 2) {
+                    lines.push(
+                        `🔹 *${m.nameAr}:* ${d.finalCm.toFixed(1)} سم (${d.finalInch.toFixed(2)} إنش) — [مسطح: ${d.flatCm.toFixed(1)} سم × 2${easeInfo}]`
+                    );
+                } else {
+                    lines.push(
+                        `🔸 *${m.nameAr}:* ${d.finalCm.toFixed(1)} سم (${d.finalInch.toFixed(2)} إنش)${easeInfo}`
+                    );
+                }
+            });
+
+            lines.push(`────────────────────`);
+            lines.push(`✅ تمت المعايرة الهندسية عبر نظام (A4 Homography Studio)`);
+            return lines.join('\n');
+        }
+
+        function buildErpJsonPayload() {
+            const orderId = document.getElementById('orderIdInput').value.trim();
+            const customerName = document.getElementById('customerNameInput').value.trim();
+            const dim = A4_DIMENSIONS[state.a4Orientation];
+
+            const activeMeasurements = state.measurements
+                .filter(m => m.visible)
+                .map(m => {
+                    const d = getComputedMeasurementData(m);
+                    return {
+                        id: d.id,
+                        nameAr: d.nameAr,
+                        calculationMode: d.multiplier === 2 ? 'CIRCUMFERENCE_X2' : 'DIRECT_1_TO_1',
+                        multiplier: d.multiplier,
+                        flatCm: Number(d.flatCm.toFixed(2)),
+                        flatInch: Number(d.flatInch.toFixed(2)),
+                        baseCm: Number(d.baseCm.toFixed(2)),
+                        easeAllowanceCm: Number(d.easeCm.toFixed(2)),
+                        finalApprovedCm: Number(d.finalCm.toFixed(2)),
+                        finalApprovedInch: Number(d.finalInch.toFixed(2)),
+                        pixelEndpoints: {
+                            p1: { x: Math.round(d.p1.x), y: Math.round(d.p1.y) },
+                            p2: { x: Math.round(d.p2.x), y: Math.round(d.p2.y) }
+                        }
+                    };
+                });
+
+            // Quick dictionary lookup object for instant ERP form binding (e.g. measurementsByKey.chest.finalApprovedCm)
+            const measurementsByKey = {};
+            activeMeasurements.forEach(item => {
+                measurementsByKey[item.id] = item.finalApprovedCm;
+            });
+
+            return {
+                schemaVersion: '2.0.0',
+                timestamp: new Date().toISOString(),
+                orderReference: {
+                    orderId,
+                    customerName
+                },
+                calibration: {
+                    method: '4_POINT_A4_HOMOGRAPHY',
+                    a4Orientation: state.a4Orientation,
+                    referenceSheetCm: { width: dim.widthCm, height: dim.heightCm },
+                    a4PixelCorners: state.a4Corners.map(pt => ({ x: Math.round(pt.x), y: Math.round(pt.y) })),
+                    homographyMatrix3x3: state.H_imgToWorld
+                },
+                preferredDisplayUnit: state.unit,
+                summaryCm: measurementsByKey,
+                measurements: activeMeasurements
+            };
+        }
+
+        function copyTextToClipboardFallback(text, successMsg) {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(() => {
+                    showToast(successMsg, 'success');
+                }).catch(() => {
+                    legacyCopyFallback(text, successMsg);
+                });
+            } else {
+                legacyCopyFallback(text, successMsg);
+            }
+        }
+
+        function legacyCopyFallback(text, successMsg) {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.left = '-9999px';
+            document.body.appendChild(ta);
+            ta.focus();
+            ta.select();
+            try {
+                document.execCommand('copy');
+                showToast(successMsg, 'success');
+            } catch (e) {
+                showToast('تعذر النسخ التلقائي، يمكنك تحديد النص ونسخه يدوياً', 'error');
+            }
+            document.body.removeChild(ta);
+        }
+
+        function copyFormattedWhatsAppText() {
+            const text = buildFormattedWhatsAppSummary();
+            copyTextToClipboardFallback(text, 'تم نسخ المقاسات كنص منسق جاهز للواتساب والملاحظات!');
+        }
+
+        function openErpJsonModal() {
+            const payload = buildErpJsonPayload();
+            const jsonStr = JSON.stringify(payload, null, 2);
+            const waText = buildFormattedWhatsAppSummary();
+
+            document.getElementById('erpJsonPreview').textContent = jsonStr;
+            document.getElementById('whatsappTextPreview').value = waText;
+
+            window.dispatchEvent(new CustomEvent('erp:measurement-approved', { detail: payload }));
+            if (window.parent && window.parent !== window) {
+                window.parent.postMessage({ type: 'ERP_MEASUREMENT_APPROVED', payload }, '*');
+            }
+
+            document.getElementById('erpExportModal').classList.remove('hidden');
+            document.getElementById('erpExportModal').classList.add('flex');
+        }
+
+        function closeErpJsonModal() {
+            document.getElementById('erpExportModal').classList.add('hidden');
+            document.getElementById('erpExportModal').classList.remove('flex');
+        }
+
+        function copyJsonPayload() {
+            const jsonStr = JSON.stringify(buildErpJsonPayload(), null, 2);
+            copyTextToClipboardFallback(jsonStr, 'تم نسخ كائن بيانات الـ JSON للنظام المحاسبي!');
+        }
+
+        function downloadJsonFile() {
+            const payload = buildErpJsonPayload();
+            const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const orderId = document.getElementById('orderIdInput').value.trim() || 'order';
+            a.href = url;
+            a.download = `measurements-${orderId}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast('تم تنزيل ملف الـ JSON بنجاح', 'success');
+        }
+
+        function exportAnnotatedImage() {
+            if (!state.processedCanvas.width) return;
+
+            const imgW = state.processedCanvas.width;
+            const imgH = state.processedCanvas.height;
+            const activeMeasures = state.measurements.filter(m => m.visible);
+
+            const scaleFactor = Math.max(1, imgW / 1000);
+            const rowsCount = Math.ceil(activeMeasures.length / 2);
+            const rowH = Math.round(38 * scaleFactor);
+            const footerHeight = Math.round(110 * scaleFactor) + rowsCount * rowH;
+
+            const outCanvas = document.createElement('canvas');
+            outCanvas.width = imgW;
+            outCanvas.height = imgH + footerHeight;
+            const oCtx = outCanvas.getContext('2d');
+
+            oCtx.fillStyle = '#090d16';
+            oCtx.fillRect(0, 0, outCanvas.width, outCanvas.height);
+            oCtx.drawImage(state.processedCanvas, 0, 0);
+
+            drawA4CalibrationOverlay(oCtx, scaleFactor);
+            activeMeasures.forEach(m => {
+                drawMeasurementLineOverlay(oCtx, m, scaleFactor);
+            });
+
+            const fy = imgH;
+            oCtx.fillStyle = '#0f172a';
+            oCtx.fillRect(0, fy, imgW, footerHeight);
+
+            oCtx.strokeStyle = '#10b981';
+            oCtx.lineWidth = 3 * scaleFactor;
+            oCtx.beginPath();
+            oCtx.moveTo(0, fy);
+            oCtx.lineTo(imgW, fy);
+            oCtx.stroke();
+
+            const orderId = document.getElementById('orderIdInput').value.trim() || 'ORD-000';
+            const customerName = document.getElementById('customerNameInput').value.trim() || 'زبونة المعمل';
+            const dateStr = new Date().toLocaleDateString('ar-SA');
+
+            oCtx.fillStyle = '#ffffff';
+            oCtx.font = `bold ${Math.round(19 * scaleFactor)}px Cairo, sans-serif`;
+            oCtx.textAlign = 'right';
+            oCtx.fillText(`وثيقة مقاسات التفصيل المعتمدة | طلب: ${orderId} — ${customerName}`, imgW - 24 * scaleFactor, fy + 36 * scaleFactor);
+
+            oCtx.fillStyle = '#94a3b8';
+            oCtx.font = `${Math.round(13 * scaleFactor)}px Cairo, sans-serif`;
+            oCtx.textAlign = 'left';
+            oCtx.fillText(`التاريخ: ${dateStr} | 4-Point A4 Homography`, 24 * scaleFactor, fy + 36 * scaleFactor);
+
+            const colW = (imgW - 60 * scaleFactor) / 2;
+            activeMeasures.forEach((m, idx) => {
+                const d = getComputedMeasurementData(m);
+                const col = idx % 2;
+                const row = Math.floor(idx / 2);
+
+                const boxX = col === 0 ? imgW - 24 * scaleFactor - colW : 24 * scaleFactor;
+                const boxY = fy + 58 * scaleFactor + row * rowH;
+                const boxH = Math.round(31 * scaleFactor);
+
+                oCtx.fillStyle = '#1e293b';
+                oCtx.beginPath();
+                oCtx.roundRect(boxX, boxY, colW, boxH, 6 * scaleFactor);
+                oCtx.fill();
+
+                oCtx.fillStyle = m.color;
+                oCtx.fillRect(boxX + colW - 6 * scaleFactor, boxY, 6 * scaleFactor, boxH);
+
+                oCtx.fillStyle = '#f8fafc';
+                oCtx.font = `bold ${Math.round(13.5 * scaleFactor)}px Cairo, sans-serif`;
+                oCtx.textAlign = 'right';
+                oCtx.fillText(m.nameAr, boxX + colW - 15 * scaleFactor, boxY + boxH * 0.65);
+
+                oCtx.fillStyle = '#34d399';
+                oCtx.font = `bold ${Math.round(13.5 * scaleFactor)}px JetBrains Mono, monospace`;
+                oCtx.textAlign = 'left';
+                const detailStr = `${d.finalCm.toFixed(1)} cm (${d.finalInch.toFixed(2)}") [Flat:${d.flatCm.toFixed(1)}]`;
+                oCtx.fillText(detailStr, boxX + 10 * scaleFactor, boxY + boxH * 0.65);
+            });
+
+            const dataUrl = outCanvas.toDataURL('image/png');
+            const link = document.createElement('a');
+            link.href = dataUrl;
+            link.download = `dress-measurements-${orderId}.png`;
+            link.click();
+
+            showToast('تم حفظ صورة الفستان الموثقة وعليها خطوط وجدول المقاسات بنجاح!', 'success');
+        }
+
+
+        /*************************************************************************
+         * 12. CUSTOM TOAST NOTIFICATIONS
+         *************************************************************************/
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+
+            const colors = {
+                success: 'bg-emerald-950/95 border-emerald-500 text-emerald-200',
+                error:   'bg-rose-950/95 border-rose-500 text-rose-200',
+                info:    'bg-slate-900/95 border-amber-500/70 text-slate-100'
+            };
+            const icons = {
+                success: 'fa-circle-check text-emerald-400',
+                error:   'fa-triangle-exclamation text-rose-400',
+                info:    'fa-circle-info text-amber-400'
+            };
+
+            toast.className = `flex items-center gap-2.5 px-4 py-2.5 rounded-xl border shadow-2xl backdrop-blur-md text-xs font-semibold transition-all duration-300 ${colors[type] || colors.info}`;
+            toast.innerHTML = `
+                <i class="fa-solid ${icons[type] || icons.info} text-sm"></i>
+                <span>${message}</span>
+            `;
+
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateY(8px)';
+                setTimeout(() => toast.remove(), 300);
+            }, 3400);
+        }
+
+
+        /*************************************************************************
+         * 13. INITIALIZATION ON WINDOW LOAD & TWO-WAY ERP BRIDGE
+         *************************************************************************/
+        function openAntigravityBridgeModal() {
+            try {
+                const savedKey = localStorage.getItem('STUDIO_GEMINI_API_KEY') || '';
+                const input = document.getElementById('geminiApiKeyInput');
+                if (input) input.value = savedKey;
+            } catch (e) {}
+            document.getElementById('antigravityBridgeModal').classList.remove('hidden');
+            document.getElementById('antigravityBridgeModal').classList.add('flex');
+        }
+
+        function closeAntigravityBridgeModal() {
+            document.getElementById('antigravityBridgeModal').classList.add('hidden');
+            document.getElementById('antigravityBridgeModal').classList.remove('flex');
+        }
+
+        function copyAntigravityAgentPrompt() {
+            const promptText = document.getElementById('antigravityPromptText').value;
+            copyTextToClipboardFallback(promptText, 'تم نسخ الأمر! الصقه الآن في محادثة Antigravity ليقوم بربطه مع برنامجك تلقائياً.');
+        }
+
+        window.addEventListener('message', (event) => {
+            const data = event.data;
+            if (!data || typeof data !== 'object') return;
+
+            if (data.type === 'ERP_INIT_ORDER') {
+                if (data.orderId) {
+                    document.getElementById('orderIdInput').value = data.orderId;
+                }
+                if (data.customerName) {
+                    document.getElementById('customerNameInput').value = data.customerName;
+                }
+                if (data.geminiApiKey) {
+                    try { localStorage.setItem('STUDIO_GEMINI_API_KEY', data.geminiApiKey); } catch (e) {}
+                }
+                if (data.imageUrl) {
+                    loadUploadedImageSource(data.imageUrl, 'صورة مرسلة من النظام');
+                }
+                updateSummaryTable();
+                showToast(`تم ربط الجلسة بطلب رقم: ${data.orderId || ''}`, 'success');
+            }
+        });
+
+        function initFromUrlParams() {
+            const params = new URLSearchParams(window.location.search);
+            const orderId = params.get('orderId');
+            const customer = params.get('customer') || params.get('customerName');
+            if (orderId) document.getElementById('orderIdInput').value = orderId;
+            if (customer) document.getElementById('customerNameInput').value = customer;
+        }
+
+        window.onload = function () {
+            initFromUrlParams();
+            resizeCanvasToContainer();
+            renderCanvas();
+        };
+    </script>
+</body>
+</html>

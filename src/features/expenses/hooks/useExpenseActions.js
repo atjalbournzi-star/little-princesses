@@ -17,9 +17,9 @@ function useExpenseActions({ accounts = [], setAccounts, setExpenses, setVoucher
   const [printVoucher, setPrintVoucher] = useState(null);
 
   const [formData, setFormData] = useState({
-    exp_category: '502 - إيجار ورشة الخياطة والمعمل', cost_center: 'مشغل التفصيل والخياطة', cost_center_id: 'CC-01',
+    exp_category: '', cost_center: '', cost_center_id: '',
     beneficiary: '', reference_no: '', subtotal_amount: '', discount_amount: '', tax_amount: '', net_amount: '', amount: '',
-    currency: 'YER', pay_method: 'نقد (كاش)', source_acc: '101.1 - صندوق الريال اليمني (YER)',
+    currency: 'YER', pay_method: 'نقد (كاش)', source_acc: '',
     date: typeof TODAY_STR_ISO !== 'undefined' ? TODAY_STR_ISO : new Date().toISOString().slice(0, 10),
     notes: '', attachment_url: '', attachment_name: '', status: 'posted'
   });
@@ -60,30 +60,29 @@ function useExpenseActions({ accounts = [], setAccounts, setExpenses, setVoucher
     newE.subtotal_amount = subtotal; newE.discount_amount = discount; newE.tax_amount = tax; newE.net_amount = finalAmount; newE.status = targetStatus;
     subData.id = newE.id; subData.expense_no = newE.expense_no;
 
-    if (setExpenses) setExpenses(prev => [newE, ...(prev || []).filter(item => item.id !== newE.id && item.expense_no !== newE.expense_no)]);
-    if (targetStatus === 'posted') {
-      if (setVouchers && newVoucher.v_no) setVouchers(prev => [newVoucher, ...(prev || [])]);
-      if (setJournal && newJEntry.entry_no) setJournal(prev => [newJEntry, ...(prev || [])]);
-      if (typeof setAccounts === 'function' && utils && utils.updateAccountsForExpense) {
-        setAccounts(prev => utils.updateAccountsForExpense(prev, sourceCode, expCode, baseAmount));
-      }
-    }
-
     try {
-      const sb = typeof window !== 'undefined' ? (window.supabaseClient || window.supabase) : null;
-      if (sb && typeof sb.from === 'function') { await sb.from('expense_transactions').insert(newE); }
-    } catch (_) {}
-
-    try {
+      let resData = null;
       if (window.expenseAPI && window.expenseAPI.createExpense) {
-        await window.expenseAPI.createExpense(subData);
+        resData = await window.expenseAPI.createExpense(subData);
       } else {
-        await fetch('/api/finance/expenses', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(subData) });
+        const res = await fetch('/api/finance/expenses', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(subData) });
+        resData = await res.json().catch(() => ({}));
       }
-      showToast(targetStatus === 'draft' ? 'تم حفظ المصروف كمسودة بنجاح 📝' : 'تم حفظ المصروف وترحيل السند المالي والقيد اليومي بنجاح 💸', 'success');
+      const savedExp = (resData && (resData.data || resData.expense)) || {};
+      const officialExpNo = savedExp.expense_no || newE.expense_no;
+      const officialExp = { ...newE, ...savedExp, expense_no: officialExpNo, id: savedExp.id || officialExpNo };
+      if (setExpenses) setExpenses(prev => [officialExp, ...(prev || []).filter(item => item.id !== newE.id && item.expense_no !== newE.expense_no && item.expense_no !== officialExpNo)]);
+      if (targetStatus === 'posted') {
+        if (setVouchers && newVoucher.v_no) setVouchers(prev => [{ ...newVoucher, v_no: officialExpNo, voucher_no: officialExpNo }, ...(prev || [])]);
+        if (setJournal && newJEntry.entry_no) setJournal(prev => [{ ...newJEntry, ref_id: officialExpNo, entry_no: `AUTO-VCH-${officialExpNo}` }, ...(prev || [])]);
+        if (typeof setAccounts === 'function' && utils && utils.updateAccountsForExpense) {
+          setAccounts(prev => utils.updateAccountsForExpense(prev, sourceCode, expCode, baseAmount));
+        }
+      }
+      showToast(targetStatus === 'draft' ? `تم حفظ المصروف (${officialExpNo}) كمسودة بنجاح 📝` : `تم حفظ المصروف (${officialExpNo}) وترحيل السند المالي والقيد اليومي بنجاح 💸`, 'success');
       if (typeof onExpenseSaved === 'function') onExpenseSaved();
-    } catch {
-      showToast(targetStatus === 'draft' ? 'تم حفظ المسودة محلياً 📝' : 'تم حفظ المصروف محلياً وتحديث الأرصدة ⚡');
+    } catch (err) {
+      showToast('تعذر حفظ المصروف في قاعدة البيانات، يرجى التحقق من الاتصال بالخادم ⚠️', 'error');
     } finally {
       setIsSubmitting(false);
       setFormData(prev => ({ ...prev, amount: '', subtotal_amount: '', discount_amount: '', tax_amount: '', net_amount: '', beneficiary: '', reference_no: '', notes: '', attachment_url: '', attachment_name: '', date: typeof TODAY_STR_ISO !== 'undefined' ? TODAY_STR_ISO : new Date().toISOString().slice(0, 10) }));
@@ -118,11 +117,6 @@ function useExpenseActions({ accounts = [], setAccounts, setExpenses, setVoucher
     }
     if (typeof window.loadAccounts === 'function') window.loadAccounts();
 
-    try {
-      const sb = typeof window !== 'undefined' ? (window.supabaseClient || window.supabase) : null;
-      if (sb) await sb.from('expense_transactions').update({ status: 'posted', approved_at: new Date().toISOString() }).eq('id', targetId);
-    } catch {}
-
     showToast('تم اعتماد المصروف وترحيله إلى السندات وشجرة الحسابات والدفاتر بنجاح 💸', 'success');
     if (typeof onExpenseSaved === 'function') onExpenseSaved();
   };
@@ -134,11 +128,19 @@ function useExpenseActions({ accounts = [], setAccounts, setExpenses, setVoucher
     if (setVouchers) setVouchers(prev => (prev || []).filter(v => v.v_no !== `PV-${eItem.expense_no}` && v.v_no !== eItem.expense_no && v.id !== eItem.id));
     if (setJournal) setJournal(prev => (prev || []).filter(j => j.entry_no !== `JV-${eItem.expense_no}` && j.ref_id !== eItem.expense_no && j.id !== eItem.id));
     try {
-      if (window.expenseAPI && window.expenseAPI.deleteExpense) await window.expenseAPI.deleteExpense(targetId);
-      const sb = typeof window !== 'undefined' ? (window.supabaseClient || window.supabase) : null;
-      if (sb) await sb.from('expense_transactions').delete().eq('id', targetId);
+      if (window.expenseAPI && window.expenseAPI.deleteExpense) {
+        await window.expenseAPI.deleteExpense(targetId);
+      } else {
+        await fetch('/api/finance/expenses/delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: targetId, expense_no: eItem.expense_no })
+        });
+      }
       showToast('تم حذف المصروف وإلغاء أثره المالي بنجاح 🗑️');
-    } catch { showToast('تم حذف المصروف محلياً 🗑️'); }
+    } catch {
+      showToast('تعذر حذف المصروف من الخادم ⚠️', 'error');
+    }
   };
 
   const handlePrintExpense = useCallback((item) => {

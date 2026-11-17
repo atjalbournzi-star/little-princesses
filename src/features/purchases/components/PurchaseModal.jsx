@@ -78,19 +78,19 @@ function PurchaseModal({
               </div>
               <div>
                 <label className={labelCls}>الكمية *</label>
-                <input type="number" step="0.01" min="0" className={inputCls + " text-center font-mono font-bold"} value={editRecord.qty || ''} onChange={e => handleEditRecordChange('qty', e.target.value)} />
+                <input type="number" step="any" min="0" dir="ltr" placeholder="0.00" className={inputCls + " text-center font-mono font-bold px-2 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"} value={editRecord.qty || ''} onChange={e => handleEditRecordChange('qty', e.target.value)} />
               </div>
               <div>
                 <label className={labelCls}>السعر الإفرادي</label>
-                <input type="number" step="0.01" min="0" className={inputCls + " text-center font-mono font-bold text-pink-300"} value={editRecord.price || ''} onChange={e => handleEditRecordChange('price', e.target.value)} />
+                <input type="number" step="any" min="0" dir="ltr" placeholder="0.00" className={inputCls + " text-center font-mono font-bold text-pink-300 px-2 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"} value={editRecord.price || ''} onChange={e => handleEditRecordChange('price', e.target.value)} />
               </div>
               <div>
                 <label className={labelCls}>الخصم والتخفيض</label>
-                <input type="number" step="0.01" min="0" className={inputCls + " text-center font-mono font-bold text-rose-400"} value={editRecord.discount || ''} onChange={e => handleEditRecordChange('discount', e.target.value)} />
+                <input type="number" step="any" min="0" dir="ltr" placeholder="0.00" className={inputCls + " text-center font-mono font-bold text-rose-400 px-2 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"} value={editRecord.discount || ''} onChange={e => handleEditRecordChange('discount', e.target.value)} />
               </div>
               <div>
                 <label className={labelCls}>الإجمالي</label>
-                <input type="number" step="0.01" min="0" className={inputCls + " text-center font-mono font-bold text-emerald-400 bg-slate-900"} value={editRecord.total || ''} onChange={e => handleEditRecordChange('total', e.target.value)} />
+                <input type="number" step="any" min="0" dir="ltr" className={inputCls + " text-center font-mono font-bold text-emerald-400 bg-slate-900 px-2 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"} value={editRecord.total || ''} onChange={e => handleEditRecordChange('total', e.target.value)} />
               </div>
               <div>
                 <label className={labelCls}>اسم المورد</label>

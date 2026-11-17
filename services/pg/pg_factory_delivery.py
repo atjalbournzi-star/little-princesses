@@ -100,12 +100,12 @@ def deliver_and_settle_order(payload):
             if collected_amt > 0:
                 pay_id = generate_id("PAY")
                 pay_no = generate_sequential_voucher_no(cur, 'Receipt', today_str())
-                p_notes = f"سند قبض تسليم نهائي لطلب {order_no} ({cust_name or 'العميلة'}) | {delivery_notes}"
+                p_notes = f"سند قبض تسليم نهائي لطلب {order_no} ({cust_name or 'العميل'}) | {delivery_notes}"
                 cur.execute("""
                     INSERT INTO payments (id, payment_no, order_id, customer_id, payment_type, amount, currency,
                         exchange_rate, base_amount, payment_method, reference_no, account_id, date, status, notes, party_name, target_account_id)
                     VALUES (%s, %s, %s, %s, 'Receipt', %s, 'YER', 1.0, %s, %s, %s, %s, CURRENT_DATE, 'Confirmed', %s, %s, %s);
-                """, (pay_id, pay_no, real_order_id, cust_id, collected_amt, collected_amt, payment_method, order_no, target_treasury_acc, p_notes, cust_name or 'العميلة', revenue_acc))
+                """, (pay_id, pay_no, real_order_id, cust_id, collected_amt, collected_amt, payment_method, order_no, target_treasury_acc, p_notes, cust_name or 'العميل', revenue_acc))
                 v_jv_no = f"AUTO-VCH-{pay_no}"
                 cur.execute("""
                     INSERT INTO journal_entries (id, entry_no, entry_date, description, debit_account_id, credit_account_id,
@@ -117,13 +117,13 @@ def deliver_and_settle_order(payload):
                 act_v_id = cur.fetchone()['id']
                 cur.execute("DELETE FROM journal_entry_lines WHERE entry_id = %s;", (act_v_id,))
                 cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, %s, %s, %s, 0.0, %s, 0.0);", (generate_id("JVL"), act_v_id, target_treasury_acc, f"مدين - تحصيل نقد تسليم فستان {order_no}", collected_amt, collected_amt))
-                cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, %s, %s, 0.0, %s, 0.0, %s);", (generate_id("JVL"), act_v_id, revenue_acc, f"دائن - إيراد تحصيل تسليم فستان {order_no} ({cust_name or 'العميلة'})", collected_amt, collected_amt))
+                cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, %s, %s, 0.0, %s, 0.0, %s);", (generate_id("JVL"), act_v_id, revenue_acc, f"دائن - إيراد تحصيل تسليم فستان {order_no} ({cust_name or 'العميل'})", collected_amt, collected_amt))
 
             # ب) ترحيل العربون المسدد مسبقاً كقيد تسوية أمانة من حساب 202 إلى حساب الإيرادات 401
             if old_paid > 0:
                 jv_id = generate_id("JV")
                 jv_no = f"JV-SETTLE-DEP-{order_no}"
-                j_desc = f"تسوية أمانات وعربون طلب {order_no} ({cust_name or 'العميلة'}) وترحيلها للإيرادات"
+                j_desc = f"تسوية أمانات وعربون طلب {order_no} ({cust_name or 'العميل'}) وترحيلها للإيرادات"
                 cur.execute("""
                     INSERT INTO journal_entries (id, entry_no, entry_date, description, debit_account_id, credit_account_id,
                         amount, total_amount, base_amount, ref_type, ref_id, currency, exchange_rate, status, notes)
@@ -148,7 +148,7 @@ def deliver_and_settle_order(payload):
             cogs_data = record_delivery_cogs(cur, real_order_id, order_no, cust_name, child_name)
             cascade_account_balances(cur)
 
-        congrats = f"👑 مبروك! تم تسليم فستان الأميرة [{child_name or 'الجميلة'}] للعميلة [{cust_name or 'الكريمة'}] بنجاح، وتحصيل {collected_amt} ر.ي وإثبات سند القبض وإيراد المبيعات ✨"
+        congrats = f"👑 مبروك! تم تسليم فستان الأميرة [{child_name or 'الجميلة'}] للعميل [{cust_name or 'الكريمة'}] بنجاح، وتحصيل {collected_amt} ر.ي وإثبات سند القبض وإيراد المبيعات ✨"
         return {
             "success": True,
             "message": congrats,

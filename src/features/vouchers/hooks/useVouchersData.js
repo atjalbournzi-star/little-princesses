@@ -1,4 +1,4 @@
-const { useState, useEffect, useMemo, useCallback } = React;
+const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
 function useVouchersData({ vouchers = [], setVouchers, accounts = [], setAccounts, currency }) {
   const currencyDisplay = currency?.display || "YER ﷼";
@@ -36,33 +36,29 @@ function useVouchersData({ vouchers = [], setVouchers, accounts = [], setAccount
 
   const normalizeVoucher = useCallback((v) => {
     if (!v) return null;
-    const rawNo = String(v.v_no || v.voucher_no || v.payment_no || v.reference_no || `VCH-${v.id || ''}`).trim();
-    if (rawNo.toUpperCase().includes('TEST')) return null;
+    const no = String(v.v_no || v.voucher_no || v.payment_no || v.id || '').trim();
+    if (no.toUpperCase().includes('TEST')) return null;
 
-    const rawType = String(v.v_type || v.voucher_type || v.payment_type || v.type || '').trim();
-    let isReceipt = v.isReceipt ?? (rawType.includes('قبض') || rawType.includes('إيداع') || rawType.toUpperCase().includes('RECEIPT') || rawNo.toUpperCase().includes('RV'));
-    let isPayment = !isReceipt && (rawType.includes('صرف') || rawType.includes('مصروف') || rawType.toUpperCase().includes('PAYMENT') || rawNo.toUpperCase().includes('PV') || rawNo.toUpperCase().includes('EXP'));
-
-    let typeLabel = rawType || (isReceipt ? 'سند قبض' : 'سند صرف');
-    if (rawType.includes('إيداع') || (isReceipt && (v.notes || '').includes('رأس مال'))) { typeLabel = 'إيداع رأس مال'; isReceipt = true; }
-    else if (rawType.includes('قبض')) { typeLabel = 'سند قبض'; isReceipt = true; }
-    else if (rawType.includes('صرف')) { typeLabel = 'سند صرف'; isPayment = true; }
-
-    const party = v.party || v.party_name || (isReceipt ? (v.customer_id || v.customer_name || 'عميلة عامة') : (v.supplier_id || v.supplier_name || 'مورد / مستفيد عام'));
-    const amount = parseFloat(String(v.amount !== undefined ? v.amount : (v.base_amount || v.amt || 0)).replace(/,/g, '')) || 0;
+    const vType = v.v_type || v.voucher_type || (v.isReceipt ? 'سند قبض' : 'سند صرف');
+    const isReceipt = v.isReceipt ?? (vType === 'سند قبض' || vType === 'إيداع رأس مال');
+    const isPayment = v.isPayment ?? (vType === 'سند صرف');
+    const amt = parseFloat(v.amount) || 0;
     const curr = window.CurrencyService ? window.CurrencyService.normalizeCode(v.currency || currencyDisplay) : (v.currency || 'YER');
     const exRate = parseFloat(v.exchange_rate) || (window.CurrencyService ? window.CurrencyService.getRate(curr) : 1.0);
-    const baseAmt = parseFloat(v.base_amount) || (amount * exRate);
-    let dateStr = (v.date || v.date_created || v.created_at || new Date().toISOString().slice(0, 10)).split('T')[0];
+    const baseAmt = parseFloat(v.base_amount) || (amt * exRate);
+    const dateStr = String(v.date || v.date_created || '').split('T')[0] || new Date().toISOString().slice(0, 10);
 
     return {
-      id: v.id || rawNo, v_no: rawNo, v_type: typeLabel, isReceipt, isPayment, party, amount, currency: curr,
-      exchange_rate: exRate, base_amount: baseAmt, pay_method: v.pay_method || v.payment_method || 'نقدي',
-      date: dateStr, notes: v.notes || v.note || v.description || '—',
-      account: v.account || v.acc_code || v.payment_source || '101 - الصندوق الرئيسي',
-      target_account: v.target_account || v.target_acc || (isReceipt ? '104 - ذمم العملاء' : '201 - ذمم الموردين'),
-      status: v.status || 'Posted', reversal_reason: v.reversal_reason || '', reversal_entry_id: v.reversal_entry_id || '',
-      image_path: v.image_path || v.receipt_url || ''
+      id: v.id || no, v_no: no, v_type: vType, isReceipt, isPayment,
+      party: v.party || v.party_name || '', amount: amt, currency: curr,
+      exchange_rate: exRate, base_amount: baseAmt, pay_method: v.pay_method || '',
+      date: dateStr, notes: v.notes || '',
+      account: v.account || v.account_id || '',
+      target_account: v.target_account || v.target_acc || '',
+      status: v.status || 'Confirmed',
+      reversal_reason: v.reversal_reason || '',
+      reversal_entry_id: v.reversal_entry_id || '',
+      image_path: v.image_path || ''
     };
   }, [currencyDisplay]);
 
@@ -107,66 +103,31 @@ function useVouchersData({ vouchers = [], setVouchers, accounts = [], setAccount
 
   const refreshVouchers = useCallback(async () => {
     setIsRefreshing(true);
-    setLoading(true);
     try {
-      let combined = [];
-      try {
-        const beRes = await fetch('/api/vouchers').then(r => r.json());
-        const beList = (beRes && Array.isArray(beRes.data)) ? beRes.data : (Array.isArray(beRes) ? beRes : []);
-        if (beList.length > 0) combined.push(...beList);
-      } catch (be) { console.warn("Local vouchers warning:", be); }
-      try {
-        const jRes = await fetch('/api/journal').then(r => r.json());
-        const jList = (jRes && Array.isArray(jRes.data)) ? jRes.data : (Array.isArray(jRes) ? jRes : []);
-        const exKeys = new Set(combined.map(v => String(v.v_no || v.voucher_no || v.payment_no || v.id || '').trim()));
-        jList.forEach(j => {
-          const jno = String(j.entry_no || j.id || '').trim(), ref = String(j.ref_id || '').trim(), rType = String(j.ref_type || '').trim();
-          if (!jno || jno.startsWith('AUTO-VCH') || jno.startsWith('JV-PUR') || jno.startsWith('JV-PAY') || jno.startsWith('JV-ORD') || ['Payment', 'Receipt', 'Purchase', 'Order'].includes(rType)) return;
-          if (exKeys.has(jno) || (ref && exKeys.has(ref)) || exKeys.has(jno.replace(/^AUTO-VCH-/, ''))) return;
-          const amt = parseFloat(j.amount || j.total_amount) || 0;
-          const jCurr = window.CurrencyService ? window.CurrencyService.normalizeCode(j.currency || 'YER') : (j.currency || 'YER');
-          const jRate = parseFloat(j.exchange_rate) || (window.CurrencyService ? window.CurrencyService.getRate(jCurr) : 1.0);
-          const baseAmt = parseFloat(j.base_amount) || (amt * jRate);
-          combined.push({
-            id: j.id || jno, v_no: jno, v_type: 'قيد يومية', isReceipt: false, isPayment: false,
-            party: j.description || 'قيد محاسبي يدوي',
-            amount: amt, currency: jCurr, exchange_rate: jRate,
-            base_amount: baseAmt, pay_method: 'قيد تسوية',
-            date: j.date || new Date().toISOString().slice(0, 10),
-            notes: j.description || 'قيد محاسبي يدوي', account: j.credit || 'ACC-201',
-            target_account: j.debit || 'ACC-105', status: 'Posted'
-          });
-          exKeys.add(jno);
-        });
-      } catch (je) { console.warn("Journal check warning:", je); }
-      if (typeof window.callGAS === 'function') {
-        try {
-          const gasRes = await window.callGAS('getVouchers');
-          const gasList = (gasRes && Array.isArray(gasRes.data)) ? gasRes.data : (Array.isArray(gasRes) ? gasRes : []);
-          if (gasList.length > 0) combined.push(...gasList);
-        } catch (ge) { console.warn("GAS getVouchers warning:", ge); }
-      }
-      if (combined.length > 0) {
-        const uniq = new Map();
-        combined.forEach(v => {
-          const key = String(v.v_no || v.voucher_no || v.payment_no || v.id || '').trim();
-          if (key && !uniq.has(key)) uniq.set(key, v);
-        });
-        if (typeof setVouchers === 'function') setVouchers(Array.from(uniq.values()));
-      }
-      await loadLiveAccounts();
+      const res = await fetch('/api/vouchers').then(r => r.json());
+      const vList = (res && Array.isArray(res.data)) ? res.data : (Array.isArray(res) ? res : []);
+      if (typeof setVouchers === 'function') setVouchers(vList);
     } catch (err) {
       console.error("refreshVouchers error:", err);
     } finally {
       setIsRefreshing(false);
       setLoading(false);
     }
-  }, [setVouchers, loadLiveAccounts]);
+  }, [setVouchers]);
+
+  const initialLoadedRef = useRef(false);
+  const refreshRef = useRef(refreshVouchers);
+  refreshRef.current = refreshVouchers;
 
   useEffect(() => {
-    refreshVouchers();
-    loadLiveAccounts();
-  }, [refreshVouchers, loadLiveAccounts]);
+    if (!initialLoadedRef.current) {
+      initialLoadedRef.current = true;
+      if (typeof refreshRef.current === 'function') refreshRef.current();
+      if ((!accounts || accounts.length === 0) && typeof loadLiveAccounts === 'function') {
+        loadLiveAccounts();
+      }
+    }
+  }, [accounts, loadLiveAccounts]);
 
   return {
     currencyDisplay, activeTargetCurr, activeCurrencyDef, activeCurrencyDisplay,

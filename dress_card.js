@@ -16,7 +16,7 @@ function getActiveBrand(apiBrand) {
 async function fetchDressCardData(orderId) {
   if (typeof Parser.fetchDressCardData === 'function') return await Parser.fetchDressCardData(orderId);
   if (typeof window.fetchDressCardData === 'function') return await window.fetchDressCardData(orderId);
-  return { order_no: orderId || 'ORD-2026-0042', order_date: new Date().toISOString().slice(0, 10), financials: { total: 0, paid: 0, remaining: 0, currency: 'YER' } };
+  return { order_no: orderId || '', order_date: new Date().toISOString().slice(0, 10), financials: { total: 0, paid: 0, remaining: 0, currency: 'YER' } };
 }
 
 function drawDressCardQR(canvasId, url) {
@@ -191,8 +191,10 @@ window.shareDressCardWhatsApp = shareDressCardWhatsApp;
 if (typeof window !== 'undefined') {
   window.addEventListener('DOMContentLoaded', async () => {
     const params = new URLSearchParams(window.location.search);
-    const orderId = params.get('order') || params.get('id') || params.get('order_no') || 'ORD-2026-0042';
-    const data = await fetchDressCardData(orderId);
-    updateDressCardDOM(data);
+    const orderId = params.get('order') || params.get('id') || params.get('order_no') || '';
+    if (orderId) {
+      const data = await fetchDressCardData(orderId);
+      updateDressCardDOM(data);
+    }
   });
 }

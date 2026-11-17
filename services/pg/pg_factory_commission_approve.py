@@ -1,7 +1,13 @@
 import datetime
 import logging
 from .db_pool import get_db_cursor, clean_num, clean_str, generate_id
-from .account_resolver import resolve_account_id
+from .account_resolver import (
+    resolve_account_id, resolve_receiving_account, resolve_customer_advance_account,
+    resolve_labor_expense_account, resolve_labor_liability_account
+)
+from .pg_delivery_cogs import cascade_account_balances
+from .pg_sequences import get_next_sequence_number
+from .pg_audit import log_audit_event
 
 logger = logging.getLogger("LittlePrincesses_PG_FactoryCommissionApprove")
 
@@ -91,8 +97,32 @@ def approve_tailor_commission_and_qc(payload):
             cur.execute("UPDATE orders SET production_status = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s OR order_no = %s;", (ord_stage_db, po['order_id'], po['order_id']))
 
         cur_month = datetime.date.today().strftime("%Y-%m")
+        cur.execute("SELECT id FROM piece_rate_logs WHERE (production_order_id = %s OR production_order_id = %s) AND stage_id = %s LIMIT 1;", (po['id'], po.get('production_order_no') or po['id'], cur_stage))
+        if not cur.fetchone():
+            cur.execute("""
+                INSERT INTO piece_rate_logs (id, worker_id, worker_name, production_order_id, stage_id, piece_rate_amount, pieces_count, payment_status, qa_status, completed_at, created_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, 'Accrued', 'Passed', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+            """, (generate_id("PRL"), emp_id, emp_name, po['id'], cur_stage, wage_amount, pieces_count))
+
         if wage_amount > 0:
             cur.execute("UPDATE payroll SET allowances = allowances + %s, notes = notes || ' | عمولة تفصيل الطلب ' || %s WHERE (employee_id = %s OR employee_name = %s) AND month = %s;", (wage_amount, po.get('production_order_no') or po['id'], emp_id, emp_name, cur_month))
+            cur.execute("SELECT 1 FROM journal_entries WHERE ref_type = 'StageWageAccrual' AND ref_id = %s AND notes LIKE %s LIMIT 1;", (po['id'], f"%{cur_stage}%"))
+            if not cur.fetchone():
+                tot_w = wage_amount * pieces_count
+                exp_acc, liab_acc = resolve_labor_expense_account(cur), resolve_labor_liability_account(cur)
+                w_jv_no = get_next_sequence_number(cur, 'JV')
+                w_jv_id = generate_id("JV")
+                w_desc = f"استحقاق أجر مرحلة {cur_stage} - أمر {po.get('production_order_no') or po['id']} للفني {emp_name}"
+                cur.execute("""
+                    INSERT INTO journal_entries (id, entry_no, entry_date, description, debit_account_id, credit_account_id, amount, total_amount, base_amount, ref_type, ref_id, currency, exchange_rate, status, notes)
+                    VALUES (%s, %s, CURRENT_DATE, %s, %s, %s, %s, %s, %s, 'StageWageAccrual', %s, 'YER', 1.0, 'Posted', %s);
+                """, (w_jv_id, w_jv_no, w_desc, exp_acc, liab_acc, tot_w, tot_w, tot_w, po['id'], f"قيد استحقاق {cur_stage}"))
+                cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, %s, %s, %s, 0.0, %s, 0.0);", (generate_id("JVL"), w_jv_id, exp_acc, f"مدين - مصروف أجر {cur_stage}", tot_w, tot_w))
+                cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, %s, %s, 0.0, %s, 0.0, %s);", (generate_id("JVL"), w_jv_id, liab_acc, f"دائن - مستحقات {emp_name}", tot_w, tot_w))
+                cur.execute("UPDATE chart_of_accounts SET current_balance = COALESCE(current_balance, 0.0) + %s WHERE id = %s;", (tot_w, exp_acc))
+                cur.execute("UPDATE chart_of_accounts SET current_balance = COALESCE(current_balance, 0.0) + %s WHERE id = %s;", (tot_w, liab_acc))
+                cascade_account_balances(cur)
+                log_audit_event('JOURNAL_ENTRY', w_jv_no, 'CREATE', new_values={'debit': exp_acc, 'credit': liab_acc, 'amount': tot_w}, document_no=w_jv_no, details=w_desc, cur=cur)
 
         insp_id = generate_id("INSP")
         prod_id = po.get('product_id')
@@ -106,20 +136,17 @@ def approve_tailor_commission_and_qc(payload):
         # Optional payment receipt voucher posting on quality approval if collected_amount > 0
         qc_collected = clean_num(data.get('amount_collected') or data.get('collected_amount') or data.get('amount') or 0.0)
         if qc_collected > 0:
-            qc_pay_id = generate_id("PAY")
-            qc_pay_no = f"RV-QC-{order_no}-{generate_id('')[-6:]}"
-            qc_acc = resolve_account_id(cur, data.get('account_id') or 'ACC-101', 'ACC-101')
-            cur.execute("INSERT INTO payments (id, payment_no, order_id, customer_id, payment_type, amount, currency, exchange_rate, base_amount, payment_method, reference_no, account_id, date, status, notes, party_name, target_account_id) VALUES (%s, %s, %s, %s, 'Receipt', %s, 'YER', 1.0, %s, %s, %s, %s, CURRENT_DATE, 'Confirmed', %s, %s, 'ACC-104');", (qc_pay_id, qc_pay_no, po.get('order_id') or po['id'], po.get('customer_id'), qc_collected, qc_collected, clean_str(data.get('payment_method') or 'نقد (كاش)'), order_no, qc_acc, f"سند قبض تحصيل اعتماد جودة الطلب {order_no} | {quality_notes}", 'العميلة'))
-
-            qc_jv_id = generate_id("JV")
-            qc_jv_no = f"JV-QC-{order_no}-{generate_id('')[-6:]}"
-            cur.execute("INSERT INTO journal_entries (id, entry_no, entry_date, description, debit_account_id, credit_account_id, amount, total_amount, base_amount, ref_type, ref_id, currency, exchange_rate, status, notes) VALUES (%s, %s, CURRENT_DATE, %s, %s, 'ACC-104', %s, %s, %s, 'QualityApproval', %s, 'YER', 1.0, 'Posted', %s);", (qc_jv_id, qc_jv_no, f"تحصيل اعتماد جودة فستان طلب {order_no}", qc_acc, qc_collected, qc_collected, qc_collected, po.get('order_id') or po['id'], f"إقفال تحصيل جودة الطلب {order_no}"))
-
-            cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, %s, %s, %s, 0.0, %s, 0.0);", (generate_id("JVL"), qc_jv_id, qc_acc, f"مدين - تحصيل جودة طلب {order_no}", qc_collected, qc_collected))
-            cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, %s, %s, 0.0, %s, 0.0, %s);", (generate_id("JVL"), qc_jv_id, 'ACC-104', f"دائن - تحصيل جودة طلب {order_no}", qc_collected, qc_collected))
-
-            cur.execute("UPDATE chart_of_accounts SET current_balance = COALESCE(current_balance, 0.0) + %s WHERE id = %s OR account_code = %s;", (qc_collected, qc_acc, qc_acc))
-            cur.execute("UPDATE chart_of_accounts SET current_balance = COALESCE(current_balance, 0.0) - %s WHERE id = 'ACC-104' OR account_code = '104' OR account_code = 'ACC-104';", (qc_collected,))
+            qc_pay_no = get_next_sequence_number(cur, 'RV')
+            qc_jv_no = get_next_sequence_number(cur, 'JV')
+            qc_acc = resolve_receiving_account(cur, data.get('payment_method'), 'YER')
+            adv_acc = resolve_customer_advance_account(cur)
+            cur.execute("INSERT INTO payments (id, payment_no, order_id, customer_id, payment_type, amount, currency, exchange_rate, base_amount, payment_method, reference_no, account_id, date, status, notes, party_name, target_account_id) VALUES (%s, %s, %s, %s, 'Receipt', %s, 'YER', 1.0, %s, %s, %s, %s, CURRENT_DATE, 'Confirmed', %s, %s, %s);", (generate_id("PAY"), qc_pay_no, po.get('order_id') or po['id'], po.get('customer_id'), qc_collected, qc_collected, clean_str(data.get('payment_method') or 'نقد (كاش)'), order_no, qc_acc, f"سند قبض تحصيل اعتماد جودة الطلب {order_no} | {quality_notes}", 'العميل', adv_acc))
+            cur.execute("INSERT INTO journal_entries (id, entry_no, entry_date, description, debit_account_id, credit_account_id, amount, total_amount, base_amount, ref_type, ref_id, currency, exchange_rate, status, notes) VALUES (%s, %s, CURRENT_DATE, %s, %s, %s, %s, %s, %s, 'QualityApproval', %s, 'YER', 1.0, 'Posted', %s);", (generate_id("JV"), qc_jv_no, f"تحصيل اعتماد جودة فستان طلب {order_no}", qc_acc, adv_acc, qc_collected, qc_collected, qc_collected, po.get('order_id') or po['id'], f"إقفال تحصيل جودة الطلب {order_no}"))
+            cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, %s, %s, %s, 0.0, %s, 0.0);", (generate_id("JVL"), qc_jv_no, qc_acc, f"مدين - تحصيل جودة طلب {order_no}", qc_collected, qc_collected))
+            cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, %s, %s, 0.0, %s, 0.0, %s);", (generate_id("JVL"), qc_jv_no, adv_acc, f"دائن - تحصيل جودة طلب {order_no}", qc_collected, qc_collected))
+            cur.execute("UPDATE chart_of_accounts SET current_balance = COALESCE(current_balance, 0.0) + %s WHERE id = %s;", (qc_collected, qc_acc))
+            cur.execute("UPDATE chart_of_accounts SET current_balance = COALESCE(current_balance, 0.0) - %s WHERE id = %s;", (qc_collected, adv_acc))
+            cascade_account_balances(cur)
 
         res = dict(updated_po)
         for fld in ['start_date', 'due_date', 'cutting_due_date', 'sewing_due_date', 'embroidery_due_date', 'finishing_due_date', 'tailor_completed_at', 'created_at', 'updated_at']:
@@ -149,5 +176,8 @@ def auto_credit_all_stages_commissions(cur, po_id, order_no=None, child_name=Non
                 emp = cur.fetchone()
                 emp_id = emp['id'] if emp else generate_id("EMP")
                 cur.execute("INSERT INTO tailor_commissions (id, production_order_id, order_no, employee_id, employee_name, role, product_name, child_name, stage, wage_amount, pieces_count, production_type, order_date, completed_at, is_on_time, quality_score, quality_notes, status, approved_by, approved_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 1, 'custom', CURRENT_DATE, CURRENT_TIMESTAMP, true, 5.0, 'تسليم معتمد بجودة ممتازة ⭐', 'Approved', 'إدارة المعمل ✂️', CURRENT_TIMESTAMP);", (generate_id("COMM"), po['id'], p_no, emp_id, w_name, w_role, prod_name, c_name, w_stg, w_wage))
+                cur.execute("SELECT 1 FROM piece_rate_logs WHERE (production_order_id = %s OR production_order_id = %s) AND stage_id = %s LIMIT 1;", (po['id'], p_no, w_stg))
+                if not cur.fetchone():
+                    cur.execute("INSERT INTO piece_rate_logs (id, worker_id, worker_name, production_order_id, stage_id, piece_rate_amount, pieces_count, payment_status, qa_status, completed_at, created_at) VALUES (%s, %s, %s, %s, %s, %s, 1, 'Accrued', 'Passed', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);", (generate_id("PRL"), emp_id, w_name, po['id'], w_stg, w_wage))
 
 

@@ -12,7 +12,7 @@
 
   async function loadAllData() {
     try {
-      const [cRes, iRes, aRes, pRes, oRes, puRes, fRes, vRes, eRes, jRes, fBRes, empRes, payRes, campRes] = await Promise.allSettled([
+      const [cRes, iRes, aRes, pRes, oRes, puRes, fRes, vRes, eRes, jRes, fBRes, empRes, payRes, campRes, jrRes] = await Promise.allSettled([
         fetch("/api/customers").then(r => r.json()).catch(() => callGAS("getCustomers")),
         fetch("/api/inventory").then(r => r.json()).catch(() => callGAS("getInventory")),
         fetch("/api/accounts/list").then(r => r.json()).then(d => ({ data: (d && Array.isArray(d.data)) ? d.data : (Array.isArray(d) ? d : []) })).catch(() => ({ data: [] })),
@@ -26,7 +26,8 @@
         fetch("/api/quality/feedback").then(r => (r.ok ? r.json() : { success: false, data: [] })).catch(() => ({ success: false, data: [] })),
         fetch("/api/hr/employees").then(r => r.json()).catch(() => callGAS("getEmployees")),
         fetch("/api/hr/payroll").then(r => r.json()).catch(() => callGAS("getPayroll")),
-        fetch("/api/marketing/campaigns").then(r => r.json()).catch(() => (window.marketingAPI ? window.marketingAPI.getCampaigns() : { data: [] }))
+        fetch("/api/marketing/campaigns").then(r => r.json()).catch(() => (window.marketingAPI ? window.marketingAPI.getCampaigns() : { data: [] })),
+        fetch("/api/hr/job-roles").then(r => r.json()).catch(() => ({ data: [] }))
       ]);
 
       let accountsData = [];
@@ -96,7 +97,8 @@
         feedback: (fBRes.status === "fulfilled" && fBRes.value) ? (Array.isArray(fBRes.value.data) ? fBRes.value.data : (Array.isArray(fBRes.value) ? fBRes.value : [])) : [],
         employees: (empRes.status === "fulfilled" && empRes.value) ? (Array.isArray(empRes.value.data) ? empRes.value.data : (Array.isArray(empRes.value) ? empRes.value : [])) : [],
         payroll: (payRes.status === "fulfilled" && payRes.value) ? (Array.isArray(payRes.value.data) ? payRes.value.data : (Array.isArray(payRes.value) ? payRes.value : [])) : [],
-        campaigns: (campRes.status === "fulfilled" && campRes.value) ? (Array.isArray(campRes.value.data) ? campRes.value.data : (Array.isArray(campRes.value) ? campRes.value : [])) : []
+        campaigns: (campRes.status === "fulfilled" && campRes.value) ? (Array.isArray(campRes.value.data) ? campRes.value.data : (Array.isArray(campRes.value) ? campRes.value : [])) : [],
+        jobRoles: (jrRes.status === "fulfilled" && jrRes.value) ? (Array.isArray(jrRes.value.data) ? jrRes.value.data : (Array.isArray(jrRes.value) ? jrRes.value : [])) : []
       };
     } catch (err) {
       console.warn("loadAllData failed:", err);

@@ -45,7 +45,7 @@ function OrderDetailModal({
         {/* Customer & Princess Card */}
         <div className="p-4 rounded-2xl bg-[#FAFAFB] dark:bg-slate-800/60 border border-[#E8E5EA] dark:border-slate-700 grid grid-cols-2 gap-3 text-xs">
           <div>
-            <span className="text-[11px] text-[#6F6B75] dark:text-slate-400 block">العميلة:</span>
+            <span className="text-[11px] text-[#6F6B75] dark:text-slate-400 block">العميل:</span>
             <span className="font-bold text-[#25232A] dark:text-slate-100 text-sm">{order.customer_name || '—'}</span>
             {cust?.phone && <span className="block text-[11px] font-mono text-gray-500 mt-0.5">📱 {cust.phone}</span>}
           </div>

@@ -3,7 +3,7 @@
 
 function PurchaseInvoiceModal(props) {
   const {
-    isOpen, onClose, headerData, setHeaderData, genBillNo,
+    isOpen, onClose, headerData, setHeaderData, genBillNo, isEditMode = false,
     setShowQuickAddSupplier, supplierDropdownRef, supplierSearch, setSupplierSearch,
     isSupplierDropdownOpen, setIsSupplierDropdownOpen, isLoadingSuppliers,
     filteredSuppliersList, handleSelectSupplier, selectedSupplierObj,
@@ -17,7 +17,7 @@ function PurchaseInvoiceModal(props) {
 
   if (!isOpen) return null;
 
-  const currentBillNo = (headerData.bill_no || '').trim() || (typeof genBillNo === 'function' ? genBillNo() : '');
+  const currentBillNo = (headerData.bill_no || '').trim();
   const HeaderFormComp = window.PurchaseHeaderForm || null;
   const ItemsTableComp = window.PurchaseItemsTable || null;
   const createPortal = (typeof ReactDOM !== 'undefined' && ReactDOM.createPortal) ? ReactDOM.createPortal : null;
@@ -48,12 +48,16 @@ function PurchaseInvoiceModal(props) {
                 ✕
               </button>
               <div className="text-xs font-bold text-white flex items-center gap-1.5 truncate">
-                <span className="text-pink-500 text-sm">🛒</span>
-                <span>إصدار فاتورة مشتريات وتوريد مخزون جديدة</span>
+                <span className="text-pink-500 text-sm">{isEditMode ? "✏️" : "🛒"}</span>
+                <span>{isEditMode ? "تعديل فاتورة مشتريات وتوريد مخزون" : "إصدار فاتورة مشتريات وتوريد مخزون جديدة"}</span>
               </div>
-              {currentBillNo && (
+              {currentBillNo ? (
                 <span className="text-[11px] font-mono font-bold text-pink-300 bg-slate-800/90 px-2 py-0.5 rounded border border-slate-700 shrink-0">
                   [{currentBillNo}]
+                </span>
+              ) : (
+                <span className="text-[10.5px] font-medium text-slate-400 bg-slate-800/90 px-2 py-0.5 rounded border border-slate-700 shrink-0">
+                  [الرقم يتولد آلياً من السيرفر]
                 </span>
               )}
             </div>
@@ -122,6 +126,7 @@ function PurchaseInvoiceModal(props) {
               billItems={billItems} setBillItems={setBillItems} headerData={headerData} setHeaderData={setHeaderData}
               rawItemsSum={rawItemsSum} grandTotal={grandTotal} isSaving={isSaving}
               handleSaveFullBill={handleSubmit} showToast={showToast} UNITS={UNITS}
+              saveButtonText={isEditMode ? "حفظ التعديلات في النظام ☁️" : undefined}
               inputCls={inputCls} labelCls={labelCls}
             />
           )}
@@ -149,7 +154,7 @@ function PurchaseInvoiceModal(props) {
                 {billItems.length > 0 && (
                   <button type="button" onClick={handleSubmit} disabled={isSaving} className={`h-8 px-3.5 text-xs font-bold rounded-lg shadow flex items-center gap-1.5 transition ${isSaving ? 'bg-slate-700 text-slate-400 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer'}`}>
                     <span>{isSaving ? "⏳" : "💾"}</span>
-                    <span>{isSaving ? "جارٍ الحفظ..." : "اعتماد وحفظ"}</span>
+                    <span>{isSaving ? "جارٍ الحفظ..." : (isEditMode ? "حفظ التعديلات في النظام" : "اعتماد وحفظ")}</span>
                   </button>
                 )}
                 <button type="button" onClick={() => setActiveTab('items')} className="h-8 px-4 text-xs font-bold bg-pink-600 hover:bg-pink-700 text-white rounded-lg shadow flex items-center gap-1.5 cursor-pointer transition">
@@ -165,7 +170,7 @@ function PurchaseInvoiceModal(props) {
                 </button>
                 <button type="button" onClick={handleSubmit} disabled={isSaving || billItems.length === 0} className={`h-8 px-4 text-xs font-bold rounded-lg shadow flex items-center gap-1.5 transition ${isSaving || billItems.length === 0 ? 'bg-slate-700 text-slate-400 cursor-not-allowed' : 'bg-pink-600 hover:bg-pink-700 text-white cursor-pointer'}`}>
                   <span>{isSaving ? "⏳" : "💾"}</span>
-                  <span>{isSaving ? "جارٍ الحفظ..." : "اعتماد وحفظ الفاتورة"}</span>
+                  <span>{isSaving ? "جارٍ الحفظ..." : (isEditMode ? "حفظ التعديلات في النظام ☁️" : "اعتماد وحفظ الفاتورة")}</span>
                 </button>
               </>
             )}

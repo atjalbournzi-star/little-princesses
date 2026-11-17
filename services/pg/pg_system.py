@@ -18,11 +18,11 @@ def get_system_settings(params=None):
         else:
             cp = {
                 "id": 1,
-                "company_name": "مؤسسة الأميرات الصغيرات للأزياء الراقية",
-                "phone": "776773458",
-                "address": "اليمن - صنعاء - شارع حدة",
-                "email": "info@littleprincesses.com",
-                "fiscal_date": "2026-01-01",
+                "company_name": "",
+                "phone": "",
+                "address": "",
+                "email": "",
+                "fiscal_date": "",
                 "theme_mode": "light",
                 "base_currency": "YER"
             }
@@ -36,18 +36,18 @@ def get_system_settings(params=None):
 
         return {
             "company": {
-                "company_name": cp.get('company_name') or 'مؤسسة الأميرات الصغيرات للأزياء الراقية',
-                "phone": cp.get('phone') or '776773458',
-                "address": cp.get('address') or 'اليمن - صنعاء - شارع حدة',
-                "email": cp.get('email') or 'info@littleprincesses.com',
+                "company_name": cp.get('company_name') or '',
+                "phone": cp.get('phone') or '',
+                "address": cp.get('address') or '',
+                "email": cp.get('email') or '',
                 "logo_url": cp.get('logo_url') or '',
-                "fiscal_date": cp.get('fiscal_date') or str(cp.get('establishment_date') or '2026-01-01'),
+                "fiscal_date": cp.get('fiscal_date') or str(cp.get('establishment_date') or ''),
                 "theme_mode": cp.get('theme_mode') or 'light',
                 "base_currency": cp.get('base_currency') or 'YER'
             },
             "currency": {
                 "base_currency": cp.get('base_currency') or 'YER',
-                "rates": rates if rates else {"YER": 1.0, "SAR": 142.0, "USD": 535.0}
+                "rates": rates if rates else {"YER": 1.0}
             },
             "theme": {
                 "mode": cp.get('theme_mode') or 'light',
@@ -59,7 +59,7 @@ def get_system_settings(params=None):
 
 def save_system_settings(payload):
     data = payload.get('data') or payload
-    c_name = clean_str(data.get('company_name') or data.get('companyName') or 'مؤسسة الأميرات الصغيرات')
+    c_name = clean_str(data.get('company_name') or data.get('companyName') or '')
     phone = clean_str(data.get('phone') or '')
     address = clean_str(data.get('address') or '')
     email = clean_str(data.get('email') or '')
@@ -101,29 +101,34 @@ def save_system_settings(payload):
 def clear_all_transactional_data(payload=None):
     tables_to_truncate = [
         "quality_actions", "quality_returns", "quality_complaints", "quality_feedback", "quality_defects", "quality_inspections",
-        "fitting_alterations", "tailor_commissions", "production_orders", "order_items", "orders",
+        "fitting_alterations", "tailor_commissions", "production_orders", "order_stages", "order_items", "orders",
         "attribution_records", "ai_comment_nlp", "ai_conversation_intent", "comments", "content_metrics", "content",
         "messages", "conversations", "customer_platform_mappings", "campaigns", "raw_platform_events",
-        "ai_daily_briefs", "ai_recommendations", "purchase_items", "purchases", "inventory_transactions", "inventory", "products",
-        "payroll", "employees", "payments", "expenses", "journal_entry_lines", "journal_entries", "measurements", "children",
+        "ai_daily_briefs", "ai_recommendations", "purchase_items", "purchase_order_items", "purchase_orders", "purchases",
+        "warehouse_stock", "inventory_transactions", "inventory", "products", "materials", "bom",
+        "payroll", "employees", "payments", "expenses", "journal_entry_lines", "journal_entries",
+        "garment_measurements_studio", "measurements", "customer_measurements", "children",
         "audit_logs", "idempotency_keys"
     ]
-    with get_db_cursor(commit=True) as cur:
-        cur.execute("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE';")
-        existing_tables = {r['table_name'] for r in cur.fetchall()}
-        valid_truncates = [f'"{t}"' for t in tables_to_truncate if t in existing_tables]
-        if valid_truncates:
-            cur.execute(f"TRUNCATE TABLE {', '.join(valid_truncates)} RESTART IDENTITY CASCADE;")
+    try:
+        with get_db_cursor(commit=True) as cur:
+            cur.execute("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE';")
+            existing_tables = {r['table_name'] for r in cur.fetchall()}
+            valid_truncates = [f'"{t}"' for t in tables_to_truncate if t in existing_tables]
+            if valid_truncates:
+                cur.execute(f"TRUNCATE TABLE {', '.join(valid_truncates)} RESTART IDENTITY CASCADE;")
 
-        cur.execute("DELETE FROM customers WHERE id != 'CUST-GENERAL';")
-        cur.execute("""
-            INSERT INTO customers (id, name, phone, category, city, current_balance, status, notes)
-            VALUES ('CUST-GENERAL', 'عميل عام / زائر صالة العرض', '000000000', 'عام', 'صنعاء', 0.0000, 'Active', 'الحساب العام للمبيعات النقدية المباشرة')
-            ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, current_balance = 0.0000, status = 'Active';
-        """)
-        cur.execute("DELETE FROM suppliers;")
-        cur.execute("UPDATE chart_of_accounts SET opening_balance = 0.0000, current_balance = 0.0000;")
-        cur.execute("UPDATE number_sequences SET current_number = 0;")
+            cur.execute("DELETE FROM customers WHERE id != 'CUST-GENERAL';")
+            cur.execute("""
+                INSERT INTO customers (id, name, phone, category, city, current_balance, status, notes)
+                VALUES ('CUST-GENERAL', 'عميل عام / زائر صالة العرض', '000000000', 'عام', 'صنعاء', 0.0000, 'Active', 'الحساب العام للمبيعات النقدية المباشرة')
+                ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, current_balance = 0.0000, status = 'Active';
+            """)
+            cur.execute("DELETE FROM suppliers;")
+            cur.execute("UPDATE chart_of_accounts SET opening_balance = 0.0000, current_balance = 0.0000;")
+            cur.execute("UPDATE number_sequences SET current_number = 0;")
+    except Exception as e:
+        logger.warning(f"تنبيه أثناء تصفير قاعدة البيانات السحابية (PostgreSQL): {e}")
 
     try:
         import clean_slate_reset

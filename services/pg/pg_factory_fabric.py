@@ -62,7 +62,7 @@ def deduct_fabric(cur, fabric_id, fabric_name, cut_qty, cut_unit, order_label, c
     uom_desc = f"{round(deduct_stock_qty, 2)} {stock_unit}" + (
         f" (ما يعادل {round(cut_qty, 2)} {cut_unit})" if norm_cut != norm_stock else ""
     )
-    tx_notes = f"صرف قماش ({inv_row['name']}) بمقدار {uom_desc} من مستودع المعمل (WH-WORKSHOP) لأمر تشغيل {order_label} (العميلة: {customer_name} - الطفلة: {child_name})"
+    tx_notes = f"صرف قماش ({inv_row['name']}) بمقدار {uom_desc} من مستودع المعمل (WH-WORKSHOP) لأمر تشغيل {order_label} (العميل: {customer_name} - الطفلة: {child_name})"
     cur.execute("""
         INSERT INTO inventory_transactions (
             id, inventory_id, warehouse_id, transaction_type, quantity, unit_cost, reference_type, reference_id, notes
@@ -98,13 +98,4 @@ def ensure_valid_product(cur, product_id, product_name):
         p = cur.fetchone()
         if p:
             return p['id']
-    cur.execute("SELECT id FROM products LIMIT 1;")
-    any_p = cur.fetchone()
-    if any_p:
-        return any_p['id']
-    cur.execute("""
-        INSERT INTO products (id, sku, model_name, category, currency, base_price, status)
-        VALUES ('PROD-CUSTOM-001', 'PROD-CUSTOM-001', %s, 'فساتين تفصيل', 'YER', 0, 'Active')
-        ON CONFLICT (id) DO NOTHING;
-    """, (product_name or 'موديل راقي',))
-    return 'PROD-CUSTOM-001'
+    return None

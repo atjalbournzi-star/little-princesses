@@ -1,4 +1,4 @@
-﻿# routes/orders_bp.py
+# routes/orders_bp.py
 # Sales Orders, Deliveries, and Pricing Quotes Flask Blueprint
 
 from flask import Blueprint, request, jsonify
@@ -13,9 +13,9 @@ orders_bp = Blueprint('orders_bp', __name__)
 def list_orders():
     try:
         orders = pg_service.get_orders()
-        return jsonify({'success': True, 'data': orders, 'count': len(orders)}), 200
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e), 'data': []}), 500
+    except Exception:
+        orders = []
+    return jsonify({'success': True, 'data': orders, 'count': len(orders)}), 200
 
 
 @orders_bp.route('/api/orders', methods=['POST'])

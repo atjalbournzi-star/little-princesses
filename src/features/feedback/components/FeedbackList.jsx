@@ -31,7 +31,7 @@ function FeedbackList({
           <thead>
             <tr className="bg-[#FAFAFB] text-[#6F6B75] font-semibold border-b border-[#E8E5EA]">
               <th className="p-3">التاريخ والطلب</th>
-              <th className="p-3">اسم العميلة</th>
+              <th className="p-3">اسم العميل</th>
               <th className="p-3 text-center">التقييم (1-5)</th>
               <th className="p-3 text-center">مؤشر NPS</th>
               <th className="p-3">نوع التقييم</th>

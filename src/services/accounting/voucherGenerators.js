@@ -15,7 +15,7 @@
       var creditCode = p.creditAccount || '1111';
       var amount = parseFloat(p.amount) || 0;
       var rate = parseFloat(p.exchangeRate) || 1.0;
-      var entryNo = p.entryNumber || ('PV-' + Date.now().toString().slice(-6));
+      var entryNo = p.entryNumber || p.entry_number || p.entry_no || p.sourceId || '';
       return {
         entry_number: entryNo,
         entry_date: p.date || (window.TODAY_STR_ISO || new Date().toISOString().split('T')[0]),
@@ -40,7 +40,7 @@
       var creditCode = p.creditAccount || '4111';
       var amount = parseFloat(p.amount) || 0;
       var rate = parseFloat(p.exchangeRate) || 1.0;
-      var entryNo = p.entryNumber || ('RV-' + Date.now().toString().slice(-6));
+      var entryNo = p.entryNumber || p.entry_number || p.entry_no || p.sourceId || '';
       return {
         entry_number: entryNo,
         entry_date: p.date || (window.TODAY_STR_ISO || new Date().toISOString().split('T')[0]),
@@ -65,11 +65,11 @@
       var creditCode = '2121';
       var amount = parseFloat(p.depositAmount) || 0;
       var rate = parseFloat(p.exchangeRate) || 1.0;
-      var entryNo = 'DEP-' + (p.orderId || Date.now().toString().slice(-6));
+      var entryNo = p.entryNumber || p.entry_number || p.entry_no || (p.orderId ? ('DEP-' + p.orderId) : '');
       return {
         entry_number: entryNo,
         entry_date: p.date || (window.TODAY_STR_ISO || new Date().toISOString().split('T')[0]),
-        description: p.description || ('عربون حجز فستان للعميلة: ' + (p.customerName || '')),
+        description: p.description || ('عربون حجز فستان للعميل: ' + (p.customerName || '')),
         source_module: 'BOOKING_DEPOSIT',
         source_id: String(p.orderId || entryNo),
         total_amount: amount,
@@ -79,7 +79,7 @@
         is_posted: true,
         lines: [
           { account_id: debitCode, debit: amount, credit: 0, line_description: 'استلام عربون حجز', sub_ledger_type: 'NONE', sub_ledger_id: '' },
-          { account_id: creditCode, debit: 0, credit: amount, line_description: 'عربون دائن بذمة المشغل للعميلة', sub_ledger_type: 'CUSTOMER', sub_ledger_id: p.customerId || p.customerName }
+          { account_id: creditCode, debit: 0, credit: amount, line_description: 'عربون دائن بذمة المشغل للعميل', sub_ledger_type: 'CUSTOMER', sub_ledger_id: p.customerId || p.customerName }
         ]
       };
     },
@@ -91,7 +91,7 @@
       var remainingCash = parseFloat(p.remainingPaid) || (totalOrder - depositUsed);
       var cashAcc = p.cashAccount || '1111';
       var rate = parseFloat(p.exchangeRate) || 1.0;
-      var entryNo = 'ORD-REC-' + (p.orderId || Date.now().toString().slice(-6));
+      var entryNo = p.entryNumber || p.entry_number || p.entry_no || (p.orderId ? ('ORD-REC-' + p.orderId) : '');
 
       var lines = [];
       if (remainingCash > 0) {
@@ -123,7 +123,7 @@
       var costPrice = parseFloat(p.costPrice) || 0;
       var cashAcc = p.cashAccount || '1111';
       var rate = parseFloat(p.exchangeRate) || 1.0;
-      var entryNo = 'SHW-' + Date.now().toString().slice(-6);
+      var entryNo = p.entryNumber || p.entry_number || p.entry_no || p.saleId || '';
 
       var lines = [
         { account_id: cashAcc, debit: salePrice, credit: 0, line_description: 'مقبوضات مبيعات فستان معرض', sub_ledger_type: 'NONE', sub_ledger_id: '' },
@@ -150,16 +150,16 @@
       };
     },
 
-    // 6. مرتجع وتسويات العميلات (Customer Return & Refund)
+    // 6. مرتجع وتسويات العملاء (Customer Return & Refund)
     createCustomerReturn: function(p) {
       var refundAmt = parseFloat(p.amount) || 0;
       var cashAcc = p.cashAccount || '1111';
       var rate = parseFloat(p.exchangeRate) || 1.0;
-      var entryNo = 'RET-' + Date.now().toString().slice(-6);
+      var entryNo = p.entryNumber || p.entry_number || p.entry_no || p.returnId || '';
       return {
         entry_number: entryNo,
         entry_date: p.date || (window.TODAY_STR_ISO || new Date().toISOString().split('T')[0]),
-        description: p.description || ('مرتجع / استرداد دفعة عميلة: ' + (p.customerName || '')),
+        description: p.description || ('مرتجع / استرداد دفعة عميل: ' + (p.customerName || '')),
         source_module: 'CUSTOMER_RETURN',
         source_id: String(p.returnId || entryNo),
         total_amount: refundAmt,
@@ -169,12 +169,18 @@
         is_posted: true,
         lines: [
           { account_id: '4111', debit: refundAmt, credit: 0, line_description: 'عكس إيراد الفستان المرتجع', sub_ledger_type: 'CUSTOMER', sub_ledger_id: p.customerName },
-          { account_id: cashAcc, debit: 0, credit: refundAmt, line_description: 'صرف المبلغ المسترد للعميلة', sub_ledger_type: 'NONE', sub_ledger_id: '' }
+          { account_id: cashAcc, debit: 0, credit: refundAmt, line_description: 'صرف المبلغ المسترد للعميل', sub_ledger_type: 'NONE', sub_ledger_id: '' }
         ]
       };
     }
   };
 
   window.VoucherGenerators = VoucherGenerators;
+  window.createPaymentVoucher = VoucherGenerators.createPaymentVoucher;
+  window.createReceiptVoucher = VoucherGenerators.createReceiptVoucher;
+  window.createBookingDeposit = VoucherGenerators.createBookingDeposit;
+  window.createOrderCollection = VoucherGenerators.createOrderCollection;
+  window.createShowroomSale = VoucherGenerators.createShowroomSale;
+  window.createCustomerReturn = VoucherGenerators.createCustomerReturn;
 
 })(typeof window !== 'undefined' ? window : globalThis);

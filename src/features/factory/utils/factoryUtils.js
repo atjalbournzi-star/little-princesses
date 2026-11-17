@@ -32,53 +32,44 @@ const addDays = (dateStr, days) => {
 
 const autoDistributeMilestones = (startDateStr, dueDateStr) => {
   const todayIso = typeof TODAY_STR_ISO !== 'undefined' ? TODAY_STR_ISO : (window.TODAY_STR_ISO || new Date().toISOString().slice(0, 10));
-  const startIso = startDateStr || todayIso;
-  const start = new Date(startIso);
-
-  let endIso = dueDateStr;
-  if (!endIso) {
-    const defaultEnd = new Date(start.getTime() + 4 * 86400000);
-    endIso = defaultEnd.toISOString().split('T')[0];
-  }
+  const startIso = startDateStr || todayIso, start = new Date(startIso);
+  let endIso = dueDateStr || startIso;
   const end = new Date(endIso);
-
   const startMs = Date.UTC(start.getFullYear(), start.getMonth(), start.getDate());
   const endMs = Date.UTC(end.getFullYear(), end.getMonth(), end.getDate());
-  const totalDays = Math.max(0, Math.round((endMs - startMs) / 86400000));
+  const actualEndMs = Math.max(startMs, endMs);
+  const totalDays = Math.max(0, Math.round((actualEndMs - startMs) / 86400000));
+  const actualEndIso = new Date(actualEndMs).toISOString().split('T')[0];
   const isUrgent = totalDays <= 3;
 
-  const formatDate = (daysToAdd) => {
-    const d = new Date(startMs + daysToAdd * 86400000);
-    return d.toISOString().split('T')[0];
+  const formatDate = (days) => {
+    const clamped = Math.max(0, Math.min(totalDays, days));
+    const iso = new Date(startMs + clamped * 86400000).toISOString().split('T')[0];
+    return iso > actualEndIso ? actualEndIso : iso;
   };
 
-  let dCut, dSew, dEmb, dFin;
-
+  let dCut, dSew, dEmb, dFin, dPkg = actualEndIso;
   if (totalDays <= 1) {
-    const target = endMs < startMs ? startIso : endIso;
-    dCut = target; dSew = target; dEmb = target; dFin = target;
+    dCut = startIso; dSew = startIso; dEmb = startIso; dFin = actualEndIso;
   } else if (totalDays === 2) {
-    dCut = startIso;
-    dSew = formatDate(1);
-    dEmb = formatDate(1);
-    dFin = endIso;
+    dCut = startIso; dSew = formatDate(1); dEmb = formatDate(1); dFin = actualEndIso;
   } else if (totalDays === 3) {
-    dCut = startIso;
-    dSew = formatDate(1);
-    dEmb = formatDate(2);
-    dFin = endIso;
+    dCut = startIso; dSew = formatDate(1); dEmb = formatDate(2); dFin = formatDate(2);
+  } else if (totalDays === 4) {
+    dCut = startIso; dSew = formatDate(1); dEmb = formatDate(2); dFin = formatDate(3);
   } else {
-    dFin = endIso;
-    const cutOffset = Math.max(0, Math.min(totalDays - 3, Math.round(totalDays * 0.20)));
-    const sewOffset = Math.max(cutOffset, Math.min(totalDays - 2, Math.round(totalDays * 0.50)));
-    const embOffset = Math.max(sewOffset, Math.min(totalDays - 1, Math.round(totalDays * 0.80)));
-
-    dCut = formatDate(cutOffset);
-    dSew = formatDate(sewOffset);
-    dEmb = formatDate(embOffset);
+    dCut = formatDate(Math.max(0, Math.round(totalDays * 0.20)));
+    dSew = formatDate(Math.max(1, Math.round(totalDays * 0.50)));
+    dEmb = formatDate(Math.max(2, Math.round(totalDays * 0.75)));
+    dFin = formatDate(Math.max(3, Math.round(totalDays * 0.90)));
   }
 
-  return { cutting: dCut, sewing: dSew, embroidery: dEmb, finishing: dFin, isUrgent, totalDays };
+  const clampCeil = (d) => (!d || d > actualEndIso ? actualEndIso : d);
+  return {
+    cutting: clampCeil(dCut), sewing: clampCeil(dSew),
+    embroidery: clampCeil(dEmb), finishing: clampCeil(dFin),
+    packaging: actualEndIso, isUrgent, totalDays
+  };
 };
 
 const calculateMetersForModel = (productName, childName, customerName, products = [], customers = [], fabricInventory = []) => {
@@ -117,7 +108,7 @@ const sendWhatsAppToTailor = (f) => {
 };
 
 const sendWhatsAppDeliveryGreeting = (data, deliveryModalData, deliveryForm, customers = []) => {
-  const cName = data?.customer_name || deliveryModalData?.customer_name || deliveryModalData?.customer || 'العميلة الكريمة', chName = data?.child_name || deliveryModalData?.child_name || 'الأميرة', pName = data?.product_name || deliveryModalData?.product || 'فستان الأميرات الفاخر', orderNo = data?.order_no || deliveryModalData?.order_no || deliveryModalData?.id, paidAmt = parseFloat(deliveryForm?.amount_collected || 0);
+  const cName = data?.customer_name || deliveryModalData?.customer_name || deliveryModalData?.customer || 'العميل الكريم', chName = data?.child_name || deliveryModalData?.child_name || 'الأميرة', pName = data?.product_name || deliveryModalData?.product || 'فستان الأميرات الفاخر', orderNo = data?.order_no || deliveryModalData?.order_no || deliveryModalData?.id, paidAmt = parseFloat(deliveryForm?.amount_collected || 0);
   const msg = `👑 *ليتل برنسيس للأزياء الفاخرة* 👑\n\nألف مبارك استلام الفستان الملكي لأميرتنا الجميلة *${chName}*! 🌸✨\n\n👗 *الموديل:* ${pName}\n📋 *رقم الطلب:* ${orderNo}\n${paidAmt > 0 ? `💰 *المبلغ المحصل عند التسليم:* ${paidAmt.toLocaleString()} ر.ي\n` : ''}✅ *حالة الطلب:* تم التسليم بالكامل وبأعلى معايير الجودة الملكية.\n\nنتمنى لأميرتنا الصغيرة إطلالة ساحرة تملأ قلوبكم بهجة وسعادة! نسعد دائماً بخدمتكم وتجدد لقائكم معنا 💖👑`;
   const cust = (customers || []).find(c => (c.name && cName.includes(c.name)) || (cName && c.name && cName.includes(c.name))), phone = (cust?.phone || cust?.['رقم الهاتف'] || '').replace(/[^0-9]/g, '');
   const waUrl = phone ? `https://api.whatsapp.com/send?phone=${phone.startsWith('0') ? '967' + phone.substring(1) : (phone.startsWith('967') ? phone : '967' + phone)}&text=${encodeURIComponent(msg)}` : `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;

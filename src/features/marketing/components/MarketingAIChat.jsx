@@ -16,47 +16,44 @@ function MarketingAIChat({
   ];
 
   return (
-    <div className="bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden flex flex-col h-[600px] animate-fadeIn">
+    <div className="bg-white dark:bg-[#111C38] rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden flex flex-col h-[520px] animate-fadeIn select-none">
       {/* Header */}
-      <div className="bg-gradient-to-l from-slate-900 to-indigo-950 px-6 py-4 text-white flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <span className="text-2xl">🤖</span>
-          <div>
-            <h3 className="font-black text-sm text-amber-300">مدير التسويق الذكي (AI Marketing Director)</h3>
-            <p className="text-[10px] text-slate-300 font-semibold">إجابات فورية صادقة ومستندة 100% لبيانات السجلات الحقيقية</p>
-          </div>
+      <div className="h-7.5 px-3 bg-slate-50 dark:bg-[#0F172A] border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          <svg className="w-3.5 h-3.5 text-pink-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
+          <h3 className="font-bold text-[11px] text-slate-800 dark:text-white">مدير التسويق الذكي (AI Marketing Director)</h3>
         </div>
-        <span className="text-xs bg-indigo-500/30 text-indigo-200 px-3 py-1 rounded-full font-bold border border-indigo-400/30">
-          Grounded in DB Facts 🟢
+        <span className="text-[10px] bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 px-2 py-0.2 rounded-md font-bold border border-indigo-200 dark:border-indigo-800 font-mono">
+          سجلات حقيقية
         </span>
       </div>
 
       {/* Quick Questions */}
-      <div className="bg-slate-50 px-5 py-2.5 border-b border-slate-200 flex gap-2 overflow-x-auto">
+      <div className="bg-slate-50 dark:bg-[#0F172A] px-2.5 py-1.5 border-b border-slate-200 dark:border-slate-800 flex gap-1.5 overflow-x-auto custom-scrollbar">
         {quickQuestions.map(q => (
           <button
             key={q}
             onClick={() => handleSendAIChat(q)}
-            className="py-1.5 px-3 bg-white text-slate-700 hover:bg-rose-50 hover:text-rose-700 border border-slate-200 rounded-xl text-[11px] font-extrabold whitespace-nowrap transition shadow-xs"
+            className="h-6 px-2 bg-white dark:bg-[#111C38] text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-[10.5px] font-bold whitespace-nowrap transition cursor-pointer"
           >
-            ❓ {q}
+            {q}
           </button>
         ))}
       </div>
 
       {/* Chat Messages */}
-      <div className="flex-1 p-5 overflow-y-auto space-y-4 bg-slate-50/50">
+      <div className="flex-1 p-3 overflow-y-auto space-y-2 bg-slate-50/50 dark:bg-[#0F172A]/50">
         {chatMessages.map((msg, i) => (
           <div key={i} className={`flex ${msg.sender === 'user' ? 'justify-start' : 'justify-end'}`}>
-            <div className={`max-w-[80%] rounded-3xl p-4 text-xs font-semibold leading-relaxed shadow-sm ${
+            <div className={`max-w-[80%] rounded-lg p-2.5 text-[11px] font-medium leading-relaxed shadow-xs ${
               msg.sender === 'user'
-                ? 'bg-rose-600 text-white rounded-tr-none'
-                : 'bg-white text-slate-800 border border-slate-200 rounded-tl-none space-y-1'
+                ? 'bg-pink-600 text-white'
+                : 'bg-white dark:bg-[#111C38] text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-800 space-y-1'
             }`}>
               <p className="whitespace-pre-line">{msg.text}</p>
               {msg.source && (
-                <span className="block text-[9px] text-indigo-600 font-mono font-bold pt-1 border-t border-slate-100">
-                  مصدر البيانات: {msg.source}
+                <span className="block text-[9.5px] text-indigo-600 dark:text-indigo-400 font-mono font-bold pt-1 border-t border-slate-100 dark:border-slate-800">
+                  المصدر: {msg.source}
                 </span>
               )}
             </div>
@@ -64,33 +61,35 @@ function MarketingAIChat({
         ))}
         {chatLoading && (
           <div className="flex justify-end">
-            <div className="bg-white p-4 rounded-3xl border border-slate-200 text-xs font-bold text-slate-500 animate-pulse">
-              ⏳ جاري استعلام قاعدة البيانات وتوليد الإجابة الدقيقة...
+            <div className="bg-white dark:bg-[#111C38] p-2.5 rounded-lg border border-slate-200 dark:border-slate-800 text-[11px] font-bold text-slate-500 dark:text-slate-400 animate-pulse">
+              جاري استعلام قاعدة البيانات وتوليد الإجابة...
             </div>
           </div>
         )}
       </div>
 
       {/* Input */}
-      <div className="p-4 bg-white border-t border-slate-200 flex gap-2">
+      <div className="p-2 bg-white dark:bg-[#111C38] border-t border-slate-200 dark:border-slate-800 flex gap-1.5">
         <input
           type="text"
           value={chatInput}
           onChange={e => setChatInput(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && handleSendAIChat()}
           placeholder="اسأل مدير التسويق AI..."
-          className="flex-1 p-3.5 rounded-2xl border border-slate-200 bg-slate-50 text-xs font-bold outline-none focus:bg-white focus:border-rose-400 transition"
+          className="flex-1 h-7 px-2.5 rounded-md border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#0F172A] text-slate-900 dark:text-white text-[11px] font-medium outline-none focus:border-pink-500 transition"
         />
         <button
           onClick={() => handleSendAIChat()}
           disabled={chatLoading}
-          className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-rose-600 to-rose-800 text-white font-black text-xs hover:opacity-90 transition shadow-md disabled:opacity-50"
+          className="h-7 px-3 rounded-md bg-pink-600 hover:bg-pink-700 text-white font-bold text-xs transition shadow-xs disabled:opacity-50 cursor-pointer"
         >
-          إرسال 🚀
+          إرسال
         </button>
       </div>
     </div>
   );
 }
 
-window.MarketingAIChat = MarketingAIChat;
+if (typeof window !== 'undefined') {
+  window.MarketingAIChat = MarketingAIChat;
+}

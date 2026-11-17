@@ -6,17 +6,10 @@ function CustomerHistoryModal({
   onSaveLedger, isSaving = false, showToast, onPrintInvoice, onPrintJobCard,
   currentStep = 3, onSwitchStep
 }) {
-  const [totalSales, setTotalSales] = useState('');
-  const [basePrice, setBasePrice] = useState('');
-  const [totalPaid, setTotalPaid] = useState('');
-  const [deposit, setDeposit] = useState('');
-  const [delivery, setDelivery] = useState('');
-  const [deliveryPaymentMode, setDeliveryPaymentMode] = useState('DIRECT_TO_COURIER');
-  const [payMethod, setPayMethod] = useState('نقد (كاش)');
-  const [voucherCurr, setVoucherCurr] = useState('YER');
-  const [receiptFile, setReceiptFile] = useState(null);
-  const [receiptPreview, setReceiptPreview] = useState(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [totalSales, setTotalSales] = useState(''), [basePrice, setBasePrice] = useState(''), [totalPaid, setTotalPaid] = useState('');
+  const [deposit, setDeposit] = useState(''), [delivery, setDelivery] = useState(''), [deliveryPaymentMode, setDeliveryPaymentMode] = useState('DIRECT_TO_COURIER');
+  const [payMethod, setPayMethod] = useState('نقد (كاش)'), [voucherCurr, setVoucherCurr] = useState('YER'), [selectedAccount, setSelectedAccount] = useState('');
+  const [receiptFile, setReceiptFile] = useState(null), [receiptPreview, setReceiptPreview] = useState(null), [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (customer) {
@@ -88,7 +81,7 @@ function CustomerHistoryModal({
     try {
       const depAmt = parseFloat(deposit) || 0;
       let vNo = customer?.ledger?.latest_voucher_no || '';
-      const ordNo = customer?.latest_order_no || customerOrders[0]?.order_no || `ORD-${customer.customer_id || customer.id || 'CUST'}`;
+      const ordNo = customer?.latest_order_no || customerOrders[0]?.order_no || '';
       const ordId = customerOrders[0]?.id || ordNo;
       if (depAmt > 0) {
         try {
@@ -96,6 +89,7 @@ function CustomerHistoryModal({
             voucher_no: vNo || '',
             voucher_type: 'سند قبض', payment_type: 'Receipt', amount: depAmt, currency: voucherCurr,
             payment_method: payMethod, customer_id: customer.customer_id || customer.id,
+            account_id: selectedAccount || undefined,
             order_id: ordId, order_no: ordNo, reference_no: ordNo,
             party_name: customer.name || customer.customer_name,
             notes: `قيد عربون حجز وتفصيل للعميل: ${customer.name}${customer.measurements?.[0]?.selected_model ? ` (${customer.measurements[0].selected_model})` : ''}`,
@@ -185,6 +179,7 @@ function CustomerHistoryModal({
             deliveryPaymentMode={deliveryPaymentMode} handleModeChange={handleModeChange}
             voucherCurr={voucherCurr} setVoucherCurr={setVoucherCurr}
             payMethod={payMethod} setPayMethod={setPayMethod}
+            selectedAccount={selectedAccount} setSelectedAccount={setSelectedAccount}
             remaining={remaining} isReadOnly={hasOrders}
           />
         ) : null}

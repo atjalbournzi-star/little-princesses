@@ -37,14 +37,14 @@ function AddFeedbackModal({
         <form onSubmit={onSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-3.5">
             <div>
-              <label className={labelCls}>اسم العميلة</label>
+              <label className={labelCls}>اسم العميل</label>
               <select
                 value={feedbackForm.customer_name}
                 onChange={e => setFeedbackForm({ ...feedbackForm, customer_name: e.target.value })}
                 className={inputCls}
                 required
               >
-                <option value="">-- اختر العميلة --</option>
+                <option value="">-- اختر العميل --</option>
                 {customers.map(c => (
                   <option key={c.id || c.name} value={c.name || c['اسم_العميل']}>
                     {c.name || c['اسم_العميل']}
@@ -112,13 +112,13 @@ function AddFeedbackModal({
           </div>
 
           <div>
-            <label className={labelCls}>تعليق ورأي العميلة</label>
+            <label className={labelCls}>تعليق ورأي العميل</label>
             <textarea
               rows="3"
               value={feedbackForm.comment}
               onChange={e => setFeedbackForm({ ...feedbackForm, comment: e.target.value })}
               className="w-full p-3 bg-white border border-[#E8E5EA] rounded-xl text-xs outline-none resize-none focus:border-[#009FAE]"
-              placeholder="اكتب تعليق العميلة هنا بدقة..."
+              placeholder="اكتب تعليق العميل هنا بدقة..."
             />
           </div>
 

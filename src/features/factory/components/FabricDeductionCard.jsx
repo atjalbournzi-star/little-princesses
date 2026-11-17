@@ -94,13 +94,13 @@ function FabricDeductionCard({
             (i.item_name && i.item_name === item.fabric_name)
           );
           const curStock = curItem ? parseFloat(curItem.quantity || curItem.qty || curItem.quantity_meters || 0) : null;
-          const cutQty = parseFloat(item.cut_meters || 0), stockUnit = curItem?.unit || 'وار', cutUnit = item.cut_unit || 'متر';
+          const cutQty = parseFloat(item.cut_meters || 0), stockUnit = curItem?.unit || 'وار', cutUnit = item.cut_unit || curItem?.unit || 'متر';
           const deduction = window.UnitConversionService?.calculateDeduction ? window.UnitConversionService.calculateDeduction(cutQty, cutUnit, stockUnit) : { deductAmount: cutQty, isConverted: false };
           const remaining = curStock !== null ? (curStock - deduction.deductAmount) : null, isLow = remaining !== null && remaining < 0;
 
           const toggleUnit = (u) => {
             const conv = (u !== cutUnit && item.cut_meters) ? (u === 'وار' ? (parseFloat(item.cut_meters)*1.0936).toFixed(2) : (parseFloat(item.cut_meters)/1.0936).toFixed(2)) : item.cut_meters;
-            updateBomItem(idx, { cut_meters: conv, cut_unit: u });
+            updateBomItem(idx, { cut_meters: conv, cut_unit: u, unit: u });
           };
 
           return (
@@ -124,9 +124,12 @@ function FabricDeductionCard({
                     onChange={e => {
                       const selectedVal = e.target.value;
                       const matched = fabricInventory.find(fi => (fi.name || fi.item_name) === selectedVal || String(fi.id || fi.item_code) === selectedVal);
+                      const actualUnit = matched?.unit || item.cut_unit || 'متر';
                       updateBomItem(idx, {
                         fabric_name: matched ? (matched.name || matched.item_name) : selectedVal,
-                        fabric_id: matched ? (matched.id || matched.item_code || '') : ''
+                        fabric_id: matched ? (matched.id || matched.item_code || '') : '',
+                        cut_unit: actualUnit,
+                        unit: actualUnit
                       });
                     }}
                   >

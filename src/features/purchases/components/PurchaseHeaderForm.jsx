@@ -20,17 +20,16 @@ function PurchaseHeaderForm(props) {
     <div className="space-y-3 p-3.5 bg-slate-900/50 rounded-xl border border-slate-800">
       {/* الصف الأول: شبكة من 4 أعمدة متوازنة */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-        {/* 1. رقم الفاتورة مع زر التوليد */}
+        {/* 1. رقم الفاتورة */}
         <div>
-          <label className={labelCls}>رقم الفاتورة *</label>
-          <div className="flex items-center gap-1">
-            <input type="text" className={inputCls + " font-mono font-bold text-pink-300"} value={headerData.bill_no || ''} onChange={e => setHeaderData(p => ({ ...p, bill_no: e.target.value }))} />
-            {typeof genBillNo === 'function' && (
-              <button type="button" onClick={() => setHeaderData(p => ({ ...p, bill_no: genBillNo() }))} className="h-8 px-2 text-[10px] font-bold rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 shrink-0 cursor-pointer" title="توليد رقم تسلسلي تلقائي">
-                توليد
-              </button>
-            )}
-          </div>
+          <label className={labelCls}>رقم الفاتورة</label>
+          <input
+            type="text"
+            placeholder="يتولد آلياً من السيرفر"
+            className={inputCls + " font-mono font-bold text-pink-300 placeholder:text-slate-500"}
+            value={headerData.bill_no || ''}
+            onChange={e => setHeaderData(p => ({ ...p, bill_no: e.target.value }))}
+          />
         </div>
 
         {/* 2. المورد المعتمد مع زر إضافة مورد */}

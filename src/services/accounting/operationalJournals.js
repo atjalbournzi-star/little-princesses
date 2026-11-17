@@ -14,7 +14,7 @@
       var amount = parseFloat(p.amount) || 0;
       var cashAcc = p.cashAccount || '1111';
       var rate = parseFloat(p.exchangeRate) || 1.0;
-      var entryNo = 'ADV-' + Date.now().toString().slice(-6);
+      var entryNo = p.entryNumber || p.entry_number || p.entry_no || '';
       return {
         entry_number: entryNo,
         entry_date: p.date || (window.TODAY_STR_ISO || new Date().toISOString().split('T')[0]),
@@ -40,17 +40,13 @@
       var netPaid = parseFloat(p.netPaid) || (grossWage - advanceDeducted);
       var cashAcc = p.cashAccount || '1111';
       var rate = parseFloat(p.exchangeRate) || 1.0;
-      var entryNo = 'PAY-' + Date.now().toString().slice(-6);
+      var entryNo = p.entryNumber || p.entry_number || p.entry_no || '';
 
       var lines = [
         { account_id: '5121', debit: grossWage, credit: 0, line_description: 'إجمالي أجور خياطة وتصنيع مباشرة', sub_ledger_type: 'TAILOR', sub_ledger_id: p.tailorId || p.tailorName }
       ];
-      if (advanceDeducted > 0) {
-        lines.push({ account_id: '1141', debit: 0, credit: advanceDeducted, line_description: 'استقطاع وسداد السلفة السابقة', sub_ledger_type: 'TAILOR', sub_ledger_id: p.tailorId || p.tailorName });
-      }
-      if (netPaid > 0) {
-        lines.push({ account_id: cashAcc, debit: 0, credit: netPaid, line_description: 'صرف صافي أجر الخياط نقداً', sub_ledger_type: 'NONE', sub_ledger_id: '' });
-      }
+      if (advanceDeducted > 0) lines.push({ account_id: '1141', debit: 0, credit: advanceDeducted, line_description: 'استقطاع وسداد السلفة السابقة', sub_ledger_type: 'TAILOR', sub_ledger_id: p.tailorId || p.tailorName });
+      if (netPaid > 0) lines.push({ account_id: cashAcc, debit: 0, credit: netPaid, line_description: 'صرف صافي أجر الخياط نقداً', sub_ledger_type: 'NONE', sub_ledger_id: '' });
 
       return {
         entry_number: entryNo,
@@ -72,7 +68,7 @@
       var amount = parseFloat(p.amount) || 0;
       var cashAcc = p.cashAccount || '1111';
       var rate = parseFloat(p.exchangeRate) || 1.0;
-      var entryNo = 'CSH-ISS-' + Date.now().toString().slice(-6);
+      var entryNo = p.entryNumber || p.entry_number || p.entry_no || '';
       return {
         entry_number: entryNo,
         entry_date: p.date || (window.TODAY_STR_ISO || new Date().toISOString().split('T')[0]),
@@ -98,7 +94,7 @@
       var totalCustody = invoicesTotal + cashReturned;
       var cashAcc = p.cashAccount || '1111';
       var rate = parseFloat(p.exchangeRate) || 1.0;
-      var entryNo = 'CSH-SET-' + Date.now().toString().slice(-6);
+      var entryNo = p.entryNumber || p.entry_number || p.entry_no || '';
 
       var lines = [
         { account_id: '5211', debit: invoicesTotal, credit: 0, line_description: 'مصاريف تشغيل وصيانة المشغل بالفواتير', sub_ledger_type: 'NONE', sub_ledger_id: '' }
@@ -129,7 +125,7 @@
       var isCash = p.isCash || false;
       var creditAcc = isCash ? (p.cashAccount || '1111') : '2111';
       var rate = parseFloat(p.exchangeRate) || 1.0;
-      var entryNo = 'FAB-PUR-' + Date.now().toString().slice(-6);
+      var entryNo = p.entryNumber || p.entry_number || p.entry_no || '';
       return {
         entry_number: entryNo,
         entry_date: p.date || (window.TODAY_STR_ISO || new Date().toISOString().split('T')[0]),
@@ -152,7 +148,7 @@
     createInventoryIssueToWIP: function(p) {
       var costAmt = parseFloat(p.amount) || 0;
       var rate = parseFloat(p.exchangeRate) || 1.0;
-      var entryNo = 'WIP-' + Date.now().toString().slice(-6);
+      var entryNo = p.entryNumber || p.entry_number || p.entry_no || '';
       return {
         entry_number: entryNo,
         entry_date: p.date || (window.TODAY_STR_ISO || new Date().toISOString().split('T')[0]),
@@ -176,7 +172,7 @@
       var diffAmt = parseFloat(p.amount) || 0;
       var isShortage = p.type === 'shortage' || p.isShortage;
       var rate = parseFloat(p.exchangeRate) || 1.0;
-      var entryNo = 'AUD-' + Date.now().toString().slice(-6);
+      var entryNo = p.entryNumber || p.entry_number || p.entry_no || '';
 
       var lines = [];
       if (isShortage) {
@@ -204,5 +200,12 @@
   };
 
   window.OperationalJournals = OperationalJournals;
+  window.createTailorAdvance = OperationalJournals.createTailorAdvance;
+  window.createTailorWageSettlement = OperationalJournals.createTailorWageSettlement;
+  window.createPettyCashIssue = OperationalJournals.createPettyCashIssue;
+  window.createPettyCashSettlement = OperationalJournals.createPettyCashSettlement;
+  window.createInventoryPurchase = OperationalJournals.createInventoryPurchase;
+  window.createInventoryIssueToWIP = OperationalJournals.createInventoryIssueToWIP;
+  window.createInventoryAudit = OperationalJournals.createInventoryAudit;
 
 })(typeof window !== 'undefined' ? window : globalThis);

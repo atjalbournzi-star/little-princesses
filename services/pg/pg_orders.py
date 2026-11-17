@@ -3,6 +3,7 @@
 
 from .db_pool import get_db_cursor, clean_str, clean_num, generate_id, execute_query
 from .pg_orders_write import add_order
+from .pg_audit import log_audit_event, get_active_user_context
 
 
 def get_orders(params=None):
@@ -18,20 +19,11 @@ def get_orders(params=None):
                COALESCE(o.selected_color, o.color, '') as selected_color,
                COALESCE(o.selected_color, o.color, '') as color,
                COALESCE(o.model_id, o.product_id, '') as model_id,
-               COALESCE(
-                   ch.child_name,
-                   (SELECT m.child_name FROM measurements m WHERE m.child_id = o.child_id LIMIT 1),
-                   (SELECT m.child_name FROM measurements m WHERE m.customer_id = o.customer_id AND m.model_name = p.model_name LIMIT 1),
-                   (SELECT m.child_name FROM measurements m WHERE m.customer_id = o.customer_id ORDER BY m.created_at DESC LIMIT 1),
-                   'الأميرة'
-               ) as child_name
+               COALESCE(ch.child_name, 'الأميرة') as child_name
         FROM orders o
         LEFT JOIN customers c ON o.customer_id = c.id
         LEFT JOIN LATERAL (
-            SELECT oi.product_id, oi.notes
-            FROM order_items oi
-            WHERE oi.order_id = o.id
-            LIMIT 1
+            SELECT oi.product_id, oi.notes FROM order_items oi WHERE oi.order_id = o.id LIMIT 1
         ) oi ON true
         LEFT JOIN products p ON COALESCE(o.product_id, oi.product_id) = p.id
         LEFT JOIN children ch ON o.child_id = ch.id
@@ -161,6 +153,7 @@ def update_order(payload):
             updates.append("updated_at = CURRENT_TIMESTAMP")
             cur.execute(f"UPDATE orders SET {', '.join(updates)} WHERE id = %s RETURNING *;", tuple(params + [order_id]))
             res = dict(cur.fetchone())
+            log_audit_event('orders', order_id, 'UPDATE', user_id=get_active_user_context('admin'), document_no=res.get('order_no'), details=f"تحديث بيانات الطلب {res.get('order_no')}", cur=cur)
         else:
             res = dict(existing)
 
@@ -205,5 +198,6 @@ def delete_order(payload):
             cur.execute("DELETE FROM journal_entries WHERE id = %s;", (jv['id'],))
 
         cur.execute("DELETE FROM orders WHERE id = %s;", (actual_id,))
+        log_audit_event('orders', actual_id, 'DELETE', user_id=get_active_user_context('admin'), document_no=row.get('order_no'), details=f"حذف الطلب {row.get('order_no')}", cur=cur)
 
     return {"deleted": True, "id": oid, "success": True}

@@ -48,7 +48,7 @@ def add_fitting_alteration(payload):
     tailor_id = clean_str(data.get('assigned_tailor_id') or data.get('tailor_id')) or None
     is_free = bool(data.get('is_free', True))
     charge = clean_num(data.get('charge_amount') or 0.0) if not is_free else 0.0
-    reason_cat = clean_str(data.get('reason_category') or 'طلب العميلة بالبروفة')
+    reason_cat = clean_str(data.get('reason_category') or 'طلب العميل بالبروفة')
 
     with get_db_cursor(commit=True) as cur:
         valid_order_id = None
@@ -90,7 +90,7 @@ def add_fitting_alteration(payload):
         if not child_name:
             child_name = 'الأميرة'
         if not cust_name:
-            cust_name = 'العميلة'
+            cust_name = 'العميل'
 
         cur.execute("""
             INSERT INTO fitting_alterations (

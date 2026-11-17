@@ -31,69 +31,15 @@
         isSingle: false
       };
 
-      const getStorageKey = () => `erp_sb_${state.table}`;
-      const getLocalRows = () => {
-        try {
-          const raw = localStorage.getItem(getStorageKey());
-          return raw ? JSON.parse(raw) : [];
-        } catch (e) {
-          return [];
-        }
-      };
-      const saveLocalRows = (rows) => {
-        try {
-          localStorage.setItem(getStorageKey(), JSON.stringify(rows));
-        } catch (e) {}
-      };
-
       const execute = async () => {
-        let rows = getLocalRows();
-
+        // Direct safe fallback without localStorage table simulation
         if (state.action === 'select') {
-          let res = [...rows];
-          for (const f of state.filters) {
-            res = res.filter(r => String(r[f.col]) === String(f.val));
-          }
-          if (state.orderBy) {
-            const { col, ascending } = state.orderBy;
-            res.sort((a, b) => (a[col] > b[col] ? 1 : -1) * (ascending ? 1 : -1));
-          }
-          const finalData = state.isSingle ? (res[0] || null) : res;
-          return { data: finalData, error: null };
+          return { data: state.isSingle ? null : [], error: null };
         }
-
-        if (state.action === 'update') {
-          let updatedItem = null;
-          rows = rows.map(r => {
-            const match = state.filters.every(f => String(r[f.col]) === String(f.val));
-            if (match) {
-              updatedItem = { ...r, ...state.payload };
-              return updatedItem;
-            }
-            return r;
-          });
-          if (!updatedItem && state.filters.length > 0) {
-            updatedItem = { id: state.filters[0].val, ...state.payload };
-            rows.unshift(updatedItem);
-          }
-          saveLocalRows(rows);
-          return { data: state.isSingle ? updatedItem : [updatedItem], error: null };
+        if (state.action === 'insert' || state.action === 'update') {
+          const resData = state.isSingle ? state.payload : (Array.isArray(state.payload) ? state.payload : [state.payload]);
+          return { data: resData, error: null };
         }
-
-        if (state.action === 'insert') {
-          const toInsert = Array.isArray(state.payload) ? state.payload : [state.payload];
-          const newRows = toInsert.map(item => ({ id: item.id || `REC-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`, ...item }));
-          rows = [...newRows, ...rows];
-          saveLocalRows(rows);
-          return { data: state.isSingle ? newRows[0] : newRows, error: null };
-        }
-
-        if (state.action === 'delete') {
-          rows = rows.filter(r => !state.filters.some(f => String(r[f.col]) === String(f.val)));
-          saveLocalRows(rows);
-          return { data: null, error: null };
-        }
-
         return { data: null, error: null };
       };
 

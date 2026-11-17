@@ -1,4 +1,4 @@
-// HRFilterBar.jsx - شريط البحث وفلترة الموظفين حسب القسم والحالة (نمط مدمج)
+// HRFilterBar.jsx - شريط البحث وفلترة الموظفين حسب القسم والحالة (نمط ديناميكي ومدمج)
 function HRFilterBar({
   searchQuery,
   setSearchQuery,
@@ -8,9 +8,22 @@ function HRFilterBar({
   setStatusFilter,
   onOpenAddModal,
   totalEmployees = 0,
+  jobRoles = [],
+  employees = []
 }) {
   const selectCls =
     "h-7 px-2 rounded-lg border border-slate-700/80 bg-[#0F172A] text-xs font-bold text-white focus:border-pink-500 outline-none transition cursor-pointer";
+
+  const filterRoleOptions = React.useMemo(() => {
+    const map = new Map();
+    (jobRoles || []).forEach(r => {
+      if (r && r.role_name) map.set(r.role_name, r.display_name || r.role_name);
+    });
+    (employees || []).forEach(e => {
+      if (e && e.role && !map.has(e.role)) map.set(e.role, e.role);
+    });
+    return Array.from(map.entries()).map(([value, label]) => ({ value, label }));
+  }, [jobRoles, employees]);
 
   return (
     <div className="h-9 shrink-0 mb-2 flex items-center justify-between gap-2 bg-slate-900/90 border border-slate-800 px-3 rounded-xl select-none">
@@ -41,18 +54,16 @@ function HRFilterBar({
 
       {/* الفلاتر والأزرار */}
       <div className="flex items-center gap-2">
-        {/* فلترة القسم / الوظيفة */}
+        {/* فلترة القسم / الوظيفة ديناميكياً */}
         <select
           value={roleFilter}
           onChange={(e) => setRoleFilter(e.target.value)}
           className={selectCls}
         >
           <option value="all">جميع الأقسام</option>
-          <option value="خياط">خياطة</option>
-          <option value="قصاص">قصاص</option>
-          <option value="تشطيب">تشطيب</option>
-          <option value="تطريز">تطريز</option>
-          <option value="إدارة">إدارة</option>
+          {filterRoleOptions.map(opt => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
         </select>
 
         {/* فلترة حالة التوظيف */}

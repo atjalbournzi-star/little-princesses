@@ -16,7 +16,7 @@ def normalize_uom(unit_str):
         return 'سم'
     if 'رول' in u or 'طاق' in u or u in ('roll', 'bolt'):
         return 'رول'
-    if 'حب' in u or 'قطع' in u or u in ('pc', 'piece'):
+    if 'حب' in u or 'قطع' in u or u in ('pc', 'piece', 'pieces'):
         return 'حبة'
     if 'متر' in u or u in ('m', 'meter', 'meters'):
         return 'متر'
@@ -34,6 +34,10 @@ def convert_uom(val, from_u, to_u):
     t = normalize_uom(to_u)
     if f == t or val == 0:
         return val
+
+    # الوحدات العددية المفردة (حبات/قطع) لا تحوّل إلى أمتار خطية
+    if f in ('حبة', 'قطعة') and t in ('متر', 'وار', 'سم', 'إنش', 'رول'):
+        return 0.0
 
     # 1. Convert to Meters
     if f == 'متر':

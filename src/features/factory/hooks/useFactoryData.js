@@ -92,7 +92,7 @@ function useFactoryData({
       const targetDue = targetJob.delivery_date || targetJob.due_date || targetJob.delivery_date_iso || targetJob.target_date || (utils.addDays ? utils.addDays(todayStrIso, 4) : '');
       const autoM = utils.autoDistributeMilestones ? utils.autoDistributeMilestones(todayStrIso, targetDue) : {};
       setForm(prev => ({
-        ...prev, order_no: targetJob.order_no || `JOB-${targetJob.customer_id || 'CUST'}-${Date.now().toString().slice(-4)}`,
+        ...prev, order_no: targetJob.order_no || targetJob.id || '',
         customer: targetJob.customer_name || targetJob.customer || '', child_name: targetJob.child_name || '',
         product: targetJob.product || targetJob.product_name || '', product_id: targetJob.product_id || '', quantity: targetJob.quantity || 1, tailor: prev.tailor || targetJob.tailor || '',
         stage: stages[0], progress: targetJob.progress ? String(targetJob.progress) : '0', start_date: todayStrIso, due_date: targetDue,

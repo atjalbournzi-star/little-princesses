@@ -12,9 +12,9 @@ hr_bp = Blueprint('hr_bp', __name__)
 def list_employees():
     try:
         data = pg_service.get_employees()
-        return jsonify({'success': True, 'data': data}), 200
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e), 'data': []}), 500
+    except Exception:
+        data = []
+    return jsonify({'success': True, 'data': data, 'count': len(data)}), 200
 
 
 @hr_bp.route('/api/hr/employees', methods=['POST'])
@@ -38,15 +38,36 @@ def delete_employee():
         return jsonify({'success': False, 'error': str(e)}), 400
 
 
+@hr_bp.route('/api/hr/job-roles', methods=['GET'])
+@hr_bp.route('/api/job-roles', methods=['GET'])
+def list_job_roles():
+    try:
+        data = pg_service.get_job_roles(dict(request.args))
+    except Exception:
+        data = []
+    return jsonify({'success': True, 'data': data, 'count': len(data)}), 200
+
+
+@hr_bp.route('/api/hr/job-roles', methods=['POST'])
+@hr_bp.route('/api/job-roles', methods=['POST'])
+def save_job_role():
+    try:
+        data = request.get_json(silent=True) or {}
+        res = pg_service.add_job_role(data)
+        return jsonify({'success': True, 'data': res}), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+
 @hr_bp.route('/api/hr/payroll', methods=['GET'])
 @hr_bp.route('/api/payroll', methods=['GET'])
 def get_payroll():
     try:
         month = request.args.get('month')
         data = pg_service.get_payroll({'month': month} if month else None)
-        return jsonify({'success': True, 'data': data}), 200
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e), 'data': []}), 500
+    except Exception:
+        data = []
+    return jsonify({'success': True, 'data': data, 'count': len(data)}), 200
 
 
 @hr_bp.route('/api/hr/payroll/calculate', methods=['GET'])

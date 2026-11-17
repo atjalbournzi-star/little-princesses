@@ -20,7 +20,7 @@ function FeedbackDetailModal({
           <div className="flex items-center gap-2">
             <span className="text-xl">⭐</span>
             <h3 className="font-bold text-sm text-[#25232A]">
-              تفاصيل تقييم واستبيان العميلة
+              تفاصيل تقييم واستبيان العميل
             </h3>
           </div>
           <button
@@ -33,7 +33,7 @@ function FeedbackDetailModal({
 
         <div className="bg-[#FAFAFB] p-4 rounded-xl border border-[#E8E5EA] space-y-2.5 text-xs">
           <div className="flex justify-between items-center">
-            <span className="text-[#6F6B75]">اسم العميلة:</span>
+            <span className="text-[#6F6B75]">اسم العميل:</span>
             <span className="font-bold text-[#25232A] text-sm">
               {feedbackItem.customer_name || feedbackItem.Customer_Name || 'عزيزتنا'}
             </span>
@@ -75,9 +75,9 @@ function FeedbackDetailModal({
           </div>
         </div>
 
-        {/* تعليق العميلة */}
+        {/* تعليق العميل */}
         <div className="space-y-1.5 text-xs">
-          <span className="font-bold text-[#25232A]">تعليق ورأي العميلة:</span>
+          <span className="font-bold text-[#25232A]">تعليق ورأي العميل:</span>
           <div className="p-3 bg-[#FAFAFB] border border-[#E8E5EA] rounded-xl text-[#25232A] leading-relaxed">
             {feedbackItem.comment || feedbackItem.Comment || feedbackItem.notes || 'لا توجد ملاحظات إضافية.'}
           </div>

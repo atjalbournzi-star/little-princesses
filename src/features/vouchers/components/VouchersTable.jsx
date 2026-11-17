@@ -70,9 +70,9 @@ function VouchersTable({
         <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60 bg-white dark:bg-transparent">
           {vouchers.map(v => {
             const rawAcc = v.account || v.acc_code || v.account_id || v.payment_source || '';
-            const accLabel = getAccLabel(rawAcc, rawAcc || '101 - الصندوق الرئيسي');
-            const rawTarget = v.target_account || v.target_acc || (v.isReceipt ? '104' : '201');
-            const targetLabel = getAccLabel(rawTarget, (String(rawTarget).includes('202') ? '202 - عرابين وأمانات العملاء' : (String(rawTarget).includes('104') ? '104 - ذمم العملاء' : rawTarget)));
+            const accLabel = getAccLabel(rawAcc, rawAcc || 'حساب مالي');
+            const rawTarget = v.target_account || v.target_acc || '';
+            const targetLabel = getAccLabel(rawTarget, rawTarget || 'حساب مقابل');
 
             const vCurr = window.CurrencyService ? window.CurrencyService.normalizeCode(v.currency) : (v.currency || 'YER');
             const isSameCurr = vCurr === activeTargetCurr;

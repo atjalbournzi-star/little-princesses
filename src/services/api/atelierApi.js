@@ -60,8 +60,11 @@
     },
     saveModel: async (data) => {
       try {
-        const res = await fetch('/api/products/bom', {
-          method: 'POST',
+        const isUpdate = Boolean(data.id && !String(data.id).startsWith('PROD-NEW'));
+        const method = isUpdate ? 'PUT' : 'POST';
+        const url = isUpdate ? `/api/products/${encodeURIComponent(data.id)}` : '/api/products/bom';
+        const res = await fetch(url, {
+          method,
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(data)
         }).then(r => r.json());
@@ -82,6 +85,13 @@
         if (res && res.success) return res;
       } catch (e) {}
       return await callGAS('deleteProduct', { id });
+    },
+    getProductById: async (id) => {
+      try {
+        const res = await fetch(`/api/products/get?id=${encodeURIComponent(id)}`).then(r => r.json());
+        if (res && res.success && res.data) return res.data;
+      } catch (e) {}
+      return await callGAS('getProductById', { id });
     }
   };
 
@@ -96,6 +106,10 @@
       return gasRes && Array.isArray(gasRes.data) ? gasRes.data : [];
     },
     getProductById: async (id) => {
+      try {
+        const res = await fetch(`/api/products/get?id=${encodeURIComponent(id)}`).then(r => r.json());
+        if (res && res.success && res.data) return res.data;
+      } catch (e) {}
       return await callGAS('getProductById', { id });
     },
     createProduct: async (data) => {

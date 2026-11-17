@@ -17,6 +17,31 @@
     })();
   </script>
 
+  <!-- Mandatory Hard Reset & Complete Browser Storage Purge (RESET_V1) -->
+  <script>
+    (function() {
+      try {
+        var RESET_KEY = 'RESET_V1';
+        if (!localStorage.getItem(RESET_KEY)) {
+          try { localStorage.clear(); } catch(e) {}
+          try { if (typeof sessionStorage !== 'undefined') sessionStorage.clear(); } catch(e) {}
+          try {
+            if (window.indexedDB && indexedDB.databases) {
+              indexedDB.databases().then(function(dbs) {
+                if (dbs && dbs.length) {
+                  dbs.forEach(function(db) {
+                    if (db.name) indexedDB.deleteDatabase(db.name);
+                  });
+                }
+              }).catch(function() {});
+            }
+          } catch(e) {}
+          try { localStorage.setItem(RESET_KEY, 'true'); } catch(e) {}
+        }
+      } catch(e) {}
+    })();
+  </script>
+
   <!-- Global Standard Numerals (123) & Calendar Runtime Engine -->
   <script>
     (function() {
@@ -146,7 +171,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800&family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet" />
   
   <!-- System-Wide Luxury Micro-Interactions & Styling -->
-  <link rel="stylesheet" href="./src/index.css?v=352" />
+  <link rel="stylesheet" href="./src/index.css?v=353" />
   
   <!-- Tailwind CSS (Local with CDN Fallback) -->
   <script src="./tailwindcss.js"></script>
@@ -233,6 +258,9 @@
   <!-- Recharts CDN -->
   <script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
   <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
+
+  <!-- OpenCV.js WebAssembly Metrology (Async with Pure JS Fallback) -->
+  <script async src="https://docs.opencv.org/4.8.0/opencv.js" type="text/javascript"></script>
 
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800&family=Tajawal:wght@400;500;700&display=swap');
@@ -429,11 +457,11 @@
       scrollbar-color: rgba(148, 163, 184, 0.25) transparent;
     }
     @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(4px); }
-      to { opacity: 1; transform: translateY(0); }
+      from { opacity: 0; }
+      to { opacity: 1; }
     }
     .animate-fadeIn {
-      animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     }
     *:focus-visible {
       outline: 2px solid #B0005A;
@@ -616,7 +644,7 @@
   </script>
 
   <!-- 1. Config & Services -->
-  <script src="./src/services/brandService.js?v=194"></script>
+  <script src="./src/services/brandService.js?v=550"></script>
   <script src="./src/services/currency/currencyRates.js?v=194"></script>
   <script src="./src/services/currency/currencyConverter.js?v=194"></script>
   <script src="./src/services/currencyService.js?v=194"></script>
@@ -624,11 +652,11 @@
 
   <!-- Accounting Core Services -->
   <script src="./src/services/accounting/accountFinder.js?v=386"></script>
-  <script src="./src/services/accounting/journalRules.js?v=194"></script>
-  <script src="./src/services/accounting/voucherGenerators.js?v=194"></script>
-  <script src="./src/services/accounting/operationalJournals.js?v=194"></script>
-  <script src="./src/services/accounting/journalGenerators.js?v=194"></script>
-  <script src="./src/services/accounting/ledgerEngine.js?v=386"></script>
+  <script src="./src/services/accounting/journalRules.js?v=605"></script>
+  <script src="./src/services/accounting/voucherGenerators.js?v=605"></script>
+  <script src="./src/services/accounting/operationalJournals.js?v=605"></script>
+  <script src="./src/services/accounting/journalGenerators.js?v=605"></script>
+  <script src="./src/services/accounting/ledgerEngine.js?v=387"></script>
   <script src="./src/services/accounting/trialBalance.js?v=386"></script>
   <script src="./src/services/accounting/financialStatements.js?v=194"></script>
   <script src="./src/services/accountingEngine.js?v=386"></script>
@@ -644,30 +672,32 @@
   <script type="text/babel" src="./src/config/useCurrency.js?v=194"></script>
 
   <!-- API Network Services -->
-  <script src="./src/services/api/apiCore.js?v=194"></script>
+  <script src="./src/services/api/apiCore.js?v=501"></script>
   <script src="./src/services/api/dataLoader.js?v=381"></script>
   <script src="./src/services/api/authApi.js?v=194"></script>
   <script src="./src/services/api/customersApi.js?v=219"></script>
   <script src="./src/services/api/ordersApi.js?v=194"></script>
   <script src="./src/services/api/inventoryApi.js?v=194"></script>
-  <script src="./src/services/api/atelierApi.js?v=194"></script>
+  <script src="./src/services/api/atelierApi.js?v=502"></script>
   <script src="./src/services/api/accountingApi.js?v=195"></script>
   <script src="./src/services/api/marketingApi.js?v=194"></script>
   <script src="./src/services/api/systemApi.js?v=215"></script>
+  <script src="./src/services/api/measurementApi.js?v=520"></script>
+  <script src="./src/services/api/jobRolesApi.js?v=435"></script>
   <script src="./src/services/api.js?v=194"></script>
-  <script src="./src/supabaseClient.js?v=386"></script>
+  <script src="./src/supabaseClient.js?v=550"></script>
 
   <!-- 2. UI Components -->
   <script type="text/babel" src="./src/components/icons/NavIcons.jsx?v=193"></script>
   <script type="text/babel" src="./src/components/icons/UiIcons.jsx?v=294"></script>
   <script type="text/babel" src="./src/components/Icons.jsx?v=294"></script>
-  <script src="./src/config/navigationTabs.js?v=234"></script>
+  <script src="./src/config/navigationTabs.js?v=460"></script>
   <script type="text/babel" src="./src/components/Toast.jsx?v=193"></script>
-  <script type="text/babel" src="./src/components/LoginModal.jsx?v=193"></script>
+  <script type="text/babel" src="./src/components/LoginModal.jsx?v=194"></script>
   <script type="text/babel" src="./src/components/users/UserFormModal.jsx?v=193"></script>
   <script type="text/babel" src="./src/components/users/UserPermissionsTable.jsx?v=193"></script>
-  <script type="text/babel" src="./src/components/UsersModal.jsx?v=193"></script>
-  <script type="text/babel" src="./src/components/Sidebar.jsx?v=405"></script>
+  <script type="text/babel" src="./src/components/UsersModal.jsx?v=194"></script>
+  <script type="text/babel" src="./src/components/Sidebar.jsx?v=460"></script>
   <script src="./src/components/header/headerUtils.js?v=193"></script>
   <script type="text/babel" src="./src/components/header/BrandHeader.jsx?v=193"></script>
   <script type="text/babel" src="./src/components/header/HeaderNotificationCenter.jsx?v=193"></script>
@@ -678,14 +708,14 @@
   <script type="text/babel" src="./src/components/print/ThermalReceiptTemplate.jsx?v=232"></script>
   <script type="text/babel" src="./src/components/print/JobTicketTemplate.jsx?v=232"></script>
   <script type="text/babel" src="./src/components/print/MeasurementInvoiceTemplate.jsx?v=193"></script>
-  <script type="text/babel" src="./src/components/PrintModal.jsx?v=232"></script>
-  <script type="text/babel" src="./src/components/app/AppRouter.jsx?v=432"></script>
+  <script type="text/babel" src="./src/components/PrintModal.jsx?v=233"></script>
+  <script type="text/babel" src="./src/components/app/AppRouter.jsx?v=460"></script>
   <script type="text/babel" src="./src/components/app/AppModals.jsx?v=193"></script>
-  <script type="text/babel" src="./src/components/app/useAppData.js?v=432"></script>
+  <script type="text/babel" src="./src/components/app/useAppData.js?v=433"></script>
   <script type="text/babel" src="./src/components/app/ErrorBoundary.jsx?v=193"></script>
-  <script type="text/babel" src="./src/components/layout/AppSidebar.jsx?v=405"></script>
+  <script type="text/babel" src="./src/components/layout/AppSidebar.jsx?v=460"></script>
   <script type="text/babel" src="./src/components/layout/AppTopbar.jsx?v=265"></script>
-  <script type="text/babel" src="./src/components/AppLayout.jsx?v=285"></script>
+  <script type="text/babel" src="./src/components/AppLayout.jsx?v=466"></script>
   <script type="text/babel" src="./src/components/MainLayout.jsx?v=237"></script>
 
   <!-- Dashboard Modular Architecture -->
@@ -698,10 +728,10 @@
   <script type="text/babel" src="./src/features/dashboard/components/ExecutiveKpiGrid.jsx?v=244"></script>
   <script type="text/babel" src="./src/features/dashboard/components/UpcomingDeliveriesCard.jsx?v=245"></script>
   <script type="text/babel" src="./src/features/dashboard/components/DashboardCharts.jsx?v=245"></script>
-  <script type="text/babel" src="./src/features/Dashboard.jsx?v=244"></script>
+  <script type="text/babel" src="./src/features/Dashboard.jsx?v=605"></script>
   <!-- Customers Modular Architecture -->
   <script type="text/babel" src="./src/features/orders/hooks/useOrderPricing.js?v=227"></script>
-  <script type="text/babel" src="./src/utils/measurementConverter.js?v=223"></script>
+  <script type="text/babel" src="./src/utils/measurementConverter.js?v=520"></script>
   <script type="text/babel" src="./src/features/customers/utils/customerUtils.js?v=397"></script>
   <script type="text/babel" src="./src/features/customers/hooks/useCustomersData.js?v=283"></script>
   <script type="text/babel" src="./src/features/customers/hooks/useCustomerActions.js?v=259"></script>
@@ -711,37 +741,37 @@
   <script type="text/babel" src="./src/features/customers/components/CustomerTable.jsx?v=430"></script>
   <script type="text/babel" src="./src/features/customers/components/CustomerList.jsx?v=254"></script>
   <script type="text/babel" src="./src/features/customers/components/UnifiedCustomerModalLayout.jsx?v=281"></script>
-  <script type="text/babel" src="./src/features/customers/components/CustomerModal.jsx?v=397"></script>
+  <script type="text/babel" src="./src/features/customers/components/CustomerModal.jsx?v=501"></script>
   <script type="text/babel" src="./src/features/customers/components/CustomerBasicInfoModal.jsx?v=254"></script>
   <script type="text/babel" src="./src/features/customers/components/CustomerMeasurementsForm.jsx?v=405"></script>
   <script type="text/babel" src="./src/features/customers/components/CustomerMeasurementsModal.jsx?v=410"></script>
-  <script type="text/babel" src="./src/features/customers/components/CustomerFinancialLedgerBar.jsx?v=395"></script>
+  <script type="text/babel" src="./src/features/customers/components/CustomerFinancialLedgerBar.jsx?v=436"></script>
   <script type="text/babel" src="./src/features/customers/components/CustomerHistoryOrdersTable.jsx?v=397"></script>
   <script type="text/babel" src="./src/features/customers/components/CustomerHistoryModal.jsx?v=411"></script>
   <script type="text/babel" src="./src/features/customers/components/BespokeFinancialModal.jsx?v=254"></script>
   <script type="text/babel" src="./src/features/customers/components/CustomerDeleteConfirmModal.jsx?v=254"></script>
   <script type="text/babel" src="./src/features/Customers.jsx?v=430"></script>
   <!-- Products Modular Architecture -->
-  <script type="text/babel" src="./src/features/products/utils/productUtils.js?v=432"></script>
-  <script type="text/babel" src="./src/features/products/hooks/useProductsData.js?v=432"></script>
-  <script type="text/babel" src="./src/features/products/hooks/useProductActions.js?v=432"></script>
+  <script type="text/babel" src="./src/features/products/utils/productUtils.js?v=503"></script>
+  <script type="text/babel" src="./src/features/products/hooks/useProductsData.js?v=510"></script>
+  <script type="text/babel" src="./src/features/products/hooks/useProductActions.js?v=503"></script>
   <script type="text/babel" src="./src/features/products/components/ProductImageUploader.jsx?v=432"></script>
   <script type="text/babel" src="./src/features/products/components/ProductQrModal.jsx?v=432"></script>
-  <script type="text/babel" src="./src/features/products/components/ProductBasicInfoForm.jsx?v=432"></script>
+  <script type="text/babel" src="./src/features/products/components/ProductBasicInfoForm.jsx?v=510"></script>
   <script type="text/babel" src="./src/features/products/components/ProductBomMatrix.jsx?v=432"></script>
-  <script type="text/babel" src="./src/features/products/components/ProductCostingMatrix.jsx?v=432"></script>
+  <script type="text/babel" src="./src/features/products/components/ProductCostingMatrix.jsx?v=520"></script>
   <script type="text/babel" src="./src/features/products/components/ProductPricingMatrix.jsx?v=432"></script>
   <script type="text/babel" src="./src/features/products/components/BOMFooter.jsx?v=432"></script>
-  <script type="text/babel" src="./src/features/products/components/ProductModal.jsx?v=432"></script>
+  <script type="text/babel" src="./src/features/products/components/ProductModal.jsx?v=503"></script>
   <script type="text/babel" src="./src/features/products/components/ProductsHeader.jsx?v=433"></script>
   <script type="text/babel" src="./src/features/products/components/ProductsFilterBar.jsx?v=433"></script>
   <script type="text/babel" src="./src/features/products/components/ProductCard.jsx?v=433"></script>
   <script type="text/babel" src="./src/features/products/components/ProductsTable.jsx?v=433"></script>
-  <script type="text/babel" src="./src/features/Products.jsx?v=433"></script>
+  <script type="text/babel" src="./src/features/Products.jsx?v=503"></script>
   <!-- Orders Modular Architecture -->
   <script type="text/babel" src="./src/features/orders/utils/orderUtils.js?v=256"></script>
   <script type="text/babel" src="./src/features/orders/hooks/useOrdersData.js?v=256"></script>
-  <script type="text/babel" src="./src/features/orders/hooks/useOrderActions.js?v=410"></script>
+  <script type="text/babel" src="./src/features/orders/hooks/useOrderActions.js?v=411"></script>
   <script type="text/babel" src="./src/features/orders/components/POSHeader.jsx?v=283"></script>
   <script type="text/babel" src="./src/features/orders/components/OrdersHeader.jsx?v=256"></script>
   <script type="text/babel" src="./src/features/orders/components/OrdersFilterBar.jsx?v=256"></script>
@@ -749,10 +779,10 @@
   <script type="text/babel" src="./src/features/orders/components/OrderCard.jsx?v=256"></script>
   <script type="text/babel" src="./src/features/orders/components/OrderDetailModal.jsx?v=256"></script>
   <script type="text/babel" src="./src/features/orders/components/OrderFormModal.jsx?v=410"></script>
-  <script type="text/babel" src="./src/features/orders/components/POSCatalog.jsx?v=283"></script>
+  <script type="text/babel" src="./src/features/orders/components/POSCatalog.jsx?v=510"></script>
   <script type="text/babel" src="./src/features/orders/components/POSCartPayment.jsx?v=283"></script>
   <script type="text/babel" src="./src/features/orders/components/POSCart.jsx?v=283"></script>
-  <script type="text/babel" src="./src/features/orders/components/POS.jsx?v=283"></script>
+  <script type="text/babel" src="./src/features/orders/components/POS.jsx?v=510"></script>
   <script type="text/babel" src="./src/features/orders/components/OrdersPosStudio.jsx?v=283"></script>
   <script type="text/babel" src="./src/features/orders/components/OrderDeliveryModal.jsx?v=393"></script>
   <script type="text/babel" src="./src/features/orders/components/OrderScanDeliverModal.jsx?v=256"></script>
@@ -760,14 +790,14 @@
   <script type="text/babel" src="./src/features/orders/components/OrderCustomerMessageModal.jsx?v=276"></script>
   <script type="text/babel" src="./src/features/orders/components/OrderQuoteModal.jsx?v=256"></script>
   <script type="text/babel" src="./src/features/orders/components/OrderVoucherModal.jsx?v=256"></script>
-  <script type="text/babel" src="./src/features/Orders.jsx?v=415"></script>
+  <script type="text/babel" src="./src/features/Orders.jsx?v=416"></script>
   <!-- Inventory Modular Architecture -->
-  <script type="text/babel" src="./src/features/inventory/utils/inventoryUtils.js?v=210"></script>
-  <script type="text/babel" src="./src/features/inventory/hooks/useInventoryData.js?v=210"></script>
-  <script type="text/babel" src="./src/features/inventory/hooks/useInventoryActions.js?v=210"></script>
+  <script type="text/babel" src="./src/features/inventory/utils/inventoryUtils.js?v=225"></script>
+  <script type="text/babel" src="./src/features/inventory/hooks/useInventoryData.js?v=225"></script>
+  <script type="text/babel" src="./src/features/inventory/hooks/useInventoryActions.js?v=225"></script>
   <script type="text/babel" src="./src/features/inventory/components/InventoryHeader.jsx?v=220"></script>
   <script type="text/babel" src="./src/features/inventory/components/InventoryFilterBar.jsx?v=220"></script>
-  <script type="text/babel" src="./src/features/inventory/components/InventoryTable.jsx?v=220"></script>
+  <script type="text/babel" src="./src/features/inventory/components/InventoryTable.jsx?v=225"></script>
   <script type="text/babel" src="./src/features/inventory/components/InventoryPurchasesTable.jsx?v=210"></script>
   <script type="text/babel" src="./src/features/inventory/components/InventoryMovementsTable.jsx?v=210"></script>
   <script type="text/babel" src="./src/features/inventory/components/InventoryAddItemModal.jsx?v=210"></script>
@@ -776,47 +806,47 @@
   <script type="text/babel" src="./src/features/inventory/components/ItemMovementModal.jsx?v=210"></script>
   <script type="text/babel" src="./src/features/inventory/components/WarehouseAddModal.jsx?v=210"></script>
   <script type="text/babel" src="./src/features/inventory/components/WarehouseManageModal.jsx?v=210"></script>
-  <script type="text/babel" src="./src/features/Inventory.jsx?v=220"></script>
+  <script type="text/babel" src="./src/features/Inventory.jsx?v=225"></script>
   <!-- Purchases Modular Architecture -->
   <script type="text/babel" src="./src/features/purchases/hooks/usePurchasesData.js?v=219"></script>
-  <script type="text/babel" src="./src/features/purchases/hooks/usePurchaseActions.js?v=219"></script>
+  <script type="text/babel" src="./src/features/purchases/hooks/usePurchaseActions.js?v=230"></script>
   <script type="text/babel" src="./src/features/purchases/components/PurchasesHeader.jsx?v=221"></script>
   <script type="text/babel" src="./src/features/purchases/components/SupplierQuickAddModal.jsx?v=219"></script>
   <script type="text/babel" src="./src/features/purchases/components/PurchaseSupplierSelect.jsx?v=219"></script>
-  <script type="text/babel" src="./src/features/purchases/components/PurchaseHeaderForm.jsx?v=219"></script>
-  <script type="text/babel" src="./src/features/purchases/components/PurchaseItemsTable.jsx?v=219"></script>
-  <script type="text/babel" src="./src/features/purchases/components/PurchaseInvoiceModal.jsx?v=219"></script>
-  <script type="text/babel" src="./src/features/purchases/components/PurchaseModal.jsx?v=219"></script>
+  <script type="text/babel" src="./src/features/purchases/components/PurchaseHeaderForm.jsx?v=225"></script>
+  <script type="text/babel" src="./src/features/purchases/components/PurchaseItemsTable.jsx?v=230"></script>
+  <script type="text/babel" src="./src/features/purchases/components/PurchaseInvoiceModal.jsx?v=230"></script>
+  <script type="text/babel" src="./src/features/purchases/components/PurchaseModal.jsx?v=230"></script>
   <script type="text/babel" src="./src/features/purchases/components/PurchasesFilterBar.jsx?v=221"></script>
   <script type="text/babel" src="./src/features/purchases/components/PurchasesTable.jsx?v=221"></script>
-  <script type="text/babel" src="./src/features/Purchases.jsx?v=221"></script>
+  <script type="text/babel" src="./src/features/Purchases.jsx?v=230"></script>
   <!-- Accounts Modular Architecture -->
   <script type="text/babel" src="./src/features/accounts/hooks/accountHelpers.js?v=387"></script>
   <script type="text/babel" src="./src/features/accounts/hooks/useAccountsData.js?v=420"></script>
   <script type="text/babel" src="./src/features/accounts/hooks/useAccountActions.js?v=387"></script>
-  <script type="text/babel" src="./src/features/accounts/components/AccountsHeader.jsx?v=426"></script>
+  <script type="text/babel" src="./src/features/accounts/components/AccountsHeader.jsx?v=427"></script>
   <script type="text/babel" src="./src/features/accounts/components/AccountsFilterBar.jsx?v=420"></script>
-  <script type="text/babel" src="./src/features/accounts/components/AccountsTreeView.jsx?v=426"></script>
-  <script type="text/babel" src="./src/features/accounts/components/AccountsTable.jsx?v=426"></script>
+  <script type="text/babel" src="./src/features/accounts/components/AccountsTreeView.jsx?v=427"></script>
+  <script type="text/babel" src="./src/features/accounts/components/AccountsTable.jsx?v=427"></script>
   <script type="text/babel" src="./src/features/accounts/components/AccountModal.jsx?v=387"></script>
   <script type="text/babel" src="./src/features/accounts/components/AccountStatementModal.jsx?v=387"></script>
-  <script type="text/babel" src="./src/features/Accounts.jsx?v=425"></script>
-  <script type="text/babel" src="./src/features/factory/hooks/useWageMatrix.js?v=405"></script>
+  <script type="text/babel" src="./src/features/Accounts.jsx?v=427"></script>
+  <script type="text/babel" src="./src/features/factory/hooks/useWageMatrix.js?v=520"></script>
   <script type="text/babel" src="./src/features/factory/utils/smartSizingMatcher.js?v=220"></script>
   <script type="text/babel" src="./src/features/factory/utils/factorySizeChart.js?v=214"></script>
   <script type="text/babel" src="./src/features/factory/utils/factoryWhatsAppUtils.js?v=214"></script>
-  <script type="text/babel" src="./src/features/factory/utils/factoryUtils.js?v=431"></script>
+  <script type="text/babel" src="./src/features/factory/utils/factoryUtils.js?v=436"></script>
   <script type="text/babel" src="./src/features/factory/services/factoryService.js?v=346"></script>
   <script type="text/babel" src="./src/features/factory/hooks/useFactoryData.js?v=431"></script>
-  <script type="text/babel" src="./src/features/factory/hooks/useFactoryOrderActions.js?v=409"></script>
+  <script type="text/babel" src="./src/features/factory/hooks/useFactoryOrderActions.js?v=520"></script>
   <script type="text/babel" src="./src/features/factory/hooks/useFactoryDeliveryActions.js?v=227"></script>
   <script type="text/babel" src="./src/features/factory/hooks/useFactoryActions.js?v=216"></script>
   <script type="text/babel" src="./src/features/factory/components/ModelImageModal.jsx?v=216"></script>
   <script type="text/babel" src="./src/features/factory/components/JobTicketPrintModal.jsx?v=216"></script>
-  <script type="text/babel" src="./src/features/factory/components/StageWagesMatrix.jsx?v=430"></script>
-  <script type="text/babel" src="./src/features/factory/components/FabricDeductionCard.jsx?v=430"></script>
-  <script type="text/babel" src="./src/features/factory/components/JobOrderFormFields.jsx?v=430"></script>
-  <script type="text/babel" src="./src/features/factory/components/WorkerAssignModal.jsx?v=434"></script>
+  <script type="text/babel" src="./src/features/factory/components/StageWagesMatrix.jsx?v=520"></script>
+  <script type="text/babel" src="./src/features/factory/components/FabricDeductionCard.jsx?v=520"></script>
+  <script type="text/babel" src="./src/features/factory/components/JobOrderFormFields.jsx?v=520"></script>
+  <script type="text/babel" src="./src/features/factory/components/WorkerAssignModal.jsx?v=435"></script>
   <script type="text/babel" src="./src/features/factory/components/ProductionCard.jsx?v=434"></script>
   <script type="text/babel" src="./src/features/factory/components/FactoryFilterBar.jsx?v=434"></script>
   <script type="text/babel" src="./src/features/factory/components/ProductionBoard.jsx?v=434"></script>
@@ -828,23 +858,49 @@
   <script type="text/babel" src="./src/features/factory/components/QualityCheckModal.jsx?v=360"></script>
   <script type="text/babel" src="./src/features/factory/components/ScanProgressModal.jsx?v=395"></script>
   <script type="text/babel" src="./src/features/factory/components/FactoryHeader.jsx?v=434"></script>
-  <script type="text/babel" src="./src/features/Factory.jsx?v=434"></script>
+  <script type="text/babel" src="./src/features/Factory.jsx?v=435"></script>
+  <!-- Real Measurement Studio v4.0 Metrology Architecture -->
+  <script type="text/babel" src="./src/features/measurement/utils/cameraCalibrationEngine.js?v=560"></script>
+  <script type="text/babel" src="./src/features/measurement/utils/depthCompensationModule.js?v=560"></script>
+  <script type="text/babel" src="./src/features/measurement/utils/imageQualityEngine.js?v=560"></script>
+  <script type="text/babel" src="./src/features/measurement/utils/geometryMeasurementEngine.js?v=560"></script>
+  <script type="text/babel" src="./src/features/measurement/utils/measurementValidationEngine.js?v=570"></script>
+  <script type="text/babel" src="./src/features/measurement/utils/realWorldMeasurementEngine.js?v=570"></script>
+  <script type="text/babel" src="./src/features/measurement/utils/measurementConfigManager.js?v=560"></script>
+  <script type="text/babel" src="./src/features/measurement/utils/homographyMath.js?v=560"></script>
+  <script type="text/babel" src="./src/features/measurement/utils/subpixelCornerRefiner.js?v=560"></script>
+  <script type="text/babel" src="./src/features/measurement/utils/centerlineSnap.js?v=560"></script>
+  <script type="text/babel" src="./src/features/measurement/utils/demoDressGenerator.js?v=560"></script>
+  <script type="text/babel" src="./src/features/measurement/utils/measurementCvDetector.js?v=600"></script>
+  <script type="text/babel" src="./src/features/measurement/utils/garmentLandmarkDetector.js?v=600"></script>
+  <script type="text/babel" src="./src/features/measurement/utils/cadGridView.js?v=560"></script>
+  <script type="text/babel" src="./src/features/measurement/utils/canvasDrawing.js?v=560"></script>
+  <script type="text/babel" src="./src/features/measurement/hooks/useStudioImage.js?v=600"></script>
+  <script type="text/babel" src="./src/features/measurement/hooks/useStudioState.js?v=600"></script>
+  <script type="text/babel" src="./src/features/measurement/hooks/useStudioSync.js?v=560"></script>
+  <script type="text/babel" src="./src/features/measurement/components/StudioHeader.jsx?v=570"></script>
+  <script type="text/babel" src="./src/features/measurement/components/StudioSvgOverlay.jsx?v=600"></script>
+  <script type="text/babel" src="./src/features/measurement/components/StudioCanvas.jsx?v=600"></script>
+  <script type="text/babel" src="./src/features/measurement/components/CalibrationSidebar.jsx?v=600"></script>
+  <script type="text/babel" src="./src/features/measurement/components/MeasurementsSidebar.jsx?v=570"></script>
+  <script type="text/babel" src="./src/features/measurement/components/StudioModals.jsx?v=560"></script>
+  <script type="text/babel" src="./src/features/measurement/MeasurementStudio.jsx?v=600"></script>
   <!-- Vouchers Modular Architecture -->
-  <script type="text/babel" src="./src/features/vouchers/hooks/useVouchersData.js?v=256"></script>
-  <script type="text/babel" src="./src/features/vouchers/hooks/useVoucherOperations.js?v=256"></script>
+  <script type="text/babel" src="./src/features/vouchers/hooks/useVouchersData.js?v=258"></script>
+  <script type="text/babel" src="./src/features/vouchers/hooks/useVoucherOperations.js?v=257"></script>
   <script type="text/babel" src="./src/features/vouchers/components/VouchersHeader.jsx?v=435"></script>
   <script type="text/babel" src="./src/features/vouchers/components/VouchersFilterBar.jsx?v=435"></script>
-  <script type="text/babel" src="./src/features/vouchers/components/VouchersTable.jsx?v=437"></script>
-  <script type="text/babel" src="./src/features/vouchers/components/VoucherViewModal.jsx?v=256"></script>
-  <script type="text/babel" src="./src/features/vouchers/components/VoucherReversalModal.jsx?v=256"></script>
-  <script type="text/babel" src="./src/features/vouchers/components/ReceiptVoucherModal.jsx?v=256"></script>
-  <script type="text/babel" src="./src/features/vouchers/components/PaymentVoucherModal.jsx?v=256"></script>
-  <script type="text/babel" src="./src/features/vouchers/components/JournalVoucherModal.jsx?v=256"></script>
-  <script type="text/babel" src="./src/features/Vouchers.jsx?v=433"></script>
+  <script type="text/babel" src="./src/features/vouchers/components/VouchersTable.jsx?v=501"></script>
+  <script type="text/babel" src="./src/features/vouchers/components/VoucherViewModal.jsx?v=257"></script>
+  <script type="text/babel" src="./src/features/vouchers/components/VoucherReversalModal.jsx?v=257"></script>
+  <script type="text/babel" src="./src/features/vouchers/components/ReceiptVoucherModal.jsx?v=501"></script>
+  <script type="text/babel" src="./src/features/vouchers/components/PaymentVoucherModal.jsx?v=501"></script>
+  <script type="text/babel" src="./src/features/vouchers/components/JournalVoucherModal.jsx?v=501"></script>
+  <script type="text/babel" src="./src/features/Vouchers.jsx?v=605"></script>
   <!-- Expenses Modular Architecture -->
   <script type="text/babel" src="./src/features/expenses/utils/expenseAccountUtils.js?v=300"></script>
-  <script type="text/babel" src="./src/features/expenses/hooks/useExpensesData.js?v=300"></script>
-  <script type="text/babel" src="./src/features/expenses/hooks/useExpenseActions.js?v=300"></script>
+  <script type="text/babel" src="./src/features/expenses/hooks/useExpensesData.js?v=550"></script>
+  <script type="text/babel" src="./src/features/expenses/hooks/useExpenseActions.js?v=550"></script>
   <script type="text/babel" src="./src/features/expenses/components/ExpensesHeader.jsx?v=300"></script>
   <script type="text/babel" src="./src/features/expenses/components/ExpensesFilterBar.jsx?v=300"></script>
   <script type="text/babel" src="./src/features/expenses/components/ExpensesTable.jsx?v=300"></script>
@@ -857,7 +913,7 @@
   <!-- Journal Modular Architecture v2.0 -->
   <script type="text/babel" src="./src/features/journal/utils/journalUtils.js?v=193"></script>
   <script type="text/babel" src="./src/features/journal/hooks/useJournalData.js?v=392"></script>
-  <script type="text/babel" src="./src/features/journal/hooks/useJournalActions.js?v=193"></script>
+  <script type="text/babel" src="./src/features/journal/hooks/useJournalActions.js?v=194"></script>
   <script type="text/babel" src="./src/features/journal/components/JournalHeader.jsx?v=193"></script>
   <script type="text/babel" src="./src/features/journal/components/JournalEntriesTab.jsx?v=193"></script>
   <script type="text/babel" src="./src/features/journal/components/JournalLedgerTab.jsx?v=393"></script>
@@ -867,41 +923,42 @@
   <script type="text/babel" src="./src/features/Journal.jsx?v=388"></script>
   <!-- Reports & Analytics Modular Architecture -->
   <script type="text/babel" src="./src/features/reports/utils/reportUtils.js?v=395"></script>
-  <script type="text/babel" src="./src/features/reports/hooks/useReportsData.js?v=395"></script>
+  <script type="text/babel" src="./src/features/reports/hooks/useReportsData.js?v=605"></script>
   <script type="text/babel" src="./src/features/reports/hooks/useReportExport.js?v=395"></script>
   <script type="text/babel" src="./src/features/reports/components/ReportsPrintHeader.jsx?v=395"></script>
-  <script type="text/babel" src="./src/features/reports/components/ReportsHeader.jsx?v=395"></script>
-  <script type="text/babel" src="./src/features/reports/components/ReportsFilterBar.jsx?v=395"></script>
-  <script type="text/babel" src="./src/features/reports/components/FinancialBalanceSheetView.jsx?v=395"></script>
-  <script type="text/babel" src="./src/features/reports/components/FinancialStatementsView.jsx?v=395"></script>
-  <script type="text/babel" src="./src/features/reports/components/FinancialReportView.jsx?v=395"></script>
-  <script type="text/babel" src="./src/features/reports/components/OrdersReportView.jsx?v=395"></script>
-  <script type="text/babel" src="./src/features/reports/components/ProductionReportView.jsx?v=395"></script>
-  <script type="text/babel" src="./src/features/reports/components/InventoryReportView.jsx?v=395"></script>
+  <script type="text/babel" src="./src/features/reports/components/ReportsHeader.jsx?v=396"></script>
+  <script type="text/babel" src="./src/features/reports/components/ReportsFilterBar.jsx?v=396"></script>
+  <script type="text/babel" src="./src/features/reports/components/FinancialBalanceSheetView.jsx?v=396"></script>
+  <script type="text/babel" src="./src/features/reports/components/FinancialStatementsView.jsx?v=396"></script>
+  <script type="text/babel" src="./src/features/reports/components/FinancialReportView.jsx?v=396"></script>
+  <script type="text/babel" src="./src/features/reports/components/OrdersReportView.jsx?v=396"></script>
+  <script type="text/babel" src="./src/features/reports/components/ProductionReportView.jsx?v=605"></script>
+  <script type="text/babel" src="./src/features/reports/components/InventoryReportView.jsx?v=605"></script>
   <script type="text/babel" src="./src/features/reports/components/ReportsAuditFooter.jsx?v=395"></script>
-  <script type="text/babel" src="./src/features/Reports.jsx?v=395"></script>
+  <script type="text/babel" src="./src/features/Reports.jsx?v=605"></script>
   <!-- Marketing Modular Architecture v2.0 -->
   <script type="text/babel" src="./src/features/marketing/hooks/useMarketingData.js?v=190"></script>
   <script type="text/babel" src="./src/features/marketing/hooks/useMarketingActions.js?v=190"></script>
-  <script type="text/babel" src="./src/features/marketing/components/MarketingCommandCenter.jsx?v=190"></script>
-  <script type="text/babel" src="./src/features/marketing/components/MarketingCustomerIntel.jsx?v=190"></script>
-  <script type="text/babel" src="./src/features/marketing/components/MarketingCampaignForm.jsx?v=190"></script>
-  <script type="text/babel" src="./src/features/marketing/components/MarketingPlatforms.jsx?v=190"></script>
-  <script type="text/babel" src="./src/features/marketing/components/MarketingDailyBrief.jsx?v=190"></script>
-  <script type="text/babel" src="./src/features/marketing/components/MarketingProductsAI.jsx?v=190"></script>
-  <script type="text/babel" src="./src/features/marketing/components/MarketingNLPIntent.jsx?v=190"></script>
-  <script type="text/babel" src="./src/features/marketing/components/MarketingRecsWeights.jsx?v=190"></script>
-  <script type="text/babel" src="./src/features/marketing/components/MarketingAIChat.jsx?v=190"></script>
-  <script type="text/babel" src="./src/features/marketing/components/MarketingModals.jsx?v=190"></script>
-  <script type="text/babel" src="./src/features/Marketing.jsx?v=316"></script>
+  <script type="text/babel" src="./src/features/marketing/components/MarketingCommandCenter.jsx?v=396"></script>
+  <script type="text/babel" src="./src/features/marketing/components/MarketingCustomerIntel.jsx?v=396"></script>
+  <script type="text/babel" src="./src/features/marketing/components/MarketingCampaignForm.jsx?v=396"></script>
+  <script type="text/babel" src="./src/features/marketing/components/MarketingPlatforms.jsx?v=396"></script>
+  <script type="text/babel" src="./src/features/marketing/components/MarketingDailyBrief.jsx?v=396"></script>
+  <script type="text/babel" src="./src/features/marketing/components/MarketingProductsAI.jsx?v=396"></script>
+  <script type="text/babel" src="./src/features/marketing/components/MarketingNLPIntent.jsx?v=396"></script>
+  <script type="text/babel" src="./src/features/marketing/components/MarketingRecsWeights.jsx?v=396"></script>
+  <script type="text/babel" src="./src/features/marketing/components/MarketingAIChat.jsx?v=396"></script>
+  <script type="text/babel" src="./src/features/marketing/components/MarketingModals.jsx?v=396"></script>
+  <script type="text/babel" src="./src/features/Marketing.jsx?v=396"></script>
   <!-- HR & Payroll Modular Architecture -->
   <script type="text/babel" src="./src/features/hr/hooks/useTailorPieceLogs.js?v=292"></script>
   <script type="text/babel" src="./src/features/hr/hooks/useHRData.js?v=316"></script>
-  <script type="text/babel" src="./src/features/hr/hooks/useHRActions.js?v=316"></script>
+  <script type="text/babel" src="./src/features/hr/hooks/useHRActions.js?v=605"></script>
   <script type="text/babel" src="./src/features/hr/components/HRHeader.jsx?v=301"></script>
-  <script type="text/babel" src="./src/features/hr/components/HRFilterBar.jsx?v=312"></script>
-  <script type="text/babel" src="./src/features/hr/components/EmployeeTable.jsx?v=312"></script>
-  <script type="text/babel" src="./src/features/hr/components/EmployeeModal.jsx?v=305"></script>
+  <script type="text/babel" src="./src/features/hr/components/HRFilterBar.jsx?v=435"></script>
+  <script type="text/babel" src="./src/features/hr/components/EmployeeTable.jsx?v=435"></script>
+  <script type="text/babel" src="./src/features/hr/components/AddRoleModal.jsx?v=435"></script>
+  <script type="text/babel" src="./src/features/hr/components/EmployeeModal.jsx?v=435"></script>
   <script type="text/babel" src="./src/features/hr/components/PayrollFilterBar.jsx?v=292"></script>
   <script type="text/babel" src="./src/features/hr/components/PayrollView.jsx?v=310"></script>
   <script type="text/babel" src="./src/features/hr/components/AdvancesModal.jsx?v=393"></script>
@@ -911,58 +968,58 @@
   <script type="text/babel" src="./src/features/hr/components/PiecesModal.jsx?v=292"></script>
   <script type="text/babel" src="./src/features/hr/components/PayoutModal.jsx?v=393"></script>
   <script type="text/babel" src="./src/features/hr/components/PayoutVoucher.jsx?v=306"></script>
-  <script type="text/babel" src="./src/features/HR.jsx?v=316"></script>
+  <script type="text/babel" src="./src/features/HR.jsx?v=435"></script>
 
   <!-- Haute-Couture Garment Quality Station (Odoo Quality / SAP PLM Architecture) -->
-  <script type="text/babel" src="./src/features/quality/utils/qualityConstants.js?v=380"></script>
-  <script type="text/babel" src="./src/features/quality/hooks/useQualityStationData.js?v=412"></script>
-  <script type="text/babel" src="./src/features/quality/hooks/useQualityStationActions.js?v=380"></script>
-  <script type="text/babel" src="./src/features/quality/components/QualityTelemetryCards.jsx?v=380"></script>
-  <script type="text/babel" src="./src/features/quality/components/QualityGateCards.jsx?v=410"></script>
-  <script type="text/babel" src="./src/features/quality/components/QualityLiveQueueTable.jsx?v=411"></script>
-  <script type="text/babel" src="./src/features/quality/components/QualityActionModal.jsx?v=380"></script>
-  <script type="text/babel" src="./src/features/QualityAssurance.jsx?v=410"></script>
+  <script type="text/babel" src="./src/features/quality/utils/qualityConstants.js?v=420"></script>
+  <script type="text/babel" src="./src/features/quality/hooks/useQualityStationData.js?v=420"></script>
+  <script type="text/babel" src="./src/features/quality/hooks/useQualityStationActions.js?v=420"></script>
+  <script type="text/babel" src="./src/features/quality/components/QualityTelemetryCards.jsx?v=420"></script>
+  <script type="text/babel" src="./src/features/quality/components/QualityGateCards.jsx?v=420"></script>
+  <script type="text/babel" src="./src/features/quality/components/QualityLiveQueueTable.jsx?v=420"></script>
+  <script type="text/babel" src="./src/features/quality/components/QualityActionModal.jsx?v=420"></script>
+  <script type="text/babel" src="./src/features/QualityAssurance.jsx?v=420"></script>
 
   <!-- Feedback & Quality Modular Architecture -->
-  <script type="text/babel" src="./src/features/feedback/utils/qualityMetrics.js?v=412"></script>
-  <script type="text/babel" src="./src/features/feedback/utils/qualityProfiles.js?v=350"></script>
-  <script type="text/babel" src="./src/features/feedback/hooks/useFeedbackData.js?v=350"></script>
-  <script type="text/babel" src="./src/features/feedback/hooks/useFeedbackActions.js?v=350"></script>
-  <script type="text/babel" src="./src/features/feedback/components/FeedbackHeader.jsx?v=412"></script>
-  <script type="text/babel" src="./src/features/feedback/components/FeedbackFilterBar.jsx?v=412"></script>
-  <script type="text/babel" src="./src/features/feedback/components/FeedbackStatsView.jsx?v=408"></script>
-  <script type="text/babel" src="./src/features/feedback/components/FeedbackList.jsx?v=350"></script>
-  <script type="text/babel" src="./src/features/feedback/components/FeedbackExecutiveTab.jsx?v=350"></script>
-  <script type="text/babel" src="./src/features/feedback/components/FeedbackProfilesTab.jsx?v=412"></script>
-  <script type="text/babel" src="./src/features/feedback/components/FeedbackTeamTab.jsx?v=412"></script>
-  <script type="text/babel" src="./src/features/feedback/components/FeedbackOperationsViews.jsx?v=412"></script>
-  <script type="text/babel" src="./src/features/feedback/components/FeedbackComplaintsReturnsTab.jsx?v=350"></script>
-  <script type="text/babel" src="./src/features/feedback/components/FeedbackCapaTab.jsx?v=350"></script>
-  <script type="text/babel" src="./src/features/feedback/components/FeedbackStandardsTab.jsx?v=350"></script>
-  <script type="text/babel" src="./src/features/feedback/components/AddFeedbackModal.jsx?v=350"></script>
-  <script type="text/babel" src="./src/features/feedback/components/FeedbackDetailModal.jsx?v=350"></script>
-  <script type="text/babel" src="./src/features/feedback/components/QualityModalsPart1.jsx?v=350"></script>
-  <script type="text/babel" src="./src/features/feedback/components/QualityModalsPart2.jsx?v=350"></script>
-  <script type="text/babel" src="./src/features/feedback/components/QualityModalsPart3.jsx?v=350"></script>
-  <script type="text/babel" src="./src/features/feedback/components/QualityCertificateModal.jsx?v=350"></script>
-  <script type="text/babel" src="./src/features/feedback/components/QualityDrawerAndFormula.jsx?v=350"></script>
-  <script type="text/babel" src="./src/features/feedback/components/FeedbackModalsContainer.jsx?v=350"></script>
-  <script type="text/babel" src="./src/features/Feedback.jsx?v=412"></script>
+  <script type="text/babel" src="./src/features/feedback/utils/qualityMetrics.js?v=420"></script>
+  <script type="text/babel" src="./src/features/feedback/utils/qualityProfiles.js?v=420"></script>
+  <script type="text/babel" src="./src/features/feedback/hooks/useFeedbackData.js?v=420"></script>
+  <script type="text/babel" src="./src/features/feedback/hooks/useFeedbackActions.js?v=420"></script>
+  <script type="text/babel" src="./src/features/feedback/components/FeedbackHeader.jsx?v=420"></script>
+  <script type="text/babel" src="./src/features/feedback/components/FeedbackFilterBar.jsx?v=420"></script>
+  <script type="text/babel" src="./src/features/feedback/components/FeedbackStatsView.jsx?v=420"></script>
+  <script type="text/babel" src="./src/features/feedback/components/FeedbackList.jsx?v=420"></script>
+  <script type="text/babel" src="./src/features/feedback/components/FeedbackExecutiveTab.jsx?v=420"></script>
+  <script type="text/babel" src="./src/features/feedback/components/FeedbackProfilesTab.jsx?v=420"></script>
+  <script type="text/babel" src="./src/features/feedback/components/FeedbackTeamTab.jsx?v=420"></script>
+  <script type="text/babel" src="./src/features/feedback/components/FeedbackOperationsViews.jsx?v=420"></script>
+  <script type="text/babel" src="./src/features/feedback/components/FeedbackComplaintsReturnsTab.jsx?v=420"></script>
+  <script type="text/babel" src="./src/features/feedback/components/FeedbackCapaTab.jsx?v=420"></script>
+  <script type="text/babel" src="./src/features/feedback/components/FeedbackStandardsTab.jsx?v=420"></script>
+  <script type="text/babel" src="./src/features/feedback/components/AddFeedbackModal.jsx?v=420"></script>
+  <script type="text/babel" src="./src/features/feedback/components/FeedbackDetailModal.jsx?v=420"></script>
+  <script type="text/babel" src="./src/features/feedback/components/QualityModalsPart1.jsx?v=420"></script>
+  <script type="text/babel" src="./src/features/feedback/components/QualityModalsPart2.jsx?v=420"></script>
+  <script type="text/babel" src="./src/features/feedback/components/QualityModalsPart3.jsx?v=420"></script>
+  <script type="text/babel" src="./src/features/feedback/components/QualityCertificateModal.jsx?v=420"></script>
+  <script type="text/babel" src="./src/features/feedback/components/QualityDrawerAndFormula.jsx?v=420"></script>
+  <script type="text/babel" src="./src/features/feedback/components/FeedbackModalsContainer.jsx?v=420"></script>
+  <script type="text/babel" src="./src/features/Feedback.jsx?v=420"></script>
   <!-- Settings & System Governance Modular Architecture -->
-  <script type="text/babel" src="./src/features/settings/hooks/useSettingsData.js?v=185"></script>
-  <script type="text/babel" src="./src/features/settings/hooks/useSettingsActions.js?v=185"></script>
-  <script type="text/babel" src="./src/features/settings/components/SettingsHeader.jsx?v=185"></script>
-  <script type="text/babel" src="./src/features/settings/components/CompanyProfileTab.jsx?v=185"></script>
-  <script type="text/babel" src="./src/features/settings/components/UsersPermissionsTab.jsx?v=185"></script>
-  <script type="text/babel" src="./src/features/settings/components/CurrenciesSettingsTab.jsx?v=185"></script>
-  <script type="text/babel" src="./src/features/settings/components/PrintTemplatesTab.jsx?v=185"></script>
-  <script type="text/babel" src="./src/features/settings/components/IntegrationsSettingsTab.jsx?v=185"></script>
-  <script type="text/babel" src="./src/features/settings/components/BackupDatabaseTab.jsx?v=185"></script>
-  <script type="text/babel" src="./src/features/settings/components/AuditLogsModal.jsx?v=185"></script>
-  <script type="text/babel" src="./src/features/Settings.jsx?v=185"></script>
+  <script type="text/babel" src="./src/features/settings/hooks/useSettingsData.js?v=425"></script>
+  <script type="text/babel" src="./src/features/settings/hooks/useSettingsActions.js?v=425"></script>
+  <script type="text/babel" src="./src/features/settings/components/SettingsHeader.jsx?v=425"></script>
+  <script type="text/babel" src="./src/features/settings/components/CompanyProfileTab.jsx?v=425"></script>
+  <script type="text/babel" src="./src/features/settings/components/UsersPermissionsTab.jsx?v=425"></script>
+  <script type="text/babel" src="./src/features/settings/components/CurrenciesSettingsTab.jsx?v=425"></script>
+  <script type="text/babel" src="./src/features/settings/components/PrintTemplatesTab.jsx?v=425"></script>
+  <script type="text/babel" src="./src/features/settings/components/IntegrationsSettingsTab.jsx?v=425"></script>
+  <script type="text/babel" src="./src/features/settings/components/BackupDatabaseTab.jsx?v=425"></script>
+  <script type="text/babel" src="./src/features/settings/components/AuditLogsModal.jsx?v=425"></script>
+  <script type="text/babel" src="./src/features/Settings.jsx?v=425"></script>
 
   <!-- 4. Main App Entry Point -->
-  <script type="text/babel" src="./src/App.jsx?v=267"></script>
+  <script type="text/babel" src="./src/App.jsx?v=466"></script>
 </body>
 </html>
 

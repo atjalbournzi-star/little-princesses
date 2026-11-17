@@ -3,6 +3,7 @@ import logging
 import time
 from .db_pool import get_db_cursor, clean_num, clean_str, generate_id
 from .account_resolver import resolve_exchange_rate, resolve_account_id, normalize_currency_code
+from .pg_sequences import get_next_sequence_number
 
 logger = logging.getLogger("LittlePrincesses_PG_Advances")
 
@@ -36,7 +37,7 @@ def add_advance(payload):
                 emp_name = row['name']
 
         if not emp_id:
-            emp_id = generate_id("EMP")
+            emp_id = get_next_sequence_number(cur, 'EMP', fallback_prefix='EMP-')
             cur.execute("""
                 INSERT INTO employees (id, name, role, type, currency, status)
                 VALUES (%s, %s, 'خياط', 'راتب شهري', 'YER', 'نشط')

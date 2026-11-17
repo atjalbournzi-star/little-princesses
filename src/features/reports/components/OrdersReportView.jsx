@@ -2,118 +2,99 @@
 
 function OrdersReportView({ dailySalesData, modelProfitabilityData, reportCurrency, fmtMoney }) {
   return (
-    <div className="space-y-2.5 animate-fadeIn">
+    <div className="space-y-1.5 animate-fadeIn select-none">
       {/* بطاقات المؤشرات المالية لحركة المبيعات والتحصيل */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
-        <div className="bg-[#111C38] p-2.5 rounded-xl border border-slate-800 hover:border-slate-700 hover:shadow-md transition-all duration-200 group">
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-[10.5px] font-medium text-slate-300">إجمالي المبيعات المحققة</span>
-            <span className="w-5.5 h-5.5 rounded-md bg-slate-800/80 text-slate-300 text-xs flex items-center justify-center border border-slate-700/60">🛍️</span>
-          </div>
-          <div className="text-base sm:text-lg font-bold text-white font-mono tabular-nums">
-            {fmtMoney(dailySalesData.totalSales)}
-            <span className="text-[10px] text-slate-400 mr-1">{reportCurrency}</span>
-          </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-1.5 my-0.5 shrink-0">
+        <div className="py-1 px-2.5 rounded-lg bg-white dark:bg-[#111C38] border border-slate-200 dark:border-slate-800 flex items-center justify-between whitespace-nowrap">
+          <span className="text-[11px] font-medium text-slate-600 dark:text-slate-300">إجمالي المبيعات</span>
+          <span className="text-[11px] font-bold text-slate-900 dark:text-white font-mono tracking-tight tabular-nums">
+            {fmtMoney(dailySalesData.totalSales)} <span className="text-[10px] text-slate-400 font-sans">{reportCurrency}</span>
+          </span>
         </div>
 
-        <div className="bg-[#111C38] p-2.5 rounded-xl border border-slate-800 hover:border-slate-700 hover:shadow-md transition-all duration-200 group">
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-[10.5px] font-medium text-slate-300">التحصيل النقدي الفعلي (Cash)</span>
-            <span className="w-5.5 h-5.5 rounded-md bg-slate-800/80 text-slate-300 text-xs flex items-center justify-center border border-slate-700/60">💵</span>
-          </div>
-          <div className="text-base sm:text-lg font-bold text-white font-mono tabular-nums">
-            {fmtMoney(dailySalesData.totalCash)}
-            <span className="text-[10px] text-slate-400 mr-1">{reportCurrency}</span>
-          </div>
-          <div className="flex items-center gap-1.5 mt-1">
-            <span className="text-[9.5px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-950/60 text-emerald-300 border border-emerald-800 font-mono">
-              نسبة التحصيل: {dailySalesData.overallCollectionRate.toFixed(1)}%
+        <div className="py-1 px-2.5 rounded-lg bg-white dark:bg-[#111C38] border border-slate-200 dark:border-slate-800 flex items-center justify-between whitespace-nowrap">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] font-medium text-slate-600 dark:text-slate-300">التحصيل النقدي</span>
+            <span className="text-[9.5px] font-bold px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 font-mono">
+              {dailySalesData.overallCollectionRate.toFixed(1)}%
             </span>
           </div>
+          <span className="text-[11px] font-bold text-slate-900 dark:text-white font-mono tracking-tight tabular-nums">
+            {fmtMoney(dailySalesData.totalCash)} <span className="text-[10px] text-slate-400 font-sans">{reportCurrency}</span>
+          </span>
         </div>
 
-        <div className="bg-[#111C38] p-2.5 rounded-xl border border-slate-800 hover:border-slate-700 hover:shadow-md transition-all duration-200 group">
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-[10.5px] font-medium text-slate-300">الذمم والآجل المتبقي (Credit)</span>
-            <span className="w-5.5 h-5.5 rounded-md bg-slate-800/80 text-slate-300 text-xs flex items-center justify-center border border-slate-700/60">📑</span>
-          </div>
-          <div className="text-base sm:text-lg font-bold text-white font-mono tabular-nums">
-            {fmtMoney(dailySalesData.totalCredit)}
-            <span className="text-[10px] text-slate-400 mr-1">{reportCurrency}</span>
-          </div>
-          <div className="flex items-center gap-1.5 mt-1">
-            <span className="text-[9.5px] font-bold px-1.5 py-0.5 rounded-full bg-amber-950/60 text-amber-300 border border-amber-800 font-mono">
-              نسبة الآجل: {dailySalesData.creditRate.toFixed(1)}%
+        <div className="py-1 px-2.5 rounded-lg bg-white dark:bg-[#111C38] border border-slate-200 dark:border-slate-800 flex items-center justify-between whitespace-nowrap">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] font-medium text-slate-600 dark:text-slate-300">الذمم والآجل</span>
+            <span className="text-[9.5px] font-bold px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-600 dark:text-amber-300 border border-amber-200 dark:border-amber-800 font-mono">
+              {dailySalesData.creditRate.toFixed(1)}%
             </span>
           </div>
+          <span className="text-[11px] font-bold text-slate-900 dark:text-white font-mono tracking-tight tabular-nums">
+            {fmtMoney(dailySalesData.totalCredit)} <span className="text-[10px] text-slate-400 font-sans">{reportCurrency}</span>
+          </span>
         </div>
 
-        <div className="bg-[#111C38] p-2.5 rounded-xl border border-slate-800 hover:border-slate-700 hover:shadow-md transition-all duration-200 group">
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-[10.5px] font-medium text-slate-300">متوسط التحصيل اليومي</span>
-            <span className="w-5.5 h-5.5 rounded-md bg-slate-800/80 text-slate-300 text-xs flex items-center justify-center border border-slate-700/60">📊</span>
-          </div>
-          <div className="text-base sm:text-lg font-bold text-white font-mono tabular-nums">
-            {fmtMoney(dailySalesData.days.length > 0 ? (dailySalesData.totalSales / dailySalesData.days.length) : 0)}
-            <span className="text-[10px] text-slate-400 mr-1">{reportCurrency}</span>
-          </div>
+        <div className="py-1 px-2.5 rounded-lg bg-white dark:bg-[#111C38] border border-slate-200 dark:border-slate-800 flex items-center justify-between whitespace-nowrap">
+          <span className="text-[11px] font-medium text-slate-600 dark:text-slate-300">متوسط التحصيل اليومي</span>
+          <span className="text-[11px] font-bold text-slate-900 dark:text-white font-mono tracking-tight tabular-nums">
+            {fmtMoney(dailySalesData.days.length > 0 ? (dailySalesData.totalSales / dailySalesData.days.length) : 0)} <span className="text-[10px] text-slate-400 font-sans">{reportCurrency}</span>
+          </span>
         </div>
       </div>
 
       {/* جدول حركة المبيعات والتحصيل اليومي */}
-      <div className="bg-[#111C38] rounded-xl border border-slate-800 overflow-hidden shadow-2xs">
-        <div className="px-3 py-2 bg-[#0F172A] border-b border-slate-800 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div>
-            <h3 className="text-xs font-bold text-white flex items-center gap-1.5">
-              <span>📅</span>
-              <span>جدول حركة المبيعات والتحصيل اليومي (Daily Sales & Collections Ledger)</span>
-            </h3>
-            <p className="text-[10px] text-slate-400 mt-0.5">تتبع تدفق المبيعات ونسب التحصيل النقدي والآجل لكل يوم عمل</p>
-          </div>
-          <span className="text-[10px] font-mono font-bold text-pink-300 bg-pink-950/60 px-2 py-0.5 rounded-md border border-pink-700/60 shrink-0">
+      <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111C38]/90 overflow-hidden shadow-xs">
+        <div className="h-7.5 px-3 bg-slate-50 dark:bg-[#0F172A] border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+          <h3 className="text-[11px] font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+            <svg className="w-3.5 h-3.5 text-pink-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+            <span>جدول حركة المبيعات والتحصيل اليومي (Daily Sales & Collections Ledger)</span>
+          </h3>
+          <span className="text-[10px] font-mono font-bold text-pink-600 dark:text-pink-300 bg-pink-500/10 px-2 py-0.2 rounded-md border border-pink-200 dark:border-pink-700/60 shrink-0">
             {dailySalesData.days.length} يوم مسجل
           </span>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-right text-xs">
+        <div className="overflow-x-auto custom-scrollbar">
+          <table className="w-full text-right text-[11px]">
             <thead>
-              <tr className="bg-[#0F172A] border-b border-slate-800 text-slate-300">
-                <th className="px-3 py-2 text-[10.5px] font-semibold text-slate-300">التاريخ</th>
-                <th className="px-3 py-2 text-[10.5px] font-semibold text-slate-300 text-center">الطلبات</th>
-                <th className="px-3 py-2 text-[10.5px] font-semibold text-slate-300 text-left">إجمالي المبيعات</th>
-                <th className="px-3 py-2 text-[10.5px] font-semibold text-slate-300 text-left">المحصل نقداً</th>
-                <th className="px-3 py-2 text-[10.5px] font-semibold text-slate-300 text-left">الآجل المتبقي</th>
-                <th className="px-3 py-2 text-[10.5px] font-semibold text-slate-300 text-center">نسبة التحصيل</th>
-                <th className="px-3 py-2 text-[10.5px] font-semibold text-slate-300 text-center">حالة السيولة</th>
+              <tr className="h-7.5 bg-slate-50 dark:bg-[#0F172A] border-b border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 font-bold">
+                <th className="px-2.5 py-1">التاريخ</th>
+                <th className="px-2.5 py-1 text-center">الطلبات</th>
+                <th className="px-2.5 py-1 text-left font-mono">إجمالي المبيعات</th>
+                <th className="px-2.5 py-1 text-left font-mono">المحصل نقداً</th>
+                <th className="px-2.5 py-1 text-left font-mono">الآجل المتبقي</th>
+                <th className="px-2.5 py-1 text-center">نسبة التحصيل</th>
+                <th className="px-2.5 py-1 text-center">حالة السيولة</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/80 bg-[#111C38]">
+            <tbody className="divide-y divide-slate-200 dark:divide-slate-800/80 bg-white dark:bg-[#111C38]">
               {dailySalesData.days.length === 0 ? (
-                <tr><td colSpan="7" className="p-6 text-center text-slate-400 font-medium">لا توجد حركة مبيعات مسجلة في هذه الفترة 🌸</td></tr>
+                <tr><td colSpan="7" className="p-5 text-center text-slate-500 dark:text-slate-400 font-medium">لا توجد حركة مبيعات مسجلة في هذه الفترة 🌸</td></tr>
               ) : (
                 dailySalesData.days.map((day, idx) => (
-                  <tr key={idx} className="hover:bg-slate-800/40 transition-colors">
-                    <td className="px-3 py-2 font-mono text-xs font-medium text-white">{day.date}</td>
-                    <td className="px-3 py-2 text-center font-mono text-xs text-white font-medium">{day.orderCount}</td>
-                    <td className="px-3 py-2 text-left font-mono text-xs font-medium text-white">{fmtMoney(day.totalSales)} <span className="text-[10px] text-slate-400 mr-1">{reportCurrency}</span></td>
-                    <td className="px-3 py-2 text-left font-mono text-xs font-medium text-white">{fmtMoney(day.cashCollected)} <span className="text-[10px] text-slate-400 mr-1">{reportCurrency}</span></td>
-                    <td className="px-3 py-2 text-left font-mono text-xs font-medium text-white">{fmtMoney(day.creditRemaining)} <span className="text-[10px] text-slate-400 mr-1">{reportCurrency}</span></td>
-                    <td className="px-3 py-2 text-center">
+                  <tr key={idx} className="h-7.5 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                    <td className="px-2.5 py-1 font-mono text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">{day.date}</td>
+                    <td className="px-2.5 py-1 text-center font-mono text-[11px] text-slate-800 dark:text-white tabular-nums">{day.orderCount}</td>
+                    <td className="px-2.5 py-1 text-left font-mono text-[11px] font-bold text-slate-900 dark:text-white tabular-nums">{fmtMoney(day.totalSales)} <span className="text-[10px] text-slate-400 font-sans">{reportCurrency}</span></td>
+                    <td className="px-2.5 py-1 text-left font-mono text-[11px] font-bold text-sky-600 dark:text-sky-400 tabular-nums">{fmtMoney(day.cashCollected)} <span className="text-[10px] text-slate-400 font-sans">{reportCurrency}</span></td>
+                    <td className="px-2.5 py-1 text-left font-mono text-[11px] font-bold text-amber-600 dark:text-amber-400 tabular-nums">{fmtMoney(day.creditRemaining)} <span className="text-[10px] text-slate-400 font-sans">{reportCurrency}</span></td>
+                    <td className="px-2.5 py-1 text-center">
                       <div className="flex items-center justify-center gap-1.5">
-                        <div className="w-14 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                        <div className="w-12 h-1.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
                           <div className={`h-full transition-all duration-500 ease-out ${day.collectionRate >= 80 ? 'bg-emerald-500' : (day.collectionRate >= 50 ? 'bg-amber-500' : 'bg-rose-500')}`} style={{ width: `${Math.min(100, day.collectionRate)}%` }}></div>
                         </div>
-                        <span className="font-mono font-bold text-[10px] text-slate-300">{day.collectionRate.toFixed(0)}%</span>
+                        <span className="font-mono font-bold text-[10px] text-slate-600 dark:text-slate-300 tabular-nums">{day.collectionRate.toFixed(0)}%</span>
                       </div>
                     </td>
-                    <td className="px-3 py-2 text-center">
+                    <td className="px-2.5 py-1 text-center">
                       {day.collectionRate >= 100 ? (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-950/60 text-emerald-300 border border-emerald-800">تحصيل تام ✔️</span>
+                        <span className="px-1.5 py-0.2 rounded-md text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">تحصيل تام</span>
                       ) : day.collectionRate >= 50 ? (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-950/60 text-amber-300 border border-amber-800">تحصيل جزئي ⚖️</span>
+                        <span className="px-1.5 py-0.2 rounded-md text-[10px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-300 border border-amber-200 dark:border-amber-800">تحصيل جزئي</span>
                       ) : (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-950/60 text-rose-300 border border-rose-800">آجل مرتفع ⚠️</span>
+                        <span className="px-1.5 py-0.2 rounded-md text-[10px] font-bold bg-rose-500/10 text-rose-600 dark:text-rose-300 border border-rose-200 dark:border-rose-800">آجل مرتفع</span>
                       )}
                     </td>
                   </tr>
@@ -125,48 +106,45 @@ function OrdersReportView({ dailySalesData, modelProfitabilityData, reportCurren
       </div>
 
       {/* جدول التحليل المالي اللحظي لربحية الموديلات والفساتين */}
-      <div className="bg-[#111C38] rounded-xl border border-slate-800 overflow-hidden shadow-2xs">
-        <div className="px-3 py-2 bg-[#0F172A] border-b border-slate-800 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div>
-            <h3 className="text-xs font-bold text-white flex items-center gap-1.5">
-              <span>👗</span>
-              <span>التحليل المالي اللحظي لربحية الموديلات والفساتين (Per-Dress Model P&L)</span>
-            </h3>
-            <p className="text-[10px] text-slate-400 mt-0.5">حساب هامش الربح الحقيقي لكل فستان وموديل (سعر البيع - تكلفة الأقمشة والمصنعية)</p>
-          </div>
-          <span className="text-[10px] font-mono font-bold text-pink-300 bg-pink-950/60 px-2 py-0.5 rounded-md border border-pink-700/60 shrink-0">
+      <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111C38]/90 overflow-hidden shadow-xs">
+        <div className="h-7.5 px-3 bg-slate-50 dark:bg-[#0F172A] border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+          <h3 className="text-[11px] font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+            <svg className="w-3.5 h-3.5 text-pink-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" /></svg>
+            <span>التحليل المالي اللحظي لربحية الموديلات (Per-Dress Model P&L)</span>
+          </h3>
+          <span className="text-[10px] font-mono font-bold text-pink-600 dark:text-pink-300 bg-pink-500/10 px-2 py-0.2 rounded-md border border-pink-200 dark:border-pink-700/60 shrink-0">
             {modelProfitabilityData.length} موديل مفحوص
           </span>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-right text-xs">
+        <div className="overflow-x-auto custom-scrollbar">
+          <table className="w-full text-right text-[11px]">
             <thead>
-              <tr className="bg-[#0F172A] border-b border-slate-800 text-slate-300">
-                <th className="px-3 py-2 text-[10.5px] font-semibold text-slate-300">الموديل / الفستان</th>
-                <th className="px-3 py-2 text-[10.5px] font-semibold text-slate-300">التصنيف</th>
-                <th className="px-3 py-2 text-[10.5px] font-semibold text-slate-300 text-left">سعر البيع</th>
-                <th className="px-3 py-2 text-[10.5px] font-semibold text-slate-300 text-left">تكلفة الأقمشة</th>
-                <th className="px-3 py-2 text-[10.5px] font-semibold text-slate-300 text-left">أجور المصنعية</th>
-                <th className="px-3 py-2 text-[10.5px] font-semibold text-slate-300 text-left">إجمالي التكلفة</th>
-                <th className="px-3 py-2 text-[10.5px] font-semibold text-slate-300 text-left">مجمل الربح</th>
-                <th className="px-3 py-2 text-[10.5px] font-semibold text-slate-300 text-center">الهامش %</th>
-                <th className="px-3 py-2 text-[10.5px] font-semibold text-slate-300 text-center">التقييم</th>
+              <tr className="h-7.5 bg-slate-50 dark:bg-[#0F172A] border-b border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 font-bold">
+                <th className="px-2.5 py-1">الموديل / الفستان</th>
+                <th className="px-2.5 py-1">التصنيف</th>
+                <th className="px-2.5 py-1 text-left font-mono">سعر البيع</th>
+                <th className="px-2.5 py-1 text-left font-mono">تكلفة الأقمشة</th>
+                <th className="px-2.5 py-1 text-left font-mono">أجور المصنعية</th>
+                <th className="px-2.5 py-1 text-left font-mono">إجمالي التكلفة</th>
+                <th className="px-2.5 py-1 text-left font-mono">مجمل الربح</th>
+                <th className="px-2.5 py-1 text-center font-mono">الهامش %</th>
+                <th className="px-2.5 py-1 text-center">التقييم</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/80 bg-[#111C38]">
+            <tbody className="divide-y divide-slate-200 dark:divide-slate-800/80 bg-white dark:bg-[#111C38]">
               {modelProfitabilityData.map((m, idx) => (
-                <tr key={idx} className="hover:bg-slate-800/40 transition-colors">
-                  <td className="px-3 py-2 font-medium text-white flex items-center gap-1.5"><span className="text-xs">👑</span><span className="text-xs">{m.name}</span></td>
-                  <td className="px-3 py-2 text-xs text-slate-300">{m.category}</td>
-                  <td className="px-3 py-2 text-left font-mono text-xs font-medium text-white">{fmtMoney(m.sellingPrice)} <span className="text-[10px] text-slate-400 mr-1">{reportCurrency}</span></td>
-                  <td className="px-3 py-2 text-left font-mono text-xs text-slate-300">{fmtMoney(m.fabricCost)} <span className="text-[10px] text-slate-400 mr-1">{reportCurrency}</span></td>
-                  <td className="px-3 py-2 text-left font-mono text-xs text-slate-300">{fmtMoney(m.laborCost)} <span className="text-[10px] text-slate-400 mr-1">{reportCurrency}</span></td>
-                  <td className="px-3 py-2 text-left font-mono text-xs font-medium text-white">{fmtMoney(m.totalCost)} <span className="text-[10px] text-slate-400 mr-1">{reportCurrency}</span></td>
-                  <td className="px-3 py-2 text-left font-mono text-xs font-bold text-white bg-slate-800/40">{fmtMoney(m.profit)} <span className="text-[10px] text-slate-400 mr-1">{reportCurrency}</span></td>
-                  <td className="px-3 py-2 text-center"><span className="font-mono font-bold text-[10px] text-pink-300 bg-pink-950/60 border border-pink-700/60 px-1.5 py-0.5 rounded-md">{m.marginPct.toFixed(1)}%</span></td>
-                  <td className="px-3 py-2 text-center">
-                    {m.marginPct >= 40 ? <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-950/60 text-emerald-300 border border-emerald-800">فائق الربحية 💎</span> : (m.marginPct >= 25 ? <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-950/60 text-blue-300 border border-blue-800">ربحية جيدة ⭐</span> : <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-950/60 text-amber-300 border border-amber-800">هامش قياسي 🏷️</span>)}
+                <tr key={idx} className="h-7.5 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                  <td className="px-2.5 py-1 font-medium text-slate-800 dark:text-white">{m.name}</td>
+                  <td className="px-2.5 py-1 text-slate-600 dark:text-slate-300">{m.category}</td>
+                  <td className="px-2.5 py-1 text-left font-mono font-bold text-slate-900 dark:text-white tabular-nums">{fmtMoney(m.sellingPrice)} <span className="text-[10px] text-slate-400 font-sans">{reportCurrency}</span></td>
+                  <td className="px-2.5 py-1 text-left font-mono text-slate-600 dark:text-slate-300 tabular-nums">{fmtMoney(m.fabricCost)} <span className="text-[10px] text-slate-400 font-sans">{reportCurrency}</span></td>
+                  <td className="px-2.5 py-1 text-left font-mono text-slate-600 dark:text-slate-300 tabular-nums">{fmtMoney(m.laborCost)} <span className="text-[10px] text-slate-400 font-sans">{reportCurrency}</span></td>
+                  <td className="px-2.5 py-1 text-left font-mono font-bold text-slate-900 dark:text-white tabular-nums">{fmtMoney(m.totalCost)} <span className="text-[10px] text-slate-400 font-sans">{reportCurrency}</span></td>
+                  <td className="px-2.5 py-1 text-left font-mono font-bold text-slate-900 dark:text-white tabular-nums bg-slate-50 dark:bg-slate-800/40">{fmtMoney(m.profit)} <span className="text-[10px] text-slate-400 font-sans">{reportCurrency}</span></td>
+                  <td className="px-2.5 py-1 text-center"><span className="font-mono font-bold text-[10px] text-pink-600 dark:text-pink-300 bg-pink-500/10 border border-pink-200 dark:border-pink-700/60 px-1.5 py-0.2 rounded">{m.marginPct.toFixed(1)}%</span></td>
+                  <td className="px-2.5 py-1 text-center">
+                    {m.marginPct >= 40 ? <span className="px-1.5 py-0.2 rounded-md text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">فائق الربحية</span> : (m.marginPct >= 25 ? <span className="px-1.5 py-0.2 rounded-md text-[10px] font-bold bg-blue-500/10 text-blue-600 dark:text-blue-300 border border-blue-200 dark:border-blue-800">ربحية جيدة</span> : <span className="px-1.5 py-0.2 rounded-md text-[10px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-300 border border-amber-200 dark:border-amber-800">هامش قياسي</span>)}
                   </td>
                 </tr>
               ))}

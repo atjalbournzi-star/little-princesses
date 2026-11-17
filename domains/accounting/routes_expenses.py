@@ -96,6 +96,27 @@ def handle_post(handler, path, parsed_url) -> bool:
             handler.wfile.write(json.dumps({'success': False, 'error': str(e)}).encode('utf-8'))
             return True
 
+    if path in ('/api/expenses/approve', '/api/finance/expenses/approve'):
+        try:
+            content_len = int(handler.headers.get('Content-Length', 0))
+            post_body = handler.rfile.read(content_len) if content_len > 0 else b'{}'
+            data = json.loads(post_body.decode('utf-8'))
+            payload = data.get('data') or data
+            res = pg_service.approve_expense_atomic(payload)
+            handler.send_response(200)
+            handler._send_cors_headers()
+            handler.send_header('Content-Type', 'application/json; charset=utf-8')
+            handler.end_headers()
+            handler.wfile.write(json.dumps({'success': True, 'data': res, **res}, ensure_ascii=False).encode('utf-8'))
+            return True
+        except Exception as e:
+            handler.send_response(400)
+            handler._send_cors_headers()
+            handler.send_header('Content-Type', 'application/json; charset=utf-8')
+            handler.end_headers()
+            handler.wfile.write(json.dumps({'success': False, 'error': str(e)}).encode('utf-8'))
+            return True
+
     if path in ('/api/expenses/delete', '/api/finance/expenses/delete'):
         try:
             content_len = int(handler.headers.get('Content-Length', 0))

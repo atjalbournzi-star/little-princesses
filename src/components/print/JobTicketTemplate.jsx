@@ -47,7 +47,7 @@ function JobTicketTemplate({
       {/* Order & Child Info Header */}
       <div className="grid grid-cols-3 gap-3 bg-[#FAFAFB] p-3 rounded-xl border border-gray-200 text-xs">
         <div>
-          <span className="text-gray-500 block">العميلة:</span>
+          <span className="text-gray-500 block">العميل:</span>
           <span className="font-bold text-black">{custName}</span>
         </div>
         <div>
@@ -187,7 +187,7 @@ function JobTicketTemplate({
       {/* Footer with Delivery Due and QR */}
       <div className="flex justify-between items-center border-t-2 border-dashed border-gray-300 pt-3 text-xs">
         <div>
-          <span className="text-gray-500 block">موعد التسليم النهائي للعميلة:</span>
+          <span className="text-gray-500 block">موعد التسليم النهائي للعميل:</span>
           <span className="font-mono font-black text-sm text-red-600">{deliveryDate}</span>
         </div>
         <div className="flex items-center gap-2">

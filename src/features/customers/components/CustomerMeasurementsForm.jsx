@@ -41,7 +41,7 @@ function CustomerMeasurementsForm({
       {/* Model & Basic Data */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 p-2 bg-[#0F172A] rounded-xl border border-slate-800">
         <div>
-          <label className="block text-[10px] font-semibold text-slate-300 mb-0.5">{isAdult ? 'اسم السيدة / العميلة *' : 'اسم الطفلة (الأميرة) *'}</label>
+          <label className="block text-[10px] font-semibold text-slate-300 mb-0.5">{isAdult ? 'اسم العميل *' : 'اسم الطفلة (الأميرة) *'}</label>
           <input value={currM.child_name || ''} onChange={e => onUpdate(activeChildIdx, 'child_name', e.target.value)} className="w-full h-7 px-2 text-xs font-bold bg-[#111C38] border border-slate-700 rounded-lg text-white outline-none focus:border-pink-500" />
         </div>
         <div>

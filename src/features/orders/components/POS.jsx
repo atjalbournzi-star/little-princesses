@@ -36,6 +36,8 @@ function POS({
     const cats = (products || [])
       .filter(p => p && typeof p === 'object')
       .map(p => p.category || p.classification)
+      .filter(c => c && typeof c === 'string' && !c.includes('???') && c !== 'الكل')
+      .map(c => c.trim())
       .filter(Boolean);
     return ['الكل', ...Array.from(new Set(cats))];
   }, [products]);

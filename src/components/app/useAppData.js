@@ -8,6 +8,25 @@
 function useAppData() {
   const { useState, useEffect, useCallback } = React;
 
+  // 0. Clean operational cache on zero-state factory reset while preserving auth & settings
+  const PRESERVED_KEYS = new Set([
+    'erp_active_user', 'lp_user', 'currentUser', 'token', 'authToken', 'erp_token', 'erp_user_id',
+    'lp_theme', 'theme', 'erp_system_currency', 'erp_company_name', 'erp_phone', 'erp_address', 'erp_fiscal_date'
+  ]);
+
+  if (typeof window !== 'undefined' && !window.clearOperationalStorage) {
+    window.clearOperationalStorage = () => {
+      try {
+        Object.keys(localStorage).forEach(k => { if (!PRESERVED_KEYS.has(k)) localStorage.removeItem(k); });
+        sessionStorage.clear();
+        localStorage.setItem('lp_zero_state_purged_v1', 'true');
+      } catch (e) {}
+    };
+    try {
+      if (localStorage.getItem('lp_zero_state_purged_v1') !== 'true') window.clearOperationalStorage();
+    } catch (e) {}
+  }
+
   // 1. Safe helper for instant synchronous hydration from localStorage
   const getInitialCache = (key, fallback = []) => {
     try {
@@ -22,8 +41,12 @@ function useAppData() {
 
   const syncCache = (key, data) => {
     try {
-      if (Array.isArray(data) && data.length > 0) {
-        localStorage.setItem(key, JSON.stringify(data));
+      if (Array.isArray(data)) {
+        if (data.length === 0) {
+          localStorage.removeItem(key);
+        } else {
+          localStorage.setItem(key, JSON.stringify(data));
+        }
       }
     } catch (e) {}
   };
@@ -43,6 +66,7 @@ function useAppData() {
   const [campaigns, setCampState] = useState(() => getInitialCache('lp_cache_campaigns', []));
   const [employees, setEmpState] = useState(() => getInitialCache('lp_cache_employees', []));
   const [payroll, setPayState] = useState(() => getInitialCache('lp_cache_payroll', []));
+  const [jobRoles, setJobRolesState] = useState(() => getInitialCache('lp_cache_job_roles', []));
   const [targetProductionJob, setTargetProductionJob] = useState(null);
 
   // Auto-caching state mutators
@@ -68,6 +92,7 @@ function useAppData() {
   const setCampaigns = useCallback(createSyncSetter(setCampState, 'lp_cache_campaigns'), []);
   const setEmployees = useCallback(createSyncSetter(setEmpState, 'lp_cache_employees'), []);
   const setPayroll = useCallback(createSyncSetter(setPayState, 'lp_cache_payroll'), []);
+  const setJobRoles = useCallback(createSyncSetter(setJobRolesState, 'lp_cache_job_roles'), []);
 
   // 2. Stale-While-Revalidate Silent Background Data Refresh
   useEffect(() => {
@@ -75,8 +100,8 @@ function useAppData() {
       fetch(url)
         .then(r => r.json())
         .then(d => {
-          const list = (d && Array.isArray(d.data)) ? d.data : (Array.isArray(d) ? d : []);
-          if (list.length > 0) setter(list);
+          const list = (d && Array.isArray(d.data)) ? d.data : (Array.isArray(d) ? d : null);
+          if (list !== null) setter(list);
         })
         .catch(() => {});
     };
@@ -92,6 +117,7 @@ function useAppData() {
     fetchBackground('/api/expenses', setExpenses);
     fetchBackground('/api/journal', setJournal);
     fetchBackground('/api/hr/employees', setEmployees);
+    fetchBackground('/api/hr/job-roles', setJobRoles);
     fetchBackground('/api/feedback', setFeedback);
 
     const initData = async () => {
@@ -99,20 +125,22 @@ function useAppData() {
         if (typeof window.loadAllData === 'function') {
           const data = await window.loadAllData();
           if (data) {
-            if (data.customers?.length) setCustomers(data.customers);
-            if (data.inventory?.length) setInventory(data.inventory);
-            if (data.accounts?.length) setAccounts(data.accounts);
-            if (data.products?.length) setProducts(data.products);
-            if (data.orders?.length) setOrders(data.orders);
-            if (data.purchases?.length) setPurchases(data.purchases);
-            if (data.factory?.length) setFactory(data.factory);
-            if (data.vouchers?.length) setVouchers(data.vouchers);
-            if (data.expenses?.length) setExpenses(data.expenses);
-            if (data.journal?.length) setJournal(data.journal);
-            if (data.feedback?.length) setFeedback(data.feedback);
-            if ((data.campaigns || data.marketing_campaigns)?.length) setCampaigns(data.campaigns || data.marketing_campaigns);
-            if (data.employees?.length) setEmployees(data.employees);
-            if (data.payroll?.length) setPayroll(data.payroll);
+            if (data.customers !== undefined) setCustomers(data.customers);
+            if (data.inventory !== undefined) setInventory(data.inventory);
+            if (data.accounts !== undefined) setAccounts(data.accounts);
+            if (data.products !== undefined) setProducts(data.products);
+            if (data.orders !== undefined) setOrders(data.orders);
+            if (data.purchases !== undefined) setPurchases(data.purchases);
+            if (data.factory !== undefined) setFactory(data.factory);
+            if (data.vouchers !== undefined) setVouchers(data.vouchers);
+            if (data.expenses !== undefined) setExpenses(data.expenses);
+            if (data.journal !== undefined) setJournal(data.journal);
+            if (data.feedback !== undefined) setFeedback(data.feedback);
+            const camps = data.campaigns || data.marketing_campaigns;
+            if (camps !== undefined) setCampaigns(camps);
+            if (data.employees !== undefined) setEmployees(data.employees);
+            if (data.payroll !== undefined) setPayroll(data.payroll);
+            if (data.jobRoles !== undefined) setJobRoles(data.jobRoles);
           }
         }
       } catch (e) {
@@ -120,7 +148,7 @@ function useAppData() {
       }
     };
     initData();
-  }, [setCustomers, setInventory, setAccounts, setProducts, setOrders, setPurchases, setFactory, setVouchers, setExpenses, setJournal, setFeedback, setCampaigns, setEmployees, setPayroll]);
+  }, [setCustomers, setInventory, setAccounts, setProducts, setOrders, setPurchases, setFactory, setVouchers, setExpenses, setJournal, setFeedback, setCampaigns, setEmployees, setPayroll, setJobRoles]);
 
   return {
     customers, setCustomers,
@@ -137,6 +165,7 @@ function useAppData() {
     campaigns, setCampaigns,
     employees, setEmployees,
     payroll, setPayroll,
+    jobRoles, setJobRoles,
     targetProductionJob, setTargetProductionJob
   };
 }

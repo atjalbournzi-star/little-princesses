@@ -4,11 +4,16 @@
 import time
 from .db_pool import get_db_cursor, clean_str, clean_num, generate_id, today_str
 from .account_resolver import resolve_exchange_rate
+from .pg_sequences import get_next_sequence_number
+from .pg_audit import log_audit_event, get_active_user_context
 
 
 def adjust_inventory(payload):
     """تسجيل تسوية جردية للمخزون (عجز/هالك أو فائض) مع إنشاء قيد محاسبي مزدوج متوازن"""
     data = payload.get('data') or payload
+    raw_uid = clean_str(data.get('created_by') or data.get('user_id') or '')
+    resolved_user = raw_uid or get_active_user_context('admin')
+
     item_id = clean_str(data.get('item_id') or data.get('id'))
     item_name = clean_str(data.get('item_name') or data.get('name'))
     adj_type = clean_str(data.get('adj_type') or data.get('type') or 'wastage').lower()
@@ -43,24 +48,23 @@ def adjust_inventory(payload):
             change_qty = abs(variance_qty)
             tx_type = 'GAIN'
 
-        new_total_val = round(new_q * u_cost, 2)
+        new_total_val = round(new_q * u_cost, 4)
         adj_amount = round(variance_qty * u_cost, 2)
         rate = resolve_exchange_rate(cur, 'YER', 1.0)
         adj_amount_yer = round(adj_amount * rate, 2)
 
-        cur.execute("UPDATE inventory SET quantity = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s;", (new_q, inv_id))
+        cur.execute("UPDATE inventory SET quantity = %s, total_value = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s;", (new_q, new_total_val, inv_id))
 
-        tx_id = generate_id("ITXN")
+        tx_id = get_next_sequence_number(cur, 'INV-TXN', fallback_prefix='INV-TXN-')
         cur.execute("""
             INSERT INTO inventory_transactions (
-                id, inventory_id, transaction_type, quantity, unit_cost, reference_type, reference_id, notes, created_at
-            ) VALUES (%s, %s, %s, %s, %s, 'ADJUSTMENT', %s, %s, CURRENT_TIMESTAMP);
-        """, (tx_id, inv_id, tx_type, change_qty, u_cost, inv_id, reason))
+                id, inventory_id, transaction_type, quantity, unit_cost, reference_type, reference_id, notes, created_by, created_at
+            ) VALUES (%s, %s, %s, %s, %s, 'ADJUSTMENT', %s, %s, %s, CURRENT_TIMESTAMP);
+        """, (tx_id, inv_id, tx_type, change_qty, u_cost, inv_id, reason, resolved_user))
 
         if adj_amount > 0:
-            jv_id = generate_id("JV")
-            clean_ts = int(time.time())
-            entry_no = f"JV-ADJ-{clean_ts}"
+            entry_no = get_next_sequence_number(cur, 'JV', fallback_prefix='JV-')
+            jv_id = entry_no
             today = today_str()
 
             if adj_type == 'wastage':
@@ -75,9 +79,9 @@ def adjust_inventory(payload):
             cur.execute("""
                 INSERT INTO journal_entries (
                     id, entry_no, entry_date, description, debit_account_id, credit_account_id,
-                    amount, total_amount, base_amount, ref_type, ref_id, currency, exchange_rate, status, notes
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'Inventory_Adjustment', %s, 'YER', %s, 'Posted', %s);
-            """, (jv_id, entry_no, today, jv_desc, debit_acc, credit_acc, adj_amount, adj_amount, adj_amount_yer, inv_id, rate, reason))
+                    amount, total_amount, base_amount, ref_type, ref_id, currency, exchange_rate, status, notes, created_by
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'Inventory_Adjustment', %s, 'YER', %s, 'Posted', %s, %s);
+            """, (jv_id, entry_no, today, jv_desc, debit_acc, credit_acc, adj_amount, adj_amount, adj_amount_yer, inv_id, rate, reason, resolved_user))
 
             cur.execute("""
                 INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base)
@@ -89,8 +93,19 @@ def adjust_inventory(payload):
                 VALUES (%s, %s, %s, %s, 0.0, %s, 0.0, %s);
             """, (generate_id("JVL"), jv_id, credit_acc, line2_desc, adj_amount, adj_amount_yer))
 
+        log_audit_event(
+            entity_type='inventory_transactions',
+            entity_id=tx_id,
+            action='ADJUST',
+            new_values={'tx_id': tx_id, 'item': actual_name, 'type': adj_type, 'qty': change_qty, 'new_qty': new_q},
+            user_id=resolved_user,
+            document_no=tx_id,
+            details=f"تسوية مخزون {actual_name} ({tx_type}) بمقدار {change_qty}",
+            cur=cur
+        )
+
         return {
             "success": True, "status": "success", "item_id": inv_id, "item_name": actual_name,
             "adj_type": adj_type, "variance_qty": variance_qty, "new_qty": new_q, "new_total": new_total_val,
-            "unit_cost": u_cost, "adj_amount": adj_amount, "message": f"تم ترحيل قيد التسوية الجردية لـ ({actual_name}) بنجاح ⚖️"
+            "unit_cost": u_cost, "adj_amount": adj_amount, "tx_id": tx_id, "message": f"تم ترحيل قيد التسوية الجردية لـ ({actual_name}) بنجاح ⚖️"
         }

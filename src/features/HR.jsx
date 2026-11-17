@@ -3,7 +3,8 @@ const { useState, useMemo } = React;
 
 function HR({
   employees = [], setEmployees, payroll = [], setPayroll,
-  accounts = [], journal = [], setJournal, factory = [], showToast, currency
+  accounts = [], journal = [], setJournal, factory = [], showToast, currency,
+  jobRoles = [], setJobRoles = null
 }) {
   const [activeTab, setActiveTab] = useState('employees');
   const [payrollMonth, setPayrollMonth] = useState(() => new Date().toISOString().slice(0, 7));
@@ -111,11 +112,13 @@ function HR({
               searchQuery={searchQuery} setSearchQuery={setSearchQuery} roleFilter={roleFilter}
               setRoleFilter={setRoleFilter} statusFilter={statusFilter} setStatusFilter={setStatusFilter}
               onOpenAddModal={() => { setEditingEmployee(null); setEmployeeModalOpen(true); }} totalEmployees={employees.length}
+              jobRoles={jobRoles} employees={employees}
             />
             <EmployeeTable
               employees={filteredEmployees} currencyDisplay={currencyDisplay}
               calculateEmployeeCompletedTasks={calculateEmployeeCompletedTasks} toggleEmpStatus={toggleEmpStatus}
               deleteEmp={deleteEmp} onEditEmployee={(emp) => { setEditingEmployee(emp); setEmployeeModalOpen(true); }}
+              jobRoles={jobRoles}
             />
           </div>
         )}
@@ -168,6 +171,8 @@ function HR({
       <EmployeeModal
         isOpen={employeeModalOpen} onClose={() => setEmployeeModalOpen(false)}
         onSave={handleSaveEmployee} editingEmployee={editingEmployee} currencyDisplay={currencyDisplay}
+        jobRoles={jobRoles} showToast={showToast}
+        onAddNewRole={(nr) => { if (setJobRoles) setJobRoles(prev => [...(prev || []).filter(r => r.role_name !== nr.role_name), nr]); }}
       />
 
       <AdvancesModal

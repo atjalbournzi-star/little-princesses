@@ -90,14 +90,14 @@ function useSettingsData({ showToast }) {
       const saved = localStorage.getItem('erp_message_templates');
       return saved ? JSON.parse(saved) : {
         newOrder: 'مرحباً {customer_name}، تم تسجيل طلبكم رقم {order_no} بنجاح. يسعدنا خدمتكم!',
-        readyForDelivery: 'عميلتنا العزيزة {customer_name}، طلبكم رقم {order_no} جاهز للاستلام 🎀',
+        readyForDelivery: 'عميلنا العزيز {customer_name}، طلبكم رقم {order_no} جاهز للاستلام 🎀',
         paymentReceived: 'تم استلام دفعة بقيمة {amount} {currency} للطلب رقم {order_no}. شاكرين ثقتكم 💐',
         tailoringUpdate: 'مرحباً {customer_name}، فستانكم في مرحلة {stage} الآن بأيدي أمهر الخياطين ✨'
       };
     } catch(e) {
       return {
         newOrder: 'مرحباً {customer_name}، تم تسجيل طلبكم رقم {order_no} بنجاح.',
-        readyForDelivery: 'عميلتنا العزيزة {customer_name}، طلبكم رقم {order_no} جاهز للاستلام 🎀',
+        readyForDelivery: 'عميلنا العزيز {customer_name}، طلبكم رقم {order_no} جاهز للاستلام 🎀',
         paymentReceived: 'تم استلام دفعة بقيمة {amount} {currency} للطلب {order_no}.',
         tailoringUpdate: 'مرحباً {customer_name}، فستانكم في مرحلة {stage} الآن ✨'
       };

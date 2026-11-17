@@ -64,7 +64,10 @@ from .pg_quality import (
     get_quality_summary
 )
 from .pg_auth import get_users_pg, sync_user_to_pg
-from .pg_audit import log_audit_event, get_audit_logs, add_audit_log
+from .pg_audit import (
+    log_audit_event, get_audit_logs, add_audit_log,
+    set_current_user_context, get_active_user_context, resolve_active_user_id
+)
 from .pg_system import (
     get_system_settings, save_system_settings,
     get_backup_status, create_backup_snapshot,

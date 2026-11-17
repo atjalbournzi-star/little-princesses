@@ -2,6 +2,7 @@
 # Inventory, products, BOM, and suppliers HTTP route handlers
 
 import json
+import urllib.parse
 import pg_service
 from domains.system.db_connection import get_db
 
@@ -24,7 +25,35 @@ def _get_body(handler):
 
 
 def handle_get(handler, path, parsed_url) -> bool:
+    if path in ('/api/products/get', '/api/products/detail') or (path.startswith('/api/products/') and path not in ('/api/products/list', '/api/products/bom', '/api/products/save', '/api/products/update', '/api/products/delete')):
+        query_params = urllib.parse.parse_qs(parsed_url.query)
+        pid = query_params.get('id', query_params.get('product_id', query_params.get('sku', [''])))[0]
+        if not pid and path.startswith('/api/products/') and path not in ('/api/products/get', '/api/products/detail'):
+            pid = path.replace('/api/products/', '').strip()
+        if pid:
+            try:
+                prod = pg_service.get_product_by_id(pid)
+                if prod:
+                    _send_json(handler, {'success': True, 'data': prod})
+                else:
+                    _send_json(handler, {'success': False, 'error': 'الموديل غير موجود'}, 404)
+            except Exception as e:
+                _send_json(handler, {'success': False, 'error': str(e)}, 500)
+            return True
+
     if path in ('/api/products', '/api/products/list', '/api/products/bom'):
+        query_params = urllib.parse.parse_qs(parsed_url.query)
+        pid = query_params.get('id', query_params.get('sku', query_params.get('product_id', [''])))[0]
+        if pid:
+            try:
+                prod = pg_service.get_product_by_id(pid)
+                if prod:
+                    _send_json(handler, {'success': True, 'data': prod})
+                else:
+                    _send_json(handler, {'success': False, 'error': 'الموديل غير موجود'}, 404)
+            except Exception as e:
+                _send_json(handler, {'success': False, 'error': str(e)}, 500)
+            return True
         try:
             bom_data = pg_service.get_bom_models()
             products, kpis = bom_data.get('data', []), bom_data.get('kpis', {})
@@ -114,9 +143,13 @@ def handle_post(handler, path, parsed_url) -> bool:
             _send_json(handler, {'success': False, 'error': str(e)}, 400)
         return True
 
-    if path in ('/api/products', '/api/products/bom', '/api/products/save', '/api/products/update', '/api/products/edit'):
+    if path in ('/api/products', '/api/products/bom', '/api/products/save', '/api/products/update', '/api/products/edit') or (path.startswith('/api/products/') and not path.endswith('/delete') and not path.endswith('/remove')):
         try:
-            res = pg_service.save_bom_model(_get_body(handler))
+            body = _get_body(handler)
+            if path.startswith('/api/products/') and path not in ('/api/products/bom', '/api/products/save', '/api/products/update', '/api/products/edit'):
+                url_id = path.replace('/api/products/', '').strip()
+                if url_id and not body.get('id'): body['id'] = url_id
+            res = pg_service.save_bom_model(body)
             _send_json(handler, res)
         except Exception as e:
             _send_json(handler, {'success': False, 'error': str(e)}, 500)

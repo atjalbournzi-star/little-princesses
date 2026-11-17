@@ -118,9 +118,25 @@ function useVoucherOperations({ setVouchers, setJournal, setAccounts, setExpense
   const handleSaveNewVoucher = useCallback(async ({ newV, generatedEntries, newExp, customerOrderData, splitPayments, vRate, modalTargetAcc, isReceipt, vBaseAmt }) => {
     setIsSubmittingVoucher(true);
     try {
-      if (setVouchers) setVouchers(prev => [newV, ...(prev || [])]);
-      if (setJournal && generatedEntries?.length) setJournal(prev => [...generatedEntries, ...(prev || [])]);
-      if (newExp && setExpenses) setExpenses(prev => [newExp, ...(prev || [])]);
+      let officialV = { ...newV };
+      try {
+        const res = await fetch('/api/vouchers/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newV) });
+        const apiData = await res.json().catch(() => ({}));
+        const savedV = (apiData && (apiData.data || apiData.voucher)) || {};
+        const officialNo = savedV.voucher_no || savedV.payment_no || savedV.v_no || newV.v_no;
+        const officialId = savedV.id || officialNo;
+        officialV = { ...newV, ...savedV, v_no: officialNo, voucher_no: officialNo, payment_no: officialNo, id: officialId };
+        if (!res.ok && typeof window.callGAS === 'function') window.callGAS('addVoucher', officialV).catch(e => console.error(e));
+      } catch (postErr) {
+        if (typeof window.callGAS === 'function') window.callGAS('addVoucher', newV).catch(e => console.error(e));
+      }
+
+      const officialNo = officialV.v_no || officialV.voucher_no;
+      if (setVouchers) setVouchers(prev => [officialV, ...(prev || []).filter(v => v.id !== newV.id && v.v_no !== newV.v_no && v.id !== officialV.id)]);
+
+      const officialEntries = (generatedEntries || []).map(j => ({ ...j, ref_id: officialNo, entry_no: 'AUTO-VCH-' + officialNo }));
+      if (setJournal && officialEntries.length) setJournal(prev => [...officialEntries, ...(prev || []).filter(j => j.ref_id !== newV.v_no && j.ref_id !== officialNo)]);
+      if (newExp && setExpenses) setExpenses(prev => [{ ...newExp, expense_no: officialNo }, ...(prev || [])]);
 
       if (typeof setAccounts === 'function') {
         setAccounts(prev => (prev || []).map(acc => {
@@ -156,16 +172,13 @@ function useVoucherOperations({ setVouchers, setJournal, setAccounts, setExpense
         }
         fetch('/api/gas', {
           method: 'POST', headers: { 'Content-Type': 'application/json; charset=utf-8' },
-          body: JSON.stringify({ action: 'addOrderPayment', customer_name: custName, order_no: ordNo, amount: amt, currency: newV.currency, notes: newV.notes })
+          body: JSON.stringify({ action: 'addOrderPayment', customer_name: custName, order_no: ordNo, amount: amt, currency: officialV.currency, notes: officialV.notes })
         }).catch(e => console.error(e));
       }
 
-      const res = await fetch('/api/vouchers/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newV) });
-      if (!res.ok && typeof window.callGAS === 'function') window.callGAS('addVoucher', newV).catch(e => console.error(e));
       if (newExp && typeof window.callGAS === 'function') window.callGAS('addExpense', newExp).catch(e => console.error(e));
-
-      showToast?.(`تم إصدار وتمرير ${isReceipt ? 'سند القبض' : 'سند الصرف'} (${newV.v_no}) بنجاح 🧾✨`);
-      return true;
+      showToast?.(`تم إصدار وتمرير ${isReceipt ? 'سند القبض' : 'سند الصرف'} (${officialNo}) بنجاح 🧾✨`);
+      return officialV;
     } catch (err) {
       console.error("Voucher submit error:", err);
       showToast?.('حدث خطأ أثناء إصدار السند', 'error');

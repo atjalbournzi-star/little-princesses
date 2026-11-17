@@ -59,74 +59,94 @@ function Marketing({ campaigns = [], setCampaigns, products = [], accounts = [],
   const Modals = window.MarketingModals;
 
   const TABS = [
-    { id: 'command_center', label: '📊 مركز القيادة KPIs' },
-    { id: 'customer_intel', label: '👥 ذكاء العملاء Intelligence' },
-    { id: 'ads', label: '📢 إدارة الحملات الإعلانية' },
-    { id: 'daily_brief', label: '🧠 الموجز اليومي والتوجهات' },
-    { id: 'products_ai', label: '📈 تحليلات المنتجات والإسناد' },
-    { id: 'nlp_intent', label: '💬 المشاعر ونية الشراء (NLP)' },
-    { id: 'recs_weights', label: '💡 التوصيات والأوزان AI' },
-    { id: 'ai_chat', label: '🤖 اسأل مدير التسويق AI' },
-    { id: 'platforms', label: '🌐 إدارة المنصات وOAuth' },
-    { id: 'webhooks', label: '🔌 سجل Webhooks' }
+    { id: 'ads', label: 'الحملات الإعلانية' },
+    { id: 'command_center', label: 'مركز القيادة KPIs' },
+    { id: 'customer_intel', label: 'ذكاء العملاء' },
+    { id: 'daily_brief', label: 'الموجز اليومي' },
+    { id: 'products_ai', label: 'تحليلات المنتجات' },
+    { id: 'nlp_intent', label: 'نية الشراء NLP' },
+    { id: 'recs_weights', label: 'التوصيات AI' },
+    { id: 'ai_chat', label: 'مساعد AI' },
+    { id: 'platforms', label: 'المنصات' },
+    { id: 'webhooks', label: 'Webhooks' }
   ];
 
   return (
-    <div className="space-y-5 animate-fadeIn">
-
+    <div className="space-y-1.5 select-none animate-fadeIn">
       {/* ── رأس الصفحة: مركز القيادة التسويقية ── */}
-      <div className="bg-gradient-to-l from-slate-900 via-indigo-950 to-purple-950 rounded-3xl p-5 text-white shadow-xl flex flex-wrap items-center justify-between gap-4 border border-white/10">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-2xl">📢</span>
-            <h1 className="font-black text-lg text-amber-300">مركز القيادة التسويقية الذكي (Marketing Command Center)</h1>
-          </div>
-          <p className="text-[11px] text-slate-300 font-semibold">نظام إدارة التسويق والتحليلات التنفيذية الموحد — ERP Marketing Suite</p>
+      <div className="h-8 min-h-[32px] px-2.5 bg-white dark:bg-[#111C38] border border-slate-200 dark:border-slate-800 rounded-lg flex items-center justify-between gap-2 shrink-0 select-none">
+        <div className="flex items-center gap-1.5 shrink-0">
+          <svg className="w-3.5 h-3.5 text-pink-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
+          </svg>
+          <h1 className="text-xs font-bold text-slate-900 dark:text-white tracking-tight">التسويق ونمو الأعمال</h1>
+          <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono hidden sm:inline">(Marketing Suite)</span>
         </div>
-        <div className="flex flex-wrap items-center gap-2 text-xs">
+        <div className="flex items-center gap-1 overflow-x-auto">
           {[
-            { name: 'Instagram', status: 'connected', label: 'Instagram 🟢' },
-            { name: 'Facebook', status: 'connected', label: 'Facebook 🟢' },
-            { name: 'WhatsApp', status: 'connected', label: 'WhatsApp 🟢' },
-            { name: 'TikTok', status: 'disconnected', label: 'TikTok ⚪' },
-            { name: 'Google Ads', status: 'disconnected', label: 'Google Ads ⚪' }
+            { name: 'Instagram', status: 'connected' },
+            { name: 'Facebook', status: 'connected' },
+            { name: 'WhatsApp', status: 'connected' },
+            { name: 'TikTok', status: 'disconnected' },
+            { name: 'Google Ads', status: 'disconnected' }
           ].map(p => (
-            <span key={p.name} className={`px-3 py-1.5 rounded-xl font-black border text-[11px] backdrop-blur-sm ${p.status === 'connected' ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400/30' : 'bg-slate-800/60 text-slate-400 border-slate-700'}`}>
-              {p.label}
+            <span key={p.name} className={`h-5.5 px-1.5 rounded-md text-[10px] font-bold flex items-center gap-1 border shrink-0 ${
+              p.status === 'connected'
+                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700'
+            }`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${p.status === 'connected' ? 'bg-emerald-500' : 'bg-slate-400'}`}></span>
+              <span>{p.name}</span>
             </span>
           ))}
-          <button onClick={() => setShowExportModal(true)} className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black text-xs hover:opacity-90 transition shadow-md flex items-center gap-1.5">
-            📥 تصدير التقارير (Sheets / PDF / Excel)
+          <button onClick={() => setShowExportModal(true)} className="h-5.5 px-2 rounded-md bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[10px] font-bold border border-slate-200 dark:border-slate-700/60 flex items-center gap-1 transition cursor-pointer shrink-0">
+            <svg className="w-3 h-3 text-pink-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+            <span>تصدير</span>
           </button>
         </div>
       </div>
 
       {/* ── فلتر المدى الزمني ── */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-white rounded-2xl border border-slate-200 p-2 shadow-xs">
+      <div className="h-8 min-h-[32px] px-2 bg-white dark:bg-[#111C38] border border-slate-200 dark:border-slate-800 rounded-lg flex items-center justify-between gap-1.5 shrink-0 select-none">
         <div className="flex items-center gap-1">
-          <span className="text-xs font-black text-slate-500 px-3">المدى الزمني:</span>
-          {[{ id: 'today', label: 'اليوم (Today)' }, { id: '7d', label: 'آخر 7 أيام (7 Days)' }, { id: '30d', label: 'آخر 30 يوم (30 Days)' }, { id: '90d', label: 'آخر 90 يوم (90 Days)' }].map(tf => (
-            <button key={tf.id} onClick={() => setTimeframe(tf.id)} className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition ${timeframe === tf.id ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'}`}>{tf.label}</button>
+          <span className="text-[11px] font-bold text-slate-800 dark:text-white ml-1">المدى الزمني:</span>
+          {[{ id: 'today', label: 'اليوم' }, { id: '7d', label: '7 أيام' }, { id: '30d', label: '30 يوم' }, { id: '90d', label: '90 يوم' }].map(tf => (
+            <button key={tf.id} onClick={() => setTimeframe(tf.id)}
+              className={`h-6 px-2.5 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
+                timeframe === tf.id
+                  ? 'bg-pink-600 text-white shadow-xs'
+                  : 'text-slate-800 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
+              }`}
+            >
+              {tf.label}
+            </button>
           ))}
         </div>
-        <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
-          <span>آخر مزامنة: <strong className="text-emerald-600">الآن 🟢</strong></span>
-          <span className="text-slate-300">•</span>
-          <span>الصلاحية: <strong className="text-indigo-600">{userPermissions?.role || 'Admin'} 🛡️</strong></span>
+        <div className="flex items-center gap-2 text-[10.5px] font-medium text-slate-600 dark:text-slate-300">
+          <span className="flex items-center gap-1 font-mono">مزامنة: <strong className="text-emerald-600 dark:text-emerald-400 font-bold">الآن</strong></span>
+          <span className="text-slate-400">•</span>
+          <span className="font-mono">الصلاحية: <strong className="text-slate-900 dark:text-white font-bold">{userPermissions?.role || 'Admin'}</strong></span>
         </div>
       </div>
 
       {/* ── شريط التبويبات ── */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-1.5 flex gap-1 overflow-x-auto shadow-sm">
+      <div className="h-8 min-h-[32px] px-1 bg-white dark:bg-[#111C38] border border-slate-200 dark:border-slate-800 rounded-lg flex items-center gap-1 overflow-x-auto custom-scrollbar select-none shrink-0">
         {TABS.map(t => (
           <button key={t.id} onClick={() => setActiveTab(t.id)}
-            className={`flex-1 py-2.5 px-3 rounded-xl font-extrabold text-xs transition-all whitespace-nowrap ${activeTab === t.id ? 'bg-rose-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50'}`}>
+            className={`h-6 px-2.5 rounded-md text-[11px] font-bold transition-all whitespace-nowrap cursor-pointer shrink-0 ${
+              activeTab === t.id
+                ? 'bg-pink-600 text-white shadow-xs'
+                : 'text-slate-800 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
+            }`}
+          >
             {t.label}
           </button>
         ))}
         <button onClick={handleTriggerSync} disabled={loading}
-          className="py-2.5 px-4 rounded-xl font-black text-xs bg-slate-800 text-white hover:bg-slate-700 transition flex items-center gap-1.5">
-          ☁️ مزامنة
+          className="h-6 px-2.5 rounded-md font-bold text-[10.5px] bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700/60 transition flex items-center gap-1 cursor-pointer shrink-0 disabled:opacity-50 ml-auto"
+        >
+          <svg className="w-3 h-3 text-pink-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+          <span>مزامنة</span>
         </button>
       </div>
 

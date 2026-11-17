@@ -70,10 +70,10 @@
     ctx.textAlign = 'left';
     ctx.fillStyle = '#fbcfe8';
     ctx.font = '700 12px Cairo, Tahoma';
-    ctx.fillText(d.is_ready_to_wear ? 'والدة الأميرة / المشترية:' : 'والدة الأميرة / العميلة:', 100, 185);
+    ctx.fillText(d.is_ready_to_wear ? 'والدة الأميرة / المشترية:' : 'ولي أمر الأميرة / العميل:', 100, 185);
     ctx.fillStyle = '#ffffff';
     ctx.font = '900 18px Cairo, Tahoma';
-    ctx.fillText(`${d.customer_name || 'العميلة الكريمة'}   ${d.customer_phone ? '📱 ' + d.customer_phone : ''}`, 100, 214);
+    ctx.fillText(`${d.customer_name || 'العميل الكريم'}   ${d.customer_phone ? '📱 ' + d.customer_phone : ''}`, 100, 214);
 
     ctx.fillStyle = '#f8fafc';
     ctx.fillRect(80, 250, 1040, 115);

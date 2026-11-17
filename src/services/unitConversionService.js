@@ -1,16 +1,6 @@
 /**
- * ============================================================================
- * unitConversionService.js — Central Universal Unit Conversion Engine (UoM)
- * Little Princesses ERP — World-Class Multi-UoM Dynamic Conversion Engine
- * ============================================================================
- * 
- * Supports seamless conversions across:
- * - War / Yard (وار / ياردة)
- * - Meter (متر)
- * - Centimeter (سنتيمتر / سم)
- * - Inch / Imperial (بوصة / إنش ")
- * - Roll / Bolt (طاقة أقمشة / رول)
- * - Piece / Count (حبة / قطعة)
+ * unitConversionService.js — Universal Unit Conversion Engine (UoM)
+ * Supports: War/Yard, Meter, Centimeter, Inch, Roll/Bolt, Piece/Count
  */
 
 (function(window) {

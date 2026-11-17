@@ -132,7 +132,7 @@ def handle_post(handler, path, parsed_url) -> bool:
             handler._send_cors_headers()
             handler.send_header('Content-Type', 'application/json; charset=utf-8')
             handler.end_headers()
-            handler.wfile.write(json.dumps({'success': True, 'id': cust_id, 'message': 'تم حفظ العميلة بنجاح'}).encode('utf-8'))
+            handler.wfile.write(json.dumps({'success': True, 'id': cust_id, 'message': 'تم حفظ العميل بنجاح'}).encode('utf-8'))
             return True
         except Exception as e:
             handler.send_response(400)

@@ -17,18 +17,21 @@ function CustomerModal({
   useEffect(() => {
     const cleanCity = v => (v && String(v).trim().toLowerCase() === 'cloin') ? 'صنعاء' : (v || '');
     if (customer) {
-      setCustId(customer.customer_id || customer.id || (genCustId ? genCustId(customers) : 'CUST-1001'));
+      setCustId(customer.customer_id || customer.id || '');
       setName(customer.name || customer.customer_name || ''); setPhone(customer.phone || ''); setPhoneAlt(customer.phone_alt || '');
       setPlatform(customer.platform || 'واتساب (WhatsApp)'); setHandle(customer.handle || ''); setCategory(customer.category || 'جديد');
       setCity(cleanCity(customer.city)); setStreet(customer.street || customer.address || ''); setRegDate(customer.reg_date || customer.created_at || todayStr); setNotes(customer.notes || '');
       setImportedMeasurements(Array.isArray(customer.measurements) ? customer.measurements : []);
     } else {
-      setCustId(genCustId ? genCustId(customers) : `CUST-${(customers.length || 0) + 1001}`);
+      setCustId('');
       setName(''); setPhone(''); setPhoneAlt(''); setPlatform('واتساب (WhatsApp)'); setHandle('');
       setCategory('جديد'); setCity(''); setStreet(''); setRegDate(todayStr); setNotes('');
       setImportedMeasurements([]);
+      if (isOpen && window.getNextSequenceNumber) {
+        window.getNextSequenceNumber('CUST').then(seq => { if (seq) setCustId(seq); });
+      }
     }
-  }, [customer, isOpen, customers, genCustId, todayStr]);
+  }, [customer, isOpen, todayStr]);
 
   useEffect(() => {
     const handleClickOutside = (e) => { if (dropdownRef.current && !dropdownRef.current.contains(e.target)) setShowDropdown(false); };
@@ -49,7 +52,7 @@ function CustomerModal({
   }, [name, customers, customer]);
 
   const selectExistingCustomer = (c) => {
-    setCustId(c.customer_id || c.id || (genCustId ? genCustId(customers) : 'CUST-1001'));
+    setCustId(c.customer_id || c.id || '');
     setName(c.name || c.customer_name || ''); setPhone(c.phone || ''); setPhoneAlt(c.phone_alt || '');
     setPlatform(c.platform || 'واتساب (WhatsApp)'); setHandle(c.handle || ''); setCategory(c.category || 'جديد');
     setCity((c.city && String(c.city).trim().toLowerCase() === 'cloin') ? 'صنعاء' : (c.city || ''));
@@ -66,15 +69,20 @@ function CustomerModal({
     showToast && showToast(`✅ تم استيراد بيانات (${c.name})${prevMeas.length > 0 ? ` مع ${prevMeas.length} مقاس سابق 📏` : ''}`, 'success');
   };
 
-  const handleSubmit = (e, proceedToMeasurements = false) => {
+  const handleSubmit = async (e, proceedToMeasurements = false) => {
     if (e && e.preventDefault) e.preventDefault();
     if (!name.trim()) return showToast && showToast('اسم العميل مطلوب ⚠️', 'error');
     if (!phone.trim()) return showToast && showToast('رقم الهاتف مطلوب ⚠️', 'error');
+    let finalCustId = custId;
+    if (!finalCustId && window.getNextSequenceNumber) {
+      try { finalCustId = await window.getNextSequenceNumber('CUST'); } catch (err) {}
+      if (finalCustId) setCustId(finalCustId);
+    }
     const mList = (importedMeasurements.length > 0 ? importedMeasurements : (customer?.measurements || []));
     const chList = (customer?.children && customer.children.length > 0) ? customer.children : mList.map(m => ({ child_name: m.child_name || '', id: m.child_id || '' }));
     const payload = {
       ...(customer || {}),
-      customer_id: custId, name: name.trim(), phone: phone.trim(), phone_alt: phoneAlt.trim(), platform, handle: handle.trim(),
+      customer_id: finalCustId, name: name.trim(), phone: phone.trim(), phone_alt: phoneAlt.trim(), platform, handle: handle.trim(),
       category, city: city.trim(), street: street.trim(), reg_date: regDate, notes: notes.trim(),
       measurements: mList, children: chList,
       ledger: customer?.ledger || { total_sales: 0, deposit: 0, total_paid: 0, remaining: 0 }
@@ -183,32 +191,12 @@ function CustomerModal({
               {['واتساب (WhatsApp)','انستغرام (Instagram)','فيسبوك (Facebook)','تيك توك (TikTok)','سناب شات (Snapchat)','مباشر / زيارة المعرض'].map(p => <option key={p} value={p}>{p}</option>)}
             </select>
           </div>
-          <div>
-            <label className={labelCls}>اسم الحساب / المعرف</label>
-            <input value={handle} onChange={e => setHandle(e.target.value)} className={inputCls} dir="ltr" />
-          </div>
-          <div>
-            <label className={labelCls}>فئة العميل (CRM Tier)</label>
-            <select value={category} onChange={e => setCategory(e.target.value)} className={inputCls}>
-              {['جديد', 'دائم', 'VIP'].map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className={labelCls}>المدينة / المنطقة</label>
-            <input value={city} onChange={e => setCity(e.target.value)} className={inputCls} />
-          </div>
-          <div>
-            <label className={labelCls}>الشارع / العنوان التفصيلي</label>
-            <input value={street} onChange={e => setStreet(e.target.value)} className={inputCls} />
-          </div>
-          <div>
-            <label className={labelCls}>تاريخ التسجيل</label>
-            <input type="date" lang="en-GB" dir="ltr" value={regDate} onChange={e => setRegDate(e.target.value)} className={inputCls} />
-          </div>
-          <div className="sm:col-span-2 lg:col-span-3">
-            <label className={labelCls}>ملاحظات وتفضيلات العميل</label>
-            <input value={notes} onChange={e => setNotes(e.target.value)} className={inputCls} />
-          </div>
+          <div><label className={labelCls}>اسم الحساب / المعرف</label><input value={handle} onChange={e => setHandle(e.target.value)} className={inputCls} dir="ltr" /></div>
+          <div><label className={labelCls}>فئة العميل (CRM Tier)</label><select value={category} onChange={e => setCategory(e.target.value)} className={inputCls}>{['جديد', 'دائم', 'VIP'].map(c => <option key={c} value={c}>{c}</option>)}</select></div>
+          <div><label className={labelCls}>المدينة / المنطقة</label><input value={city} onChange={e => setCity(e.target.value)} className={inputCls} /></div>
+          <div><label className={labelCls}>الشارع / العنوان التفصيلي</label><input value={street} onChange={e => setStreet(e.target.value)} className={inputCls} /></div>
+          <div><label className={labelCls}>تاريخ التسجيل</label><input type="date" lang="en-GB" dir="ltr" value={regDate} onChange={e => setRegDate(e.target.value)} className={inputCls} /></div>
+          <div className="sm:col-span-2 lg:col-span-3"><label className={labelCls}>ملاحظات وتفضيلات العميل</label><input value={notes} onChange={e => setNotes(e.target.value)} className={inputCls} /></div>
         </div>
       </form>
     </Layout>

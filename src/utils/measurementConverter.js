@@ -82,15 +82,15 @@ const isTaffetaFabric = (name = '') => /(تفتة|تفتا|taffeta|حرير|silk
 
 const resolveCutUnit = (mat = {}, fabricInventory = []) => {
   const name = String(mat.fabric_name || mat.name || mat.material_name || '').trim();
-  if (isTulleFabric(name)) return 'متر';
-
   const invMatch = (fabricInventory || []).find(fi =>
-    (mat.fabric_id && String(fi.id || fi.item_code) === String(mat.fabric_id)) ||
+    (mat.fabric_id && String(fi.id || fi.item_code || fi.inventory_id) === String(mat.fabric_id)) ||
     (name && (fi.name === name || fi.item_name === name))
   );
-  const invUnit = String(invMatch?.unit || mat.unit || mat.cut_unit || mat.uom || '').trim();
-  if (/(وار|yard|yd)/i.test(invUnit)) return 'وار';
-  if (/(متر|meter|m)/i.test(invUnit)) return 'متر';
+  const storedUnit = String(mat.cut_unit || mat.unit || mat.uom || invMatch?.unit || invMatch?.uom || '').trim();
+  if (/(وار|yard|yd)/i.test(storedUnit)) return 'وار';
+  if (/(متر|meter|m)/i.test(storedUnit)) return 'متر';
+  if (storedUnit) return storedUnit;
+  if (isTulleFabric(name)) return 'متر';
   return isTaffetaFabric(name) ? 'وار' : 'متر';
 };
 

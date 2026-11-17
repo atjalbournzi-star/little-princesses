@@ -1,3 +1,6 @@
+// src/features/settings/components/BackupDatabaseTab.jsx
+// تبويب محرك النسخ الاحتياطي واستعادة البيانات المتوافق مع هوية السندات المالية
+
 const { useState, useRef } = React;
 
 function BackupDatabaseTab({
@@ -34,7 +37,7 @@ function BackupDatabaseTab({
           setBackupFileContent(null);
         }
       } catch(err) {
-        showToast && showToast('فشل قراءة الملف (ليس صيغة JSON صالحة) ⚠️', 'error');
+        showToast && showToast('فشل قراءة الملف ⚠️', 'error');
         setBackupFileContent(null);
       }
     };
@@ -42,27 +45,25 @@ function BackupDatabaseTab({
   };
 
   return (
-    <div className="bg-white rounded-2xl border border-[#E8E5EA] shadow-[0_2px_12px_rgba(0,0,0,0.02)] overflow-hidden space-y-6 p-6">
+    <div className="bg-white dark:bg-[#111C38] rounded-xl border border-slate-200 dark:border-slate-800 p-2.5 shadow-xs space-y-2 select-none text-right" dir="rtl">
       {/* الترويسة الرئيسية للنسخ الاحتياطي */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#E8E5EA]">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-[#E2F5F7] text-[#007F8C] border border-[#C5ECF0] flex items-center justify-center text-lg font-bold">
-            💾
-          </div>
-          <div>
-            <h3 className="font-extrabold text-sm text-[#25232A]">محرك النسخ الاحتياطي واستعادة البيانات والكوارث (Backup & DR)</h3>
-            <p className="text-xs text-[#6F6B75]">تأمين بيانات الفساتين والعملاء والمحاسبة، تصدير ملفات SQLite و JSON، وإنشاء نقاط استعادة</p>
-          </div>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1.5 border-b border-slate-200 dark:border-slate-800">
+        <div className="flex items-center gap-1.5">
+          <svg className="w-3.5 h-3.5 text-pink-600 dark:text-pink-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+          </svg>
+          <h3 className="font-bold text-[11.5px] text-slate-800 dark:text-slate-100">
+            النسخ الاحتياطي واستعادة البيانات والكوارث (Backup & DR)
+          </h3>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           {onOpenAuditLogs && (
             <button
               type="button"
               onClick={onOpenAuditLogs}
-              className="px-3.5 py-2 bg-white hover:bg-[#FAFAFB] text-[#25232A] border border-[#E8E5EA] rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+              className="h-6 px-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-md text-[10.5px] font-bold transition flex items-center gap-1 cursor-pointer"
             >
-              <span>🛡️</span>
               <span>سجلات التدقيق</span>
             </button>
           )}
@@ -70,118 +71,105 @@ function BackupDatabaseTab({
             type="button"
             onClick={() => onCreateSnapshot(setLoadingBackup)}
             disabled={loadingBackup}
-            className="px-4 py-2 bg-[#8F2A87] hover:bg-[#73216C] text-white rounded-xl text-xs font-bold shadow-xs transition flex items-center gap-2 cursor-pointer disabled:opacity-50"
+            className="h-6 px-2.5 bg-pink-600 hover:bg-pink-700 text-white rounded-md text-[10.5px] font-bold shadow-xs transition flex items-center gap-1 cursor-pointer disabled:opacity-50"
           >
-            <span>📸</span>
-            <span>{loadingBackup ? 'جارٍ الإنشاء...' : 'نقطة استعادة فورية (Snapshot)'}</span>
+            <span>{loadingBackup ? 'جارٍ الإنشاء...' : 'نقطة استعادة (Snapshot)'}</span>
           </button>
           <button
             type="button"
             onClick={fetchBackupStatus}
             title="تحديث الحالة"
-            className="w-10 h-10 rounded-xl bg-[#FAFAFB] hover:bg-[#E8E5EA] text-[#25232A] border border-[#E8E5EA] flex items-center justify-center transition cursor-pointer"
+            className="h-6 w-6 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 flex items-center justify-center transition cursor-pointer text-xs"
           >
             🔄
           </button>
         </div>
       </div>
 
-      {/* بطاقات المؤشرات الثلاث */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="p-4 rounded-xl bg-[#FAFAFB] border border-[#E8E5EA]">
-          <span className="text-[11px] font-bold text-[#6F6B75] block mb-1">حجم قاعدة البيانات</span>
-          <div className="flex items-center justify-between">
-            <span className="text-xl font-mono font-extrabold text-[#25232A]">{backupStatus?.db_size_formatted || '0.0 KB'}</span>
-            <span className="text-xs text-[#007F8C] bg-[#E2F5F7] px-2 py-0.5 rounded-md font-mono font-bold border border-[#C5ECF0]">SQLite WAL</span>
-          </div>
+      {/* بطاقات المؤشرات الثلاث المدمجة */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
+        <div className="py-1 px-2.5 rounded-lg bg-slate-50 dark:bg-[#0B132B] border border-slate-200 dark:border-slate-800 flex items-center justify-between">
+          <span className="text-[11px] font-medium text-slate-600 dark:text-slate-300">حجم قاعدة البيانات</span>
+          <span className="text-[11px] font-bold font-mono text-slate-900 dark:text-white">{backupStatus?.db_size_formatted || '0.0 KB'}</span>
         </div>
 
-        <div className="p-4 rounded-xl bg-[#FAFAFB] border border-[#E8E5EA]">
-          <span className="text-[11px] font-bold text-[#6F6B75] block mb-1">إجمالي السجلات المحمية</span>
-          <div className="flex items-center justify-between">
-            <span className="text-xl font-mono font-extrabold text-[#B0005A]">{backupStatus?.total_records?.toLocaleString('en-US') || 0}</span>
-            <span className="text-xs text-[#6F6B75] font-medium">سجل في الجداول</span>
-          </div>
+        <div className="py-1 px-2.5 rounded-lg bg-slate-50 dark:bg-[#0B132B] border border-slate-200 dark:border-slate-800 flex items-center justify-between">
+          <span className="text-[11px] font-medium text-slate-600 dark:text-slate-300">إجمالي السجلات</span>
+          <span className="text-[11px] font-bold font-mono text-pink-600 dark:text-pink-400">{backupStatus?.total_records?.toLocaleString('en-US') || 0}</span>
         </div>
 
-        <div className="p-4 rounded-xl bg-[#FAFAFB] border border-[#E8E5EA]">
-          <span className="text-[11px] font-bold text-[#6F6B75] block mb-1">فحص سلامة الجداول</span>
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-emerald-700 flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              {backupStatus?.integrity_check === 'PASSED' ? 'سليمة ومتطابقة 100%' : 'فحص الجداول جاهز'}
-            </span>
-            <span className="text-xs font-mono font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">100% OK</span>
-          </div>
+        <div className="py-1 px-2.5 rounded-lg bg-slate-50 dark:bg-[#0B132B] border border-slate-200 dark:border-slate-800 flex items-center justify-between">
+          <span className="text-[11px] font-medium text-slate-600 dark:text-slate-300">سلامة الجداول</span>
+          <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+            100% OK
+          </span>
         </div>
       </div>
 
       {/* تصدير وتنزيل النسخ */}
-      <div className="bg-[#FAFAFB] border border-[#E8E5EA] rounded-2xl p-4.5 space-y-3">
-        <h4 className="font-bold text-xs text-[#25232A]">📥 تصدير وتنزيل النسخ الاحتياطية لجهازك:</h4>
-        <div className="flex items-center gap-3 flex-wrap">
-          <button type="button" onClick={() => onDownloadBackup('json')} className="h-10 px-5 bg-white hover:bg-[#FCE8F2] text-[#B0005A] border border-[#F2A4CB] rounded-xl font-bold text-xs shadow-2xs transition flex items-center gap-2 cursor-pointer">
-            <span>💾</span><span>تنزيل نسخة احتياطية كاملة (JSON File)</span>
+      <div className="bg-slate-50 dark:bg-[#0B132B] border border-slate-200 dark:border-slate-800 rounded-lg p-2.5 space-y-1.5">
+        <h4 className="font-bold text-xs text-slate-900 dark:text-white">تصدير وتنزيل النسخ الاحتياطية:</h4>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button type="button" onClick={() => onDownloadBackup('json')} className="h-6.5 px-3 bg-white dark:bg-[#111C38] hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-md font-bold text-[10.5px] transition flex items-center gap-1.5 cursor-pointer shadow-xs">
+            <span>💾</span><span>تنزيل نسخة احتياطية (JSON)</span>
           </button>
-          <button type="button" onClick={() => onDownloadBackup('sqlite')} className="h-10 px-5 bg-white hover:bg-[#E2F5F7] text-[#007F8C] border border-[#C5ECF0] rounded-xl font-bold text-xs shadow-2xs transition flex items-center gap-2 cursor-pointer">
-            <span>🗄️</span><span>تنزيل قاعدة البيانات الأصلية (SQLite .db)</span>
+          <button type="button" onClick={() => onDownloadBackup('sqlite')} className="h-6.5 px-3 bg-white dark:bg-[#111C38] hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-md font-bold text-[10.5px] transition flex items-center gap-1.5 cursor-pointer shadow-xs">
+            <span>🗄️</span><span>تنزيل قاعدة البيانات (SQLite .db)</span>
           </button>
         </div>
       </div>
 
       {/* استعادة البيانات وإعادة البناء */}
-      <div className="bg-[#FFF5F8] border border-[#F2A4CB] rounded-2xl p-4.5 space-y-3.5">
-        <h4 className="font-extrabold text-xs text-[#B0005A] flex items-center gap-2"><span>🔄</span><span>محرك استعادة البيانات وإعادة بناء الجداول (Disaster Recovery)</span></h4>
-        <div className="bg-white border border-[#E8E5EA] rounded-xl p-3.5 space-y-3">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-            <input ref={fileInputRef} type="file" accept=".json" onChange={handleFileChange} className="text-xs text-[#6F6B75] file:mr-0 file:ml-3 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-[#E8E5EA] file:text-xs file:font-bold file:bg-[#FAFAFB] file:text-[#25232A] cursor-pointer" />
-            {selectedFileName && <span className="text-xs font-mono font-bold text-[#8F2A87] bg-[#F2E7F3] px-3 py-1 rounded-lg">📄 {selectedFileName}</span>}
-          </div>
-          <div className="flex justify-end pt-1">
-            <button
-              type="button"
-              onClick={() => onExecuteRestore(backupFileContent, () => { setBackupFileContent(null); setSelectedFileName(''); if (fileInputRef.current) fileInputRef.current.value = ''; })}
-              disabled={!backupFileContent || isRestoring}
-              className="h-10 px-6 bg-[#B0005A] hover:bg-[#8E0049] text-white rounded-xl font-bold text-xs shadow-xs transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40"
-            >
-              <span>{isRestoring ? 'جارٍ الاستعادة...' : 'تأكيد واستعادة النسخة الاحتياطية الآن ⚡'}</span>
-            </button>
-          </div>
+      <div className="bg-slate-50 dark:bg-[#0B132B] border border-slate-200 dark:border-slate-800 rounded-lg p-2.5 space-y-2">
+        <h4 className="font-bold text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
+          <span>🔄</span><span>محرك استعادة البيانات (Disaster Recovery)</span>
+        </h4>
+        <div className="bg-white dark:bg-[#111C38] border border-slate-200 dark:border-slate-700 rounded-md p-2 flex flex-col sm:flex-row items-center justify-between gap-2">
+          <input ref={fileInputRef} type="file" accept=".json" onChange={handleFileChange} className="text-xs text-slate-500 file:mr-0 file:ml-2 file:py-1 file:px-2.5 file:rounded-md file:border file:border-slate-200 dark:file:border-slate-700 file:text-[10.5px] file:font-bold file:bg-slate-100 dark:file:bg-slate-800 file:text-slate-800 dark:file:text-slate-200 cursor-pointer" />
+          <button
+            type="button"
+            onClick={() => onExecuteRestore(backupFileContent, () => { setBackupFileContent(null); setSelectedFileName(''); if (fileInputRef.current) fileInputRef.current.value = ''; })}
+            disabled={!backupFileContent || isRestoring}
+            className="h-6.5 px-3 bg-pink-600 hover:bg-pink-700 text-white rounded-md font-bold text-[10.5px] shadow-xs transition flex items-center justify-center gap-1 cursor-pointer disabled:opacity-40"
+          >
+            <span>{isRestoring ? 'جارٍ الاستعادة...' : 'تأكيد واستعادة النسخة'}</span>
+          </button>
         </div>
       </div>
 
       {/* منطقة التصفير الشامل والبدء كنسخة نظيفة */}
-      <div className="bg-rose-50/60 border border-rose-200 rounded-2xl p-4.5 flex items-center justify-between flex-wrap gap-4">
+      <div className="bg-rose-50/30 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/60 rounded-lg p-2 flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h4 className="font-extrabold text-xs text-rose-800 flex items-center gap-2"><span>🧹</span><span>تهيئة النظام كنسخة نظيفة وجديدة (Clean Slate & Factory Reset)</span></h4>
-          <p className="text-[11px] text-[#6F6B75] mt-0.5">مسح كافة البيانات التجريبية والطلبات مع الحفاظ التام على المستخدمين وشجرة الحسابات.</p>
+          <h4 className="font-bold text-xs text-rose-700 dark:text-rose-400">تهيئة النظام وبدء نسخة جديدة</h4>
+          <p className="text-[10px] text-slate-500 dark:text-slate-400">مسح البيانات التجريبية مع الحفاظ على المستخدمين وشجرة الحسابات.</p>
         </div>
-        <button type="button" onClick={onFactoryReset} disabled={isWiping} className="h-10 px-5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-extrabold text-xs shadow-xs transition flex items-center gap-2 cursor-pointer disabled:opacity-50">
-          <span>{isWiping ? 'جارٍ التصفير...' : '🧹 تصفير شامل وبدء نسخة جديدة'}</span>
+        <button type="button" onClick={onFactoryReset} disabled={isWiping} className="h-6 px-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-md font-bold text-[10.5px] shadow-xs transition flex items-center gap-1 cursor-pointer disabled:opacity-50">
+          <span>{isWiping ? 'جارٍ التصفير...' : 'تصفير شامل'}</span>
         </button>
       </div>
 
       {/* سجل نقاط الاستعادة المحفوظة على الخادم */}
       {backupStatus?.snapshots && backupStatus.snapshots.length > 0 && (
-        <div className="space-y-2.5">
-          <h4 className="font-bold text-xs text-[#25232A]">🕒 نقاط الاستعادة المحفوظة على الخادم ({backupStatus.snapshots.length} نسخة):</h4>
-          <div className="overflow-x-auto rounded-xl border border-[#E8E5EA]">
-            <table className="w-full text-xs">
-              <thead className="bg-[#FAFAFB] text-[#6F6B75] border-b border-[#E8E5EA]">
-                <tr>
-                  <th className="px-4 py-2.5 text-right">اسم الملف</th>
-                  <th className="px-4 py-2.5 text-right">النوع</th>
-                  <th className="px-4 py-2.5 text-right">الحجم</th>
-                  <th className="px-4 py-2.5 text-right">تاريخ وساعة الإنشاء</th>
+        <div className="space-y-1.5">
+          <h4 className="font-bold text-xs text-slate-900 dark:text-white">نقاط الاستعادة المحفوظة ({backupStatus.snapshots.length}):</h4>
+          <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800 custom-scrollbar">
+            <table className="w-full text-right border-collapse">
+              <thead className="sticky top-0 z-10 bg-slate-50 dark:bg-[#0F172A] border-b border-slate-200 dark:border-slate-800">
+                <tr className="h-7.5">
+                  <th className="h-7.5 py-1 px-2.5 text-[11px] font-bold text-slate-800 dark:text-slate-200 uppercase tracking-tight">اسم الملف</th>
+                  <th className="h-7.5 py-1 px-2.5 text-[11px] font-bold text-slate-800 dark:text-slate-200 uppercase tracking-tight">النوع</th>
+                  <th className="h-7.5 py-1 px-2.5 text-[11px] font-bold text-slate-800 dark:text-slate-200 uppercase tracking-tight">الحجم</th>
+                  <th className="h-7.5 py-1 px-2.5 text-[11px] font-bold text-slate-800 dark:text-slate-200 uppercase tracking-tight">التاريخ</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#E8E5EA] bg-white">
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60 bg-white dark:bg-transparent">
                 {backupStatus.snapshots.map((s, idx) => (
-                  <tr key={idx} className="hover:bg-[#FAFAFB]">
-                    <td className="px-4 py-2 font-mono font-bold text-[#8F2A87]">{s.filename}</td>
-                    <td className="px-4 py-2"><span className="px-2 py-0.5 rounded text-[10px] font-mono bg-purple-50 text-purple-700 border border-purple-200">{s.type?.toUpperCase()}</span></td>
-                    <td className="px-4 py-2 font-mono text-[#25232A]">{s.size_formatted}</td>
-                    <td className="px-4 py-2 font-mono text-[#6F6B75]">{s.created_at}</td>
+                  <tr key={idx} className="h-8 border-b border-slate-200 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/40 text-[11px] font-medium transition-colors">
+                    <td className="py-1 px-2.5 font-mono font-bold text-pink-600 dark:text-pink-400">{s.filename}</td>
+                    <td className="py-1 px-2.5"><span className="px-1.5 py-0.2 rounded text-[9.5px] font-mono bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/60">{s.type?.toUpperCase()}</span></td>
+                    <td className="py-1 px-2.5 font-mono text-slate-700 dark:text-slate-300">{s.size_formatted}</td>
+                    <td className="py-1 px-2.5 font-mono text-slate-500 dark:text-slate-400">{s.created_at}</td>
                   </tr>
                 ))}
               </tbody>

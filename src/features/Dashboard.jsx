@@ -38,14 +38,14 @@ function Dashboard({
 
   // 3. تجميع وحساب البيانات والمؤشرات التنفيذية
   const {
-    targetCode, filteredOrders, treasury, totalSales, totalPaid, totalRemaining,
-    effectiveExpenses, totalProfit, profitMarginPct, cashFlow, atelierStages,
-    qualityMetrics, svgCoordinates, urgentOrders, avgOrderValue,
-    chartWidth, chartHeight, chartPadding, fmt
+    targetCode = 'YER', filteredOrders = [], treasury = {}, totalSales = 0, totalPaid = 0, totalRemaining = 0,
+    effectiveExpenses = 0, totalProfit = 0, profitMarginPct = '0.0', cashFlow = {}, atelierStages = {},
+    qualityMetrics = {}, svgCoordinates = { dots: [] }, urgentOrders = [], avgOrderValue = 0,
+    chartWidth = 600, chartHeight = 180, chartPadding = 24, fmt = (n) => String(n)
   } = useData({
     orders, accounts, journal, vouchers, purchases, expenses, factory, customers,
     currency, timeHorizon, trendMode
-  });
+  }) || {};
 
   // 4. استدعاء المكونات من النطاق العام
   const HeaderComp = window.DashboardHeader || window.DashboardHero;
@@ -71,7 +71,7 @@ function Dashboard({
           totalSales={totalSales}
           totalProfit={totalProfit}
           profitMarginPct={profitMarginPct}
-          filteredOrdersCount={filteredOrders.length}
+          filteredOrdersCount={(filteredOrders || []).length}
           atelierStages={atelierStages}
           totalRemaining={totalRemaining}
           treasury={treasury}
@@ -110,7 +110,7 @@ function Dashboard({
               chartPadding={18}
               totalSales={totalSales}
               avgOrderValue={avgOrderValue}
-              filteredOrdersCount={filteredOrders.length}
+              filteredOrdersCount={(filteredOrders || []).length}
               atelierStages={atelierStages}
               currency={currency}
               fmt={fmt}

@@ -20,8 +20,7 @@ function CustomerMeasurementsModal({
   useEffect(() => {
     if (products?.length) setProds(products);
     else fetch('/api/products').then(r => r.json()).then(d => { const l = d?.data || d || []; if (l.length) setProds(l); }).catch(() => {});
-  }, [products]);
-  const activeProds = (prods?.length) ? prods : (products || []);
+  }, [products]); const activeProds = (prods?.length) ? prods : (products || []);
 
   useEffect(() => {
     if (!isOpen || !customer) return;
@@ -68,7 +67,7 @@ function CustomerMeasurementsModal({
     if (!hasBasicMeasurements) return { ageTier: '6-9Y', calculatedBomItems: [], calculatedPrice: 0, bomSummary: '' };
     return (window.useBespokeBOM ? window.useBespokeBOM(selectedProduct, currM, targetMode) : (window.BespokeBOMService?.deriveBespokeBOM ? window.BespokeBOMService.deriveBespokeBOM(selectedProduct, currM, targetMode) : null)) || { ageTier: '6-9Y', calculatedBomItems: [], calculatedPrice: 0, bomSummary: '' };
   }, [selectedProduct, currM, targetMode, hasBasicMeasurements]);
-  const { ageTier: calculatedAgeTier, calculatedBomItems, calculatedPrice } = bespokeBOM;
+  const { ageTier: calculatedAgeTier, calculatedBomItems, calculatedPrice, totalStandardMeters } = bespokeBOM;
 
   const uniqueModels = useMemo(() => {
     const s = new Set();
@@ -143,7 +142,7 @@ function CustomerMeasurementsModal({
       return {
         ...m, id: m.id || m.measurement_id || (Date.now() + idx), measurement_id: m.id || m.measurement_id || (Date.now() + idx),
         child_id: m.child_id || customer?.children?.[idx]?.id || '', target_mode: targetMode,
-        child_name: safeStr(m.child_name).trim() || (isAd ? `العميلة (${idx + 1})` : `الأميرة (${idx + 1})`),
+        child_name: safeStr(m.child_name).trim() || (isAd ? `العميل (${idx + 1})` : `الأميرة (${idx + 1})`),
         model_id: mId, product_id: mId, model_image: mImg, model_img: mImg, image_url: mImg, dress_color: col, color: col, selected_color: col,
         age_tier: bData?.ageTier || (isAd ? 'M' : '6-9Y'), estimated_age: isAd ? 'مقاس كبار / نسائي' : (m.estimated_age || bData?.ageTier || '6-9Y'),
         adjusted_price: bData?.calculatedPrice || parseFloat(m.adjusted_price || 0), bom_items: fbList,
@@ -174,7 +173,7 @@ function CustomerMeasurementsModal({
         <div className="flex items-center justify-between flex-wrap gap-1.5 pb-1 border-b border-slate-800">
           <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
             {measurements.map((m, idx) => (
-              <button key={m.id || idx} type="button" onClick={() => setActiveChildIdx(idx)} className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border cursor-pointer transition ${activeChildIdx === idx ? 'bg-pink-600 text-white border-pink-500' : 'bg-[#0F172A] text-slate-300 border-slate-700 hover:border-slate-600'}`}>{safeStr(m.child_name, isAdult ? `العميلة (${idx + 1})` : `الأميرة (${idx + 1})`)}</button>
+              <button key={m.id || idx} type="button" onClick={() => setActiveChildIdx(idx)} className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border cursor-pointer transition ${activeChildIdx === idx ? 'bg-pink-600 text-white border-pink-500' : 'bg-[#0F172A] text-slate-300 border-slate-700 hover:border-slate-600'}`}>{safeStr(m.child_name, isAdult ? `العميل (${idx + 1})` : `الأميرة (${idx + 1})`)}</button>
             ))}
             <button type="button" onClick={() => { setMeasurements(p => [...p, getEmpty(targetMode)]); setActiveChildIdx(measurements.length); }} className="px-2 py-1 rounded-lg text-[10.5px] font-bold bg-pink-950/40 text-pink-300 border border-pink-800/60 hover:bg-pink-900/60 cursor-pointer">➕ {isAdult ? 'مقاس كبار آخر' : 'طفلة أخرى'}</button>
           </div>
@@ -205,6 +204,7 @@ function CustomerMeasurementsModal({
               {calculatedBomItems?.map((item, idx) => (
                 <span key={idx} className="bg-[#0F172A] text-white font-bold px-1.5 py-0.5 rounded border border-slate-700 text-[10.5px]">🧵 {safeStr(item?.name || item, 'خامة')}: {Number(item?.qty || 0).toFixed(2)} {safeStr(item?.unit, 'متر')}</span>
               ))}
+              {totalStandardMeters > 0 && <span className="bg-pink-950/60 text-pink-300 font-bold px-1.5 py-0.5 rounded border border-pink-700/60 text-[10.5px]">📐 إجمالي الخامات: {Number(totalStandardMeters).toFixed(2)} متر</span>}
             </div>
             <div className="text-emerald-400 font-black whitespace-nowrap text-xs">💰 الإجمالي: {Number(calculatedPrice || 0).toLocaleString()} {safeStr(currency?.display || currency, 'YER')}</div>
           </div>

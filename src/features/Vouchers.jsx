@@ -41,7 +41,7 @@ function Vouchers({
   const ReversalModal = window.VoucherReversalModal || (typeof VoucherReversalModal !== 'undefined' ? VoucherReversalModal : null);
 
   return (
-    <div className="space-y-1 animate-fadeIn text-right" dir="rtl">
+    <div className="flex-1 flex flex-col space-y-2 text-right" dir="rtl">
       {Header && (
         <Header
           totals={totals}
@@ -54,7 +54,7 @@ function Vouchers({
         />
       )}
 
-      <div className="bg-white dark:bg-[#111C38] rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden p-2 space-y-1.5">
+      <div className="flex-1 flex flex-col bg-white dark:bg-[#111C38] rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden p-2 space-y-1.5">
         {FilterBar && (
           <FilterBar
             search={search} setSearch={setSearch}

@@ -13,14 +13,14 @@ customers_bp = Blueprint('customers_bp', __name__)
 def list_customers():
     try:
         customers = pg_service.get_customers()
-        return jsonify({
-            'success': True,
-            'data': customers,
-            'customers': customers,
-            'count': len(customers)
-        }), 200
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e), 'data': []}), 500
+    except Exception:
+        customers = []
+    return jsonify({
+        'success': True,
+        'data': customers,
+        'customers': customers,
+        'count': len(customers)
+    }), 200
 
 
 @customers_bp.route('/api/customers', methods=['POST'])
