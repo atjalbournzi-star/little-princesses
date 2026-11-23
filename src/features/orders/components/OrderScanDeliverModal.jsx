@@ -75,7 +75,6 @@ function OrderScanDeliverModal({
               autoFocus
               value={scanCodeInput}
               onChange={e => setScanCodeInput(e.target.value)}
-              placeholder="مثال: ORD-1001 أو امسح الباركود..."
               className="flex-1 h-11 px-3.5 rounded-xl border-2 border-dashed border-emerald-500/60 bg-emerald-50/20 dark:bg-slate-950 text-xs font-mono font-bold text-[#25232A] dark:text-slate-100 outline-none focus:border-emerald-600"
             />
             <button type="submit" className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition cursor-pointer">

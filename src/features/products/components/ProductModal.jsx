@@ -8,7 +8,8 @@ function ProductModal({
   inventory = [],
   availableCategories = [],
   availableCollections = [],
-  jobRoles = []
+  jobRoles = [],
+  onCategoryCreated
 }) {
   if (!isOpen || !actions) return null;
 
@@ -123,6 +124,7 @@ function ProductModal({
                 actions={actions}
                 availableCategories={availableCategories}
                 availableCollections={availableCollections}
+                onCategoryCreated={onCategoryCreated}
               />
             )}
 
@@ -167,7 +169,7 @@ function ProductModal({
                 إلغاء
               </button>
               <div className="text-[10.5px] font-semibold text-slate-300">
-                التكلفة: <span className="text-white font-mono font-bold">{computedTotalCost.toFixed(1)} {activeModelCurrencyLabel}</span> | الربح المتوقع: <span className="text-emerald-400 font-mono font-bold">{computedProfit.toFixed(1)} {activeModelCurrencyLabel}</span>
+                التكلفة: <span className="text-white font-mono font-bold">{computedTotalCost.toFixed(2)} {activeModelCurrencyLabel}</span> | الربح المتوقع: <span className="text-emerald-400 font-mono font-bold">{computedProfit.toFixed(2)} {activeModelCurrencyLabel}</span>
               </div>
               <button
                 type="submit"

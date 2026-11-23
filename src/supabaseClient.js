@@ -93,6 +93,11 @@
           const res = await fetch(`/api/reports/trial-balance?${qs}`).then(r => r.json());
           return { data: res?.data || null, error: null };
         }
+        if (fnName === 'rpc_get_income_statement' || fnName === 'get_income_statement') {
+          const qs = new URLSearchParams(params).toString();
+          const res = await fetch(`/api/reports/income-statement?${qs}`).then(r => r.json());
+          return { data: res?.data || null, error: null };
+        }
         if (fnName === 'rpc_get_general_ledger' || fnName === 'get_general_ledger') {
           const qs = new URLSearchParams(params).toString();
           const res = await fetch(`/api/reports/general-ledger?${qs}`).then(r => r.json());

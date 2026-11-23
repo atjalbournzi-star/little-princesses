@@ -53,7 +53,11 @@ def create_app():
         response.headers['X-Powered-By'] = 'Little Princesses ERP 2.0'
         return response
 
-    # 4. SPA Client-Side Routing & Static Asset Serving
+    # 4. Favicon & SPA Client-Side Routing
+    @flask_app.route('/favicon.ico')
+    def favicon():
+        return '', 204
+
     @flask_app.route('/', defaults={'path': ''})
     @flask_app.route('/<path:path>')
     def serve_spa(path):

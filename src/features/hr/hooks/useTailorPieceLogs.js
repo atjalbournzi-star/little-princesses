@@ -13,8 +13,9 @@ function normalizeTailorPieceLog(row) {
   const stg = r.order_stages || {};
   const orderNo = po.order_number || r.production_order_no || r.order_no || r.production_order_id || '—';
   const productName = po.product_name || r.product_name || r.child_name || 'تفصيل مخصص';
-  const qaStatus = String(stg.qa_status || r.qa_status || 'approved').toLowerCase();
+  const qaStatus = String(stg.qa_status || r.qa_status || 'pending_qa').toLowerCase();
   const isPaid = r.payment_status === 'paid' || !!r.paid_at || r.status === 'Paid';
+  const isQaApproved = qaStatus === 'approved' || qaStatus === 'passed';
   const amount = parseFloat(r.piece_rate_amount != null ? r.piece_rate_amount : (r.wage_amount || 0)) || 0;
 
   return {
@@ -23,7 +24,9 @@ function normalizeTailorPieceLog(row) {
     product_name: productName,
     stage_name: r.stage_name || r.stage || 'خياطة',
     qa_status: qaStatus,
+    is_eligible: isQaApproved && !isPaid,
     piece_rate_amount: amount,
+    effective_amount: isQaApproved ? amount : 0,
     payment_status: r.payment_status || (isPaid ? 'paid' : 'pending'),
     production_orders: { id: po.id || r.production_order_id || null, order_number: orderNo, product_name: productName },
     order_stages: { id: stg.id || r.stage_id || null, qa_status: qaStatus },

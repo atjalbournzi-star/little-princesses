@@ -32,8 +32,9 @@ function JournalVoucherModal({
 
   useEffect(() => {
     if (isOpen) {
-      if (!form.entry_no && window.getNextSequenceNumber) {
-        window.getNextSequenceNumber('JV').then(seq => { if (seq) setForm(prev => ({ ...prev, entry_no: seq })); });
+      const getSeq = window.previewNextSequenceNumber || window.getNextSequenceNumber;
+      if (!form.entry_no && getSeq) {
+        getSeq('JV').then(seq => { if (seq) setForm(prev => ({ ...prev, entry_no: seq })); });
       }
       if (accounts && accounts.length > 0) {
         setLines(prev => prev.map((l, idx) => (!l.account_code ? { ...l, account_code: idx === 0 ? debitAccDefault : creditAccDefault } : l)));
@@ -182,8 +183,8 @@ function JournalVoucherModal({
                       <optgroup label="موظفون">{(employees || []).map(emp => <option key={emp.id || emp.name} value={emp.name}>{emp.name}</option>)}</optgroup>
                     </select>
                   </td>
-                  <td className="p-2"><input type="number" step="any" placeholder="0.00" value={l.debit} onChange={e => handleLineChange(idx, 'debit', e.target.value)} dir="ltr" className="w-full h-8 px-2 rounded border border-[#374151] bg-[#111827] text-[#00E5FF] font-mono text-center text-xs" /></td>
-                  <td className="p-2"><input type="number" step="any" placeholder="0.00" value={l.credit} onChange={e => handleLineChange(idx, 'credit', e.target.value)} dir="ltr" className="w-full h-8 px-2 rounded border border-[#374151] bg-[#111827] text-amber-400 font-mono text-center text-xs" /></td>
+                  <td className="p-2"><input type="number" step="any" value={l.debit} onChange={e => handleLineChange(idx, 'debit', e.target.value)} dir="ltr" className="w-full h-8 px-2 rounded border border-[#374151] bg-[#111827] text-[#00E5FF] font-mono text-center text-xs" /></td>
+                  <td className="p-2"><input type="number" step="any" value={l.credit} onChange={e => handleLineChange(idx, 'credit', e.target.value)} dir="ltr" className="w-full h-8 px-2 rounded border border-[#374151] bg-[#111827] text-amber-400 font-mono text-center text-xs" /></td>
                   <td className="p-2 text-center">
                     <button type="button" onClick={() => handleDuplicateLine(idx)} className="text-gray-400 hover:text-white px-1 cursor-pointer">+</button>
                     <button type="button" onClick={() => handleDeleteLine(idx)} className="text-rose-400 hover:text-rose-300 px-1 cursor-pointer">🗑️</button>

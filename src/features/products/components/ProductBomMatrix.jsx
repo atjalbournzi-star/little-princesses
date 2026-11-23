@@ -79,10 +79,10 @@ function ProductBomMatrix({
       <div className="space-y-1.5 flex-1 overflow-y-auto custom-scrollbar min-h-0">
         {/* ترويسة الأعمدة بنظام CSS Grid مطابق تماماً للصفوف */}
         <div
-          className="grid items-center gap-1.5 text-[10.5px] font-bold text-slate-300 px-2.5 py-1 bg-slate-900/60 rounded-lg border border-slate-800/80 w-full grid-cols-[1.8fr_1fr_1fr_1fr_1fr_40px]"
-          style={{ gridTemplateColumns: `1.8fr repeat(${sizes.length}, 1fr) 40px` }}
+          className="grid items-center gap-1.5 text-[10.5px] font-bold text-slate-300 px-2.5 py-1 bg-slate-900/60 rounded-lg border border-slate-800/80 w-full"
+          style={{ gridTemplateColumns: sizes.length > 4 ? `2.8fr repeat(${sizes.length}, 1fr) 36px` : `3.2fr repeat(${sizes.length}, 1fr) 36px` }}
         >
-          <span className="truncate pr-0.5">الخامة من المخزون الحي</span>
+          <span className="truncate pr-0.5">الخامة من المخزون الحي ووحدة القياس</span>
           {sizes.map(sz => (
             <span key={sz} className="whitespace-nowrap text-center font-bold font-mono text-slate-200">
               {sizeLabels[sz] || sz}
@@ -95,11 +95,11 @@ function ProductBomMatrix({
         {fabricsList.map(fab => (
           <div
             key={fab.id}
-            className="grid items-center gap-1.5 h-8 py-1 px-2.5 text-xs bg-slate-900/90 rounded-lg border border-slate-800 shadow-sm w-full grid-cols-[1.8fr_1fr_1fr_1fr_1fr_40px]"
-            style={{ gridTemplateColumns: `1.8fr repeat(${sizes.length}, 1fr) 40px` }}
+            className="grid items-center gap-1.5 h-8 py-1 px-2.5 text-xs bg-slate-900/90 rounded-lg border border-slate-800 shadow-sm w-full"
+            style={{ gridTemplateColumns: sizes.length > 4 ? `2.8fr repeat(${sizes.length}, 1fr) 36px` : `3.2fr repeat(${sizes.length}, 1fr) 36px` }}
           >
-            {/* اختيار الخامة من المخزون */}
-            <div className="min-w-0">
+            {/* اختيار الخامة من المخزون مع شارة وحدة القياس الفعلية وبدون بتر */}
+            <div className="min-w-0 flex items-center gap-1.5">
               <select
                 value={fab.name}
                 onChange={e => {
@@ -107,9 +107,10 @@ function ProductBomMatrix({
                   const selectedInv = fabricMaterials.find(inv => (inv.item_name || inv.name) === val);
                   handleFabricChange(fab.id, 'name', val, selectedInv);
                 }}
-                className="h-6 px-2 text-xs bg-slate-900 border border-slate-700 rounded-md text-white outline-none focus:border-pink-500 font-medium w-full cursor-pointer truncate"
+                title={fab.name ? `${fab.name} — رصيد: ${fab.available_qty || 0} ${fab.unit || 'متر'} — السعر: ${(fab.cost || 0).toFixed(2)} ${fab.currency || 'YER'}` : '-- اختر الخامة --'}
+                className="h-6 px-2 text-xs bg-slate-900 border border-slate-700 rounded-md text-white outline-none focus:border-pink-500 font-medium flex-1 cursor-pointer truncate"
               >
-                <option value="">-- اختر الخامة --</option>
+                <option value="">-- اختر الخامة من المخزون --</option>
                 {fabricMaterials.map(inv => {
                   const itemName = inv.item_name || inv.name;
                   const itemCost = parseFloat(inv.unit_cost ?? inv.cost_price ?? inv.cost ?? inv.cost_per_meter ?? 0);
@@ -118,27 +119,38 @@ function ProductBomMatrix({
                   const unit = inv.unit || 'متر';
                   return (
                     <option key={inv.id || itemName} value={itemName}>
-                      {itemName} ({itemStock} {unit}) [{itemCost} {itemCurr}]
+                      {itemName} — رصيد: {itemStock.toLocaleString('en-US', {maximumFractionDigits: 2})} {unit} — السعر: {itemCost.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})} {itemCurr}
                     </option>
                   );
                 })}
               </select>
+              <span
+                className="h-6 px-1.5 text-[10px] font-bold bg-pink-950/80 text-pink-300 border border-pink-700/60 rounded-md shrink-0 flex items-center justify-center font-sans"
+                title={`وحدة القياس الفعلية: ${fab.unit || 'متر'}`}
+              >
+                {fab.unit || 'متر'}
+              </span>
             </div>
 
-            {/* حقول استهلاك الأمتار للمقاسات مدمجة وموسطنة */}
+            {/* حقول استهلاك الأمتار للمقاسات مع شارة وحدة القياس */}
             {sizes.map(sz => {
               const val = fab.brackets?.[sz] ?? (sz === '6-9Y' ? fab.meters_6_9 : '') ?? '';
               return (
                 <div key={sz} className="w-full flex items-center justify-center min-w-0">
-                  <input
-                    type="number"
-                    step="0.1"
-                    min="0"
-                    value={val}
-                    onChange={e => handleFabricBracketChange && handleFabricBracketChange(fab.id, sz, e.target.value)}
-                    className="w-full h-6 text-center font-mono font-bold text-white bg-slate-900 border border-slate-700 rounded-md outline-none focus:border-pink-500 text-xs px-0.5"
-                    title={`استهلاك مقاس ${sz}`}
-                  />
+                  <div className="relative w-full flex items-center">
+                    <input
+                      type="number"
+                      step="0.05"
+                      min="0"
+                      value={val}
+                      onChange={e => handleFabricBracketChange && handleFabricBracketChange(fab.id, sz, e.target.value)}
+                      className="w-full h-6 text-center font-mono font-bold text-white bg-slate-900 border border-slate-700 rounded-md outline-none focus:border-pink-500 text-xs px-0.5 pl-5"
+                      title={`استهلاك مقاس ${sz} (${fab.unit || 'متر'})`}
+                    />
+                    <span className="absolute left-1 text-[8.5px] text-pink-400 font-bold pointer-events-none select-none">
+                      {fab.unit || 'متر'}
+                    </span>
+                  </div>
                 </div>
               );
             })}
@@ -171,7 +183,7 @@ function ProductBomMatrix({
               <div key={sz} className="bg-slate-900/90 border border-slate-800 rounded-lg p-1.5 flex items-center justify-between text-xs">
                 <span className="font-mono font-bold text-pink-300 text-[10.5px] truncate max-w-[85px]">{sizeLabels[sz] || sz}</span>
                 <span className="font-mono font-bold text-white">
-                  {cost.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 1})} <span className="text-[9px] text-slate-400 font-sans">{(activeModelCurrencyLabel || 'YER').split(' ')[0]}</span>
+                  {cost.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})} <span className="text-[9px] text-slate-400 font-sans">{(activeModelCurrencyLabel || 'YER').split(' ')[0]}</span>
                 </span>
               </div>
             );

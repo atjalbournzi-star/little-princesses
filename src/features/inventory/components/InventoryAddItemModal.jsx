@@ -53,7 +53,6 @@ function InventoryAddItemModal({
               <input
                 type="text"
                 className={inputCls}
-                placeholder=""
                 value={formData.item_name}
                 onChange={e => setFormData({ ...formData, item_name: e.target.value })}
                 required
@@ -79,7 +78,6 @@ function InventoryAddItemModal({
                 type="number"
                 step="0.1"
                 className={inputCls + " font-mono font-bold"}
-                placeholder=""
                 value={formData.qty}
                 onChange={handleQtyChange}
               />
@@ -91,7 +89,6 @@ function InventoryAddItemModal({
                 type="number"
                 step="0.01"
                 className={inputCls + " font-mono font-bold"}
-                placeholder=""
                 value={formData.cost}
                 onChange={handleCostChange}
               />
@@ -103,7 +100,6 @@ function InventoryAddItemModal({
                 type="number"
                 step="0.01"
                 className={inputCls + " font-mono font-bold bg-[#FAFAFB] text-[#007F8C]"}
-                placeholder=""
                 value={formData.total_value}
                 onChange={handleTotalChange}
               />
@@ -155,7 +151,6 @@ function InventoryAddItemModal({
                 type="number"
                 step="1"
                 className={inputCls + " font-mono font-bold"}
-                placeholder=""
                 value={formData.reorder_level || 5}
                 onChange={e => setFormData({ ...formData, reorder_level: e.target.value })}
               />

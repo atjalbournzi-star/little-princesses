@@ -92,7 +92,7 @@ function useFeedbackActions({
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      const payload = { defect_id: 'DEF-' + Date.now(), defect_date: TODAY_STR_ISO, ...defectForm, total_cost: parseFloat(defectForm.rework_cost || 0), created_at: TODAY_STR_ISO };
+      const payload = { defect_id: 'DEF-' + Date.now(), defect_date: TODAY_STR_ISO, ...defectForm, created_at: TODAY_STR_ISO };
       if (window.qualityAPI?.addDefect) await window.qualityAPI.addDefect(payload);
       setDefects([payload, ...defects]);
       if (showToast) showToast('تم تسجيل عيب الجودة واحتساب تكلفة COPQ ⚠️');

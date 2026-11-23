@@ -5,10 +5,43 @@ import uuid
 from decimal import Decimal
 from .db_pool import get_db_cursor, clean_str, clean_num, execute_query
 from .pg_account_code import suggest_account_code
+from .pg_delivery_cogs import cascade_account_balances
+
+
+def refresh_chart_balances_atomic(cur):
+    """مزامنة واحتساب أرصدة الحسابات التفصيلية والتجميعية من قيود اليومية المعتمدة حصراً"""
+    cur.execute("""
+        WITH leaf_calc AS (
+            SELECT c.id,
+                   ROUND(COALESCE(c.opening_balance, 0.0) + 
+                   CASE WHEN c.normal_balance = 'Credit' 
+                        THEN (COALESCE(SUM(l.credit_base), 0.0) - COALESCE(SUM(l.debit_base), 0.0))
+                        ELSE (COALESCE(SUM(l.debit_base), 0.0) - COALESCE(SUM(l.credit_base), 0.0))
+                   END, 4) as calc_balance
+            FROM chart_of_accounts c
+            LEFT JOIN (
+                journal_entry_lines l 
+                JOIN journal_entries j ON l.entry_id = j.id AND j.status = 'Posted'
+            ) ON (
+                l.account_id = c.id 
+                OR l.account_id = c.account_code
+                OR REPLACE(REPLACE(l.account_id, 'ACC-', ''), 'ACC_', '') = c.account_code
+            )
+            WHERE c.is_group = FALSE OR c.is_group IS NULL
+            GROUP BY c.id, c.normal_balance, c.opening_balance
+        )
+        UPDATE chart_of_accounts
+        SET current_balance = leaf_calc.calc_balance
+        FROM leaf_calc
+        WHERE chart_of_accounts.id = leaf_calc.id;
+    """)
+    cascade_account_balances(cur)
 
 
 def get_accounts(params=None):
-    """استرجاع شجرة دليل الحسابات مع الأرصدة المحلية والأجنبية"""
+    """استرجاع شجرة دليل الحسابات مع الأرصدة المحلية والأجنبية مع مزامنة الأرصدة ديناميكياً"""
+    with get_db_cursor(commit=True) as cur:
+        refresh_chart_balances_atomic(cur)
     query = """
         SELECT c.id, c.account_code, c.account_name, c.account_name_en, c.account_type,
                c.account_category, c.parent_account_id, c.parent_account_code, c.level,
@@ -64,7 +97,9 @@ def add_account(payload):
     cat = clean_str(data.get('category') or data.get('account_category') or acc_type or 'General')
     p_code = clean_str(data.get('parent_code') or data.get('parent_account_code') or data.get('parent_id') or '')
     if p_code in ('0', 'null', 'None'): p_code = ''
-    lvl = int(clean_num(data.get('level') or (2 if p_code else 1)))
+    p_id = clean_str(data.get('parent_account_id') or '')
+    if p_id in ('0', 'null', 'None'): p_id = ''
+    lvl = int(clean_num(data.get('level') or (2 if (p_code or p_id) else 1)))
     is_grp = bool(data.get('is_group') in (1, True, '1', 'true', 'group'))
     is_post = bool(data.get('is_postable') in (1, True, '1', 'true', None) and not is_grp)
 
@@ -73,22 +108,34 @@ def add_account(payload):
     curr = clean_str(data.get('currency') or 'YER')
     notes = clean_str(data.get('notes') or '')
 
-    query = """
-        INSERT INTO chart_of_accounts (
-            id, account_code, account_name, account_name_en, account_type,
-            account_category, parent_account_code, level, is_group, is_postable,
-            normal_balance, currency, notes
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        ON CONFLICT (account_code) DO UPDATE SET
-            account_name = EXCLUDED.account_name,
-            account_name_en = COALESCE(NULLIF(EXCLUDED.account_name_en, ''), chart_of_accounts.account_name_en),
-            account_type = EXCLUDED.account_type, account_category = EXCLUDED.account_category,
-            is_group = EXCLUDED.is_group, is_postable = EXCLUDED.is_postable,
-            normal_balance = EXCLUDED.normal_balance, notes = EXCLUDED.notes
-        RETURNING *, account_code as code, account_name as name, current_balance as balance;
-    """
     with get_db_cursor(commit=True) as cur:
-        cur.execute(query, (acc_id, code, name, name_en, acc_type, cat, p_code, lvl, is_grp, is_post, norm_bal, curr, notes))
+        # استعلام ديناميكي عن الحساب الأب لربط parent_account_id و parent_account_code إلزامياً
+        if p_code or p_id:
+            cur.execute("SELECT id, account_code, level FROM chart_of_accounts WHERE account_code = %s OR id = %s LIMIT 1;", (p_code or p_id, p_id or p_code))
+            parent_row = cur.fetchone()
+            if parent_row:
+                p_id = parent_row['id']
+                p_code = parent_row['account_code']
+                lvl = int(parent_row.get('level') or 1) + 1
+                cur.execute("UPDATE chart_of_accounts SET is_group = TRUE WHERE id = %s;", (p_id,))
+
+        query = """
+            INSERT INTO chart_of_accounts (
+                id, account_code, account_name, account_name_en, account_type,
+                account_category, parent_account_id, parent_account_code, level, is_group, is_postable,
+                normal_balance, currency, notes
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (account_code) DO UPDATE SET
+                account_name = EXCLUDED.account_name,
+                account_name_en = COALESCE(NULLIF(EXCLUDED.account_name_en, ''), chart_of_accounts.account_name_en),
+                account_type = EXCLUDED.account_type, account_category = EXCLUDED.account_category,
+                parent_account_id = COALESCE(EXCLUDED.parent_account_id, chart_of_accounts.parent_account_id),
+                parent_account_code = COALESCE(EXCLUDED.parent_account_code, chart_of_accounts.parent_account_code),
+                level = EXCLUDED.level, is_group = EXCLUDED.is_group, is_postable = EXCLUDED.is_postable,
+                normal_balance = EXCLUDED.normal_balance, notes = EXCLUDED.notes
+            RETURNING *, account_code as code, account_name as name, current_balance as balance;
+        """
+        cur.execute(query, (acc_id, code, name, name_en, acc_type, cat, p_id or None, p_code or None, lvl, is_grp, is_post, norm_bal, curr, notes))
         res = dict(cur.fetchone())
         for k, v in res.items():
             if isinstance(v, (Decimal, uuid.UUID)): res[k] = float(v) if isinstance(v, Decimal) else str(v)

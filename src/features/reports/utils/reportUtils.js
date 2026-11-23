@@ -2,10 +2,15 @@
 
 const cleanCode = (val) => {
   if (!val) return '';
-  let s = String(val).trim();
-  if (s.includes(' - ')) s = s.split(' - ')[0].trim();
-  if (s.startsWith('ACC-') || s.startsWith('ACC_')) s = s.slice(4).trim();
-  return s;
+  const s = String(val).trim();
+  return (s.includes(' - ') ? s.split(' - ')[0].trim() : s).replace(/^ACC[-_]?/i, '').trim();
+};
+
+const cleanCurrencyName = (val) => {
+  const str = String(val?.display || val?.label || val || '').trim();
+  if (str.includes('سعودي') || str.includes('SAR')) return 'ريال سعودي';
+  if (str.includes('دولار') || str.includes('USD') || str.includes('$')) return 'دولار أمريكي';
+  return 'ريال يمني';
 };
 
 const getAccountCategory = (acc) => {
@@ -15,17 +20,15 @@ const getAccountCategory = (acc) => {
   if (rawType.includes('asset') || rawType.includes('أصول') || rawType.includes('اصول') || rawCode.startsWith('1')) return 'Assets';
   if (rawType.includes('liabilit') || rawType.includes('خصوم') || rawType.includes('التزام') || rawCode.startsWith('2')) return 'Liabilities';
   if (rawType.includes('equity') || rawType.includes('ملكي') || rawCode.startsWith('3')) return 'Equity';
-  if (rawType.includes('revenu') || rawType.includes('إيراد') || rawType.includes('ايراد') || rawType.includes('مبيعات') || rawCode.startsWith('4')) return 'Revenue';
-  if (rawType.includes('expens') || rawType.includes('مصروف') || rawType.includes('تكاليف') || rawType.includes('تكلفة') || rawCode.startsWith('5')) return 'Expenses';
+  if (rawType.includes('expens') || rawType.includes('مصروف') || rawType.includes('تكاليف') || rawType.includes('تكلفة') || rawType.includes('cogs') || rawType.includes('عمالة') || rawCode.startsWith('5')) return 'Expenses';
+  if (rawType.includes('revenu') || rawType.includes('إيراد') || rawType.includes('ايراد') || (rawType.includes('مبيعات') && !rawType.includes('تكلفة')) || rawCode.startsWith('4')) return 'Revenue';
   return 'Assets';
 };
 
 const isInDateRange = (dStr, dateRange) => {
   if (!dStr) return true;
   const d = String(dStr).split('T')[0];
-  if (dateRange?.start && d < dateRange.start) return false;
-  if (dateRange?.end && d > dateRange.end) return false;
-  return true;
+  return (!dateRange?.start || d >= dateRange.start) && (!dateRange?.end || d <= dateRange.end);
 };
 
 const toReportAmount = (origAmount, itemCurrency, itemRate, targetCode = 'YER') => {
@@ -124,15 +127,9 @@ const computeInventoryStats = (inventory = []) => {
 const filterCashBankAccounts = (accounts = [], cleanCodeFn = cleanCode, getCategoryFn = getAccountCategory) => {
   return (accounts || []).filter(a => {
     if (a.is_group) return false;
-    const c = cleanCodeFn(a.code || a.id || a.account_code || '');
-    const rawId = String(a.id || a.code || a.account_code || '');
-    // استبعاد حساب المصروفات 508 وأي مصروفات
-    if (c.startsWith('5') || rawId.includes('ACC-5') || c === '508' || rawId.includes('508')) return false;
-    if (getCategoryFn(a) !== 'Assets') return false;
-    // قصر الاستعلام فقط على حسابات الأصول النقدية التابعة لـ (ACC-101 و ACC-102)
-    const isCashCode = ['101', '102'].some(p => c === p || c.startsWith(p + '.') || c.startsWith(p + '-'));
-    const isCashId = ['ACC-101', 'ACC-102'].some(p => rawId === p || rawId.startsWith(p + '-') || rawId.startsWith(p + '.'));
-    return isCashCode || isCashId;
+    const c = cleanCodeFn(a.code || a.id || a.account_code || ''), rawId = String(a.id || a.code || a.account_code || '');
+    if (c.startsWith('5') || rawId.includes('ACC-5') || c === '508' || rawId.includes('508') || getCategoryFn(a) !== 'Assets') return false;
+    return ['101', '102'].some(p => c === p || c.startsWith(p + '.') || c.startsWith(p + '-')) || ['ACC-101', 'ACC-102'].some(p => rawId === p || rawId.startsWith(p + '-') || rawId.startsWith(p + '.'));
   });
 };
 
@@ -208,7 +205,7 @@ const computeModelProfitabilityData = (products = [], orders = []) => {
 
 if (typeof window !== 'undefined') {
   window.reportUtils = {
-    cleanCode, getAccountCategory, isInDateRange, toReportAmount, fmtMoney, fmtCurrency,
+    cleanCode, cleanCurrencyName, getAccountCategory, isInDateRange, toReportAmount, fmtMoney, fmtCurrency,
     computeLiveAccounts, computeProductionStats, computeInventoryStats,
     filterCashBankAccounts, buildCashBankReconciliation,
     computeDailySalesData, computeModelProfitabilityData

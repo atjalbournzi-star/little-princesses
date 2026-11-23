@@ -44,7 +44,7 @@ OPERATIONAL_TABLES_TO_TRUNCATE = [
     "attribution_records", "comments", "content_metrics", "content", "messages", "conversations",
     "customer_platform_mappings", "campaigns", "raw_platform_events", "ai_scoring_weights",
     # 10. سجلات التدقيق والمفاتيح المؤقتة
-    "audit_logs", "idempotency_keys", "tenants", "cost_centers"
+    "audit_logs", "idempotency_keys", "tenants"
 ]
 
 # الجداول الأساسية المحمية التي يمنع حذفها
@@ -54,6 +54,7 @@ PRESERVED_SYSTEM_TABLES = {
     "system_settings",
     "currencies",
     "chart_of_accounts",
+    "cost_centers",
     "warehouses",
     "quality_checkpoints",
     "quality_settings",

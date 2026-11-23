@@ -1,6 +1,6 @@
 # services/pg/pg_vouchers_query.py
 # Universal Financial Vouchers & Transactions Data Source - Ultra Fast Query Engine
-from db_client import get_pool, logger
+from db_client import get_db_cursor, logger
 from psycopg2 import extras
 from .db_pool import clean_num, clean_str, today_str
 
@@ -44,10 +44,11 @@ def get_vouchers(params=None, voucher_id=None):
             p.date::text AS date_created,
             COALESCE(p.notes, '') AS notes,
             CASE 
+                WHEN p_leaf.account_name IS NOT NULL THEN CONCAT(p_leaf.account_code, ' - ', p_leaf.account_name)
                 WHEN acc.account_name IS NOT NULL THEN CONCAT(acc.account_code, ' - ', acc.account_name) 
                 ELSE COALESCE(p.account_id::text, '') 
             END AS account,
-            p.account_id::text AS account_id,
+            COALESCE(p_leaf.id, p.account_id::text) AS account_id,
             CASE 
                 WHEN tgt.account_name IS NOT NULL THEN CONCAT(tgt.account_code, ' - ', tgt.account_name) 
                 ELSE COALESCE(p.target_account_id::text, '') 
@@ -59,6 +60,7 @@ def get_vouchers(params=None, voucher_id=None):
         LEFT JOIN customers c ON p.customer_id = c.id
         LEFT JOIN suppliers s ON p.supplier_id = s.id
         LEFT JOIN chart_of_accounts acc ON (p.account_id = acc.id OR p.account_id = acc.account_code)
+        LEFT JOIN chart_of_accounts p_leaf ON (acc.is_group = TRUE AND p_leaf.parent_account_id = acc.id AND p_leaf.is_postable = TRUE AND (p_leaf.currency = p.currency OR p_leaf.account_code LIKE '101.1%%'))
         LEFT JOIN chart_of_accounts tgt ON (p.target_account_id = tgt.id OR p.target_account_id = tgt.account_code)
         {p_filter}
     ),
@@ -83,10 +85,11 @@ def get_vouchers(params=None, voucher_id=None):
             j.entry_date::text AS date_created,
             COALESCE(j.notes, j.description, '') AS notes,
             CASE 
+                WHEN j_leaf.account_name IS NOT NULL THEN CONCAT(j_leaf.account_code, ' - ', j_leaf.account_name)
                 WHEN deb.account_name IS NOT NULL THEN CONCAT(deb.account_code, ' - ', deb.account_name) 
                 ELSE COALESCE(j.debit_account_id::text, '') 
             END AS account,
-            j.debit_account_id::text AS account_id,
+            COALESCE(j_leaf.id, j.debit_account_id::text) AS account_id,
             CASE 
                 WHEN crd.account_name IS NOT NULL THEN CONCAT(crd.account_code, ' - ', crd.account_name) 
                 ELSE COALESCE(j.credit_account_id::text, '') 
@@ -96,6 +99,7 @@ def get_vouchers(params=None, voucher_id=None):
             j.created_at
         FROM journal_entries j
         LEFT JOIN chart_of_accounts deb ON (j.debit_account_id = deb.id OR j.debit_account_id = deb.account_code)
+        LEFT JOIN chart_of_accounts j_leaf ON (deb.is_group = TRUE AND j_leaf.parent_account_id = deb.id AND j_leaf.is_postable = TRUE AND (j_leaf.currency = j.currency OR j_leaf.account_code LIKE '101.1%%'))
         LEFT JOIN chart_of_accounts crd ON (j.credit_account_id = crd.id OR j.credit_account_id = crd.account_code)
         WHERE (j.entry_no IS NULL OR (j.entry_no NOT LIKE 'AUTO-VCH%%' AND j.entry_no NOT LIKE 'JV-PUR%%' AND j.entry_no NOT LIKE 'JV-PAY%%' AND j.entry_no NOT LIKE 'JV-ORD%%' AND j.entry_no NOT LIKE 'JV-EXP%%'))
           AND (j.ref_type IS NULL OR j.ref_type NOT IN ('Payment', 'Receipt', 'Purchase', 'Order', 'Expense'))
@@ -110,27 +114,13 @@ def get_vouchers(params=None, voucher_id=None):
     LIMIT %s;
     """
 
-    pool = get_pool()
-    conn, is_bad = None, False
     try:
-        conn = pool.getconn()
-        if conn.closed != 0:
-            is_bad = True
-            conn = pool.getconn()
-        conn.autocommit = True
-        with conn.cursor(cursor_factory=extras.RealDictCursor) as cur:
+        with get_db_cursor(commit=False) as cur:
             cur.execute(query, sql_params)
             rows = [dict(r) for r in cur.fetchall()]
     except Exception as e:
-        is_bad = True
         logger.error(f"Vouchers query error: {e}")
         rows = []
-    finally:
-        if conn:
-            try:
-                pool.putconn(conn, close=is_bad)
-            except Exception:
-                pass
 
     results = []
     for r in rows:

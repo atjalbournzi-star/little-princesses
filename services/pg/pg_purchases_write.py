@@ -67,21 +67,27 @@ def add_purchase(payload):
         net_paid_yer = max(0.0, ((orig_amt + shipping_cost + transfer_fee) - discount) * rate)
         grand_total_yer = net_paid_yer
 
-        inv_acc = resolve_inventory_account(cur)
-        supp_acc = resolve_payables_account(cur)
-        cash_acc = resolve_account_id(cur, pay_source_raw, currency=curr) or resolve_cash_account_by_currency(cur, curr)
-        if not inv_acc or not supp_acc:
-            raise ValueError("تعذر تحديد حسابات المخزون أو الموردين من شجرة الحسابات")
+        from .pg_audit import resolve_active_user_id
+        resolved_user = resolve_active_user_id(cur, clean_str(data.get('user_id') or data.get('created_by')))
 
         wh_in = clean_str(data.get('warehouse_id') or data.get('warehouse') or data.get('location') or '')
-        cur.execute("SELECT id FROM warehouses WHERE id = %s OR code = %s OR name = %s LIMIT 1;", (wh_in, wh_in, wh_in))
+        cur.execute("SELECT id, name, account_id FROM warehouses WHERE id = %s OR code = %s OR name = %s LIMIT 1;", (wh_in, wh_in, wh_in))
         wh_row = cur.fetchone()
         if not wh_row:
-            cur.execute("SELECT id FROM warehouses WHERE is_active = TRUE ORDER BY id ASC LIMIT 1;")
+            cur.execute("SELECT id, name, account_id FROM warehouses WHERE is_active = TRUE ORDER BY id ASC LIMIT 1;")
             wh_row = cur.fetchone()
         if not wh_row:
             raise ValueError("لا يوجد أي مستودع نشط معرف في جدول المستودعات (warehouses)")
         warehouse_id = wh_row['id']
+        inv_acc = wh_row.get('account_id')
+        if not inv_acc:
+            from .pg_warehouse_accounts import create_or_link_warehouse_account
+            inv_acc = create_or_link_warehouse_account(cur, warehouse_id, wh_row['name'], user_id=resolved_user)
+
+        supp_acc = resolve_payables_account(cur)
+        cash_acc = resolve_account_id(cur, pay_source_raw, currency=curr) or resolve_cash_account_by_currency(cur, curr)
+        if not inv_acc or not supp_acc:
+            raise ValueError("تعذر تحديد حسابات المخزون أو الموردين من شجرة الحسابات")
 
         supp_id, supp_name = clean_str(data.get('supplier_id') or ''), clean_str(data.get('supplier_name') or data.get('supplier') or '')
         supp_phone = clean_str(data.get('supplier_phone') or data.get('phone') or '')
@@ -98,12 +104,6 @@ def add_purchase(payload):
             cur.execute("SELECT id, name FROM suppliers WHERE name = %s LIMIT 1;", (supp_name,))
             s_row = cur.fetchone()
             if s_row: supp_id = s_row['id']
-
-        resolved_user = clean_str(data.get('created_by')) or get_active_user_context()
-        if resolved_user:
-            cur.execute("SELECT id FROM users WHERE id = %s OR username = %s LIMIT 1;", (resolved_user, resolved_user))
-            u_row = cur.fetchone()
-            resolved_user = u_row['id'] if u_row else None
 
         if not supp_id:
             supp_id = get_next_sequence_number(cur, 'SUP', fallback_prefix='SUP-')
@@ -132,16 +132,17 @@ def add_purchase(payload):
                 id, invoice_no, supplier_id, supplier_name, supplier_phone, invoice_date, item_name, unit, quantity,
                 unit_price, currency, exchange_rate, original_amount, discount, amount_yer, shipping_cost, transfer_fee,
                 grand_total_yer, payment_method, payment_account_code, transaction_ref, invoice_attachment, receipt_attachment,
-                receipt_status, payment_status, created_by, notes, created_at
+                receipt_status, payment_status, created_by, notes, warehouse_id, created_at
             ) VALUES (
-                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'Received', %s, %s, %s, CURRENT_TIMESTAMP
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'Received', %s, %s, %s, %s, CURRENT_TIMESTAMP
             ) ON CONFLICT (id) DO UPDATE SET
                 supplier_id = EXCLUDED.supplier_id, supplier_name = EXCLUDED.supplier_name, quantity = EXCLUDED.quantity,
                 unit_price = EXCLUDED.unit_price, original_amount = EXCLUDED.original_amount, discount = EXCLUDED.discount,
                 shipping_cost = EXCLUDED.shipping_cost, transfer_fee = EXCLUDED.transfer_fee, amount_yer = EXCLUDED.amount_yer,
-                grand_total_yer = EXCLUDED.grand_total_yer, payment_method = EXCLUDED.payment_method, notes = EXCLUDED.notes
+                grand_total_yer = EXCLUDED.grand_total_yer, payment_method = EXCLUDED.payment_method, notes = EXCLUDED.notes,
+                warehouse_id = EXCLUDED.warehouse_id
             RETURNING *;
-        """, (pur_id, inv_no, supp_id, supp_name, supp_phone, inv_date, header_name, header_unit, total_qty, header_price, curr, rate, orig_amt, discount, items_amt_yer, shipping_cost, transfer_fee, grand_total_yer, pay_method, pay_acc_code, transfer_no, invoice_image_url, receipt_url, pay_status, resolved_user, notes))
+        """, (pur_id, inv_no, supp_id, supp_name, supp_phone, inv_date, header_name, header_unit, total_qty, header_price, curr, rate, orig_amt, discount, items_amt_yer, shipping_cost, transfer_fee, grand_total_yer, pay_method, pay_acc_code, transfer_no, invoice_image_url, receipt_url, pay_status, resolved_user, notes, warehouse_id))
         res = dict(cur.fetchone())
 
         cur.execute("SELECT inventory_id, quantity FROM purchase_items WHERE purchase_id = %s;", (pur_id,))

@@ -65,17 +65,16 @@ function EmployeeTable({
                   </span>
                 </div>
 
-                {calculateEmployeeCompletedTasks &&
-                  isProductionRole(emp.role) && (
-                    <div className="text-center bg-slate-900/80 px-1.5 py-0.2 rounded border border-slate-800 shrink-0">
-                      <span className="text-[11px] font-bold font-mono text-pink-400">
-                        {calculateEmployeeCompletedTasks(emp.name)}
-                      </span>
-                      <span className="text-[8.5px] text-slate-300 mr-1 font-medium">
-                        مهمة
-                      </span>
-                    </div>
-                  )}
+                {isProductionRole(emp.role) && (
+                  <div className="text-center bg-slate-900/80 px-1.5 py-0.2 rounded border border-slate-800 shrink-0" title="أوامر التشغيل المفتوحة والنشطة حالياً">
+                    <span className="text-[11px] font-bold font-mono text-pink-400">
+                      {emp.active_tasks_count != null ? emp.active_tasks_count : (calculateEmployeeCompletedTasks ? calculateEmployeeCompletedTasks(emp.name, emp) : 0)}
+                    </span>
+                    <span className="text-[8.5px] text-slate-300 mr-1 font-medium">
+                      مهمة
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* تفاصيل الموظف - شبكة ثنائية مدمجة تقضي على التشتت */}

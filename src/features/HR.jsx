@@ -16,7 +16,7 @@ function HR({
   const [employeeModalOpen, setEmployeeModalOpen] = useState(false), [editingEmployee, setEditingEmployee] = useState(null);
   const [advanceModalOpen, setAdvanceModalOpen] = useState(false), [advanceEmp, setAdvanceEmp] = useState(''), [advanceAmount, setAdvanceAmount] = useState(''), [advanceBox, setAdvanceBox] = useState('ACC-101-1'), [advanceNotes, setAdvanceNotes] = useState(''), [submittingAdvance, setSubmittingAdvance] = useState(false);
   const [selectedTailorForPayout, setSelectedTailorForPayout] = useState(null), [payoutCashAccount, setPayoutCashAccount] = useState('ACC-101'), [payoutMethod, setPayoutMethod] = useState('نقدي / كاش'), [payoutDeductions, setPayoutDeductions] = useState(0), [payoutNotes, setPayoutNotes] = useState(''), [submittingPayout, setSubmittingPayout] = useState(false), [activeVoucherForPrint, setActiveVoucherForPrint] = useState(null);
-  const currencyDisplay = currency?.display || 'SAR';
+  const currencyDisplay = currency?.symbol || (currency?.code === 'YER' ? '﷼' : (currency?.code || '﷼'));
 
   // استدعاء الخطافات والمكونات بأمان تام من window
   const useData = window.useHRData || (typeof useHRData !== 'undefined' ? useHRData : () => ({}));
@@ -44,15 +44,20 @@ function HR({
     if (recordsForMonth.length === 0) return null;
     const mapped = recordsForMonth.map(r => {
       const emp = employees.find(e => e.name === r.empName) || {};
+      const tSum = (tailorSummaries || []).find(t => t.employee_name === r.empName || t.employee_id === (r.empId || r.employee_id));
+      const isPaid = Boolean(r.status && r.status.includes('تم الصرف'));
+      const lCnt = (!isPaid && tSum && tSum.unpaid_pieces_count !== undefined) ? tSum.unpaid_pieces_count : (r.piecesCount || 0);
+      const lWg = (!isPaid && tSum && tSum.unpaid_total_amount !== undefined) ? Number(tSum.unpaid_total_amount) : Number(r.totalDue || 0);
+      const lBase = r.type === 'بالقطعة' ? lWg : Number(r.baseValue || 0), lBon = r.type === 'بالقطعة' ? Number(r.bonus || 0) : (lWg || Number(r.bonus || 0));
+      const lNet = isPaid ? Number(r.netSalary || 0) : Math.max(0, (lBase + lBon) - Number(r.deductions || 0));
       return {
         id: r.id, empId: r.empId || r.employee_id || r.id, name: r.empName, role: emp.role || 'غير محدد',
-        type: r.type, baseSalary: r.baseValue, piecesCount: r.piecesCount, totalDue: r.totalDue,
-        pieceWages: r.totalDue, bonus: r.bonus, deduction: r.deductions, netSalary: r.netSalary,
-        status: r.status, piecesStatement: r.piecesStatement || ""
+        type: r.type, baseSalary: lBase, piecesCount: lCnt, totalDue: lWg, pieceWages: lWg, bonus: lBon, deduction: r.deductions,
+        netSalary: lNet, status: r.status, piecesStatement: r.piecesStatement || ""
       };
     });
     return { month: payrollMonth, status: mapped.every(r => r.status.includes('تم الصرف')) ? 'مكتمل' : 'قيد الصرف', records: mapped };
-  }, [payroll, payrollMonth, employees]);
+  }, [payroll, payrollMonth, employees, tailorSummaries]);
 
   const hrActions = useActions({
     employees, setEmployees, payroll, setPayroll, journal, setJournal, factory,
@@ -195,8 +200,6 @@ function HR({
           setPayoutCashAccount('ACC-101'); setPayoutMethod('نقدي / كاش'); setPayoutDeductions(0); setPayoutNotes('');
         }}
       />
-
-
       <PayoutModal
         selectedTailorForPayout={selectedTailorForPayout} onClose={() => setSelectedTailorForPayout(null)}
         onSubmitPayout={onPayoutSubmit} payoutCashAccount={payoutCashAccount} setPayoutCashAccount={setPayoutCashAccount}

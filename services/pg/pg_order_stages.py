@@ -21,11 +21,11 @@ def resolve_product_stages(cur, product_id, product_name=None):
     if not p_row:
         # المراحل التشغيلية الخمس الشاملة في حال عدم تحديد الموديل
         return [
-            {'stage_name': 'القص والباترون ✂️', 'wage': 0.0},
-            {'stage_name': 'الخياطة والتفصيل 🪡', 'wage': 0.0},
-            {'stage_name': 'التطريز والشك اليدوي ✨', 'wage': 0.0},
-            {'stage_name': 'الكي والتشطيب النهائي 👔', 'wage': 0.0},
-            {'stage_name': 'التغليف ومستلزمات التسليم 📦', 'wage': 0.0}
+            {'stage_name': 'القص والباترون', 'wage': 0.0},
+            {'stage_name': 'الخياطة والتفصيل', 'wage': 0.0},
+            {'stage_name': 'التطريز والشك اليدوي', 'wage': 0.0},
+            {'stage_name': 'الكي والتشطيب النهائي', 'wage': 0.0},
+            {'stage_name': 'التغليف ومستلزمات التسليم', 'wage': 0.0}
         ]
 
     bom_raw = p_row.get('bom')
@@ -62,11 +62,11 @@ def resolve_product_stages(cur, product_id, product_name=None):
     p_cost = clean_num(meta.get('packaging_cost') or p_row.get('packaging_cost') or 0.0)
 
     stages = [
-        {'stage_name': 'القص والباترون ✂️', 'wage': c_wage},
-        {'stage_name': 'الخياطة والتفصيل 🪡', 'wage': t_wage},
-        {'stage_name': 'التطريز والشك اليدوي ✨', 'wage': e_wage},
-        {'stage_name': 'الكي والتشطيب النهائي 👔', 'wage': f_wage},
-        {'stage_name': 'التغليف ومستلزمات التسليم 📦', 'wage': p_cost}
+        {'stage_name': 'القص والباترون', 'wage': c_wage},
+        {'stage_name': 'الخياطة والتفصيل', 'wage': t_wage},
+        {'stage_name': 'التطريز والشك اليدوي', 'wage': e_wage},
+        {'stage_name': 'الكي والتشطيب النهائي', 'wage': f_wage},
+        {'stage_name': 'التغليف ومستلزمات التسليم', 'wage': p_cost}
     ]
 
     return stages
@@ -80,30 +80,37 @@ def create_order_stages(cur, order_id, order_item_id, product_id, product_name=N
     if not order_id or not order_item_id:
         return []
 
+    real_po_id = production_order_id
+    if order_id or production_order_id:
+        cur.execute("SELECT id FROM production_orders WHERE order_id = %s OR id = %s OR production_order_no = %s LIMIT 1;", (order_id, production_order_id, production_order_id))
+        po_row = cur.fetchone()
+        if po_row: real_po_id = po_row['id']
+
     # حذف المراحل السابقة لهذا البند لمنع التكرار عند إعادة الحفظ
     cur.execute("DELETE FROM order_stages WHERE order_item_id = %s;", (order_item_id,))
 
     stages = resolve_product_stages(cur, product_id, product_name)
-    created = []
+    if not stages:
+        return []
 
+    from psycopg2.extras import execute_values
+    records = []
     for stg in stages:
         s_id = generate_id("STG")
         s_name = stg['stage_name']
         s_wage = float(stg['wage'])
+        records.append((s_id, order_id, order_item_id, real_po_id, s_name, s_wage, s_wage, s_wage))
 
-        cur.execute("""
-            INSERT INTO order_stages (
-                id, order_id, order_item_id, production_order_id, stage_name,
-                wage, rate, stage_fee, status, qa_status, created_at
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'Pending', 'Pending', CURRENT_TIMESTAMP)
-            RETURNING *;
-        """, (s_id, order_id, order_item_id, production_order_id, s_name, s_wage, s_wage, s_wage))
-
-        row = cur.fetchone()
-        if row:
-            created.append(dict(row))
-
-    return created
+    insert_sql = """
+        INSERT INTO order_stages (
+            id, order_id, order_item_id, production_order_id, stage_name,
+            wage, rate, stage_fee, status, qa_status, qa_score, qa_inspected_at, created_at
+        ) VALUES %s
+        RETURNING *;
+    """
+    tmpl = "(%s, %s, %s, %s, %s, %s, %s, %s, 'Pending', 'Pending', NULL, NULL, CURRENT_TIMESTAMP)"
+    returned_rows = execute_values(cur, insert_sql, records, template=tmpl, fetch=True)
+    return [dict(r) for r in returned_rows] if returned_rows else []
 
 
 def get_order_stages_by_order(order_id):

@@ -111,7 +111,6 @@ function StockAdjustmentModal({
               step="0.01"
               min="0.01"
               required
-              placeholder=""
               value={adjustQty}
               onChange={e => setAdjustQty(e.target.value)}
               className="w-full h-11 px-3.5 rounded-xl border border-[#E8E5EA] bg-[#FAFAFB] text-xs font-mono font-bold focus:bg-white focus:border-[#B0005A] outline-none"
@@ -133,7 +132,6 @@ function StockAdjustmentModal({
             <label className="block font-bold text-[#25232A] mb-1">سبب ومبرر التسوية الجردية:</label>
             <input
               type="text"
-              placeholder=""
               value={adjustReason}
               onChange={e => setAdjustReason(e.target.value)}
               className="w-full h-11 px-3.5 rounded-xl border border-[#E8E5EA] bg-[#FAFAFB] text-xs font-medium focus:bg-white focus:border-[#B0005A] outline-none"

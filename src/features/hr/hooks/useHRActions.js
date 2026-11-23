@@ -9,19 +9,16 @@ function useHRActions({
 }) {
   const activeEmployees = useMemo(() => employees.filter(e => e.status === 'نشط'), [employees]);
 
-  const calculateEmployeeCompletedTasks = (empName) => {
-    if (commissions && commissions.length > 0) {
-      const list = commissions.filter(c => (c.employee_name === empName || c.employee_id === empName) && c.status === 'Approved');
-      if (list.length > 0) return list.reduce((sum, c) => sum + Number(c.pieces_count || 1), 0);
-    }
+  const calculateEmployeeCompletedTasks = (empName, empObj) => {
+    if (empObj && empObj.active_tasks_count != null) return Number(empObj.active_tasks_count || 0);
+    const emp = employees.find(e => e.name === empName || e.id === empName);
+    if (emp && emp.active_tasks_count != null) return Number(emp.active_tasks_count || 0);
     if (!factory) return 0;
     return factory.filter(f => {
-      const isC = f.cutter_name === empName, isT = f.tailor === empName || f.tailor_name === empName;
-      const isE = f.embroiderer_name === empName, isF = f.finisher_name === empName;
-      if (!isC && !isT && !isE && !isF) return false;
-      const prog = Number(f.progress || 0);
-      const isReady = f.stage?.includes('جاهز') || f.stage?.includes('تسليم');
-      return isReady || (isC && prog >= 40) || (isT && prog >= 60) || (isE && prog >= 80) || (isF && prog >= 100);
+      const isAssigned = f.cutter_name === empName || f.tailor === empName || f.tailor_name === empName || f.embroiderer_name === empName || f.finisher_name === empName;
+      if (!isAssigned) return false;
+      const isDone = ['Completed', 'Delivered', 'مكتمل', 'تم التسليم', 'ملغي'].includes(f.status) || f.stage?.includes('جاهز') || f.stage?.includes('تسليم') || Number(f.progress || 0) >= 100;
+      return !isDone;
     }).length;
   };
 
@@ -58,7 +55,7 @@ function useHRActions({
     if (!emp) return;
     const updated = { ...emp, status: emp.status === 'نشط' ? 'موقوف' : 'نشط' };
     try {
-      if (window.hrAPI && typeof window.hrAPI.addEmployee === 'function') await window.hrAPI.addEmployee(updated);
+      if (window.hrAPI?.addEmployee) await window.hrAPI.addEmployee(updated);
       else if (typeof window.callGAS === 'function') await window.callGAS('updateEmployee', updated);
       showToast("تم تحديث حالة الموظف 🔄");
     } catch (err) { showToast("تم التحديث محلياً ⚡"); }
@@ -68,7 +65,7 @@ function useHRActions({
   const deleteEmp = async (id) => {
     if (!confirm("هل أنت متأكد من حذف الموظف نهائياً؟ 🗑️")) return;
     try {
-      if (window.hrAPI && typeof window.hrAPI.deleteEmployee === 'function') await window.hrAPI.deleteEmployee(id);
+      if (window.hrAPI?.deleteEmployee) await window.hrAPI.deleteEmployee(id);
       else if (typeof window.callGAS === 'function') await window.callGAS('deleteEmployee', { id });
       showToast("تم حذف الموظف 🗑️");
     } catch (err) { showToast("تم الحذف محلياً ⚡"); }
@@ -146,6 +143,10 @@ function useHRActions({
     if (!currentPayroll) return;
     const b = bonus[record.empId] ? parseFloat(bonus[record.empId]) : 0;
     const finalBonus = record.bonus + b, finalNet = record.netSalary + b;
+    if (finalNet <= 0) {
+      showToast("لا يمكن صرف راتب لموظف بصافي مستحق صفر أو أقل ⚠️", "error");
+      return;
+    }
     try {
       if (window.hrAPI?.postPayroll) {
         const updatedRecord = { ...record, bonus: finalBonus, netSalary: finalNet, status: 'تم الصرف ✅' };
@@ -155,7 +156,7 @@ function useHRActions({
         showToast(res.message || "تم تسليم الراتب وإنشاء القيد المحاسبي المركب 💸", "success");
         if (res.processed_records?.[0]) {
           const proc = res.processed_records[0];
-          setActiveVoucherForPrint({ voucher_no: proc.payment_no, date: proc.date, employee_name: proc.emp_name, payment_method: 'نقدي (كاش)', account_id: 'ACC-101', pieces_count: record.piecesCount || 0, entry_no: proc.entry_no, net_amount: proc.net, currency: proc.currency || 'YER', title: `سند صرف راتب ومستحقات شهر ${currentPayroll.month}`, created_by: 'المحاسب المالي' });
+          setActiveVoucherForPrint({ voucher_no: proc.payment_no, date: proc.date, employee_name: proc.emp_name, payment_method: 'نقدي (كاش)', account_id: 'ACC-101-1', pieces_count: record.piecesCount || 0, entry_no: proc.entry_no, net_amount: proc.net, currency: proc.currency || 'YER', title: `سند صرف راتب ومستحقات شهر ${currentPayroll.month}`, created_by: 'المحاسب المالي' });
         }
       } else {
         const res = await fetch('/api/hr/payroll/post', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ month: currentPayroll.month, records: [{ ...record, bonus: finalBonus, netSalary: finalNet }] }) }).then(r => r.json());
@@ -174,7 +175,11 @@ function useHRActions({
       const recordsToPay = pendingRecords.map(r => {
         const b = bonus[r.empId] ? parseFloat(bonus[r.empId]) : 0;
         return { ...r, bonus: (r.bonus || 0) + b, netSalary: (r.netSalary || 0) + b };
-      });
+      }).filter(r => (Number(r.netSalary) || 0) > 0);
+      if (recordsToPay.length === 0) {
+        showToast("لا توجد سجلات برصيد صافي موجب للصرف ⚠️", "error");
+        return false;
+      }
       const res = await fetch('/api/hr/payroll/disburse-bulk', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ month: currentPayroll.month, records: recordsToPay })
@@ -194,14 +199,16 @@ function useHRActions({
   };
 
   const handleSubmitPayout = async (payload) => {
-    const res = await fetch('/api/hr/tailor-payout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).then(r => r.json());
-    if (res?.success) {
-      showToast(res.message || "تم إصدار سند الصرف وترحيله بنجاح ✅", "success");
-      loadTailorSummaries(); loadCommissions();
-      if (res.voucher) setActiveVoucherForPrint(res.voucher);
-      return true;
-    }
-    showToast(res?.message || res?.error || "فشل إصدار السند", "error");
+    try {
+      const res = await fetch('/api/hr/tailor-payout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).then(r => r.json());
+      if (res?.success) {
+        showToast(res.message || "تم إصدار سند الصرف وترحيله بنجاح ✅", "success");
+        loadTailorSummaries?.(); loadCommissions?.();
+        if (res.voucher) setActiveVoucherForPrint(res.voucher);
+        return true;
+      }
+      showToast(res?.message || res?.error || "فشل إصدار السند", "error");
+    } catch (e) { showToast(e.message || "فشل إصدار السند", "error"); }
     return false;
   };
 

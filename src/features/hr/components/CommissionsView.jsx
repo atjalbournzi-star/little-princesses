@@ -75,7 +75,13 @@ function CommissionsView({
                       </span>
                       {t.unpaid_tasks_count > 0 && <span className="text-[10px] text-slate-400">({t.unpaid_tasks_count} أمر تشغيل)</span>}
                     </td>
-                    <td className="py-1 px-2 text-center"><span className="text-amber-400 font-bold text-xs">★ {t.avg_quality || "5.0"}</span></td>
+                    <td className="py-1 px-2 text-center">
+                      {t.avg_quality ? (
+                        <span className="text-amber-400 font-bold text-xs">★ {t.avg_quality}</span>
+                      ) : (
+                        <span className="text-slate-500 font-bold text-xs">—</span>
+                      )}
+                    </td>
                     <td className="py-1 px-2 text-center">
                       <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${t.on_time_rate >= 80 ? "bg-emerald-950/60 text-emerald-300 border border-emerald-800/40" : "bg-rose-950/60 text-rose-300 border border-rose-800/40"}`}>{t.on_time_rate}%</span>
                     </td>
@@ -91,7 +97,7 @@ function CommissionsView({
                         >
                           <span className="text-[10px]">👁️</span><span>كشف القطع</span>
                         </button>
-                        {t.unpaid_pieces_count > 0 ? (
+                        {t.unpaid_pieces_count > 0 && t.unpaid_total_amount > 0 ? (
                           <button
                             type="button"
                             onClick={() => onOpenPayoutModal(t)}
@@ -99,6 +105,8 @@ function CommissionsView({
                           >
                             <span className="text-[10px]">💵</span><span>صرف المستحقات</span>
                           </button>
+                        ) : t.unpaid_pieces_count > 0 ? (
+                          <span className="text-[9.5px] text-amber-400 bg-amber-950/60 border border-amber-800/40 px-1.5 py-0.5 rounded-full font-bold">بانتظار الفحص ⏳</span>
                         ) : (
                           <span className="text-[9.5px] text-emerald-400 bg-emerald-950/60 border border-emerald-800/40 px-1.5 py-0.5 rounded-full font-bold">مصفى بالكامل ✅</span>
                         )}

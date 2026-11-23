@@ -166,7 +166,9 @@ function useInventoryActions({ inventory = [], setInventory, showToast, refreshI
       }).then(r => r.json());
 
       if (res?.success) {
-        showToast?.(res.message || `تمت مناقلة ${tQty} بنجاح 🔄`);
+        const trfNum = res.transfer_ref ? ` (${res.transfer_ref})` : '';
+        const jvNum = res.journal_entry_no ? ` [قيد: ${res.journal_entry_no}]` : '';
+        showToast?.(res.message || `تمت مناقلة ${tQty} بنجاح 🔄${trfNum}${jvNum}`);
         await refreshInventory?.(false);
         fetchTransactions?.();
         setTransferringItem(null);

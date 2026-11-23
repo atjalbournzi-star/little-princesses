@@ -1,17 +1,17 @@
-/**
- * JobOrderFormFields.jsx - حقول إدخال وتفاصيل أمر التشغيل والموديل
- * Little Princesses ERP - Production Floor Architecture
- */
+// JobOrderFormFields.jsx - حقول إدخال وتفاصيل أمر التشغيل والموديل
 
+const cleanCutterText = (txt) => (!txt ? '' : String(txt).replace(/^⚠️\s*/, '').replace(/^تنبيه فني للقصاص:\s*/, '').replace(/^⚠️\s*/, '').trim());
 const mc = () => window.MeasurementConverter || {};
-const sizeKeyForModel = (product = {}, form = {}) => mc().resolveSizeCode ? mc().resolveSizeCode(form.measurements_spec || form.measurements || {}, product?.target_segment || form.target_segment || 'kids') : (product?.target_segment === 'women_adults' ? 'M' : (form.size_code || '6-9Y'));
-const getPriceFromMatrix = (product = {}, sizeKey = '6-9Y') => mc().resolveUnitPrice ? mc().resolveUnitPrice(product, sizeKey) : Number(product?.price_matrix?.[sizeKey] ?? product?.base_price ?? product?.sell_price ?? product?.price ?? 0);
+const sizeKeyForModel = (p = {}, f = {}) => { const m = f.measurements_spec || f.measurements || {}, sm = window.SmartSizingMatcher?.matchClientMeasurementToCategory ? window.SmartSizingMatcher.matchClientMeasurementToCategory(m, p) : null; return sm?.category || (mc().resolveSizeCode ? mc().resolveSizeCode(m, p) : (p?.target_segment === 'women_adults' ? 'M' : (f.size_code || '6-9Y'))); };
+const getPriceFromMatrix = (p = {}, s = '6-9Y') => { const pr = window.SmartSizingMatcher?.getBomConsumptionAndPricing ? window.SmartSizingMatcher.getBomConsumptionAndPricing(p, s)?.unitPrice : 0; return pr > 0 ? pr : (mc().resolveUnitPrice ? mc().resolveUnitPrice(p, s) : Number(p?.price_matrix?.[s] ?? p?.base_price ?? p?.sell_price ?? 0)); };
 
 const buildBomItems = (product = {}, sizeKey = '6-9Y', quantity = 1, fabricInventory = [], measurements = {}, fallbackOrder = null) => {
+  const ordColor = fallbackOrder?.selected_color || fallbackOrder?.color || fallbackOrder?.dress_color || '';
+  const smBom = window.SmartSizingMatcher?.getBomConsumptionAndPricing ? window.SmartSizingMatcher.getBomConsumptionAndPricing(product, sizeKey, quantity, 'متر', measurements, fabricInventory, ordColor)?.bomItems : null;
+  if (Array.isArray(smBom) && smBom.length > 0) return smBom;
   const inches = mc().resolveDressLengthInches ? mc().resolveDressLengthInches(measurements) : 26;
   if (mc().buildBomItems) return mc().buildBomItems(product, sizeKey, inches, quantity, fabricInventory, fallbackOrder);
-  const rawBom = Array.isArray(product?.bom) ? product.bom : (Array.isArray(product?.materials) ? product.materials : []);
-  return rawBom.map(it => {
+  return (Array.isArray(product?.bom) ? product.bom : (Array.isArray(product?.materials) ? product.materials : [])).map(it => {
     const invMatch = (fabricInventory || []).find(fi => (it.fabric_id && String(fi.id || fi.item_code) === String(it.fabric_id)) || (fi.name || fi.item_name) === (it.fabric_name || it.name));
     const actualUnit = it.cut_unit || it.unit || invMatch?.unit || 'متر';
     return { fabric_id: it.fabric_id || it.id || '', fabric_name: it.fabric_name || it.name || 'قماش', cut_meters: String(((parseFloat(it.meters || it.cut_meters || 1.5)) * quantity).toFixed(2)), cut_unit: actualUnit, unit: actualUnit, meters: String(((parseFloat(it.meters || 1.5)) * quantity).toFixed(2)), deduct_inventory: true };
@@ -21,22 +21,16 @@ const buildBomItems = (product = {}, sizeKey = '6-9Y', quantity = 1, fabricInven
 const syncProductModel = (productObj, setForm, form, qty = Number(form.quantity) || 1, fabricInventory = []) => {
   if (!productObj) return;
   const measurements = form.measurements_spec || form.measurements || {}, sizeKey = sizeKeyForModel(productObj, { ...form, measurements_spec: measurements });
-  const price = getPriceFromMatrix(productObj, sizeKey), bomItems = buildBomItems(productObj, sizeKey, qty, fabricInventory, measurements);
-  const meterTotal = bomItems.reduce((sum, item) => sum + (parseFloat(item.meters || item.cut_meters) || 0), 0);
+  const price = getPriceFromMatrix(productObj, sizeKey), bomItems = buildBomItems(productObj, sizeKey, qty, fabricInventory, measurements), meterTotal = bomItems.reduce((sum, item) => sum + (parseFloat(item.meters || item.cut_meters) || 0), 0);
   const wageSvc = window.WageMatrixService || {}, stageWages = wageSvc.resolveStageWages ? wageSvc.resolveStageWages(productObj, form) : {};
-  const pkgCost = stageWages.packaging_cost || stageWages.packager_wage || productObj.packaging_cost || productObj.packager_wage || '';
-  const firstUnit = bomItems[0]?.cut_unit || bomItems[0]?.unit || 'متر';
+  const cW = stageWages.cutter_wage || productObj.cutter_wage || productObj.stage_wages?.cutter_wage || '', tW = stageWages.tailor_wage || productObj.tailor_wage || productObj.stage_wages?.tailor_wage || '';
+  const eW = stageWages.embroiderer_wage || productObj.embroiderer_wage || productObj.stage_wages?.embroiderer_wage || '', fW = stageWages.finisher_wage || productObj.finisher_wage || productObj.stage_wages?.finisher_wage || '';
+  const pkgCost = stageWages.packaging_cost || stageWages.packager_wage || productObj.packaging_cost || productObj.packager_wage || productObj.stage_wages?.packager_wage || '', firstUnit = bomItems[0]?.cut_unit || bomItems[0]?.unit || 'متر';
   setForm(prev => ({
-    ...prev, product_id: productObj.id || productObj.product_id || prev.product_id,
-    product: productObj.model_name || productObj.name || prev.product, product_name: productObj.model_name || productObj.name || prev.product_name,
+    ...prev, product_id: productObj.id || productObj.product_id || prev.product_id, product: productObj.model_name || productObj.name || prev.product, product_name: productObj.model_name || productObj.name || prev.product_name,
     target_segment: productObj.target_segment || prev.target_segment || 'kids', size_code: sizeKey, price, total_price: price * (Number(prev.quantity) || qty),
-    bom: bomItems, materials: bomItems, bom_items: bomItems, cut_meters: bomItems[0]?.cut_meters || meterTotal.toFixed(2),
-    standard_cut_meters: meterTotal.toFixed(2), cut_unit: firstUnit,
-    cutter_wage: String(stageWages.cutter_wage ?? productObj.cutter_wage ?? prev.cutter_wage ?? ''),
-    tailor_wage: String(stageWages.tailor_wage ?? productObj.tailor_wage ?? prev.tailor_wage ?? ''),
-    embroiderer_wage: String(stageWages.embroiderer_wage ?? productObj.embroiderer_wage ?? prev.embroiderer_wage ?? ''),
-    finisher_wage: String(stageWages.finisher_wage ?? productObj.finisher_wage ?? prev.finisher_wage ?? ''),
-    packager_wage: String(pkgCost || prev.packager_wage || ''), packaging_cost: String(pkgCost || prev.packaging_cost || '')
+    bom: bomItems, materials: bomItems, bom_items: bomItems, cut_meters: bomItems[0]?.cut_meters || meterTotal.toFixed(2), standard_cut_meters: meterTotal.toFixed(2), cut_unit: firstUnit,
+    cutter_wage: String(cW ?? prev.cutter_wage ?? ''), tailor_wage: String(tW ?? prev.tailor_wage ?? ''), embroiderer_wage: String(eW ?? prev.embroiderer_wage ?? ''), finisher_wage: String(fW ?? prev.finisher_wage ?? ''), packager_wage: String(pkgCost || prev.packager_wage || ''), packaging_cost: String(pkgCost || prev.packaging_cost || '')
   }));
 };
 
@@ -46,28 +40,29 @@ function JobOrderFormFields({
   handleSizeChange, setModelPreviewData, fabricInventory = []
 }) {
   const inputCls = 'w-full h-8 px-2.5 py-1 rounded-lg border border-slate-700/80 bg-slate-950/80 text-slate-100 text-xs font-medium focus:border-rose-500/60 focus:ring-1 focus:ring-rose-500/30 transition-all outline-none';
-  const labelCls = 'block text-[11px] font-semibold text-slate-200 mb-1';
-  const sizeChart = window.FactorySizeChart || {}, isReadyToWear = form.production_type === 'ready_to_wear', isOrderSelected = !isReadyToWear && Boolean(form.order_no);
-  const bespokeList = window.FactoryUtils?.getBespokeOrdersList ? window.FactoryUtils.getBespokeOrdersList(orders, customers, products) : (orders || []);
-  const selectedOrder = bespokeList.find(o => String(o.order_no || o.id) === String(form.order_no));
-  const activeModelIdentifier = form.product_id || form.product || selectedOrder?.product_id || selectedOrder?.model_id || selectedOrder?.product_name || selectedOrder?.model_name || selectedOrder?.item_name || '';
-  const curProduct = (products || []).find(p => {
-    if (!activeModelIdentifier) return false;
-    const target = String(activeModelIdentifier).trim().toLowerCase(), productId = String(p.id || p.product_id || '').trim().toLowerCase(), productName = String(p.name || p.model_name || '').trim().toLowerCase();
-    return productId === target || productName === target || (productName && (target.includes(productName) || productName.includes(target)));
-  });
-  const prodImg = curProduct?.image_url || curProduct?.imageUrl || curProduct?.image || form.image_url || form.prod_image_url || selectedOrder?.image_url || selectedOrder?.prod_image_url || selectedOrder?.image || '';
+  const labelCls = 'block text-[11px] font-semibold text-slate-200 mb-1', sizeChart = window.FactorySizeChart || {}, isReadyToWear = form.production_type === 'ready_to_wear', isOrderSelected = !isReadyToWear && Boolean(form.order_no);
+  const bespokeList = window.FactoryUtils?.getBespokeOrdersList ? window.FactoryUtils.getBespokeOrdersList(orders, customers, products) : (orders || []), selectedOrder = bespokeList.find(o => String(o.order_no || o.id) === String(form.order_no));
+  React.useEffect(() => {
+    if (/^\d{10,}$/.test(String(form.order_no || '')) || (form.order_no && !bespokeList.some(o => String(o.order_no || o.id) === String(form.order_no)))) {
+      const match = bespokeList.find(o => (form.customer_id && String(o.customer_id) === String(form.customer_id)) || (form.customer && o.customer_name && o.customer_name.trim() === form.customer.trim()));
+      if (match && (match.order_no || match.id)) setForm(p => ({ ...p, order_no: match.order_no || match.id, order_id: match.id || match.order_no }));
+    }
+  }, [form.order_no, form.customer, form.customer_id, bespokeList]);
+  const activeModelIdentifier = form.product_id || form.product || selectedOrder?.product_id || selectedOrder?.model_id || selectedOrder?.product_name || selectedOrder?.model_name || '';
+  const curProduct = (products || []).find(p => activeModelIdentifier && (String(p.id || p.product_id || '').toLowerCase() === String(activeModelIdentifier).trim().toLowerCase() || String(p.name || p.model_name || '').toLowerCase() === String(activeModelIdentifier).trim().toLowerCase()));
+  const prodImg = curProduct?.image_url || curProduct?.imageUrl || curProduct?.image || form.image_url || selectedOrder?.image_url || '';
   const stdSpecs = isReadyToWear && sizeChart.getStandardSpecs ? sizeChart.getStandardSpecs(form.size_code || '6-9Y') : null;
-  const sizeBadge = form.size_badge || (!isReadyToWear && (form.measurements_spec?.dress_len || form.measurements_spec?.dress_length || form.measurements_spec?.['طول الفستان']) ? `[ الفئة: ${sizeKeyForModel(curProduct || {}, form)} ]` : '');
+  const sizeBadge = form.size_badge || (!isReadyToWear && (form.measurements_spec?.dress_len || form.measurements_spec?.dress_length) ? `[ الفئة: ${sizeKeyForModel(curProduct || {}, form)} ]` : '');
   const availableSizes = sizeChart.sizes || ['2Y', '3Y', '4Y', '5Y', '6-9Y', '10-12Y', 'S', 'M', 'L', 'XL'];
 
-  const applyProductDetails = (productObj, qty = Number(form.quantity) || 1) => {
-    if (productObj) syncProductModel(productObj, setForm, { ...form, measurements_spec: form.measurements_spec || {} }, qty, fabricInventory);
-  };
+  const applyProductDetails = (productObj, qty = Number(form.quantity) || 1) => { if (productObj) syncProductModel(productObj, setForm, { ...form, measurements_spec: form.measurements_spec || {} }, qty, fabricInventory); };
   const onModelSelectChange = (e) => {
     const val = e.target.value, selected = (products || []).find(p => String(p.id) === String(val) || String(p.product_id) === String(val));
-    if (selected) { applyProductDetails(selected, Number(form.quantity) || 1); if (handleProductChange) handleProductChange(val); }
-    else { setForm(prev => ({ ...prev, product_id: '', product: val })); }
+    if (selected) {
+      applyProductDetails(selected, Number(form.quantity) || 1);
+      if (val && (!selected.cutter_wage || !selected.stage_wages)) fetch(`/api/products/${encodeURIComponent(val)}`).then(r => r.json()).then(res => { if (res?.success && res?.data) applyProductDetails(res.data, Number(form.quantity) || 1); }).catch(() => {});
+      if (handleProductChange) handleProductChange(val);
+    } else { setForm(prev => ({ ...prev, product_id: '', product: val })); }
   };
 
   const onInternalOrderSelect = (e) => {
@@ -98,59 +93,50 @@ function JobOrderFormFields({
     const firstUnit = bomItems[0]?.cut_unit || bomItems[0]?.unit || 'متر';
 
     setForm(prev => ({
-      ...prev, order_no: chosen.order_no || chosen.id || val, customer: custName, customer_name: custName, child_name: chName,
-      start_date: todayStr, delivery_date: targetDue, due_date: targetDue,
-      cutting_due_date: chosen.cutting_due_date || autoM.cutting || '', sewing_due_date: chosen.sewing_due_date || autoM.sewing || '',
-      embroidery_due_date: chosen.embroidery_due_date || autoM.embroidery || '', finishing_due_date: chosen.finishing_due_date || autoM.finishing || '',
-      packaging_due_date: chosen.packaging_due_date || autoM.packaging || targetDue || '',
-      product: selectedModel?.model_name || selectedModel?.name || chosen.product_name || chosen.product || prev.product,
-      product_name: selectedModel?.model_name || selectedModel?.name || chosen.product_name || chosen.product || prev.product_name,
-      product_id: selectedModel?.id || selectedModel?.product_id || chosen.product_id || prev.product_id,
+      ...prev, order_id: chosen.id || chosen.order_id || chosen.order_no || val, customer_id: chosen.customer_id || prev.customer_id || '',
+      order_no: chosen.order_no || chosen.id || val, customer: custName, customer_name: custName, child_name: chName, start_date: todayStr, delivery_date: targetDue, due_date: targetDue,
+      selected_color: chosen.selected_color || chosen.color || chosen.dress_color || prev.selected_color || '', color: chosen.selected_color || chosen.color || chosen.dress_color || prev.color || '', dress_color: chosen.dress_color || chosen.selected_color || chosen.color || prev.dress_color || '',
+      cutting_due_date: chosen.cutting_due_date || autoM.cutting || '', sewing_due_date: chosen.sewing_due_date || autoM.sewing || '', embroidery_due_date: chosen.embroidery_due_date || autoM.embroidery || '', finishing_due_date: chosen.finishing_due_date || autoM.finishing || '', packaging_due_date: chosen.packaging_due_date || autoM.packaging || targetDue || '',
+      product: selectedModel?.model_name || selectedModel?.name || chosen.product_name || chosen.product || prev.product, product_name: selectedModel?.model_name || selectedModel?.name || chosen.product_name || chosen.product || prev.product_name, product_id: selectedModel?.id || selectedModel?.product_id || chosen.product_id || prev.product_id,
       image_url: selectedModel?.image_url || selectedModel?.imageUrl || selectedModel?.image || chosen.image_url || chosen.prod_image_url || prev.image_url || '',
-      quantity, measurements_spec: measurements, size_code: sizeKey || prev.size_code || '6-9Y', price: unitPrice, delivery_fee: delFee,
-      total_price: finalTotal, total_amount: finalTotal, paid_amount: finalPaid, advance_paid: finalPaid, deposit: finalPaid,
-      remaining_balance: finalRem, remaining_amount: finalRem, remaining: finalRem, subtotal: Number(chosen.subtotal ?? (finalTotal - delFee)),
-      currency: chosen.currency || prev.currency || 'YER', fabric_name: bomItems[0]?.fabric_name || prev.fabric_name, cut_meters: bomItems[0]?.cut_meters || meterTotal.toFixed(2),
-      standard_cut_meters: meterTotal.toFixed(2), bom_items: bomItems, bom: bomItems, materials: bomItems, cut_unit: firstUnit, deduct_inventory: true,
-      cutter_wage: String(stageWages.cutter_wage ?? selectedModel?.cutter_wage ?? prev.cutter_wage ?? ''),
-      tailor_wage: String(stageWages.tailor_wage ?? selectedModel?.tailor_wage ?? prev.tailor_wage ?? ''),
-      embroiderer_wage: String(stageWages.embroiderer_wage ?? selectedModel?.embroiderer_wage ?? prev.embroiderer_wage ?? ''),
-      finisher_wage: String(stageWages.finisher_wage ?? selectedModel?.finisher_wage ?? prev.finisher_wage ?? ''),
+      quantity, measurements_spec: measurements, size_code: sizeKey || prev.size_code || '6-9Y', price: unitPrice, delivery_fee: delFee, total_price: finalTotal, total_amount: finalTotal, paid_amount: finalPaid, advance_paid: finalPaid, deposit: finalPaid, remaining_balance: finalRem, remaining_amount: finalRem, remaining: finalRem, subtotal: Number(chosen.subtotal ?? (finalTotal - delFee)),
+      currency: chosen.currency || prev.currency || 'YER', fabric_name: bomItems[0]?.fabric_name || prev.fabric_name, cut_meters: bomItems[0]?.cut_meters || meterTotal.toFixed(2), standard_cut_meters: meterTotal.toFixed(2), bom_items: bomItems, bom: bomItems, materials: bomItems, cut_unit: firstUnit, deduct_inventory: true,
+      notes: chosen.notes || chosen.measurement_notes || prev.notes || '', measurement_notes: chosen.measurement_notes || chosen.notes || prev.measurement_notes || '',
+      cutter_wage: String(stageWages.cutter_wage || selectedModel?.cutter_wage || prev.cutter_wage || ''), tailor_wage: String(stageWages.tailor_wage || selectedModel?.tailor_wage || prev.tailor_wage || ''),
+      embroiderer_wage: String(stageWages.embroiderer_wage || selectedModel?.embroiderer_wage || prev.embroiderer_wage || ''), finisher_wage: String(stageWages.finisher_wage || selectedModel?.finisher_wage || prev.finisher_wage || ''),
       packager_wage: String(pkgCost || prev.packager_wage || ''), packaging_cost: String(pkgCost || prev.packaging_cost || '')
     }));
   };
 
   const totVal = Number(form.total_amount || form.total_price || 0), paidVal = Number(form.paid_amount || form.deposit || 0);
   const remVal = Number(form.remaining_amount || form.remaining_balance || (totVal - paidVal)), isPaid = remVal <= 0 && totVal > 0;
+  const cutterAlert = form.measurement_notes || form.measurements_spec?.notes || (form.notes && form.notes.includes('تنبيه') ? form.notes : '') || selectedOrder?.measurement_notes || (selectedOrder?.notes && selectedOrder?.notes.includes('تنبيه') ? selectedOrder.notes : '');
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-2.5">
       <div className="lg:col-span-2">
         <label className={labelCls}>{isReadyToWear ? 'رقم دفعة الإنتاج الجاهز' : 'رقم الطلب والفاتورة'} <span className="text-rose-400 font-bold">*</span></label>
         {!isReadyToWear ? (
-          <select className={inputCls} value={form.order_no || form.id || ''} onChange={onInternalOrderSelect}>
+          <select className={inputCls} value={form.order_no || form.order_id || form.id || ''} onChange={onInternalOrderSelect}>
             <option value="" className="bg-slate-900 text-slate-200">-- اختر الطلب المعمد --</option>
+            {Boolean(form.order_no && !bespokeList.some(o => String(o.order_no || o.id) === String(form.order_no))) && (
+              <option value={form.order_no} className="bg-slate-900 text-slate-200">[{form.order_no}]{(form.customer_name || form.customer) ? ` - ${form.customer_name || form.customer}` : ''}</option>
+            )}
             {bespokeList.map(o => <option key={o.order_no || o.id} value={o.order_no || o.id} className="bg-slate-900 text-slate-200">[{o.display_code || o.order_no || o.id || 'ORD'}]{(o.customer_name || o.customer) ? ` - ${o.customer_name || o.customer}` : ''}{o.child_name ? ` (${o.child_name})` : ''}</option>)}
           </select>
         ) : <input type="text" className={inputCls + ' font-mono font-bold text-cyan-400'} value={form.order_no || ''} onChange={e => setForm({ ...form, order_no: e.target.value })} />}
       </div>
 
       {!isReadyToWear ? (
-        <>
-          <div className="lg:col-span-2">
-            <div className="flex justify-between items-center mb-1"><label className={labelCls + ' mb-0'}>اسم العميل (الأم)</label>{isOrderSelected && <span className="text-[10px] text-rose-400 font-semibold">🔒 مقفل</span>}</div>
-            <input type="text" readOnly={isOrderSelected} className={inputCls + (isOrderSelected ? ' bg-slate-900/80 text-slate-400 cursor-not-allowed border-slate-800' : ' font-semibold')} value={form.customer || form.customer_name || ''} onChange={e => setForm({ ...form, customer: e.target.value, customer_name: e.target.value })} />
-          </div>
-          <div className="lg:col-span-2">
-            <div className="flex justify-between items-center mb-1"><label className={labelCls + ' mb-0 text-rose-400'}>اسم الطفلة (الأميرة)</label>{isOrderSelected && <span className="text-[10px] text-rose-400 font-semibold">🔒 مقفل</span>}</div>
-            <input type="text" readOnly={isOrderSelected} className={inputCls + ' bg-rose-500/10 font-semibold text-rose-300 border-rose-500/20' + (isOrderSelected ? ' cursor-not-allowed' : '')} value={form.child_name || ''} onChange={e => setForm({ ...form, child_name: e.target.value })} />
-          </div>
-        </>
+        <React.Fragment>
+          <div className="lg:col-span-2"><div className="flex justify-between items-center mb-1"><label className={labelCls + ' mb-0'}>اسم العميل (الأم)</label>{isOrderSelected && <span className="text-[10px] text-rose-400 font-semibold">🔒 مقفل</span>}</div><input type="text" readOnly={isOrderSelected} className={inputCls + (isOrderSelected ? ' bg-slate-900/80 text-slate-400 cursor-not-allowed border-slate-800' : ' font-semibold')} value={form.customer || form.customer_name || ''} onChange={e => setForm({ ...form, customer: e.target.value, customer_name: e.target.value })} /></div>
+          <div className="lg:col-span-2"><div className="flex justify-between items-center mb-1"><label className={labelCls + ' mb-0 text-rose-400'}>اسم الطفلة (الأميرة)</label>{isOrderSelected && <span className="text-[10px] text-rose-400 font-semibold">🔒 مقفل</span>}</div><input type="text" readOnly={isOrderSelected} className={inputCls + ' bg-rose-500/10 font-semibold text-rose-300 border-rose-500/20' + (isOrderSelected ? ' cursor-not-allowed' : '')} value={form.child_name || ''} onChange={e => setForm({ ...form, child_name: e.target.value })} /></div>
+        </React.Fragment>
       ) : (
-        <>
-          <div className="lg:col-span-2"><label className={labelCls}>الفئة المستهدفة</label><select className={inputCls + ' bg-slate-900 text-cyan-400 font-semibold'} value={form.target_segment || 'kids'} onChange={e => { const seg = e.target.value; const defSize = seg === 'women_adults' ? 'M' : '6-9Y'; setForm(p => ({ ...p, target_segment: seg, size_code: defSize })); if (handleSizeChange) handleSizeChange(defSize); }}><option value="kids" className="bg-slate-900">👧 أطفال وأميرات</option><option value="women_adults" className="bg-slate-900">👩 نسائي / كبار</option></select></div>
+        <React.Fragment>
+          <div className="lg:col-span-2"><label className={labelCls}>الفئة المستهدفة</label><select className={inputCls + ' bg-slate-900 text-cyan-400 font-semibold'} value={form.target_segment || 'kids'} onChange={e => { const seg = e.target.value, defSize = seg === 'women_adults' ? 'M' : '6-9Y'; setForm(p => ({ ...p, target_segment: seg, size_code: defSize })); if (handleSizeChange) handleSizeChange(defSize); }}><option value="kids" className="bg-slate-900">👧 أطفال وأميرات</option><option value="women_adults" className="bg-slate-900">👩 نسائي / كبار</option></select></div>
           <div className="lg:col-span-2"><label className={labelCls + ' text-cyan-400 font-semibold'}>المقاس القياسي الجاهز <span className="text-rose-400">*</span></label><select className={inputCls + ' bg-cyan-500/10 text-cyan-300 font-bold font-mono border-cyan-500/20'} value={form.size_code || '6-9Y'} onChange={e => handleSizeChange ? handleSizeChange(e.target.value) : setForm({ ...form, size_code: e.target.value })}>{availableSizes.map(sz => <option key={sz} value={sz} className="bg-slate-900">{sz}</option>)}</select>{stdSpecs && <span className="block text-[10px] font-mono text-cyan-400 mt-1 bg-cyan-500/10 px-2 py-0.5 rounded border border-cyan-500/20">طول: {stdSpecs.dress_len} سم | صدر: {stdSpecs.chest_circ} سم | خصر: {stdSpecs.waist_circ} سم</span>}</div>
-        </>
+        </React.Fragment>
       )}
 
       {!isReadyToWear && isOrderSelected && (totVal > 0 || paidVal > 0) && (
@@ -162,12 +148,38 @@ function JobOrderFormFields({
             </span>
           </div>
           <div className="flex items-center gap-3 font-mono text-[11px] flex-wrap">
-            <span className="text-slate-300">الإجمالي: <strong className="text-white">{totVal.toLocaleString()} {form.currency || 'YER'}</strong></span>
-            <span className="text-cyan-400">العربون: <strong>{paidVal.toLocaleString()} {form.currency || 'YER'}</strong></span>
-            <span className={remVal > 0 ? "text-pink-400 font-bold" : "text-emerald-400 font-bold"}>
-              المتبقي: <strong>{remVal.toLocaleString()} {form.currency || 'YER'}</strong>
+            <span className="text-slate-300">
+              الإجمالي: <strong className="text-white">{totVal.toLocaleString()} {form.currency || 'YER'}</strong>
+              {((form.delivery_payment_mode || selectedOrder?.delivery_payment_mode) === 'PREPAID_VIA_ATELIER' && Number(form.delivery_fee || selectedOrder?.delivery_fee || 0) > 0) && (
+                <span className="text-[10px] text-cyan-400 font-sans mr-1">({(totVal - Number(form.delivery_fee || selectedOrder?.delivery_fee || 0)).toLocaleString()} فستان + {Number(form.delivery_fee || selectedOrder?.delivery_fee || 0).toLocaleString()} توصيل)</span>
+              )}
             </span>
+            <span className="text-cyan-400">العربون: <strong>{paidVal.toLocaleString()} {form.currency || 'YER'}</strong></span>
+            <span className={remVal > 0 ? "text-pink-400 font-bold" : "text-emerald-400 font-bold"}>المتبقي: <strong>{remVal.toLocaleString()} {form.currency || 'YER'}</strong></span>
           </div>
+        </div>
+      )}
+
+      {!isReadyToWear && isOrderSelected && cutterAlert && (
+        <div className="lg:col-span-6 p-2 rounded-lg bg-amber-950/80 border border-amber-500/80 text-amber-200 text-xs flex items-start gap-2 shadow-sm animate-fadeIn">
+          <span className="text-sm shrink-0">⚠️</span>
+          <div className="flex-1 min-w-0">
+            <strong className="text-amber-300 font-bold block text-[11px]">تنبيه فني للقصاص:</strong>
+            <span className="text-[10.5px] font-sans leading-relaxed break-words">{cleanCutterText(cutterAlert)}</span>
+          </div>
+        </div>
+      )}
+
+      {!isReadyToWear && isOrderSelected && paidVal <= 0 && (
+        <div className="lg:col-span-6 p-2 rounded-lg bg-rose-950/80 border border-rose-600/80 flex items-center justify-between flex-wrap gap-2 text-xs animate-fadeIn shadow-md">
+          <div className="flex items-center gap-1.5 text-rose-200 font-bold">
+            <span className="text-sm">⚠️</span>
+            <span>قفل رقابي: الطلب غير مسدد (المدفوع = 0). يمنع اعتماد أمر التشغيل واقتطاع الخامات إلا باستثناء إداري.</span>
+          </div>
+          <label className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-rose-900/60 hover:bg-rose-900 border border-rose-500/80 text-rose-200 text-[10.5px] font-bold cursor-pointer transition">
+            <input type="checkbox" checked={Boolean(form.allow_unpaid_exception)} onChange={e => setForm(p => ({ ...p, allow_unpaid_exception: e.target.checked }))} className="accent-rose-500" />
+            <span>تفعيل استثناء إداري للاعتماد والقص بدون عربون ✍️</span>
+          </label>
         </div>
       )}
 
@@ -177,15 +189,12 @@ function JobOrderFormFields({
             <label className={labelCls + ' mb-0'}>الموديل والتصميم <span className="text-rose-400 font-bold">*</span></label>
             {isOrderSelected && (curProduct || form.product_name || form.product) && <span className="text-[10px] text-rose-400 font-semibold">🔒 معتمد</span>}
             {sizeBadge && <span className="text-[9.5px] px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-300 font-medium border border-cyan-500/20">{sizeBadge}</span>}
+            {(form.selected_color || form.color) && <span className="text-[9.5px] px-2 py-0.5 rounded-full bg-pink-500/10 text-pink-300 font-bold border border-pink-500/20">🎨 {form.selected_color || form.color}</span>}
           </div>
-          {(curProduct || prodImg) && (
-            <button type="button" onClick={() => setModelPreviewData && setModelPreviewData({ isOpen: true, product: curProduct, imageUrl: prodImg, modelName: curProduct?.model_name || curProduct?.name || form.product_name || form.product })} className="text-[10px] text-rose-400 hover:underline font-semibold flex items-center gap-1 cursor-pointer"><span>👁️ معاينة وتكبير</span></button>
-          )}
+          {(curProduct || prodImg) && <button type="button" onClick={() => setModelPreviewData && setModelPreviewData({ isOpen: true, product: curProduct, imageUrl: prodImg, modelName: curProduct?.model_name || curProduct?.name || form.product_name || form.product })} className="text-[10px] text-rose-400 hover:underline font-semibold flex items-center gap-1 cursor-pointer"><span>👁️ معاينة وتكبير</span></button>}
         </div>
         <div className="flex items-center gap-2">
-          <div onClick={() => { if (setModelPreviewData && (prodImg || curProduct)) setModelPreviewData({ isOpen: true, product: curProduct, imageUrl: prodImg, modelName: curProduct?.model_name || curProduct?.name || form.product_name || form.product }); }} className={`w-8 h-8 rounded-lg border flex items-center justify-center shrink-0 cursor-pointer overflow-hidden transition-all ${prodImg ? 'border-rose-500/40 hover:ring-2 hover:ring-rose-500 bg-slate-900' : 'border-slate-800 bg-slate-900'}`} title={prodImg ? 'انقر لتكبير صورة الموديل 🔍' : 'معاينة الموديل'}>
-            {prodImg ? <img src={prodImg} alt={form.product || 'model'} className="w-full h-full object-cover" /> : <span className="text-sm">👗</span>}
-          </div>
+          <div onClick={() => { if (setModelPreviewData && (prodImg || curProduct)) setModelPreviewData({ isOpen: true, product: curProduct, imageUrl: prodImg, modelName: curProduct?.model_name || curProduct?.name || form.product_name || form.product }); }} className={`w-8 h-8 rounded-lg border flex items-center justify-center shrink-0 cursor-pointer overflow-hidden transition-all ${prodImg ? 'border-rose-500/40 hover:ring-2 hover:ring-rose-500 bg-slate-900' : 'border-slate-800 bg-slate-900'}`} title={prodImg ? 'انقر لتكبير صورة الموديل 🔍' : 'معاينة الموديل'}>{prodImg ? <img src={prodImg} alt={form.product || 'model'} className="w-full h-full object-cover" /> : <span className="text-sm">👗</span>}</div>
           <select className={inputCls + ' font-semibold'} value={curProduct ? (curProduct.id || curProduct.product_id) : (form.product_id || form.product_name || form.product || '')} onChange={onModelSelectChange}>
             <option value="" className="bg-slate-900">-- اختر الموديل من الكتالوج --</option>
             {Boolean((form.product_name || form.product) && !curProduct) && <option value={form.product_id || form.product_name || form.product} className="bg-slate-900">{form.product_name || form.product} [معتمد بالطلب]</option>}
@@ -194,22 +203,15 @@ function JobOrderFormFields({
         </div>
       </div>
 
-      <div className="lg:col-span-1">
-        <div className="flex justify-between items-center mb-1"><label className={labelCls + ' mb-0'}>الكمية</label>{isOrderSelected && <span className="text-[10px] text-rose-400 font-semibold">🔒</span>}</div>
-        <input type="number" min="1" className={inputCls + ' font-bold text-cyan-400 font-mono text-center'} value={form.quantity !== undefined && form.quantity !== null && form.quantity !== '' ? form.quantity : ''} onChange={e => { const q = parseFloat(e.target.value) || ''; setForm(prev => { if (!curProduct) return { ...prev, quantity: q }; const sizeKey = sizeKeyForModel(curProduct, prev); const price = getPriceFromMatrix(curProduct, sizeKey); const numQ = Number(q) || 1; const bom = buildBomItems(curProduct, sizeKey, numQ, fabricInventory, prev.measurements_spec); const total = bom.reduce((sum, item) => sum + (parseFloat(item.meters || item.cut_meters) || 0), 0); return { ...prev, quantity: q, price, total_price: price * numQ, bom, materials: bom, bom_items: bom, cut_meters: bom[0]?.cut_meters || total.toFixed(2), standard_cut_meters: total.toFixed(2), cut_unit: bom[0]?.cut_unit || 'متر' }; }); }} />
-      </div>
+      <div className="lg:col-span-1"><div className="flex justify-between items-center mb-1"><label className={labelCls + ' mb-0'}>الكمية</label>{isOrderSelected && <span className="text-[10px] text-rose-400 font-semibold">🔒</span>}</div><input type="number" min="1" className={inputCls + ' font-bold text-cyan-400 font-mono text-center'} value={form.quantity !== undefined && form.quantity !== null && form.quantity !== '' ? form.quantity : ''} onChange={e => { const q = parseFloat(e.target.value) || ''; setForm(prev => { if (!curProduct) return { ...prev, quantity: q }; const sizeKey = sizeKeyForModel(curProduct, prev), price = getPriceFromMatrix(curProduct, sizeKey), numQ = Number(q) || 1, bom = buildBomItems(curProduct, sizeKey, numQ, fabricInventory, prev.measurements_spec), total = bom.reduce((sum, item) => sum + (parseFloat(item.meters || item.cut_meters) || 0), 0); return { ...prev, quantity: q, price, total_price: price * numQ, bom, materials: bom, bom_items: bom, cut_meters: bom[0]?.cut_meters || total.toFixed(2), standard_cut_meters: total.toFixed(2), cut_unit: bom[0]?.cut_unit || 'متر' }; }); }} /></div>
       <div className="lg:col-span-2"><label className={labelCls}>المرحلة الحالية للتشغيل</label><select className={inputCls + ' bg-rose-500/10 text-rose-300 font-semibold border-rose-500/20'} value={form.stage} onChange={handleStageChange}>{stages.map(s => <option key={s} value={s} className="bg-slate-900">{s}</option>)}</select></div>
       <div className="lg:col-span-3"><label className={labelCls}>تاريخ البدء في المشغل</label><input type="date" lang="en-GB" dir="ltr" style={{ direction: 'ltr', textAlign: 'left' }} className={inputCls + ' font-mono text-left'} value={form.start_date || ''} onChange={e => setForm({ ...form, start_date: e.target.value })} /></div>
       <div className="lg:col-span-3">
-        <div className="flex justify-between items-center mb-1">
-          <label className={labelCls + ' mb-0'}>موعد التسليم المتوقع <span className="text-rose-400 font-bold">*</span></label>
-          {Boolean(form.due_date && ((new Date(form.due_date) - new Date(form.start_date || new Date().toISOString().slice(0,10))) / 86400000 <= 2)) && (
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse">🔥 طلب مستعجل (خلال 48 ساعة)</span>
-          )}
-        </div>
-        <input type="date" lang="en-GB" dir="ltr" style={{ direction: 'ltr', textAlign: 'left' }} className={inputCls + ' font-mono font-bold text-rose-400 text-left cursor-pointer'} value={form.due_date || ''} onChange={e => { const newDue = e.target.value; const autoM = window.FactoryUtils?.autoDistributeMilestones ? window.FactoryUtils.autoDistributeMilestones(form.start_date, newDue) : {}; setForm(prev => ({ ...prev, due_date: newDue, delivery_date: newDue, cutting_due_date: autoM.cutting || prev.cutting_due_date, sewing_due_date: autoM.sewing || prev.sewing_due_date, embroidery_due_date: autoM.embroidery || prev.embroidery_due_date, finishing_due_date: autoM.finishing || prev.finishing_due_date, packaging_due_date: autoM.packaging || newDue })); }} />
+        <div className="flex justify-between items-center mb-1"><label className={labelCls + ' mb-0'}>موعد التسليم المتوقع <span className="text-rose-400 font-bold">*</span></label>{Boolean(form.due_date && ((new Date(form.due_date) - new Date(form.start_date || new Date().toISOString().slice(0,10))) / 86400000 <= 2)) && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse">🔥 مستعجل</span>}</div>
+        <input type="date" lang="en-GB" dir="ltr" style={{ direction: 'ltr', textAlign: 'left' }} className={inputCls + ' font-mono font-bold text-rose-400 text-left cursor-pointer'} value={form.due_date || ''} onChange={e => { const newDue = e.target.value, autoM = window.FactoryUtils?.autoDistributeMilestones ? window.FactoryUtils.autoDistributeMilestones(form.start_date, newDue) : {}; setForm(prev => ({ ...prev, due_date: newDue, delivery_date: newDue, cutting_due_date: autoM.cutting || prev.cutting_due_date, sewing_due_date: autoM.sewing || prev.sewing_due_date, embroidery_due_date: autoM.embroidery || prev.embroidery_due_date, finishing_due_date: autoM.finishing || prev.finishing_due_date, packaging_due_date: autoM.packaging || newDue })); }} />
       </div>
     </div>
-  ); }
+  );
+}
 window.JobOrderFormFields = JobOrderFormFields;
 

@@ -166,7 +166,6 @@ window.Header = function Header({
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="بحث شامل في أوامر التشغيل، العملاء، القيود، الفواتير..."
           className="w-full h-10 pr-9 pl-4 text-xs bg-[#FAFAFB] dark:bg-slate-900/90 border border-[#E8E5EA] dark:border-slate-800 rounded-xl text-[#25232A] dark:text-slate-100 placeholder-[#6F6B75] dark:placeholder-slate-500 focus:bg-white dark:focus:bg-slate-900 focus:border-[#B0005A] dark:focus:border-purple-500 focus:ring-2 focus:ring-[#FCE8F2] dark:focus:ring-purple-950 transition-all outline-none"
         />
         <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] text-[#6F6B75] dark:text-slate-400 bg-white dark:bg-slate-800 border border-[#E8E5EA] dark:border-slate-700 px-1.5 py-0.5 rounded font-mono">

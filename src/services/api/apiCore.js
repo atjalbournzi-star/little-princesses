@@ -124,6 +124,16 @@
   window.callGAS = callGAS;
 
   // ── Centralized Number Sequence Client ──
+  window.previewNextSequenceNumber = async function(sequenceKey) {
+    try {
+      const res = await fetch(`/api/sequences/preview?key=${encodeURIComponent(sequenceKey)}`).then(r => r.json());
+      if (res && res.success && (res.sequence_number || res.next_number || res.preview)) {
+        return res.sequence_number || res.next_number || res.preview;
+      }
+    } catch(e) {}
+    return null;
+  };
+
   window.getNextSequenceNumber = async function(sequenceKey) {
     try {
       const res = await fetch(`/api/sequences/next?key=${encodeURIComponent(sequenceKey)}`).then(r => r.json());
@@ -148,6 +158,7 @@
     setActiveTenant: window.setActiveTenant,
     generateUUIDv7: window.generateUUIDv7,
     callGAS: callGAS,
+    previewNextSequenceNumber: window.previewNextSequenceNumber,
     getNextSequenceNumber: window.getNextSequenceNumber
   };
 

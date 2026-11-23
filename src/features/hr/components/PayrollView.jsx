@@ -138,10 +138,26 @@ function PayrollView({
                       </td>
                       <td className="py-1 px-2 text-center">
                         {!r.status.includes('تم الصرف') ? (
-                          <button type="button" onClick={() => handlePaySalary(r)}
-                            className="h-5.5 px-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded shadow-xs transition text-[10px] font-bold cursor-pointer mx-auto flex items-center justify-center gap-1">
-                            <span>صرف الراتب 💸</span>
-                          </button>
+                          (() => {
+                            const bVal = bonus[r.empId] ? parseFloat(bonus[r.empId]) : 0;
+                            const netVal = (r.netSalary || 0) + bVal;
+                            const canPay = netVal > 0;
+                            return (
+                              <button
+                                type="button"
+                                disabled={!canPay}
+                                onClick={() => canPay && handlePaySalary(r)}
+                                title={canPay ? "صرف الراتب" : "لا يوجد صافي مستحق للصرف"}
+                                className={`h-5.5 px-2 rounded shadow-xs transition text-[10px] font-bold mx-auto flex items-center justify-center gap-1 ${
+                                  canPay
+                                    ? "bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer"
+                                    : "bg-slate-700 text-slate-400 cursor-not-allowed opacity-50"
+                                }`}
+                              >
+                                <span>صرف الراتب 💸</span>
+                              </button>
+                            );
+                          })()
                         ) : (
                           <span className="text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded-full text-[10px] font-bold border border-emerald-800/40">تم الصرف ✅</span>
                         )}

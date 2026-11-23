@@ -26,36 +26,47 @@ function Customers({
 
   const {
     search, setSearch, categoryFilter, setCategoryFilter, sortBy, setSortBy,
-    filteredCustomers, stats, getKnownPrincesses
+    filteredCustomers, stats, getKnownPrincesses, effectiveOrders
   } = useData({ customers, setCustomers, orders });
 
   const {
     isSaving, handleSaveCustomer, handleSaveMeasurements, handleSaveLedger,
     handleDeleteCustomer, handleOpenDressCard, handleSendWhatsAppDressCard, handleDispatchToFactory
-  } = useActions({ customers, setCustomers, orders, products, showToast, currency, onSendToFactory });
+  } = useActions({ customers, setCustomers, orders: effectiveOrders || orders, products, showToast, currency, onSendToFactory });
 
   // معالجة حفظ العميل من النافذة المنبثقة
   const onSaveCustomerModal = async (payload, proceedToMeasurements) => {
-    const saved = await handleSaveCustomer(payload);
-    if (saved) {
-      setModalCustomer(saved);
-      if (proceedToMeasurements) { setActiveStep(2); }
-      else { setActiveStep(null); setModalCustomer(null); }
+    if (proceedToMeasurements) {
+      setModalCustomer(prev => ({ ...(prev || {}), ...payload, isDraftOrder: true, isNew: !payload.id && !payload.customer_id }));
+      setActiveStep(2);
+      return payload;
     }
+    const saved = await handleSaveCustomer(payload, { throwOnError: true });
+    if (saved) {
+      setActiveStep(null);
+      setModalCustomer(null);
+      return saved;
+    }
+    return false;
   };
 
   // الانتقال السلس من خطوة المقاسات إلى خطوة الحساب المالي وسند العربون (Step 2 -> Step 3)
-  const onProceedToFinanceFromMeas = (enrichedMeas) => {
+  const onProceedToFinanceFromMeas = (enrichedMeas, savedCust) => {
     const measTotal = (enrichedMeas || []).reduce((sum, m) => sum + (parseFloat(m.adjusted_price) || 0), 0);
+    const baseCust = savedCust || modalCustomer || {};
     const updatedCust = {
-      ...(modalCustomer || {}),
+      ...baseCust,
       measurements: enrichedMeas,
+      isDraftOrder: true,
       ledger: {
-        ...(modalCustomer?.ledger || {}),
-        base_price: measTotal > 0 ? measTotal : (modalCustomer?.ledger?.base_price || 0),
-        total_sales: (modalCustomer?.ledger?.total_sales && parseFloat(modalCustomer.ledger.total_sales) > 0)
-          ? modalCustomer.ledger.total_sales
-          : (measTotal > 0 ? measTotal : (modalCustomer?.total_sales || 0))
+        ...(baseCust.ledger || {}),
+        base_price: measTotal > 0 ? measTotal : (baseCust.ledger?.base_price || 0),
+        total_sales: (baseCust.ledger?.total_sales && parseFloat(baseCust.ledger.total_sales) > 0)
+          ? baseCust.ledger.total_sales
+          : (measTotal > 0 ? measTotal : (baseCust.total_sales || 0)),
+        subtotal: (baseCust.ledger?.subtotal && parseFloat(baseCust.ledger.subtotal) > 0)
+          ? baseCust.ledger.subtotal
+          : (measTotal > 0 ? measTotal : (baseCust.total_sales || 0))
       }
     };
     setModalCustomer(updatedCust);
@@ -68,7 +79,7 @@ function Customers({
       {HeaderComp && (
         <HeaderComp
           stats={stats}
-          onOpenAddCustomer={() => { setModalCustomer(null); setActiveStep(1); }}
+          onOpenAddCustomer={() => { setModalCustomer({ isDraftOrder: true, isNew: true }); setActiveStep(1); }}
           currency={currency}
         />
       )}
@@ -86,7 +97,7 @@ function Customers({
       {/* جدول استعراض العملاء وسجل المقاسات والإجراءات */}
       {TableComp && (
         <TableComp
-          customers={filteredCustomers} orders={orders} currency={currency}
+          customers={filteredCustomers} orders={effectiveOrders || orders} currency={currency}
           onEditCustomer={(c) => { setModalCustomer(c); setActiveStep(1); }}
           onOpenMeasurements={(c) => { setModalCustomer(c); setActiveStep(2); }}
           onOpenHistory={(c) => { setModalCustomer(c); setActiveStep(3); }}
@@ -143,8 +154,9 @@ function Customers({
               <HistoryModalComp
                 isOpen={true}
                 onClose={() => { setActiveStep(null); setModalCustomer(null); }}
-                customer={effectiveCustomer} orders={orders} currency={currency}
-                onSaveLedger={handleSaveLedger} isSaving={isSaving} showToast={showToast}
+                customer={effectiveCustomer} orders={effectiveOrders || orders} currency={currency}
+                onSaveLedger={async (c, p, opt) => { const res = await handleSaveLedger(c, p, opt); if (res) { setActiveStep(null); setModalCustomer(null); } return res; }}
+                isSaving={isSaving} showToast={showToast}
                 onPrintInvoice={setSelectedInvoice} onPrintJobCard={setSelectedJobCard}
                 currentStep={3} onSwitchStep={setActiveStep}
               />

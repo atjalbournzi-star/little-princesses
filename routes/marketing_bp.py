@@ -55,17 +55,17 @@ def save_campaign():
         with get_db_cursor(commit=True) as cur:
             cid = data.get('campaign_id') or f"CAMP-{int(request.args.get('t', 0)) or 1001}"
             cur.execute("""
-                INSERT INTO campaigns (campaign_id, campaign_name, platform, status, budget, spend, created_at)
+                INSERT INTO campaigns (campaign_id, campaign_name, platform, status, budget, actual_spend, created_at)
                 VALUES (%s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
                 ON CONFLICT (campaign_id) DO UPDATE SET
                     campaign_name = EXCLUDED.campaign_name,
                     platform = EXCLUDED.platform,
                     status = EXCLUDED.status,
                     budget = EXCLUDED.budget,
-                    spend = EXCLUDED.spend
+                    actual_spend = EXCLUDED.actual_spend
                 RETURNING *
             """, (cid, data.get('campaign_name', 'حملة جديدة'), data.get('platform', 'Instagram'),
-                  data.get('status', 'draft'), float(data.get('budget', 0)), float(data.get('spend', 0))))
+                  data.get('status', 'draft'), float(data.get('budget', 0)), float(data.get('spend', 0) or data.get('actual_spend', 0))))
             row = cur.fetchone()
         return jsonify({'success': True, 'data': row}), 200
     except Exception as e:
@@ -94,7 +94,7 @@ def list_content():
 def marketing_dashboard():
     try:
         with get_db_cursor(commit=False) as cur:
-            cur.execute("SELECT COUNT(*) as total_campaigns, COALESCE(SUM(spend), 0) as total_spend FROM campaigns")
+            cur.execute("SELECT COUNT(*) as total_campaigns, COALESCE(SUM(actual_spend), 0) as total_spend FROM campaigns")
             stats = cur.fetchone() or {}
         return jsonify({'success': True, 'data': stats}), 200
     except Exception as e:

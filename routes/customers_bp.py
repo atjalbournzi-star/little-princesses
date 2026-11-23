@@ -23,22 +23,36 @@ def list_customers():
     }), 200
 
 
-@customers_bp.route('/api/customers', methods=['POST'])
-@customers_bp.route('/api/crm/customers', methods=['POST'])
-@customers_bp.route('/api/customers/create', methods=['POST'])
-@customers_bp.route('/api/customers/update', methods=['POST'])
+@customers_bp.route('/api/customers', methods=['POST', 'PUT'])
+@customers_bp.route('/api/crm/customers', methods=['POST', 'PUT'])
+@customers_bp.route('/api/customers/create', methods=['POST', 'PUT'])
+@customers_bp.route('/api/customers/update', methods=['POST', 'PUT'])
 def save_customer():
     try:
         data = request.get_json(silent=True) or {}
+        if not data:
+            return jsonify({'success': False, 'error': 'لم يتم استلام بيانات صالحة ⚠️'}), 400
+        name = str(data.get('name') or data.get('customer_name') or '').strip()
+        phone = str(data.get('phone') or data.get('phone_number') or '').strip()
+        if not name:
+            return jsonify({'success': False, 'error': 'اسم العميل / المنشأة مطلوب ⚠️'}), 400
+        if not phone:
+            return jsonify({'success': False, 'error': 'رقم هاتف العميل مطلوب ⚠️'}), 400
+
         res = pg_service.add_customer(data)
         return jsonify({
             'success': True,
             'data': res,
             'customer': res,
-            'message': 'تم حفظ بيانات العميلة بنجاح 👑'
+            'message': 'تم حفظ بيانات العميل بنجاح 👑'
         }), 200
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        err_msg = str(e)
+        if 'customers_phone_key' in err_msg:
+            err_msg = 'رقم الهاتف مسجل مسبقاً لعميل آخر في النظام ⚠️'
+        elif 'violates foreign key constraint' in err_msg:
+            err_msg = 'خطأ في الربط المرجعي مع بيانات النظام ⚠️'
+        return jsonify({'success': False, 'error': err_msg}), 400
 
 
 @customers_bp.route('/api/crm/customers/<customer_id>', methods=['DELETE'])

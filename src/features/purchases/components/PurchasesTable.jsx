@@ -64,8 +64,8 @@ function PurchasesTable({ filteredPurchases = [], handleOpenEdit, handleDeleteRe
             const isForeign = currCode !== 'YER', rate = parseFloat(p.exchange_rate || p.exchangeRate) || (window.CurrencyService ? window.CurrencyService.getRate(currCode) : (currCode === 'SAR' ? 142 : (currCode === 'USD' ? 535 : 1)));
             const freight = parseFloat(p.freight_cost || p.shipping_cost) || 0, fees = parseFloat(p.transfer_fees || p.transfer_fee) || 0;
             const discountAmt = parseFloat(n.discount) || 0, origAmount = parseFloat(p.subtotal_original || p.original_amount || p.originalAmount) || (n.qty > 0 && n.price > 0 ? (n.qty * n.price) : n.total);
-            const netOriginal = Math.max(0, origAmount - discountAmt);
-            const grandTotalYER = parseFloat(p.grand_total_yer || p.total_amount_yer) || (isForeign ? ((netOriginal * rate) + (freight * rate) + (fees * rate)) : (netOriginal + freight + fees));
+            const netOriginal = p.net_original_amount !== undefined ? parseFloat(p.net_original_amount) : (rate > 0 && parseFloat(p.grand_total_yer || 0) > 0 ? (parseFloat(p.grand_total_yer) / rate) : Math.max(0, origAmount - discountAmt + freight + fees));
+            const grandTotalYER = parseFloat(p.grand_total_yer || p.total_amount_yer) || (isForeign ? (netOriginal * rate) : netOriginal);
             const paySrc = p.payment_source || p.payment_account_code || '101 - الصندوق الرئيسي', payType = p.pay_type || p.payment_method || 'نقدي';
             const dateDisplay = n.date || p.invoice_date || p.date || p.created_at || '—';
 
@@ -117,7 +117,11 @@ function PurchasesTable({ filteredPurchases = [], handleOpenEdit, handleDeleteRe
                         {itemName !== '—' ? itemName : <span className="text-rose-500 underline cursor-pointer" onClick={() => handleOpenEdit(p)}>فارغ — تعديل</span>}
                       </div>
                       <div className="text-[10px] font-mono text-slate-600 dark:text-slate-300 truncate mt-0.5">
-                        ({n.qty > 0 ? n.qty.toLocaleString('en-US') : 0} {n.unit} × {n.price > 0 ? n.price.toLocaleString('en-US') : 0} {currCode})
+                        {p.is_multi_unit || n.unit === 'مشكل' ? (
+                          <span>({p.multi_unit_label || `${p.items?.length || n.qty || 1} أصناف (مشكل)`})</span>
+                        ) : (
+                          <span>({n.qty > 0 ? n.qty.toLocaleString('en-US') : 0} {n.unit} × {n.price > 0 ? n.price.toLocaleString('en-US') : 0} {currCode})</span>
+                        )}
                       </div>
                     </>
                   )}
@@ -143,9 +147,9 @@ function PurchasesTable({ filteredPurchases = [], handleOpenEdit, handleDeleteRe
                   <div className="font-bold font-mono text-xs text-slate-900 dark:text-white tracking-tight">
                     {grandTotalYER > 0 ? grandTotalYER.toLocaleString('en-US', { minimumFractionDigits: 0 }) : '0'}
                   </div>
-                  {isForeign && origAmount > 0 ? (
+                  {isForeign && netOriginal > 0 ? (
                     <div className="text-[9.5px] font-mono text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                      {origAmount.toLocaleString('en-US')} {currCode} @ {rate}
+                      {netOriginal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {currCode} @ {rate}
                     </div>
                   ) : (
                     <div className="text-[9.5px] font-mono text-slate-400 dark:text-slate-500 mt-0.5">

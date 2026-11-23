@@ -2,8 +2,8 @@
 # Multi-Warehouse Engine: Warehouses master, stock distribution, and atomic transfers
 
 import logging
-import time
-from .db_pool import get_db_cursor, clean_str, clean_num, generate_id, execute_query
+from .db_pool import get_db_cursor, clean_str, clean_num, execute_query
+from .pg_sequences import get_next_sequence_number
 
 logger = logging.getLogger("LittlePrincesses_PG_Warehouses")
 
@@ -31,14 +31,21 @@ def normalize_warehouse_id(val, default="WH-MAIN"):
     return default
 
 
+_warehouses_schema_ensured = True
+
+
 def ensure_warehouses_schema():
-    """التحقق من إنشاء جداول المستودعات والأرصدة مع تهيئة المواقع الأساسية إذا كان الجدول فارغاً تماماً"""
+    """التحقق من إنشاء جداول المستودعات والأرصدة مع تهيئة المواقع والربط الحسابي"""
+    global _warehouses_schema_ensured
+    if _warehouses_schema_ensured:
+        return
     try:
         with get_db_cursor(commit=True) as cur:
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS warehouses (
                     id VARCHAR(64) PRIMARY KEY, code VARCHAR(50) UNIQUE NOT NULL,
                     name VARCHAR(150) NOT NULL, location VARCHAR(200), is_active BOOLEAN DEFAULT TRUE,
+                    account_id VARCHAR(64) REFERENCES chart_of_accounts(id),
                     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
                 );
                 CREATE TABLE IF NOT EXISTS warehouse_stock (
@@ -56,29 +63,28 @@ def ensure_warehouses_schema():
                 for w in DEFAULT_WAREHOUSES:
                     cur.execute("INSERT INTO warehouses (id, code, name, location, is_active) VALUES (%s, %s, %s, %s, %s) ON CONFLICT (id) DO NOTHING;", (w["id"], w["code"], w["name"], w["location"], w["is_active"]))
 
-            # تنظيف آمن لأي أرصدة وهمية في المستودع الرئيسي ليس لها حركات فعلية
-            cur.execute("""
-                DELETE FROM warehouse_stock ws WHERE ws.warehouse_id = 'WH-MAIN' AND (ws.id LIKE '%-MAIN' OR ws.id LIKE 'WS-%-MAIN')
-                AND NOT EXISTS (SELECT 1 FROM inventory_transactions it WHERE it.inventory_id = ws.inventory_id AND it.warehouse_id = 'WH-MAIN')
-                AND EXISTS (SELECT 1 FROM warehouse_stock other_ws WHERE other_ws.inventory_id = ws.inventory_id AND other_ws.warehouse_id != 'WH-MAIN');
-            """)
+            from .pg_warehouse_accounts import sync_all_warehouses_accounts
+            sync_all_warehouses_accounts(cur)
+            _warehouses_schema_ensured = True
     except Exception as ex:
         logger.warning(f"Warehouses schema check note: {ex}")
 
 
 def get_warehouses(payload=None):
-    """استرجاع قائمة المستودعات النشطة أو الكل مع إحصائيات الأصناف"""
+    """استرجاع قائمة المستودعات النشطة أو الكل مع إحصائيات الأصناف والحسابات المرتبطة"""
     ensure_warehouses_schema()
     inc_inactive = bool(payload and (payload.get('all') or payload.get('include_inactive')))
     where_clause = "" if inc_inactive else "WHERE w.is_active = TRUE"
     query = f"""
-        SELECT w.id, w.code, w.name, w.location, w.is_active,
+        SELECT w.id, w.code, w.name, w.location, w.is_active, w.account_id,
+               coa.account_code, coa.account_name,
                COALESCE(COUNT(ws.inventory_id), 0) as items_count,
                COALESCE(SUM(ws.quantity), 0) as total_units
         FROM warehouses w
+        LEFT JOIN chart_of_accounts coa ON w.account_id = coa.id
         LEFT JOIN warehouse_stock ws ON w.id = ws.warehouse_id AND ws.quantity > 0
         {where_clause}
-        GROUP BY w.id, w.code, w.name, w.location, w.is_active
+        GROUP BY w.id, w.code, w.name, w.location, w.is_active, w.account_id, coa.account_code, coa.account_name
         ORDER BY CASE w.id WHEN 'WH-MAIN' THEN 1 WHEN 'WH-WORKSHOP' THEN 2 WHEN 'WH-SHOWROOM' THEN 3 ELSE 4 END;
     """
     rows = execute_query(query, fetch_all=True) or []
@@ -143,56 +149,67 @@ def transfer_warehouse_stock(payload):
         src_stock = cur.fetchone()
         src_avail = float(src_stock["avail"] or 0.0) if src_stock else 0.0
 
-        cur.execute("SELECT id, name FROM warehouses WHERE id IN (%s, %s);", (from_wh, to_wh))
-        wh_map = {w['id']: w['name'] for w in cur.fetchall()}
+        cur.execute("SELECT id, name, account_id FROM warehouses WHERE id IN (%s, %s);", (from_wh, to_wh))
+        wh_rows = cur.fetchall()
+        wh_map = {w['id']: w['name'] for w in wh_rows}
+        wh_accs = {w['id']: w.get('account_id') for w in wh_rows}
         from_name = wh_map.get(from_wh, from_wh)
         to_name = wh_map.get(to_wh, to_wh)
 
         if not src_stock or src_avail < qty:
             raise ValueError(f"الرصيد المتاح في {from_name} ({src_avail} {unit}) غير كافٍ لنقل {qty} {unit}")
 
-        # رقم مرجعي موحد للمناقلة
-        transfer_ref = f"TRF-{int(time.time())}-{generate_id('M')[2:6]}"
+        # رقم مرجعي موحد للمناقلة من محرك التسلسل المركزي
+        transfer_ref = get_next_sequence_number(cur, 'TRF', fallback_prefix='TRF-')
 
-        # 1. خصم من مستودع المصدر
-        cur.execute("""
-            UPDATE warehouse_stock SET quantity = quantity - %s, updated_at = CURRENT_TIMESTAMP
-            WHERE warehouse_id = %s AND inventory_id = %s RETURNING quantity;
-        """, (qty, from_wh, inv_id))
+        # استكمال ربط الحسابات المحاسبية للمستودعين إن لم تكن مربوطة
+        from .pg_warehouse_accounts import create_or_link_warehouse_account
+        from_acc = wh_accs.get(from_wh) or create_or_link_warehouse_account(cur, from_wh, from_name)
+        to_acc = wh_accs.get(to_wh) or create_or_link_warehouse_account(cur, to_wh, to_name)
+
+        # 1. خصم من مستودع المصدر دون المساس برصيد inventory الإجمالي
+        cur.execute("UPDATE warehouse_stock SET quantity = quantity - %s, updated_at = CURRENT_TIMESTAMP WHERE warehouse_id = %s AND inventory_id = %s;", (qty, from_wh, inv_id))
 
         # 2. قيد حركة الصرف (TRANSFER_OUT)
+        itxn_out = get_next_sequence_number(cur, 'INV-TXN', fallback_prefix='ITXN-')
         cur.execute("""
-            INSERT INTO inventory_transactions (
-                id, inventory_id, warehouse_id, transaction_type, quantity, unit_cost, reference_type, reference_id, notes, created_at
-            ) VALUES (%s, %s, %s, 'TRANSFER_OUT', %s, %s, 'TRANSFER', %s, %s, CURRENT_TIMESTAMP);
-        """, (generate_id("ITXN"), inv_id, from_wh, -abs(qty), u_cost, transfer_ref, f"مناقلة مخزنية صادرة إلى [{to_name}] | {notes}".strip(" |")))
+            INSERT INTO inventory_transactions (id, inventory_id, warehouse_id, transaction_type, quantity, unit_cost, reference_type, reference_id, notes, created_at)
+            VALUES (%s, %s, %s, 'TRANSFER_OUT', %s, %s, 'TRANSFER', %s, %s, CURRENT_TIMESTAMP);
+        """, (itxn_out, inv_id, from_wh, -abs(qty), u_cost, transfer_ref, f"مناقلة مخزنية صادرة إلى [{to_name}] | {notes}".strip(" |")))
 
-        # 3. إضافة إلى مستودع الوجهة
+        sm_out = get_next_sequence_number(cur, 'SM', fallback_prefix='SM-')
+        cur.execute("""
+            INSERT INTO stock_movements (id, item_id, warehouse_id, movement_type, quantity, unit_cost, total_cost, reference_type, reference_id, notes, created_at)
+            VALUES (%s, %s, %s, 'TRANSFER_OUT', %s, %s, %s, 'TRANSFER', %s, %s, CURRENT_TIMESTAMP);
+        """, (sm_out, inv_id, from_wh, -abs(qty), u_cost, round(qty * u_cost, 4), transfer_ref, f"مناقلة صادرة إلى [{to_name}] | {notes}".strip(" |")))
+
+        # 3. إضافة إلى مستودع الوجهة دون المساس برصيد inventory الإجمالي
         cur.execute("""
             INSERT INTO warehouse_stock (id, warehouse_id, inventory_id, quantity, reserved_qty, updated_at)
             VALUES (%s, %s, %s, %s, 0.0, CURRENT_TIMESTAMP)
-            ON CONFLICT (warehouse_id, inventory_id) DO UPDATE SET quantity = warehouse_stock.quantity + EXCLUDED.quantity, updated_at = CURRENT_TIMESTAMP
-            RETURNING quantity;
+            ON CONFLICT (warehouse_id, inventory_id) DO UPDATE SET quantity = warehouse_stock.quantity + EXCLUDED.quantity, updated_at = CURRENT_TIMESTAMP;
         """, (f"WS-{inv_id}-{to_wh}", to_wh, inv_id, qty))
 
         # 4. قيد حركة الإيداع (TRANSFER_IN) بنفس الرقم المرجعي الموحد
+        itxn_in = get_next_sequence_number(cur, 'INV-TXN', fallback_prefix='ITXN-')
         cur.execute("""
-            INSERT INTO inventory_transactions (
-                id, inventory_id, warehouse_id, transaction_type, quantity, unit_cost, reference_type, reference_id, notes, created_at
-            ) VALUES (%s, %s, %s, 'TRANSFER_IN', %s, %s, 'TRANSFER', %s, %s, CURRENT_TIMESTAMP);
-        """, (generate_id("ITXN"), inv_id, to_wh, abs(qty), u_cost, transfer_ref, f"مناقلة مخزنية واردة من [{from_name}] | {notes}".strip(" |")))
+            INSERT INTO inventory_transactions (id, inventory_id, warehouse_id, transaction_type, quantity, unit_cost, reference_type, reference_id, notes, created_at)
+            VALUES (%s, %s, %s, 'TRANSFER_IN', %s, %s, 'TRANSFER', %s, %s, CURRENT_TIMESTAMP);
+        """, (itxn_in, inv_id, to_wh, abs(qty), u_cost, transfer_ref, f"مناقلة مخزنية واردة من [{from_name}] | {notes}".strip(" |")))
+
+        sm_in = get_next_sequence_number(cur, 'SM', fallback_prefix='SM-')
+        cur.execute("""
+            INSERT INTO stock_movements (id, item_id, warehouse_id, movement_type, quantity, unit_cost, total_cost, reference_type, reference_id, notes, created_at)
+            VALUES (%s, %s, %s, 'TRANSFER_IN', %s, %s, %s, 'TRANSFER', %s, %s, CURRENT_TIMESTAMP);
+        """, (sm_in, inv_id, to_wh, abs(qty), u_cost, round(qty * u_cost, 4), transfer_ref, f"مناقلة واردة من [{from_name}] | {notes}".strip(" |")))
+
+        # 5. ترحيل القيد المحاسبي المزدوج بين الحسابين الفرعيين للمستودعين
+        from .pg_warehouse_transfer_post import post_warehouse_transfer_journal
+        jv_no = post_warehouse_transfer_journal(cur, transfer_ref, from_name, to_name, from_acc, to_acc, qty, u_cost, notes, data.get("user_id"))
 
         return {
-            "success": True,
-            "status": "success",
-            "transfer_ref": transfer_ref,
-            "item_id": inv_id,
-            "item_name": actual_name,
-            "from_warehouse": from_wh,
-            "from_warehouse_name": from_name,
-            "to_warehouse": to_wh,
-            "to_warehouse_name": to_name,
-            "quantity": qty,
-            "unit": unit,
-            "message": f"تمت مناقلة {qty} {unit} من [{from_name}] إلى [{to_name}] بنجاح 🔄 (رقم المرجع: {transfer_ref})"
+            "success": True, "status": "success", "transfer_ref": transfer_ref, "journal_entry_no": jv_no,
+            "item_id": inv_id, "item_name": actual_name, "from_warehouse": from_wh, "from_warehouse_name": from_name,
+            "to_warehouse": to_wh, "to_warehouse_name": to_name, "quantity": qty, "unit": unit,
+            "message": f"تمت مناقلة {qty} {unit} من [{from_name}] إلى [{to_name}] وترحيل قيد اليومية بنجاح 🔄"
         }

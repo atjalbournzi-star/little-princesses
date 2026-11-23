@@ -9,8 +9,8 @@ function BOMFooter({
   expectedProfit = 0,
   currencyLabel = "YER"
 }) {
-  const formattedCost = typeof totalCost === "number" ? totalCost.toFixed(1) : totalCost;
-  const formattedProfit = typeof expectedProfit === "number" ? expectedProfit.toFixed(1) : expectedProfit;
+  const formattedCost = typeof totalCost === "number" ? totalCost.toFixed(2) : totalCost;
+  const formattedProfit = typeof expectedProfit === "number" ? expectedProfit.toFixed(2) : expectedProfit;
   const profitNum = parseFloat(expectedProfit) || 0;
   const profitSign = profitNum > 0 ? "+" : "";
 

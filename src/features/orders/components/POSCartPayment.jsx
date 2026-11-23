@@ -40,7 +40,6 @@ function POSCartPayment({
             value={posDiscount}
             onChange={e => setPosDiscount && setPosDiscount(e.target.value)}
             className="w-16 h-5.5 px-1 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#111C38] text-[11px] font-mono font-bold text-center text-slate-900 dark:text-white outline-none focus:border-pink-500 shadow-2xs"
-            placeholder="0"
           />
           <span className="text-[9.5px] text-slate-400 font-medium">{currCode}</span>
         </div>
@@ -85,7 +84,6 @@ function POSCartPayment({
               type="number"
               value={posCashReceived}
               onChange={e => setPosCashReceived && setPosCashReceived(e.target.value)}
-              placeholder={posNetTotal.toString()}
               className="w-20 h-4.5 text-center font-mono font-bold text-slate-800 dark:text-white bg-transparent outline-none text-[11px]"
             />
             <span className="text-[9.5px] text-slate-400">{currCode}</span>

@@ -73,6 +73,16 @@ function POSHeader({
             </button>
             <button
               type="button"
+              onClick={() => setActiveMode('ready')}
+              className={`h-5 px-2 rounded text-[10px] font-medium transition cursor-pointer flex items-center ${
+                activeMode === 'ready' ? 'bg-gradient-to-r from-pink-600 to-rose-600 text-white shadow-xs font-bold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <span>جاهز للتسليم 📦</span>
+              {Number(stats.readyCount || 0) > 0 && <span className="mr-1 bg-emerald-500 text-white px-1 rounded-full text-[8.5px] font-mono">{stats.readyCount}</span>}
+            </button>
+            <button
+              type="button"
               onClick={() => setActiveMode('archive')}
               className={`h-5 px-2 rounded text-[10px] font-medium transition cursor-pointer flex items-center ${
                 activeMode === 'archive' ? 'bg-gradient-to-r from-pink-600 to-rose-600 text-white shadow-xs font-bold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'

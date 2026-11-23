@@ -128,7 +128,6 @@ function AppTopbar({
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="بحث سريع في السجلات... (⌘K)"
           className="w-full h-[30px] text-xs text-white placeholder-slate-400 bg-slate-900/90 border border-slate-700 rounded-lg pr-7 pl-2.5 outline-none font-medium focus:border-pink-500 transition-colors"
         />
         <span className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-xs">🔍</span>

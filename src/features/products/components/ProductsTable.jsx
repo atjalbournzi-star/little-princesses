@@ -8,15 +8,18 @@ function ProductsTable({
   onShowQr,
   currencyLabel = "YER ﷼"
 }) {
+  const currCode = (currencyLabel || 'YER').split(' ')[0];
   const columns = [
-    { key: 'sku', label: 'الكود / SKU', width: 'w-[110px]', align: 'text-right' },
-    { key: 'image', label: 'الصورة', width: 'w-[48px]', align: 'text-center' },
+    { key: 'sku', label: 'الكود / SKU', width: 'w-[105px]', align: 'text-right' },
+    { key: 'image', label: 'الصورة', width: 'w-[44px]', align: 'text-center' },
     { key: 'name', label: 'اسم الموديل', width: 'w-auto', align: 'text-right' },
-    { key: 'colors', label: 'الألوان المعتمدة', width: 'w-[160px]', align: 'text-center' },
-    { key: 'collection', label: 'التشكيلة', width: 'w-[130px]', align: 'text-center' },
-    { key: 'bom', label: 'الخامات (BOM)', width: 'w-[125px]', align: 'text-center' },
-    { key: 'cost', label: `التكلفة (${(currencyLabel || 'YER').split(' ')[0]})`, width: 'w-[95px]', align: 'text-left' },
-    { key: 'actions', label: 'إجراءات', width: 'w-[95px]', align: 'text-center' }
+    { key: 'category', label: 'التصنيف الفني', width: 'w-[110px]', align: 'text-center' },
+    { key: 'colors', label: 'الألوان المعتمدة', width: 'w-[130px]', align: 'text-center' },
+    { key: 'collection', label: 'التشكيلة', width: 'w-[110px]', align: 'text-center' },
+    { key: 'bom', label: 'الخامات (BOM)', width: 'w-[105px]', align: 'text-center' },
+    { key: 'cost', label: `التكلفة (${currCode})`, width: 'w-[90px]', align: 'text-left' },
+    { key: 'sell_price', label: `سعر البيع المرجعي (${currCode})`, width: 'w-[115px]', align: 'text-left' },
+    { key: 'actions', label: 'إجراءات', width: 'w-[85px]', align: 'text-center' }
   ];
 
   if (!products || products.length === 0) {
@@ -32,7 +35,7 @@ function ProductsTable({
 
   return (
     <div className="overflow-x-auto custom-scrollbar rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111C38]/90 select-none">
-      <table className="w-full min-w-[960px] table-fixed text-right border-collapse">
+      <table className="w-full min-w-[1080px] table-fixed text-right border-collapse">
         <thead className="sticky top-0 z-10 bg-slate-50 dark:bg-[#0F172A] border-b border-slate-200 dark:border-slate-800 shadow-xs">
           <tr className="h-7.5">
             {columns.map(c => (
@@ -51,10 +54,9 @@ function ProductsTable({
             const pImage = p.image_url || p.image || p.image_data || '';
             const pColors = Array.isArray(p.colors) && p.colors.length ? p.colors : (Array.isArray(p.approved_colors) ? p.approved_colors : []);
             const costVal = parseFloat(p.total_cost || p.cost_price || p.fabric_cost) || 0;
-            const formattedCost = costVal.toLocaleString('en-US', {
-              minimumFractionDigits: 0,
-              maximumFractionDigits: 2
-            });
+            const formattedCost = costVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            const sellPriceVal = parseFloat(p.sell_price || p.base_price || (p.price_matrix ? (p.price_matrix['6-9Y'] || p.price_matrix['M'] || p.price_matrix['تفصيل حر'] || Object.values(p.price_matrix)[0]) : 0)) || 0;
+            const formattedPrice = sellPriceVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
             return (
               <tr
@@ -64,14 +66,14 @@ function ProductsTable({
                 className="h-8 border-b border-slate-200 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/40 text-[11px] font-medium transition-colors cursor-pointer"
               >
                 {/* 1. الكود / SKU */}
-                <td className="w-[110px] py-1.5 px-2 text-right truncate overflow-hidden whitespace-nowrap select-all" dir="ltr" title={p.sku || p.code || `LP-${p.id}`}>
+                <td className="w-[105px] py-1.5 px-2 text-right truncate overflow-hidden whitespace-nowrap select-all" dir="ltr" title={p.sku || p.code || `LP-${p.id}`}>
                   <span className="font-mono text-slate-600 dark:text-slate-400 font-medium text-[11px] block truncate">
                     {p.sku || p.code || `LP-${String(p.id).padStart(4, '0')}`}
                   </span>
                 </td>
 
                 {/* 2. الصورة المصغرة */}
-                <td className="w-[48px] py-1 px-1 text-center whitespace-nowrap">
+                <td className="w-[44px] py-1 px-1 text-center whitespace-nowrap">
                   <div className="w-6.5 h-6.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700/80 flex items-center justify-center text-slate-400 mx-auto overflow-hidden">
                     {pImage ? (
                       <img src={pImage} alt="" className="w-full h-full object-cover" />
@@ -81,15 +83,26 @@ function ProductsTable({
                   </div>
                 </td>
 
-                {/* 3. اسم الموديل - ساطع وأبيض واضح */}
+                {/* 3. اسم الموديل */}
                 <td className="w-auto py-1.5 px-2 text-right truncate overflow-hidden whitespace-nowrap" title={cleanName}>
                   <span className="font-semibold text-slate-900 dark:text-slate-100 text-[11px] block truncate">
                     {cleanName}
                   </span>
                 </td>
 
-                {/* 4. الألوان المعتمدة - شارات متناسقة مع ألوان السندات */}
-                <td className="w-[160px] py-1.5 px-1.5 text-center truncate overflow-hidden whitespace-nowrap">
+                {/* 4. التصنيف الفني */}
+                <td className="w-[110px] py-1.5 px-1.5 text-center truncate overflow-hidden whitespace-nowrap">
+                  {p.category ? (
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/60 whitespace-nowrap truncate" title={p.category}>
+                      <span>{p.category}</span>
+                    </span>
+                  ) : (
+                    <span className="text-slate-400 dark:text-slate-500 text-[10px]">—</span>
+                  )}
+                </td>
+
+                {/* 5. الألوان المعتمدة */}
+                <td className="w-[130px] py-1.5 px-1.5 text-center truncate overflow-hidden whitespace-nowrap">
                   {pColors.length > 0 ? (
                     <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-800/60 whitespace-nowrap" title={pColors.join('، ')}>
                       <svg className="w-2.5 h-2.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21a4 4 0 01-4-4 8.014 8.014 0 014.288-7.07 7.974 7.974 0 015.656-1.92c4.418 0 8 3.582 8 8a4 4 0 01-4 4h-2a2 2 0 00-2 2 2 2 0 01-2 2H7z" /></svg>
@@ -100,8 +113,8 @@ function ProductsTable({
                   )}
                 </td>
 
-                {/* 5. التشكيلة - شارة عنبرية بدون اقتطاع */}
-                <td className="w-[130px] py-1.5 px-1.5 text-center truncate overflow-hidden whitespace-nowrap">
+                {/* 6. التشكيلة */}
+                <td className="w-[110px] py-1.5 px-1.5 text-center truncate overflow-hidden whitespace-nowrap">
                   {p.collection ? (
                     <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60 whitespace-nowrap">
                       <svg className="w-2.5 h-2.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 7h.01M7 3h5a1.99 1.99 0 011.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
@@ -112,8 +125,8 @@ function ProductsTable({
                   )}
                 </td>
 
-                {/* 6. الخامات (BOM) - شارة نيلية بدون اقتطاع */}
-                <td className="w-[125px] py-1.5 px-1.5 text-center truncate overflow-hidden whitespace-nowrap">
+                {/* 7. الخامات (BOM) */}
+                <td className="w-[105px] py-1.5 px-1.5 text-center truncate overflow-hidden whitespace-nowrap">
                   {Array.isArray(p.bom) && p.bom.length > 0 ? (
                     <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/60 whitespace-nowrap">
                       <svg className="w-2.5 h-2.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
@@ -128,17 +141,23 @@ function ProductsTable({
                   )}
                 </td>
 
-                {/* 7. التكلفة - أبيض ناصع tabular-nums مطابق للسندات */}
-                <td className="w-[95px] py-1.5 px-2 text-left truncate overflow-hidden whitespace-nowrap dir-ltr">
+                {/* 8. التكلفة */}
+                <td className="w-[90px] py-1.5 px-2 text-left truncate overflow-hidden whitespace-nowrap dir-ltr">
                   <span className="font-mono font-bold text-xs tabular-nums block truncate text-slate-900 dark:text-white">
                     {formattedCost}
                   </span>
                 </td>
 
-                {/* 8. إجراءات - 3 أزرار مصغرة هندسية مطابقة للسندات تماماً */}
-                <td className="w-[95px] py-1.5 px-2 text-center whitespace-nowrap overflow-hidden">
+                {/* 9. سعر البيع المرجعي */}
+                <td className="w-[115px] py-1.5 px-2 text-left truncate overflow-hidden whitespace-nowrap dir-ltr">
+                  <span className="font-mono font-bold text-xs tabular-nums block truncate text-teal-600 dark:text-teal-400">
+                    {formattedPrice}
+                  </span>
+                </td>
+
+                {/* 10. إجراءات */}
+                <td className="w-[85px] py-1.5 px-2 text-center whitespace-nowrap overflow-hidden">
                   <div className="flex items-center justify-center gap-1.5">
-                    {/* 1. تعديل */}
                     <button
                       type="button"
                       onClick={(e) => { e.stopPropagation(); onEdit && onEdit(p); }}
@@ -147,8 +166,6 @@ function ProductsTable({
                     >
                       <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                     </button>
-
-                    {/* 2. تكت / QR */}
                     <button
                       type="button"
                       onClick={(e) => { e.stopPropagation(); onShowQr && onShowQr(p); }}
@@ -157,8 +174,6 @@ function ProductsTable({
                     >
                       <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" /></svg>
                     </button>
-
-                    {/* 3. حذف */}
                     <button
                       type="button"
                       onClick={(e) => { e.stopPropagation(); onDelete && onDelete(p.id); }}

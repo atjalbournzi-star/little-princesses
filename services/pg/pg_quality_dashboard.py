@@ -13,26 +13,37 @@ logger = logging.getLogger("LittlePrincesses_PG_QualityDashboard")
 
 
 def get_quality_dashboard_pg(params=None):
-    inspections = get_quality_inspections()
-    defects = get_quality_defects()
-    feedback = get_quality_feedback()
-    complaints = get_quality_complaints()
-    returns = get_quality_returns()
-    actions = get_quality_actions()
-    checkpoints = get_quality_checkpoints()
-    settings = get_quality_settings()
-
-    total_orders = 0
-    total_sales = 0.0
-    try:
-        with get_db_cursor(commit=False) as cur:
-            cur.execute("SELECT COUNT(*) as total_orders, COALESCE(SUM(total_amount), 0) as total_sales FROM orders;")
-            ord_stats = cur.fetchone()
-            if ord_stats:
-                total_orders = ord_stats['total_orders'] or 0
-                total_sales = float(ord_stats['total_sales'] or 0.0)
-    except Exception:
-        pass
+    total_orders, total_sales = 0, 0.0
+    with get_db_cursor(commit=False) as cur:
+        cur.execute("SELECT * FROM quality_inspections ORDER BY created_at DESC;")
+        inspections = cur.fetchall() or []
+        for r in inspections:
+            for k in ('created_at', 'updated_at', 'inspection_date'):
+                if r.get(k): r[k] = str(r[k])
+        cur.execute("SELECT * FROM quality_defects ORDER BY created_at DESC;")
+        defects = cur.fetchall() or []
+        for r in defects:
+            for k in ('created_at', 'updated_at', 'defect_date', 'due_date', 'resolved_date'):
+                if r.get(k): r[k] = str(r[k])
+            for k in ('rework_cost', 'waste_cost', 'return_cost', 'total_cost'):
+                if r.get(k) is not None: r[k] = float(r[k])
+        cur.execute("SELECT * FROM quality_feedback ORDER BY created_at DESC;")
+        feedback = cur.fetchall() or []
+        cur.execute("SELECT * FROM quality_complaints ORDER BY created_at DESC;")
+        complaints = cur.fetchall() or []
+        cur.execute("SELECT * FROM quality_returns ORDER BY created_at DESC;")
+        returns = cur.fetchall() or []
+        cur.execute("SELECT * FROM quality_actions ORDER BY created_at DESC;")
+        actions = cur.fetchall() or []
+        cur.execute("SELECT * FROM quality_checkpoints ORDER BY created_at DESC;")
+        checkpoints = cur.fetchall() or []
+        cur.execute("SELECT * FROM quality_settings LIMIT 1;")
+        settings = cur.fetchall() or []
+        cur.execute("SELECT COUNT(*) as total_orders, COALESCE(SUM(total_amount), 0) as total_sales FROM orders;")
+        ord_stats = cur.fetchone()
+        if ord_stats:
+            total_orders = ord_stats['total_orders'] or 0
+            total_sales = float(ord_stats['total_sales'] or 0.0)
 
     total_inspections = len(inspections)
     passed_inspections = sum(1 for i in inspections if str(i.get('inspection_result', '')).upper() in ('PASS', 'PASSED', 'ناجح'))

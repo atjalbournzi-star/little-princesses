@@ -6,12 +6,21 @@ function ProductCard({
   onEdit,
   onDelete,
   onShowQr,
-  currencyLabel = "YER ﷼"
+  currencyLabel = "YER"
 }) {
   const p = product || {};
-  const curr = p.currency || currencyLabel;
+  const rawCurr = String(p.currency || currencyLabel || '').toUpperCase();
+  const curr = rawCurr.includes('SAR') ? 'SAR' : (rawCurr.includes('USD') || rawCurr.includes('$') ? 'USD' : 'YER');
   const seg = p.target_segment || 'kids';
   const segLabel = seg === 'women_adults' ? '👗 نسائي وكبار' : (seg === 'custom_free' ? '✂️ تفصيل حر' : '👧 أطفال');
+
+  const pm = typeof p.price_matrix === 'string' ? (() => { try { return JSON.parse(p.price_matrix); } catch(e) { return {}; } })() : (p.price_matrix || {});
+  const tierPrices = Object.values(pm).map(v => parseFloat(v)).filter(v => !isNaN(v) && v > 0);
+  const minPrice = tierPrices.length > 0 ? Math.min(...tierPrices) : (parseFloat(p.sell_price || p.base_price) || 0);
+  const maxPrice = tierPrices.length > 0 ? Math.max(...tierPrices) : (parseFloat(p.sell_price || p.base_price) || 0);
+  const priceDisplay = (minPrice === maxPrice || !maxPrice)
+    ? minPrice.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+    : `${minPrice.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} - ${maxPrice.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
   return (
     <div className="bg-white dark:bg-[#111C38] rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs hover:border-teal-500/50 transition-all flex flex-col justify-between overflow-hidden group select-none">
@@ -80,19 +89,19 @@ function ProductCard({
           <div className="bg-slate-50 dark:bg-slate-900 p-1.5 rounded-lg border border-slate-200 dark:border-slate-800">
             <span className="text-[9.5px] text-slate-500 dark:text-slate-400 block">التكلفة</span>
             <span className="font-bold font-mono text-slate-900 dark:text-white block mt-0.5 text-[11px] tabular-nums">
-              {(parseFloat(p.total_cost || p.cost_price) || 0).toLocaleString('en-US', { maximumFractionDigits: 1 })}
+              {(parseFloat(p.total_cost || p.cost_price) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
           </div>
           <div className="bg-teal-50 dark:bg-teal-950/40 p-1.5 rounded-lg border border-teal-200 dark:border-teal-800/40">
-            <span className="text-[9.5px] text-teal-700 dark:text-teal-300 block font-semibold">سعر البيع</span>
-            <span className="font-bold font-mono text-teal-700 dark:text-teal-300 block mt-0.5 text-[11px] tabular-nums">
-              {(parseFloat(p.sell_price || p.base_price) || 0).toLocaleString('en-US', { maximumFractionDigits: 1 })}
+            <span className="text-[9.5px] text-teal-700 dark:text-teal-300 block font-semibold">{tierPrices.length > 1 ? 'نطاق الفئات' : 'سعر البيع'}</span>
+            <span className="font-bold font-mono text-teal-700 dark:text-teal-300 block mt-0.5 text-[10.5px] tabular-nums" title={`أسعار الفئات: ${priceDisplay} ${curr}`}>
+              {priceDisplay}
             </span>
           </div>
           <div className="bg-emerald-50 dark:bg-emerald-950/40 p-1.5 rounded-lg border border-emerald-200 dark:border-emerald-800/40">
             <span className="text-[9.5px] text-emerald-700 dark:text-emerald-300 block font-semibold">الربح</span>
             <span className="font-bold font-mono text-emerald-700 dark:text-emerald-300 block mt-0.5 text-[11px] tabular-nums">
-              +{(parseFloat(p.profit) || 0).toLocaleString('en-US', { maximumFractionDigits: 1 })}
+              +{(parseFloat(p.profit) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
           </div>
         </div>

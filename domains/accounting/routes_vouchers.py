@@ -20,17 +20,17 @@ def handle_get(handler, path, parsed_url) -> bool:
     if path in ('/api/payments', '/api/payments/list'):
         try:
             payments = pg_service.get_vouchers()
-        except Exception:
-            payments = []
-        _send_json(handler, {'success': True, 'data': payments, 'count': len(payments)})
+            _send_json(handler, {'success': True, 'data': payments, 'count': len(payments)})
+        except Exception as e:
+            _send_json(handler, {'success': False, 'error': f'فشل جلب المدفوعات: {str(e)}', 'data': []}, status=500)
         return True
 
     if path in ('/api/vouchers', '/api/vouchers/list', '/api/accounting/vouchers', '/api/finance/vouchers'):
         try:
             vouchers = pg_service.get_vouchers()
-        except Exception:
-            vouchers = []
-        _send_json(handler, {'success': True, 'data': vouchers, 'count': len(vouchers)})
+            _send_json(handler, {'success': True, 'data': vouchers, 'count': len(vouchers)})
+        except Exception as e:
+            _send_json(handler, {'success': False, 'error': f'فشل جلب السندات والمعاملات: {str(e)}', 'data': []}, status=500)
         return True
 
     if path in ('/api/vouchers/card-data', '/api/vouchers/card', '/api/voucher/card'):

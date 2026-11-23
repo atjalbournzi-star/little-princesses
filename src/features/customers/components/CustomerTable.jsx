@@ -58,21 +58,20 @@ function CustomerTable({
             {customers.map((c, idx) => {
               const custId = c.customer_id || c.id || `CUST-${idx + 1001}`;
               const cOrders = (orders || []).filter(o => (o.customer_id && (String(o.customer_id) === String(custId) || String(o.customer_id) === String(c.id))) || (o.customer_name && String(o.customer_name).trim() === String(c.name || c.customer_name).trim()));
-              const custOrder = cOrders[0] || null;
-              const delMode = c.ledger?.delivery_payment_mode || c.delivery_payment_mode || custOrder?.delivery_payment_mode || 'DIRECT_TO_COURIER';
-              const isPrepaidDel = delMode === 'PREPAID_VIA_ATELIER';
-              const delFee = isPrepaidDel ? parseFloat(c.ledger?.delivery || c.ledger?.delivery_fee || c.delivery_fee || custOrder?.delivery_fee || 0) : 0;
-              let ordTotal = custOrder ? Number(custOrder.total_price || custOrder.total_amount || custOrder.total || 0) : 0;
-              const ordDelFee = Number(custOrder?.delivery_fee || 0);
-              if (!isPrepaidDel && ordDelFee > 0 && custOrder?.subtotal && ordTotal > Number(custOrder.subtotal)) {
-                ordTotal = Number(custOrder.subtotal);
-              }
-              const ordPaid = custOrder ? Number(custOrder.paid_amount || custOrder.paid || custOrder.deposit || 0) : 0;
-              const legTotal = parseFloat(c.ledger?.total_sales || c.total_sales || 0) + delFee;
-              const legPaid = parseFloat(c.ledger?.total_paid || c.ledger?.deposit || c.total_paid || c.deposit || 0);
-              const trueTotal = ordTotal > 0 ? ordTotal : legTotal;
-              const truePaid = Math.max(ordPaid, legPaid);
-              const rem = trueTotal > 0 ? Math.max(0, trueTotal - truePaid) : parseFloat(c.ledger?.remaining ?? c.remaining ?? c.current_balance ?? 0);
+              const calcRemFn = window.customerUtils?.calculateCustomerRemainingBalance;
+              const rem = typeof calcRemFn === 'function' ? calcRemFn(c, orders) : parseFloat(c.ledger?.remaining ?? c.remaining ?? c.current_balance ?? 0);
+              const ordersTotal = cOrders.reduce((sum, o) => {
+                const st = String(o?.status || '').toLowerCase();
+                if (st === 'cancelled' || st === 'ملغي') return sum;
+                const isPre = (o.delivery_payment_mode || c.delivery_payment_mode) === 'PREPAID_VIA_ATELIER';
+                let oTot = Number(o.total_price || o.total_amount || o.total || 0), fee = Number(o.delivery_fee || 0);
+                if (!isPre && fee > 0 && o.subtotal && oTot > Number(o.subtotal)) oTot = Number(o.subtotal);
+                return sum + oTot;
+              }, 0);
+              const isPreDel = (c.ledger?.delivery_payment_mode || c.delivery_payment_mode) === 'PREPAID_VIA_ATELIER';
+              const legDel = isPreDel ? parseFloat(c.ledger?.delivery || c.ledger?.delivery_fee || c.delivery_fee || 0) : 0;
+              const legTotal = parseFloat(c.ledger?.total_sales || c.total_sales || c.total_amount || 0) + legDel;
+              const trueTotal = ordersTotal > 0 ? ordersTotal : (legTotal > 0 ? legTotal : parseFloat(c.ledger?.total_paid || c.total_paid || 0));
               const measurementsList = Array.isArray(c.measurements) ? c.measurements : [];
               const childrenList = Array.isArray(c.children) ? c.children : [];
               const hasReadyOrder = cOrders.some(o => o.stage === 'جاهز للتسليم 📦' || o.status === 'ready_for_delivery' || o.status === 'ready' || o.production_status === 'ready' || o.stage === 'ready');

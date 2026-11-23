@@ -12,12 +12,9 @@ from dotenv import load_dotenv
 
 # UTF-8 stdout configuration for Arabic logging
 try:
-    if hasattr(sys.stdout, 'reconfigure'):
-        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
-    if hasattr(sys.stderr, 'reconfigure'):
-        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
-except Exception:
-    pass
+    if hasattr(sys.stdout, 'reconfigure'): sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    if hasattr(sys.stderr, 'reconfigure'): sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+except Exception: pass
 
 logger = logging.getLogger("db_client")
 if not logger.handlers:
@@ -29,34 +26,29 @@ if not logger.handlers:
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 load_dotenv(dotenv_path=os.path.join(BASE_DIR, '.env'))
 
-DB_POOL_MIN = int(os.getenv("DB_POOL_MIN", "1"))
-DB_POOL_MAX = int(os.getenv("DB_POOL_MAX", "10"))
+DB_POOL_MIN = int(os.getenv("DB_POOL_MIN", "2"))
+DB_POOL_MAX = int(os.getenv("DB_POOL_MAX", "20"))
 DB_TIMEOUT = int(os.getenv("DB_POOL_TIMEOUT", "30"))
 
 _db_pool = None
+_pool_semaphore = None
 _pool_lock = threading.Lock()
-_last_fail_time = 0
-_last_fail_err = None
-
+_last_fail_time, _last_fail_err = 0, None
 
 def get_active_database_url(mode=None):
-    if mode is None:
-        mode = os.getenv("DB_MODE", "cloud").strip().lower()
+    if mode is None: mode = os.getenv("DB_MODE", "cloud").strip().lower()
     if mode == "local":
         url = os.getenv("LOCAL_DATABASE_URL")
         if not url:
-            host = os.getenv("LOCAL_DB_HOST", "localhost")
-            port = os.getenv("LOCAL_DB_PORT", "5432")
-            dbname = os.getenv("LOCAL_DB_NAME", "little_princesses_erp")
-            user = os.getenv("LOCAL_DB_USER", "postgres")
-            pwd = os.getenv("LOCAL_DB_PASSWORD", "postgres")
-            url = f"postgresql://{user}:{pwd}@{host}:{port}/{dbname}"
+            host, port = os.getenv("LOCAL_DB_HOST", "localhost"), os.getenv("LOCAL_DB_PORT", "5432")
+            dbname, user = os.getenv("LOCAL_DB_NAME", "little_princesses_erp"), os.getenv("LOCAL_DB_USER", "postgres")
+            url = f"postgresql://{user}:{os.getenv('LOCAL_DB_PASSWORD', 'postgres')}@{host}:{port}/{dbname}"
         return url, "local"
     return os.getenv("DATABASE_URL"), "cloud"
 
 
 def init_pool(minconn=None, maxconn=None, mode=None):
-    global _db_pool, _last_fail_time, _last_fail_err
+    global _db_pool, _pool_semaphore, _last_fail_time, _last_fail_err
     import time
     with _pool_lock:
         if _db_pool is not None and not _db_pool.closed:
@@ -68,10 +60,15 @@ def init_pool(minconn=None, maxconn=None, mode=None):
         db_url, active_mode = get_active_database_url(mode)
         if not db_url or not db_url.strip():
             raise ValueError(f"DATABASE_URL not configured for mode ({active_mode})")
-        logger.info(f"🔄 Initializing PostgreSQL connection pool ({active_mode})...")
+        logger.info(f"🔄 Initializing PostgreSQL connection pool ({active_mode}) [min={min_c}, max={max_c}]...")
         for attempt in range(2):
             try:
-                _db_pool = pool.ThreadedConnectionPool(minconn=min_c, maxconn=max_c, dsn=db_url, connect_timeout=min(DB_TIMEOUT, 15))
+                _db_pool = pool.ThreadedConnectionPool(
+                    minconn=min_c, maxconn=max_c, dsn=db_url,
+                    connect_timeout=min(DB_TIMEOUT, 15),
+                    keepalives=1, keepalives_idle=30, keepalives_interval=10, keepalives_count=5
+                )
+                _pool_semaphore = threading.BoundedSemaphore(max_c)
                 logger.info("✅ PostgreSQL connection pool created successfully.")
                 _last_fail_err = None
                 return _db_pool
@@ -92,48 +89,53 @@ def get_pool(mode=None):
 
 
 def close_pool():
-    global _db_pool
+    global _db_pool, _pool_semaphore
     with _pool_lock:
         if _db_pool is not None and not _db_pool.closed:
             _db_pool.closeall()
             _db_pool = None
+            _pool_semaphore = None
             logger.info("✅ Connection pool closed.")
 
 
 @contextmanager
 def get_db_connection(mode=None):
     p = get_pool(mode=mode)
-    conn = None
-    is_bad = False
+    sem = _pool_semaphore
+    acquired = False
+    if sem:
+        acquired = sem.acquire(timeout=DB_TIMEOUT)
+        if not acquired:
+            raise psycopg2.pool.PoolError(f"Connection wait timeout exceeded ({DB_TIMEOUT}s)")
+    conn, is_bad = None, False
     try:
-        try:
-            conn = p.getconn()
-        except Exception:
-            close_pool()
-            p = get_pool(mode=mode)
-            conn = p.getconn()
-        try:
-            if conn.closed != 0:
-                is_bad = True
-            else:
-                with conn.cursor() as probe:
-                    probe.execute("SELECT 1;")
-        except Exception:
-            is_bad = True
-        if is_bad:
-            try: p.putconn(conn, close=True)
-            except Exception: pass
-            try:
-                conn = p.getconn()
-            except Exception:
-                close_pool()
-                p = get_pool(mode=mode)
-                conn = p.getconn()
+        import time
+        for attempt in range(2):
             is_bad = False
+            try: conn = p.getconn()
+            except Exception:
+                if attempt == 0: time.sleep(0.3); continue
+                raise
+            try:
+                if not conn or conn.closed != 0: is_bad = True
+                else:
+                    if conn.autocommit: conn.autocommit = False
+                    if conn.status != psycopg2.extensions.STATUS_READY: conn.rollback()
+                    with conn.cursor() as probe: probe.execute("SELECT 1;")
+                    if conn.status != psycopg2.extensions.STATUS_READY: conn.rollback()
+            except Exception: is_bad = True
+            if is_bad:
+                if conn:
+                    try: p.putconn(conn, close=True)
+                    except Exception: pass
+                    conn = None
+                if attempt == 0: time.sleep(0.3); continue
+            break
+        if not conn or is_bad:
+            raise psycopg2.OperationalError("Unable to acquire a healthy database connection")
         yield conn
     except Exception as e:
-        if isinstance(e, (psycopg2.OperationalError, psycopg2.InterfaceError)):
-            is_bad = True
+        if isinstance(e, (psycopg2.OperationalError, psycopg2.InterfaceError)): is_bad = True
         if conn and not conn.closed:
             try: conn.rollback()
             except Exception: pass
@@ -141,12 +143,15 @@ def get_db_connection(mode=None):
     finally:
         if conn and not p.closed:
             try:
-                if is_bad or conn.closed != 0:
-                    p.putconn(conn, close=True)
+                if is_bad or conn.closed != 0: p.putconn(conn, close=True)
                 else:
+                    if conn.autocommit: conn.autocommit = False
+                    if conn.status != psycopg2.extensions.STATUS_READY: conn.rollback()
                     p.putconn(conn)
-            except Exception:
-                pass
+            except Exception: pass
+        if acquired and sem:
+            try: sem.release()
+            except Exception: pass
 
 
 @contextmanager
@@ -195,11 +200,9 @@ def test_connection(mode=None):
         if not db_url or not db_url.strip():
             return False, f"DATABASE_URL not configured for mode ({active_mode})."
         with get_db_cursor(commit=False, dict_cursor=False, mode=mode) as cur:
-            cur.execute("SELECT version();")
-            ver = cur.fetchone()[0]
-            cur.execute("SELECT current_database(), current_user;")
-            dbname, user = cur.fetchone()
-        info = f"✅ Connected ({active_mode}) | DB: {dbname} | User: {user} | Version: {ver[:50]}..."
+            cur.execute("SELECT version(), current_database(), current_user;")
+            ver, dbname, user = cur.fetchone()
+        info = f"✅ Connected ({active_mode}) | DB: {dbname} | User: {user} | Version: {ver[:45]}..."
         logger.info(info)
         return True, info
     except Exception as e:

@@ -83,21 +83,21 @@ function ProductsHeader({
         <div className="py-1 px-2.5 rounded-lg bg-white dark:bg-[#111C38] border border-slate-200 dark:border-slate-800 flex items-center justify-between whitespace-nowrap">
           <span className="text-[11px] font-medium text-slate-600 dark:text-slate-300">متوسط تكلفة التصنيع</span>
           <span dir="ltr" className="text-[11px] font-bold text-slate-900 dark:text-slate-100 font-mono tracking-tight">
-            {(stats.avgCost || 0).toLocaleString('en-US', { maximumFractionDigits: 1 })} {currCode}
+            {(stats.avgCost || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {currCode}
           </span>
         </div>
 
         <div className="py-1 px-2.5 rounded-lg bg-white dark:bg-[#111C38] border border-slate-200 dark:border-slate-800 flex items-center justify-between whitespace-nowrap">
           <span className="text-[11px] font-medium text-slate-600 dark:text-slate-300">متوسط سعر البيع</span>
           <span dir="ltr" className="text-[11px] font-bold text-teal-600 dark:text-teal-400 font-mono tracking-tight">
-            {(stats.avgSellPrice || 0).toLocaleString('en-US', { maximumFractionDigits: 1 })} {currCode}
+            {(stats.avgSellPrice || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {currCode}
           </span>
         </div>
 
         <div className="py-1 px-2.5 rounded-lg bg-white dark:bg-[#111C38] border border-slate-200 dark:border-slate-800 flex items-center justify-between whitespace-nowrap">
           <span className="text-[11px] font-medium text-slate-600 dark:text-slate-300">متوسط هامش الربح</span>
           <span dir="ltr" className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 font-mono tracking-tight">
-            +{(stats.avgProfit || 0).toLocaleString('en-US', { maximumFractionDigits: 1 })} {currCode}
+            +{(stats.avgProfit || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {currCode}
           </span>
         </div>
       </div>

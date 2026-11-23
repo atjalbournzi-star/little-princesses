@@ -5,6 +5,7 @@ function CustomerMeasurementsForm({
   currM, activeChildIdx, targetMode, uniqueModels, activeFields,
   inputCls, labelCls, onUpdate, onSelectModel, selectedProduct
 }) {
+  const mData = currM || {};
   const isAdult = targetMode === 'women_adults';
   const KIDS_FIELDS = [
     ['dress_length', 'طول الفستان'], ['chest_circ', 'محيط الصدر'], ['waist_circ', 'محيط الخصر'],
@@ -17,7 +18,7 @@ function CustomerMeasurementsForm({
     ['arm_circ', 'دوران الذراع'], ['bust_drop', 'نزول الصدر']
   ];
   const fieldsToRender = isAdult ? ADULT_FIELDS : KIDS_FIELDS;
-  const modelImg = currM.model_image || currM.model_img || selectedProduct?.image_url || selectedProduct?.image || selectedProduct?.image_data;
+  const modelImg = mData.model_image || mData.model_img || selectedProduct?.image_url || selectedProduct?.image || selectedProduct?.image_data;
   
   const rawColors = selectedProduct?.colors || selectedProduct?.approved_colors || [];
   let approvedColors = [];
@@ -34,15 +35,18 @@ function CustomerMeasurementsForm({
     }
   }
 
-  const selectedCol = currM.dress_color || currM.selected_color || '';
+  const selectedCol = mData.dress_color || mData.selected_color || '';
+  const availableTiers = window.SmartSizingMatcher?.resolveProductTiers ? window.SmartSizingMatcher.resolveProductTiers(selectedProduct, isAdult) : [];
+  const matchResult = window.SmartSizingMatcher?.matchClientMeasurementToCategory ? window.SmartSizingMatcher.matchClientMeasurementToCategory(mData, selectedProduct) : null;
+  const varianceAlert = matchResult?.varianceAlert || '';
 
   return (
     <div className="space-y-2 select-none" dir="rtl">
       {/* Model & Basic Data */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 p-2 bg-[#0F172A] rounded-xl border border-slate-800">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2 p-2 bg-[#0F172A] rounded-xl border border-slate-800">
         <div>
           <label className="block text-[10px] font-semibold text-slate-300 mb-0.5">{isAdult ? 'اسم العميل *' : 'اسم الطفلة (الأميرة) *'}</label>
-          <input value={currM.child_name || ''} onChange={e => onUpdate(activeChildIdx, 'child_name', e.target.value)} className="w-full h-7 px-2 text-xs font-bold bg-[#111C38] border border-slate-700 rounded-lg text-white outline-none focus:border-pink-500" />
+          <input value={mData.child_name || ''} onChange={e => onUpdate(activeChildIdx, 'child_name', e.target.value)} className="w-full h-7 px-2 text-xs font-bold bg-[#111C38] border border-slate-700 rounded-lg text-white outline-none focus:border-pink-500" />
         </div>
         <div>
           <label className="block text-[10px] font-semibold text-slate-300 mb-0.5">الموديل من الكتالوج</label>
@@ -52,7 +56,7 @@ function CustomerMeasurementsForm({
                 <img src={modelImg} alt="" className="w-full h-full object-cover" />
               </div>
             )}
-            <select value={currM.selected_model || ''} onChange={e => onSelectModel(e.target.value)} className="w-full h-7 px-2 text-xs font-bold bg-[#111C38] border border-slate-700 rounded-lg text-white outline-none focus:border-pink-500 cursor-pointer">
+            <select value={mData.selected_model || ''} onChange={e => onSelectModel(e.target.value)} className="w-full h-7 px-2 text-xs font-bold bg-[#111C38] border border-slate-700 rounded-lg text-white outline-none focus:border-pink-500 cursor-pointer">
               <option value="">-- اختر الموديل --</option>
               {uniqueModels.map(n => <option key={n} value={n}>{n}</option>)}
             </select>
@@ -80,10 +84,43 @@ function CustomerMeasurementsForm({
           </select>
         </div>
         <div>
+          <div className="flex items-center justify-between mb-0.5">
+            <label className="block text-[10px] font-semibold text-slate-300">الفئة / المقاس المعياري</label>
+            {mData.manual_tier && (
+              <button type="button" onClick={() => { onUpdate(activeChildIdx, 'manual_tier', ''); onUpdate(activeChildIdx, 'size_code', ''); }} className="text-[9px] text-pink-400 hover:underline cursor-pointer">آلي ↺</button>
+            )}
+          </div>
+          <select
+            value={mData.manual_tier || mData.size_code || ''}
+            onChange={e => {
+              const v = e.target.value;
+              onUpdate(activeChildIdx, 'manual_tier', v);
+              onUpdate(activeChildIdx, 'size_code', v);
+            }}
+            className="w-full h-7 px-2 text-xs font-bold bg-[#111C38] border border-slate-700 rounded-lg text-white outline-none focus:border-pink-500 cursor-pointer"
+          >
+            <option value="">-- آلي حسب الطول ({matchResult?.category || '6-9Y'}) --</option>
+            {availableTiers.map(t => (
+              <option key={t.size} value={t.size}>{t.size} ({t.age || t.size})</option>
+            ))}
+          </select>
+        </div>
+        <div>
           <label className="block text-[10px] font-semibold text-slate-300 mb-0.5">تاريخ المناسبة والتسليم</label>
-          <input type="date" lang="en-GB" dir="ltr" value={currM.event_date || ''} onChange={e => onUpdate(activeChildIdx, 'event_date', e.target.value)} className="w-full h-7 px-2 text-xs font-bold bg-[#111C38] border border-slate-700 rounded-lg text-white outline-none focus:border-pink-500" />
+          <input type="date" lang="en" dir="ltr" value={mData.event_date || ''} onChange={e => onUpdate(activeChildIdx, 'event_date', e.target.value)} className="w-full h-7 px-2 text-xs font-mono font-bold bg-[#111C38] border border-slate-700 rounded-lg text-white outline-none focus:border-pink-500 text-left" />
         </div>
       </div>
+
+      {/* إنذار التباين الفني (Fit Variance Alert) للقصاص */}
+      {varianceAlert && (
+        <div className="p-2 rounded-lg bg-amber-950/70 border border-amber-600/70 text-amber-200 text-xs flex items-center justify-between animate-fadeIn">
+          <div className="flex items-center gap-1.5 font-bold">
+            <span className="text-sm">⚠️</span>
+            <span>{varianceAlert}</span>
+          </div>
+          <span className="text-[9.5px] px-1.5 py-0.5 rounded bg-amber-900/60 text-amber-300 border border-amber-700/60 font-mono shrink-0">إنذار فني للورشة</span>
+        </div>
+      )}
 
       {/* شريط الألوان المعتمدة للموديل إن وجدت */}
       {approvedColors.length > 0 && (
@@ -117,12 +154,12 @@ function CustomerMeasurementsForm({
       {/* Micro-Dimension 5x2 Grid */}
       <div className={`grid grid-cols-2 ${isAdult ? 'sm:grid-cols-4' : 'sm:grid-cols-5'} gap-1.5`}>
         {fieldsToRender.map(([f, lbl]) => {
-          const val = currM[f], hasVal = val !== undefined && val !== null && val !== '' && !isNaN(parseFloat(val));
+          const val = mData[f], hasVal = val !== undefined && val !== null && val !== '' && !isNaN(parseFloat(val));
           const num = hasVal ? parseFloat(val) : null;
-          const isInch = /^(inch|in|إنش|انش)$/i.test(String(currM?.unit || '').trim());
+          const isInch = /^(inch|in|إنش|انش)$/i.test(String(mData?.unit || '').trim());
           const sub = hasVal
-            ? (isInch ? `≈ ${(num * 2.54).toFixed(1)} سم` : `≈ ${(num / 2.54).toFixed(1)}"`)
-            : `(${isInch ? 'إنش' : 'سم'})`;
+            ? (isInch ? `≈ ${window.UnitConversionService ? window.UnitConversionService.convert(num, 'إنش', 'سم', 1) : (num * 2.54).toFixed(1)} سم` : `≈ ${window.UnitConversionService ? window.UnitConversionService.convert(num, 'سم', 'إنش', 1) : (num / 2.54).toFixed(1)}"`)
+            : '';
           return (
             <div key={f} className="h-10 p-1 bg-slate-900/80 border border-slate-700 rounded-lg text-center flex flex-col justify-between">
               <div className="flex items-center justify-between text-[10px] font-bold text-slate-300 leading-tight px-1">
@@ -132,9 +169,11 @@ function CustomerMeasurementsForm({
               <input
                 type="number"
                 step="0.1"
+                lang="en"
+                dir="ltr"
                 value={val ?? ''}
                 onChange={e => onUpdate(activeChildIdx, f, e.target.value)}
-                className="h-5 w-full text-center text-xs font-bold text-white bg-transparent outline-none focus:border-pink-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                className="h-5 w-full text-center text-xs font-mono font-bold text-white bg-transparent outline-none focus:border-pink-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
               />
             </div>
           );
@@ -147,11 +186,11 @@ function CustomerMeasurementsForm({
           <label className="block text-[10.5px] font-bold text-slate-200 mb-1">✨ تفضيلات الراحة والتفصيل:</label>
           <div className="grid grid-cols-2 gap-1">
             {['حساسية من التل', 'بطانة قطن ناعم', 'فتحة سحاب مخفي', 'كشكشة مضاعفة'].map(pref => {
-              const checked = (currM.comfort_profile || []).includes(pref);
+              const checked = (mData.comfort_profile || []).includes(pref);
               return (
                 <label key={pref} className={`flex items-center gap-1.5 px-2 py-1 rounded-md border text-[10px] font-semibold cursor-pointer transition-colors ${checked ? 'bg-pink-950/60 border-pink-700 text-pink-300' : 'bg-[#111C38] border-slate-700 text-slate-300 hover:border-slate-600'}`}>
                   <input type="checkbox" checked={checked} onChange={e => {
-                    const cur = currM.comfort_profile || [];
+                    const cur = mData.comfort_profile || [];
                     onUpdate(activeChildIdx, 'comfort_profile', e.target.checked ? [...cur, pref] : cur.filter(p => p !== pref));
                   }} className="accent-pink-600" />
                   <span className="truncate">{pref}</span>
@@ -162,7 +201,7 @@ function CustomerMeasurementsForm({
         </div>
         <div className="p-1.5 bg-[#0F172A] rounded-xl border border-slate-800">
           <label className="block text-[10.5px] font-bold text-slate-200 mb-1">🧵 تعليمات التشغيل والقص للمعمل:</label>
-          <textarea rows={2} value={currM.sewing_notes || ''} onChange={e => onUpdate(activeChildIdx, 'sewing_notes', e.target.value)} className="w-full h-11 p-1.5 text-xs font-medium bg-[#111C38] border border-slate-700 rounded-lg text-white outline-none focus:border-pink-500 resize-none" />
+          <textarea rows={2} value={mData.sewing_notes || ''} onChange={e => onUpdate(activeChildIdx, 'sewing_notes', e.target.value)} className="w-full h-11 p-1.5 text-xs font-medium bg-[#111C38] border border-slate-700 rounded-lg text-white outline-none focus:border-pink-500 resize-none" />
         </div>
       </div>
     </div>

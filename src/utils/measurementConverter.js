@@ -34,13 +34,19 @@ const resolveNormalizedLength = (input) => {
 const resolveDressLengthInches = (input) => resolveNormalizedLength(input).inches;
 const resolveDressLengthCm = (input) => resolveNormalizedLength(input).cm;
 
-const resolveSizeCode = (input, targetSegment = 'kids') => {
-  if (targetSegment === 'women_adults') return 'M';
+const resolveSizeCode = (input, targetSegmentOrProduct = 'kids') => {
+  const prod = typeof targetSegmentOrProduct === 'object' ? targetSegmentOrProduct : null;
+  const seg = typeof targetSegmentOrProduct === 'string' ? targetSegmentOrProduct : (prod?.target_segment || 'kids');
+  if (seg === 'women_adults') return 'M';
+  if (window.SmartSizingMatcher?.matchClientMeasurementToCategory) {
+    const res = window.SmartSizingMatcher.matchClientMeasurementToCategory(input, prod);
+    if (res?.category) return res.category;
+  }
   const norm = resolveNormalizedLength(input);
   const cm = norm.cm;
-  if (cm <= 55) return '1-2Y';
-  if (cm <= 75) return '3-5Y';
-  if (cm <= 95) return '6-9Y';
+  if (cm <= 55.9) return '1-2Y';
+  if (cm <= 68.6) return '3-5Y';
+  if (cm <= 83.8) return '6-9Y';
   return '10-13Y';
 };
 
@@ -159,6 +165,20 @@ const buildBomItems = (product = {}, sizeCode = '6-9Y', lengthInInches = 26, qua
   return rawBom.map(mat => calculateBomItem(mat, sizeCode, lengthInInches, quantity, fabricInventory));
 };
 
+const convertMeasurementUnit = (val, fromUnit = 'سم', toUnit = 'إنش', precision = 1) => {
+  if (val === undefined || val === null || val === '') return '';
+  const num = parseFloat(val);
+  if (isNaN(num)) return val;
+  if (window.UnitConversionService?.convert) {
+    return window.UnitConversionService.convert(num, fromUnit, toUnit, precision);
+  }
+  const isFromInch = /^(inch|in|إنش|انش)$/i.test(String(fromUnit).trim());
+  const isToInch = /^(inch|in|إنش|انش)$/i.test(String(toUnit).trim());
+  if (isFromInch === isToInch) return num;
+  const res = isFromInch ? (num * 2.54) : (num / 2.54);
+  return precision !== undefined ? parseFloat(res.toFixed(precision)) : res;
+};
+
 const MeasurementConverter = {
   extractLengthValue,
   resolveNormalizedLength,
@@ -170,7 +190,8 @@ const MeasurementConverter = {
   isTaffetaFabric,
   resolveCutUnit,
   calculateBomItem,
-  buildBomItems
+  buildBomItems,
+  convertMeasurementUnit
 };
 
 if (typeof window !== 'undefined') {

@@ -81,10 +81,11 @@ function useHRData({ activeTab, payrollMonth }) {
 
   // إعادة التحميل عند تغيير التبويب
   useEffect(() => {
-    if (activeTab === 'commissions') {
+    if (activeTab === 'commissions' || activeTab === 'payroll') {
       loadCommissions();
       loadTailorSummaries();
-    } else if (activeTab === 'advances') {
+    }
+    if (activeTab === 'advances') {
       loadAdvances(payrollMonth);
     }
   }, [activeTab, payrollMonth]);

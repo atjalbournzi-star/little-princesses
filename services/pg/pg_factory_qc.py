@@ -76,7 +76,10 @@ def reject_tailor_job_and_rework(payload):
     corrective_action = clean_str(data.get('corrective_action') or 'إعادة ضبط المقاسات والسحاب ومعالجة العيب المطلوب')
     inspector_name = clean_str(data.get('inspector_name') or data.get('approved_by') or 'سارة مديرة الورشة ✂️')
     rework_cost = clean_num(data.get('rework_cost') or 0.0)
-    defect_notes = clean_str(data.get('notes') or data.get('quality_notes') or '')
+    rework_hours = clean_num(data.get('rework_hours') or 0.0)
+    defect_notes = clean_str(data.get('defect_note') or data.get('notes') or data.get('quality_notes') or '')
+    if rework_hours > 0:
+        defect_notes = f"{defect_notes} [ساعات التعديل: {rework_hours}h]".strip()
 
     with get_db_cursor(commit=True) as cur:
         cur.execute("""
@@ -100,41 +103,51 @@ def reject_tailor_job_and_rework(payload):
             if not cur.fetchone():
                 prod_id = None
 
+        cur.execute("SELECT id FROM users WHERE username = %s OR name = %s LIMIT 1;", (inspector_name, inspector_name))
+        u_row = cur.fetchone()
+        insp_uid = u_row['id'] if u_row else 'admin'
+        po_clr = po.get('dress_color') or po.get('selected_color') or po.get('color') or ''
+        po_sz = po.get('size_code') or ''
+        po_sku = po.get('production_order_no') or po['id']
+        po_model = po.get('model_id') or prod_id or ''
+
         insp_id = generate_id("INSP")
         cur.execute("""
             INSERT INTO quality_inspections (
-                id, inspection_date, product_id, product_name, production_order_id,
-                production_stage, quantity_checked, quantity_passed, quantity_failed,
-                inspection_result, inspector_name, notes, created_at, updated_at
+                id, inspection_date, product_id, product_name, sku, model_id,
+                color, size, production_order_id, production_stage, quantity_checked,
+                quantity_passed, quantity_failed, inspection_result, inspector_id, inspector_name,
+                notes, created_at, updated_at
             ) VALUES (
+                %s, %s, %s, %s, %s, %s,
                 %s, %s, %s, %s, %s,
-                %s, %s, 0, %s,
-                'FAIL', %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                0, %s, 'FAIL', %s, %s,
+                %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
             ) RETURNING id;
         """, (
-            insp_id, today_date, prod_id, po.get('product_model_name'), po['id'],
-            cur_stage, pieces_count, pieces_count,
-            inspector_name, f"تم الرفض للتعديل: {defect_type} - {defect_notes}"
+            insp_id, today_date, prod_id, po.get('product_model_name'), po_sku, po_model,
+            po_clr, po_sz, po['id'], cur_stage, pieces_count,
+            pieces_count, insp_uid, inspector_name, f"تم الرفض للتعديل: {defect_type} - {defect_notes}"
         ))
 
         def_id = generate_id("DEF")
         cur.execute("""
             INSERT INTO quality_defects (
                 id, defect_date, inspection_id, product_id, product_name,
-                production_order_id, production_stage, defect_type, defect_category,
-                severity, affected_quantity, root_cause, corrective_action,
-                rework_cost, notes, status, created_at, updated_at
+                sku, model_id, color, size, production_order_id, production_stage,
+                defect_type, defect_category, severity, affected_quantity,
+                root_cause, corrective_action, rework_cost, notes, status, created_at, updated_at
             ) VALUES (
                 %s, %s, %s, %s, %s,
+                %s, %s, %s, %s, %s, %s,
                 %s, %s, %s, %s,
-                %s, %s, %s, %s,
-                %s, %s, 'Open', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                %s, %s, %s, %s, 'Open', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
             ) RETURNING *;
         """, (
             def_id, today_date, insp_id, prod_id, po.get('product_model_name'),
-            po['id'], cur_stage, defect_type, defect_category,
-            severity, pieces_count, root_cause, corrective_action,
-            rework_cost, defect_notes
+            po_sku, po_model, po_clr, po_sz, po['id'], cur_stage,
+            defect_type, defect_category, severity, pieces_count,
+            root_cause, corrective_action, rework_cost, defect_notes
         ))
 
         cur.execute("""

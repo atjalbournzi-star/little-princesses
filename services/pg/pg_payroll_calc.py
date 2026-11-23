@@ -6,25 +6,23 @@ logger = logging.getLogger("LittlePrincesses_PG_PayrollCalc")
 
 
 def get_payroll(params=None):
-    month = None
-    if isinstance(params, dict):
-        month = params.get('month')
-    elif isinstance(params, str):
-        month = params
-    if not month:
-        month = datetime.date.today().strftime("%Y-%m")
-
-    try:
-        from .pg_payroll_post import add_payroll_batch
-        calc_recs = calculate_payroll(month)
-        if calc_recs:
-            add_payroll_batch({'records': calc_recs, 'month': month})
-    except Exception as e:
-        logger.warning(f"Auto-sync payroll warning: {e}")
+    month = (params.get('month') if isinstance(params, dict) else params) or datetime.date.today().strftime("%Y-%m")
 
     with get_db_cursor() as cur:
         cur.execute("SELECT * FROM payroll WHERE month = %s ORDER BY created_at DESC;", (month,))
-        rows = cur.fetchall()
+        rows = cur.fetchall() or []
+
+    if not rows:
+        try:
+            from .pg_payroll_post import add_payroll_batch
+            calc_recs = calculate_payroll(month)
+            if calc_recs:
+                add_payroll_batch({'records': calc_recs, 'month': month})
+            with get_db_cursor() as cur:
+                cur.execute("SELECT * FROM payroll WHERE month = %s ORDER BY created_at DESC;", (month,))
+                rows = cur.fetchall() or []
+        except Exception as e:
+            logger.warning(f"Auto-sync payroll warning: {e}")
         for r in rows:
             if r.get('created_at'):
                 r['created_at'] = str(r['created_at'])
@@ -79,105 +77,68 @@ def update_payroll_record(payload):
 
 
 def calculate_payroll(payload=None):
-    month = None
-    if isinstance(payload, dict):
-        month = payload.get('month')
-    elif isinstance(payload, str):
-        month = payload
-    if not month:
-        month = datetime.date.today().strftime("%Y-%m")
+    month = (payload.get('month') if isinstance(payload, dict) else payload) or datetime.date.today().strftime("%Y-%m")
 
     with get_db_cursor() as cur:
         cur.execute("SELECT * FROM employees WHERE status IN ('Active', 'active', 'نشط') ORDER BY name;")
-        employees = cur.fetchall()
+        employees = cur.fetchall() or []
+
+        cur.execute("""
+            SELECT prl.id, prl.worker_id, prl.worker_name, prl.stage_id, prl.piece_rate_amount, prl.pieces_count, prl.completed_at,
+                   COALESCE(po.production_order_no, prl.production_order_id, '-') as order_no,
+                   COALESCE(po.product_name, 'فستان ملكي') as product_name
+            FROM piece_rate_logs prl
+            LEFT JOIN production_orders po ON (po.id = prl.production_order_id OR po.production_order_no = prl.production_order_id)
+            WHERE prl.paid_at IS NULL
+              AND (prl.payment_status IN ('Accrued', 'pending', 'معلق') OR prl.payment_status IS NULL)
+              AND (prl.qa_status ILIKE '%pass%' OR prl.qa_status ILIKE '%approv%');
+        """)
+        all_logs = cur.fetchall() or []
+        logs_by_emp = {}
+        for l in all_logs:
+            for k in (l.get('worker_id'), l.get('worker_name')):
+                if k: logs_by_emp.setdefault(k, []).append(l)
+
+        cur.execute("""
+            SELECT party_name, COALESCE(SUM(amount), 0.0) as total_advances
+            FROM payments
+            WHERE payment_type IN ('Payment', 'سند_صرف')
+              AND (payment_no LIKE 'PAY-ADV%' OR notes ILIKE '%سلفة%' OR notes ILIKE '%سلف%')
+              AND to_char(date, 'YYYY-MM') = %s
+            GROUP BY party_name;
+        """, (month,))
+        adv_by_emp = {r['party_name']: float(r['total_advances']) for r in (cur.fetchall() or [])}
 
         records = []
         for emp in employees:
-            e_name = emp['name']
-            e_id = emp['id']
+            e_name, e_id = emp['name'], emp['id']
             e_type = emp.get('type') or 'راتب شهري'
             base_sal = float(emp.get('salary') or 0.0)
-            pieces_count = 0
-            pieces_stmt = ""
-            total_due = base_sal
-            allowances = 0.0
+            comm_rows = logs_by_emp.get(e_id) or logs_by_emp.get(e_name) or []
+            seen_ids = set()
+            uniq_comm = []
+            for c in comm_rows:
+                if c['id'] not in seen_ids:
+                    seen_ids.add(c['id'])
+                    uniq_comm.append(c)
 
-            cur.execute("""
-                SELECT id, order_no, product_name, stage, wage_amount, pieces_count, completed_at
-                FROM tailor_commissions
-                WHERE (employee_id = %s OR employee_name = %s)
-                  AND status = 'Approved'
-                  AND paid_at IS NULL
-                  AND (
-                      (order_date IS NOT NULL AND to_char(order_date, 'YYYY-MM') = %s)
-                      OR (order_date IS NULL AND (completed_at IS NULL OR to_char(completed_at, 'YYYY-MM') = %s))
-                  );
-            """, (e_id, e_name, month, month))
-            comm_rows = cur.fetchall()
-
-            comm_pieces = sum(int(c.get('pieces_count') or 1) for c in comm_rows)
-            comm_total = sum(float(c.get('wage_amount') or 0.0) * int(c.get('pieces_count') or 1) for c in comm_rows)
-
-            if comm_rows:
-                pieces_stmt = "\n".join([
-                    f"- أمر {c['order_no']} ({c['product_name']}): {c['stage']} [{float(c['wage_amount']):,.0f} ر.ي]"
-                    for c in comm_rows
-                ])
-            elif e_type == 'بالقطعة':
-                cur.execute("""
-                    SELECT production_order_no, stage, due_date, order_id, pieces_count
-                    FROM production_orders
-                    WHERE (cutter_name = %s OR tailor_name = %s OR assigned_tailor_id = %s
-                           OR embroiderer_name = %s OR finisher_name = %s OR notes ILIKE %s)
-                      AND (stage ILIKE '%%تشطيب%%' OR stage ILIKE '%%جاهز%%' OR stage ILIKE '%%تسليم%%' OR stage ILIKE '%%مكتمل%%' OR stage = 'Completed' OR progress >= 80)
-                      AND (to_char(created_at, 'YYYY-MM') = %s OR to_char(start_date, 'YYYY-MM') = %s);
-                """, (e_name, e_name, e_id, e_name, e_name, f"%{e_name}%", month, month))
-                po_rows = cur.fetchall()
-                comm_pieces = sum(max(1, int(r.get('pieces_count') or 1)) for r in po_rows)
-                comm_total = comm_pieces * base_sal
-                if comm_pieces > 0:
-                    pieces_stmt = "\n".join([f"- أمر معمل #{r['production_order_no']} (المرحلة: {r['stage']})" for r in po_rows])
+            comm_pieces = sum(int(c.get('pieces_count') or 1) for c in uniq_comm)
+            comm_total = sum(float(c.get('piece_rate_amount') or 0.0) * int(c.get('pieces_count') or 1) for c in uniq_comm)
+            pieces_stmt = "\n".join([f"- أمر {c['order_no']} ({c['product_name']}): {c['stage_id']} [{float(c['piece_rate_amount']):,.0f} ر.ي]" for c in uniq_comm])
 
             if e_type == 'بالقطعة':
-                pieces_count = comm_pieces
-                total_due = comm_total
-                allowances = 0.0
+                pieces_count, total_due, allowances = comm_pieces, comm_total, 0.0
             else:
-                pieces_count = comm_pieces
-                total_due = base_sal
-                allowances = comm_total
+                pieces_count, total_due, allowances = comm_pieces, base_sal, comm_total
 
-            cur.execute("""
-                SELECT COALESCE(SUM(amount), 0.0) as total_advances
-                FROM payments
-                WHERE (party_name = %s OR notes ILIKE %s)
-                  AND payment_type IN ('Payment', 'سند_صرف')
-                  AND (payment_no LIKE %s OR notes ILIKE %s OR notes ILIKE %s)
-                  AND to_char(date, 'YYYY-MM') = %s;
-            """, (e_name, f"%{e_name}%", "PAY-ADV%", "%سلفة%", "%سلف%", month))
-            adv_row = cur.fetchone()
-            deductions = float(adv_row['total_advances']) if adv_row else 0.0
+            deductions = adv_by_emp.get(e_name, 0.0)
             net_sal = max(0.0, (total_due + allowances) - deductions)
 
             records.append({
-                "empId": e_id,
-                "empName": e_name,
-                "name": e_name,
-                "role": emp.get('role') or 'خياط',
-                "type": e_type,
-                "baseValue": base_sal,
-                "baseSalary": base_sal,
-                "piecesCount": pieces_count,
-                "totalDue": total_due,
-                "pieceWages": total_due,
-                "bonus": allowances,
-                "allowances": allowances,
-                "deductions": deductions,
-                "deduction": deductions,
-                "netSalary": net_sal,
-                "net_salary": net_sal,
-                "month": month,
-                "status": 'معلق',
-                "piecesStatement": pieces_stmt
+                "empId": e_id, "empName": e_name, "name": e_name, "role": emp.get('role') or 'خياط',
+                "type": e_type, "baseValue": base_sal, "baseSalary": base_sal, "piecesCount": pieces_count,
+                "totalDue": total_due, "pieceWages": total_due, "bonus": allowances, "allowances": allowances,
+                "deductions": deductions, "deduction": deductions, "netSalary": net_sal, "net_salary": net_sal,
+                "month": month, "status": 'معلق', "piecesStatement": pieces_stmt
             })
         return records

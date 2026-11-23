@@ -25,7 +25,7 @@ function ReportsHeader({ activeTab, setActiveTab, handleExportExcel, handlePrint
         </div>
 
         {/* Center: شريط التبويبات الرئيسي الأربعة المدمج في نفس السطر */}
-        <div className="h-6 p-0.5 bg-slate-100 dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 rounded-md flex items-center gap-0.5 text-[10.5px] overflow-x-auto">
+        <div className="h-6 p-0.5 bg-slate-100 dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 rounded-md flex items-center gap-0.5 text-[10.5px] overflow-x-auto overflow-y-hidden no-scrollbar">
           {tabs.map(tab => {
             const isActive = activeTab === tab.id;
             return (

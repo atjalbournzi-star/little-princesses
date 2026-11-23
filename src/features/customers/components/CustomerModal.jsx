@@ -12,23 +12,30 @@ function CustomerModal({
   const [platform, setPlatform] = useState('واتساب (WhatsApp)'), [handle, setHandle] = useState(''), [category, setCategory] = useState('جديد');
   const [city, setCity] = useState(''), [street, setStreet] = useState(''), [regDate, setRegDate] = useState(todayStr), [notes, setNotes] = useState('');
   const [importedMeasurements, setImportedMeasurements] = useState([]), [showDropdown, setShowDropdown] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false), [errorBanner, setErrorBanner] = useState('');
   const dropdownRef = useRef(null);
 
   useEffect(() => {
+    setErrorBanner('');
     const cleanCity = v => (v && String(v).trim().toLowerCase() === 'cloin') ? 'صنعاء' : (v || '');
-    if (customer) {
+    if (customer && (customer.id || customer.customer_id || customer.name || customer.phone)) {
       setCustId(customer.customer_id || customer.id || '');
       setName(customer.name || customer.customer_name || ''); setPhone(customer.phone || ''); setPhoneAlt(customer.phone_alt || '');
       setPlatform(customer.platform || 'واتساب (WhatsApp)'); setHandle(customer.handle || ''); setCategory(customer.category || 'جديد');
       setCity(cleanCity(customer.city)); setStreet(customer.street || customer.address || ''); setRegDate(customer.reg_date || customer.created_at || todayStr); setNotes(customer.notes || '');
       setImportedMeasurements(Array.isArray(customer.measurements) ? customer.measurements : []);
+      if (!customer.customer_id && !customer.id) {
+        const pFn = window.previewNextSequenceNumber || window.ApiCore?.previewNextSequenceNumber;
+        if (pFn) pFn('CUST').then(seq => { if (seq) setCustId(seq); });
+        else fetch('/api/sequences/preview?key=CUST').then(r => r.json()).then(res => { const s = res?.sequence_number || res?.next_number || res?.preview; if (s) setCustId(s); }).catch(() => {});
+      }
     } else {
-      setCustId('');
-      setName(''); setPhone(''); setPhoneAlt(''); setPlatform('واتساب (WhatsApp)'); setHandle('');
-      setCategory('جديد'); setCity(''); setStreet(''); setRegDate(todayStr); setNotes('');
-      setImportedMeasurements([]);
-      if (isOpen && window.getNextSequenceNumber) {
-        window.getNextSequenceNumber('CUST').then(seq => { if (seq) setCustId(seq); });
+      setCustId(''); setName(''); setPhone(''); setPhoneAlt(''); setPlatform('واتساب (WhatsApp)'); setHandle('');
+      setCategory('جديد'); setCity(''); setStreet(''); setRegDate(todayStr); setNotes(''); setImportedMeasurements([]);
+      if (isOpen) {
+        const pFn = window.previewNextSequenceNumber || window.ApiCore?.previewNextSequenceNumber;
+        if (pFn) pFn('CUST').then(seq => { if (seq) setCustId(seq); });
+        else fetch('/api/sequences/preview?key=CUST').then(r => r.json()).then(res => { const s = res?.sequence_number || res?.next_number || res?.preview; if (s) setCustId(s); }).catch(() => {});
       }
     }
   }, [customer, isOpen, todayStr]);
@@ -40,13 +47,11 @@ function CustomerModal({
   }, []);
 
   const filteredMatches = useMemo(() => {
-    if (customer) return [];
+    if (customer && customer.id) return [];
     const q = (name || '').trim().toLowerCase(), cleanQ = q.replace(/\D/g, '');
     if (!q) return (customers || []).slice(0, 8);
     return (customers || []).filter(c => {
-      const cName = String(c.name || c.customer_name || '').toLowerCase();
-      const cPhone = String(c.phone || '').replace(/\D/g, ''), cAlt = String(c.phone_alt || '').replace(/\D/g, '');
-      const cId = String(c.customer_id || c.id || '').toLowerCase();
+      const cName = String(c.name || c.customer_name || '').toLowerCase(), cPhone = String(c.phone || '').replace(/\D/g, ''), cAlt = String(c.phone_alt || '').replace(/\D/g, ''), cId = String(c.customer_id || c.id || '').toLowerCase();
       return cName.includes(q) || cId.includes(q) || (cleanQ.length > 0 && (cPhone.includes(cleanQ) || cAlt.includes(cleanQ)));
     }).slice(0, 8);
   }, [name, customers, customer]);
@@ -71,60 +76,73 @@ function CustomerModal({
 
   const handleSubmit = async (e, proceedToMeasurements = false) => {
     if (e && e.preventDefault) e.preventDefault();
-    if (!name.trim()) return showToast && showToast('اسم العميل مطلوب ⚠️', 'error');
-    if (!phone.trim()) return showToast && showToast('رقم الهاتف مطلوب ⚠️', 'error');
-    let finalCustId = custId;
-    if (!finalCustId && window.getNextSequenceNumber) {
-      try { finalCustId = await window.getNextSequenceNumber('CUST'); } catch (err) {}
-      if (finalCustId) setCustId(finalCustId);
+    setErrorBanner('');
+    if (!name.trim()) {
+      const msg = 'اسم العميل / المنشأة مطلوب ⚠️';
+      setErrorBanner(msg); showToast && showToast(msg, 'error'); return;
     }
-    const mList = (importedMeasurements.length > 0 ? importedMeasurements : (customer?.measurements || []));
-    const chList = (customer?.children && customer.children.length > 0) ? customer.children : mList.map(m => ({ child_name: m.child_name || '', id: m.child_id || '' }));
-    const payload = {
-      ...(customer || {}),
-      customer_id: finalCustId, name: name.trim(), phone: phone.trim(), phone_alt: phoneAlt.trim(), platform, handle: handle.trim(),
-      category, city: city.trim(), street: street.trim(), reg_date: regDate, notes: notes.trim(),
-      measurements: mList, children: chList,
-      ledger: customer?.ledger || { total_sales: 0, deposit: 0, total_paid: 0, remaining: 0 }
-    };
-    onSave && onSave(payload, proceedToMeasurements);
+    if (!phone.trim()) {
+      const msg = 'رقم الهاتف (واتساب) مطلوب ⚠️';
+      setErrorBanner(msg); showToast && showToast(msg, 'error'); return;
+    }
+    setIsSubmitting(true);
+    try {
+      const finalCustId = customer ? (customer.customer_id || customer.id || custId) : (custId || '');
+      const mList = (importedMeasurements.length > 0 ? importedMeasurements : (customer?.measurements || []));
+      const chList = (customer?.children && customer.children.length > 0) ? customer.children : mList.map(m => ({ child_name: m.child_name || '', id: m.child_id || '' }));
+      const payload = {
+        ...(customer || {}),
+        customer_id: finalCustId, name: name.trim(), phone: phone.trim(), phone_alt: phoneAlt.trim(), platform, handle: handle.trim(),
+        category, city: city.trim(), street: street.trim(), reg_date: regDate, notes: notes.trim(),
+        measurements: mList, children: chList,
+        ledger: customer?.ledger || { total_sales: 0, deposit: 0, total_paid: 0, remaining: 0 }
+      };
+      if (onSave) {
+        const res = await onSave(payload, proceedToMeasurements);
+        if (!res) setErrorBanner('تعذر حفظ بيانات العميل، يرجى مراجعة المدخلات ⚠️');
+      }
+    } catch (err) {
+      console.error('Customer save error:', err);
+      const msg = err?.message || 'حدث خطأ أثناء حفظ بيانات العميل ⚠️';
+      setErrorBanner(msg); showToast && showToast(msg, 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (!isOpen) return null;
-  const Layout = window.UnifiedCustomerModalLayout;
+  const Layout = window.UnifiedCustomerModalLayout, busy = isSaving || isSubmitting;
   const inputCls = "w-full h-8 px-2.5 rounded-lg border border-slate-700 bg-slate-900/80 text-white font-bold text-xs focus:border-pink-500 outline-none transition-all";
   const labelCls = "block text-[10.5px] font-semibold text-slate-300 mb-0.5";
-  const modalTitle = customer ? `إدارة ملف العميل • ${customer.name || customer.customer_name || ''}` : 'إضافة عميل جديد للنظام';
+  const isExisting = Boolean(customer && (customer.id || customer.customer_id));
+  const modalTitle = isExisting ? `إدارة ملف العميل • ${customer.name || customer.customer_name || ''}` : 'إضافة عميل جديد للنظام';
 
   const footerRightButtons = (
     <div className="flex items-center gap-2">
       <button type="button" onClick={onClose} className="h-7 px-3 text-xs text-slate-400 hover:text-white rounded-lg border border-slate-700 hover:bg-slate-800 transition-colors cursor-pointer">إلغاء</button>
-      {customer && onDeleteCustomer && (
-        <button type="button" onClick={() => onDeleteCustomer(customer)} className="h-7 px-2.5 text-[11px] font-bold text-red-400 hover:text-white hover:bg-red-600/80 border border-red-500/40 rounded-lg transition-colors flex items-center gap-1 cursor-pointer" title="حذف العميل">
-          <span>🗑️ حذف العميل</span>
-        </button>
-      )}
+      {isExisting && onDeleteCustomer && <button type="button" onClick={() => onDeleteCustomer(customer)} className="h-7 px-2.5 text-[11px] font-bold text-red-400 hover:text-white hover:bg-red-600/80 border border-red-500/40 rounded-lg transition-colors flex items-center gap-1 cursor-pointer" title="حذف العميل"><span>🗑️ حذف العميل</span></button>}
     </div>
   );
 
   const footerLeftButtons = (
     <div className="flex items-center gap-2">
-      <button type="button" onClick={e => handleSubmit(e, true)} disabled={isSaving} className="h-8 px-3.5 bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold rounded-lg transition flex items-center gap-1.5 cursor-pointer disabled:opacity-60 shadow-xs">
-        <span>حفظ ومتابعة للمقاسات 📏</span>
-      </button>
-      <button type="button" onClick={e => handleSubmit(e, false)} disabled={isSaving} className="h-8 px-4 text-xs font-bold bg-pink-600 hover:bg-pink-700 text-white rounded-lg shadow-md transition flex items-center gap-1 cursor-pointer disabled:opacity-60">
-        {isSaving ? 'جاري الحفظ...' : 'حفظ وإغلاق 💾'}
-      </button>
+      <button type="button" onClick={e => handleSubmit(e, true)} disabled={busy} className="h-8 px-3.5 bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold rounded-lg transition flex items-center gap-1.5 cursor-pointer disabled:opacity-60 shadow-xs"><span>{busy ? 'جاري المعالجة...' : 'التالي: المقاسات والتفصيل ⬅️'}</span></button>
+      <button type="button" onClick={e => handleSubmit(e, false)} disabled={busy} className="h-8 px-3.5 text-xs font-bold bg-pink-600 hover:bg-pink-700 text-white rounded-lg shadow-md transition flex items-center gap-1 cursor-pointer disabled:opacity-60">{busy ? 'جاري الحفظ...' : 'حفظ كعميل فقط (بدون طلب) 💾'}</button>
     </div>
   );
 
   return (
     <Layout
       isOpen={isOpen} onClose={onClose} step={1} onSwitchStep={onSwitchStep}
-      title={modalTitle} customerCode={custId}
-      footerRight={footerRightButtons} footerLeft={footerLeftButtons}
+      title={modalTitle} customerCode={custId} footerRight={footerRightButtons} footerLeft={footerLeftButtons}
     >
       <form onSubmit={e => handleSubmit(e, false)} className="space-y-2.5">
+        {errorBanner && (
+          <div className="p-2.5 rounded-lg bg-rose-950/90 border border-rose-600/80 text-rose-200 text-xs flex items-center justify-between animate-fadeIn shadow-lg">
+            <div className="flex items-center gap-2 font-bold"><span className="text-sm">⚠️</span><span>{errorBanner}</span></div>
+            <button type="button" onClick={() => setErrorBanner('')} className="text-rose-300 hover:text-white text-xs px-1 cursor-pointer">✕</button>
+          </div>
+        )}
         {importedMeasurements.length > 0 && (
           <div className="p-2 rounded-lg bg-purple-950/40 border border-purple-800/60 flex items-center justify-between text-xs animate-fadeIn">
             <div className="flex items-center gap-1.5 text-purple-300 text-[11px] font-medium">
@@ -136,14 +154,11 @@ function CustomerModal({
         )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-          {/* اسم العميل */}
           <div className="relative" ref={dropdownRef}>
             <div className="flex items-center justify-between mb-0.5">
               <label className={labelCls}>اسم العميل / المنشأة <span className="text-rose-500">*</span></label>
               {!customer && (
-                <button type="button" onClick={() => setShowDropdown(p => !p)} className="text-[9.5px] font-bold text-purple-300 hover:text-pink-300 bg-purple-950/50 px-1.5 py-0.2 rounded border border-purple-800/50 transition cursor-pointer" title="استيراد عميل مسجل">
-                  🔍 استيراد
-                </button>
+                <button type="button" onClick={() => setShowDropdown(p => !p)} className="text-[9.5px] font-bold text-purple-300 hover:text-pink-300 bg-purple-950/50 px-1.5 py-0.2 rounded border border-purple-800/50 transition cursor-pointer" title="استيراد عميل مسجل">🔍 استيراد</button>
               )}
             </div>
             <div className="relative">
@@ -172,7 +187,6 @@ function CustomerModal({
             )}
           </div>
 
-          {/* الهاتف الرئيسي */}
           <div>
             <div className="flex justify-between items-center mb-0.5">
               <label className={labelCls}>الهاتف (واتساب) <span className="text-rose-500">*</span></label>
@@ -180,17 +194,8 @@ function CustomerModal({
             </div>
             <input required value={phone} onChange={e => setPhone(e.target.value)} className={inputCls + " font-mono text-left"} type="tel" dir="ltr" />
           </div>
-
-          <div>
-            <label className={labelCls}>الهاتف الإضافي / البديل</label>
-            <input value={phoneAlt} onChange={e => setPhoneAlt(e.target.value)} className={inputCls + " font-mono text-left"} type="tel" dir="ltr" />
-          </div>
-          <div>
-            <label className={labelCls}>منصة التواصل</label>
-            <select value={platform} onChange={e => setPlatform(e.target.value)} className={inputCls}>
-              {['واتساب (WhatsApp)','انستغرام (Instagram)','فيسبوك (Facebook)','تيك توك (TikTok)','سناب شات (Snapchat)','مباشر / زيارة المعرض'].map(p => <option key={p} value={p}>{p}</option>)}
-            </select>
-          </div>
+          <div><label className={labelCls}>الهاتف الإضافي / البديل</label><input value={phoneAlt} onChange={e => setPhoneAlt(e.target.value)} className={inputCls + " font-mono text-left"} type="tel" dir="ltr" /></div>
+          <div><label className={labelCls}>منصة التواصل</label><select value={platform} onChange={e => setPlatform(e.target.value)} className={inputCls}>{['واتساب (WhatsApp)','انستغرام (Instagram)','فيسبوك (Facebook)','تيك توك (TikTok)','سناب شات (Snapchat)','مباشر / زيارة المعرض'].map(p => <option key={p} value={p}>{p}</option>)}</select></div>
           <div><label className={labelCls}>اسم الحساب / المعرف</label><input value={handle} onChange={e => setHandle(e.target.value)} className={inputCls} dir="ltr" /></div>
           <div><label className={labelCls}>فئة العميل (CRM Tier)</label><select value={category} onChange={e => setCategory(e.target.value)} className={inputCls}>{['جديد', 'دائم', 'VIP'].map(c => <option key={c} value={c}>{c}</option>)}</select></div>
           <div><label className={labelCls}>المدينة / المنطقة</label><input value={city} onChange={e => setCity(e.target.value)} className={inputCls} /></div>

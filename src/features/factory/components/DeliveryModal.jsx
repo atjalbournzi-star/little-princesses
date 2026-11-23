@@ -51,7 +51,7 @@ function DeliveryModal({
   React.useEffect(() => {
     if (deliveryModalData && typeof setDeliveryForm === 'function') {
       const defaultVal = rem > 0 ? String(rem) : '0';
-      const defaultAcc = (treasuryAccounts[0] && (treasuryAccounts[0].id || treasuryAccounts[0].account_code)) || 'ACC-101';
+      const defaultAcc = (treasuryAccounts[0] && (treasuryAccounts[0].id || treasuryAccounts[0].account_code)) || 'ACC-101-1';
       setDeliveryForm(prev => {
         const next = { ...(prev || {}), amount_collected: defaultVal };
         if (!next.account_id) next.account_id = defaultAcc;
@@ -168,7 +168,7 @@ function DeliveryModal({
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className={labelCls}>حساب الخزينة / الصندوق <span className="text-[#D64545] font-bold">*</span></label>
-                <select className={inputCls} value={deliveryForm.account_id || (treasuryAccounts[0] ? (treasuryAccounts[0].id || treasuryAccounts[0].account_code) : 'ACC-101')} onChange={e => setDeliveryForm({ ...deliveryForm, account_id: e.target.value })}>
+                <select className={inputCls} value={deliveryForm.account_id || (treasuryAccounts[0] ? (treasuryAccounts[0].id || treasuryAccounts[0].account_code) : 'ACC-101-1')} onChange={e => setDeliveryForm({ ...deliveryForm, account_id: e.target.value })}>
                   {treasuryAccounts.length > 0 ? treasuryAccounts.map(acc => {
                     const val = acc.id || acc.account_code || acc.code;
                     const codeStr = acc.account_code || acc.code || acc.id;
@@ -176,8 +176,8 @@ function DeliveryModal({
                     return <option key={val} value={val}>{codeStr} - {nameStr}{acc.currency ? ` (${acc.currency})` : ''}</option>;
                   }) : (
                     <>
-                      <option value="ACC-101">ACC-101 (الصندوق الرئيسي - كاش)</option>
-                      <option value="ACC-102-2">ACC-102-2 (102.02 - بنك الكريمي / المحافظ)</option>
+                      <option value="ACC-101-1">ACC-101-1 (101.1 - صندوق النقدية الرئيسي YER)</option>
+                      <option value="ACC-102-1">ACC-102-1 (102.01 - حساب بنك اليمن والكويت)</option>
                     </>
                   )}
                 </select>

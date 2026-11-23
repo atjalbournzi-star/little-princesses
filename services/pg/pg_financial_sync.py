@@ -24,7 +24,7 @@ def sync_customer_order_from_voucher(cur, cust_id, voucher_amount=0.0, voucher_i
 
     # 2. فحص القياسات والموديلات لتحديد إجمالي القيمة المستحقة للطلب
     cur.execute("""
-        SELECT m.id, m.child_name, m.model_name, m.model_id, m.product_id, m.price, m.total_amount,
+        SELECT m.id, m.child_id, m.child_name, m.date as event_date, m.model_name, m.model_id, m.product_id, m.price, m.total_amount,
                m.selected_color, m.dress_color, m.color, m.model_image, m.fabrics_data,
                p.base_price as prod_base_price, p.id as p_id, p.image_url as prod_img
         FROM measurements m
@@ -39,6 +39,8 @@ def sync_customer_order_from_voucher(cur, cust_id, voucher_amount=0.0, voucher_i
     first_model_name = None
     first_model_img = None
     first_color = None
+    first_child_id = None
+    first_deliv_date = None
 
     for m in meas_rows:
         item_price = clean_num(m.get('adjusted_price') or m.get('price') or m.get('total_amount') or m.get('prod_base_price') or 0.0)
@@ -50,6 +52,18 @@ def sync_customer_order_from_voucher(cur, cust_id, voucher_amount=0.0, voucher_i
             first_model_name = clean_str(m.get('model_name') or '')
             first_model_img = clean_str(m.get('model_image') or m.get('prod_img'))
             first_color = clean_str(m.get('selected_color') or m.get('dress_color') or m.get('color'))
+            first_child_id = clean_str(m.get('child_id')) or None
+            first_deliv_date = clean_str(m.get('event_date')) or None
+
+    if not first_child_id and cust_id:
+        cur.execute("SELECT id FROM children WHERE customer_id = %s ORDER BY created_at ASC LIMIT 1;", (cust_id,))
+        ch_r = cur.fetchone()
+        if ch_r: first_child_id = ch_r['id']
+
+    if not first_deliv_date and cust_id:
+        cur.execute("SELECT date FROM measurements WHERE customer_id = %s AND date IS NOT NULL ORDER BY created_at DESC LIMIT 1;", (cust_id,))
+        mr_d = cur.fetchone()
+        if mr_d and mr_d.get('date'): first_deliv_date = str(mr_d['date'])
 
     # 3. فحص الطلب القائم للعميل لجلب خيارات التوصيل والإجمالي
     cur.execute("""
@@ -85,11 +99,11 @@ def sync_customer_order_from_voucher(cur, cust_id, voucher_amount=0.0, voucher_i
         actual_order_id = ex_order['id']
         cur.execute("""
             UPDATE orders SET
+                child_id = COALESCE(orders.child_id, %s),
+                delivery_date = COALESCE(orders.delivery_date, %s::date),
                 subtotal = CASE WHEN subtotal > 0 THEN subtotal ELSE %s END,
                 total_amount = CASE WHEN total_amount > 0 THEN total_amount ELSE %s END,
-                deposit_amount = %s,
-                paid_amount = %s,
-                payment_status = %s,
+                deposit_amount = %s, paid_amount = %s, payment_status = %s,
                 delivery_fee = COALESCE(orders.delivery_fee, %s),
                 delivery_payment_mode = COALESCE(orders.delivery_payment_mode, %s),
                 model_id = COALESCE(orders.model_id, NULLIF(%s, '')),
@@ -99,21 +113,21 @@ def sync_customer_order_from_voucher(cur, cust_id, voucher_amount=0.0, voucher_i
                 model_image = COALESCE(NULLIF(orders.model_image, ''), NULLIF(%s, '')),
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = %s;
-        """, (tot_items_price, total_order_amount, deposit_amount, paid_amount, payment_status, del_fee, del_mode, first_model_id, first_model_id, first_color, first_color, first_model_img, actual_order_id))
+        """, (first_child_id, first_deliv_date, tot_items_price, total_order_amount, deposit_amount, paid_amount, payment_status, del_fee, del_mode, first_model_id, first_model_id, first_color, first_color, first_model_img, actual_order_id))
     else:
         actual_order_id = generate_id("ORD")
         o_date = p_date or today_str()
         o_no = generate_sequential_order_no(cur, o_date)
         cur.execute("""
             INSERT INTO orders (
-                id, order_no, customer_id, product_id, model_id,
+                id, order_no, customer_id, child_id, delivery_date, product_id, model_id,
                 total_amount, subtotal, discount, tax, base_amount,
                 currency, exchange_rate, deposit_amount, paid_amount,
                 payment_status, production_status, payment_method,
                 delivery_fee, delivery_payment_mode, order_date, selected_color, color,
                 model_image, status, notes
             ) VALUES (
-                %s, %s, %s, %s, %s,
+                %s, %s, %s, %s, %s::date, %s, %s,
                 %s, %s, 0.0, 0.0, %s,
                 %s, 1.0, %s, %s,
                 %s, 'Cutting', %s,
@@ -121,7 +135,7 @@ def sync_customer_order_from_voucher(cur, cust_id, voucher_amount=0.0, voucher_i
                 %s, 'Active', %s
             );
         """, (
-            actual_order_id, o_no, cust_id, first_model_id, first_model_id,
+            actual_order_id, o_no, cust_id, first_child_id, first_deliv_date, first_model_id, first_model_id,
             total_order_amount, tot_items_price, total_order_amount,
             order_currency, deposit_amount, paid_amount,
             payment_status, pay_method or 'نقد (كاش)',

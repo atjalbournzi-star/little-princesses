@@ -85,7 +85,6 @@ function AccountModal({
               <label className="block text-xs font-bold text-[#25232A] mb-1.5">اسم الحساب (بالإنجليزية اختياري)</label>
               <input type="text" value={formData.name_en}
                 onChange={e => setFormData({ ...formData, name_en: e.target.value })}
-                placeholder="e.g. Showroom Cash Box"
                 className="w-full border border-[#E8E5EA] rounded-xl p-2.5 font-mono text-xs bg-white focus:border-[#8F2A87] outline-none h-11" />
             </div>
             <div>
@@ -136,7 +135,6 @@ function AccountModal({
             <label className="block text-xs font-bold text-[#25232A] mb-1.5">ملاحظات / وصف الحساب</label>
             <textarea rows={2} value={formData.notes}
               onChange={e => setFormData({ ...formData, notes: e.target.value })}
-              placeholder="أدخل أي تفاصيل أو ملاحظات إضافية..."
               className="w-full border border-[#E8E5EA] rounded-xl p-2.5 text-xs bg-white focus:border-[#8F2A87] outline-none" />
           </div>
 

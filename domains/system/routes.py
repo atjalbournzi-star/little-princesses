@@ -24,11 +24,12 @@ def handle_get(handler, path, parsed_url) -> bool:
         handler.wfile.write(json.dumps({'success': True, 'price': 150.0, 'quote_text': 'عرض سعر تقريبي: 150 $'}, ensure_ascii=False).encode('utf-8'))
         return True
 
-    if path in ('/api/sequences/next', '/api/number-sequences/next'):
+    if path in ('/api/sequences/next', '/api/number-sequences/next', '/api/sequences/preview', '/api/number-sequences/preview'):
         query_params = urllib.parse.parse_qs(parsed_url.query)
         key = query_params.get('key', query_params.get('sequence_key', ['GEN']))[0]
         try:
-            res = pg_service.fetch_next_sequence({'sequence_key': key})
+            is_prev = 'preview' in path
+            res = pg_service.preview_next_sequence({'sequence_key': key}) if is_prev else pg_service.fetch_next_sequence({'sequence_key': key})
             handler.send_response(200)
             handler._send_cors_headers()
             handler.send_header('Content-Type', 'application/json; charset=utf-8')

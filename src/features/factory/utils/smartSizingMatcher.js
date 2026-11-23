@@ -1,162 +1,187 @@
 /**
- * smartSizingMatcher.js - خوارزمية المطابقة الذكية لمقاسات العميل واستهلاك الـ BOM
- * Little Princesses ERP - Production Floor Architecture
+ * smartSizingMatcher.js - محرك المطابقة السقفية الذكية وتسعير الفئات واستهلاك الـ BOM
+ * Little Princesses ERP - Dynamic Parametric Sizing & Inventory Auto-Binding Engine
  */
 
-const YARDS_PER_METER = 1.0936;
+const YARDS_PER_METER = 1.0936133;
 
-const matchClientMeasurementToCategory = (measurements = {}, unit = '') => {
-  if (!measurements || typeof measurements !== 'object') {
-    return { category: '6-7Y', matchedSize: '6-7Y', unit: 'سم', lengthCm: 80, badgeText: '', badgeShort: '6-7Y', isAdult: false };
+const normText = (s) => String(s || '').replace(/[\u064B-\u0652]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+
+const resolveProductTiers = (product, isAdult = false) => {
+  let raw = product?.age_chart;
+  if (typeof raw === 'string') {
+    try { raw = JSON.parse(raw); } catch (e) { raw = null; }
   }
+  if (Array.isArray(raw) && raw.length > 0) {
+    const parsed = raw.map(r => ({
+      size: String(r.size || r.age || '').trim(),
+      age: String(r.age || r.label || r.size || '').trim(),
+      length: parseFloat(r.length ?? r.max ?? 0) || 0,
+      chest: parseFloat(r.chest ?? 0) || 0,
+      waist: parseFloat(r.waist ?? 0) || 0
+    })).filter(r => Boolean(r.size));
+    if (parsed.length > 0) {
+      return parsed.sort((a, b) => (a.length - b.length || a.chest - b.chest || a.waist - b.waist));
+    }
+  }
+  return [];
+};
 
-  const rawLen = parseFloat(measurements.dress_len || measurements.dress_length || measurements['طول الفستان'] || measurements.total_len || 0);
-  const rawChest = parseFloat(measurements.chest_circ || measurements.chest || measurements['محيط الصدر'] || 0);
-  const rawWaist = parseFloat(measurements.waist_circ || measurements.waist || measurements['محيط الخصر'] || 0);
-
-  const rawUnit = String(unit || measurements.unit || 'سم').toLowerCase().trim();
+const matchClientMeasurementToCategory = (measurements = {}, product = null, unit = '') => {
+  const tiers = resolveProductTiers(product, false);
+  const rawLen = parseFloat(measurements?.dress_len || measurements?.dress_length || measurements?.['طول الفستان'] || measurements?.total_len || measurements?.total_height || 0);
+  const rawChest = parseFloat(measurements?.chest_circ || measurements?.chest || measurements?.['محيط الصدر'] || 0);
+  const rawWaist = parseFloat(measurements?.waist_circ || measurements?.waist || measurements?.['محيط الخصر'] || 0);
+  const rawUnit = String(unit || measurements?.unit || 'سم').toLowerCase().trim();
   const isInch = rawUnit.includes('inch') || rawUnit.includes('إنش') || rawUnit.includes('انش') || rawUnit === 'in' || rawUnit === '"';
 
   const lenCm = rawLen > 0 ? (isInch ? rawLen * 2.54 : rawLen) : 0;
   const chestCm = rawChest > 0 ? (isInch ? rawChest * 2.54 : rawChest) : 0;
   const waistCm = rawWaist > 0 ? (isInch ? rawWaist * 2.54 : rawWaist) : 0;
 
-  const isAdult = lenCm >= 120 || chestCm >= 80 || measurements.target_segment === 'women_adults';
+  const manualTier = String(measurements?.manual_tier || measurements?.size_code || '').trim();
+  const manualMatched = manualTier ? tiers.find(t => t.size === manualTier || manualTier.includes(t.size)) : null;
 
-  let matched = '6-7Y';
-  if (isAdult) {
-    if (chestCm > 0) {
-      if (chestCm <= 84) matched = 'XS';
-      else if (chestCm <= 88) matched = 'S';
-      else if (chestCm <= 96) matched = 'M';
-      else if (chestCm <= 104) matched = 'L';
-      else if (chestCm <= 112) matched = 'XL';
-      else matched = 'XXL';
-    } else if (waistCm > 0) {
-      if (waistCm <= 66) matched = 'XS';
-      else if (waistCm <= 72) matched = 'S';
-      else if (waistCm <= 80) matched = 'M';
-      else if (waistCm <= 88) matched = 'L';
-      else matched = 'XL';
-    } else {
-      matched = 'M';
-    }
-  } else {
-    if (lenCm >= 45 && lenCm <= 60) {
-      matched = lenCm <= 52 ? '1-2Y' : '2-3Y';
-    } else if (lenCm > 60 && lenCm <= 75) {
-      matched = '4-5Y';
-    } else if (lenCm > 75 && lenCm <= 90) {
-      matched = '6-7Y';
-    } else if (lenCm > 90 && lenCm <= 110) {
-      matched = '8-10Y';
-    } else if (lenCm > 110 && lenCm < 120) {
-      matched = '10-13Y';
-    } else {
-      matched = '6-7Y';
+  let matched = manualMatched;
+  if (!matched && tiers.length > 0) {
+    for (const t of tiers) {
+      if (lenCm <= 0 || t.length <= 0 || lenCm <= t.length) { matched = t; break; }
     }
   }
+  const isExceeded = Boolean(!matched && tiers.length > 0 && lenCm > (tiers[tiers.length - 1]?.length || 0));
+  const finalTier = matched || (tiers.length > 0 ? tiers[tiers.length - 1] : { size: manualTier || '6-9Y', length: 0, chest: 0, waist: 0 });
+  const cat = finalTier.size;
 
-  const lenDisplay = rawLen > 0 ? `${rawLen} ${isInch ? 'إنش' : 'سم'}` : `${Math.round(lenCm)} سم`;
-  const badgeText = `[ الفئة المطابقة تلقائياً: ${matched} بناءً على طول ${lenDisplay} ]`;
-  const badgeShort = `${matched} (${lenDisplay})`;
+  const round1 = (v) => Math.round((parseFloat(v) || 0) * 10) / 10;
+  const userChest = isInch ? round1(rawChest) : round1(chestCm), tierChest = isInch ? round1(finalTier.chest / 2.54) : round1(finalTier.chest);
+  const userWaist = isInch ? round1(rawWaist) : round1(waistCm), tierWaist = isInch ? round1(finalTier.waist / 2.54) : round1(finalTier.waist);
+
+  const variances = [];
+  if (userChest > 0 && tierChest > 0 && userChest > tierChest) variances.push(`محيط الصدر (${userChest} ${isInch ? 'إنش' : 'سم'} > سقف الفئة ${tierChest})`);
+  if (userWaist > 0 && tierWaist > 0 && userWaist > tierWaist) variances.push(`محيط الخصر (${userWaist} ${isInch ? 'إنش' : 'سم'} > سقف الفئة ${tierWaist})`);
+  const varianceAlert = variances.length > 0 ? `⚠️ تنبيه فني للقصاص: تباين بالمقاسات [${variances.join('، ')}] عن سقف الفئة (${cat}).` : '';
 
   return {
-    category: matched,
-    matchedSize: matched,
-    rawLength: rawLen,
-    rawChest: rawChest,
-    rawWaist: rawWaist,
-    unit: isInch ? 'إنش' : 'سم',
-    isInch,
-    lengthCm: Math.round(lenCm),
-    chestCm: Math.round(chestCm),
-    badgeText,
-    badgeShort,
-    isAdult
+    category: cat, matchedSize: cat, rawLength: rawLen, rawChest, rawWaist, unit: isInch ? 'إنش' : 'سم', isInch,
+    lengthCm: Math.round(lenCm * 10) / 10, chestCm: Math.round(chestCm * 10) / 10, waistCm: Math.round(waistCm * 10) / 10,
+    varianceAlert, variances, isExceeded, tier: finalTier, tiers
   };
 };
 
-const getBomConsumptionAndPricing = (product, category = '6-7Y', orderQty = 1, preferredUnit = 'متر') => {
+const matchInventoryFabric = (mat = {}, fabricInventory = [], orderColor = '') => {
+  if (!Array.isArray(fabricInventory) || fabricInventory.length === 0) return null;
+  const mId = String(mat.inventory_id || mat.fabric_id || mat.raw_item_id || mat.id || '').trim();
+  const mName = normText(mat.fabric_name || mat.name || mat.material_name || '');
+  const oColor = normText(orderColor);
+
+  if (mId) {
+    const byId = fabricInventory.find(i => String(i.id || i.inventory_id || i.item_code) === mId);
+    if (byId) return byId;
+  }
+  if (mName && oColor) {
+    const byNameAndColor = fabricInventory.find(i => {
+      const iName = normText(i.name || i.item_name || '');
+      return iName.includes(mName) && iName.includes(oColor);
+    });
+    if (byNameAndColor) return byNameAndColor;
+  }
+  if (mName) {
+    const byExactName = fabricInventory.find(i => normText(i.name || i.item_name || '') === mName);
+    if (byExactName) return byExactName;
+    const byPartialName = fabricInventory.find(i => {
+      const iName = normText(i.name || i.item_name || '');
+      return iName.includes(mName) || mName.includes(iName);
+    });
+    if (byPartialName) return byPartialName;
+  }
+  return null;
+};
+
+const interpolateFabricQuantity = (brackets = {}, tiers = [], lenCm = 0, chestCm = 0, waistCm = 0, stdBracket = 0) => {
+  if (!tiers.length || lenCm <= 0) return { standard: stdBracket, actual: stdBracket, isGraded: false, excessPct: 0 };
+  let currIdx = tiers.findIndex(t => t.length > 0 && lenCm <= t.length);
+  if (currIdx === -1) currIdx = tiers.length - 1;
+
+  const currTier = tiers[currIdx];
+  const prevTier = currIdx > 0 ? tiers[currIdx - 1] : null;
+  const qCurr = parseFloat(brackets[currTier.size]) || stdBracket || 0;
+  const qPrev = prevTier ? (parseFloat(brackets[prevTier.size]) || qCurr) : (qCurr * 0.7);
+
+  let qLinear = qCurr;
+  if (prevTier && currTier.length > prevTier.length) {
+    const factor = Math.max(0, Math.min(1, (lenCm - prevTier.length) / (currTier.length - prevTier.length)));
+    qLinear = qPrev + factor * (qCurr - qPrev);
+  } else if (currIdx === 0 && currTier.length > 0) {
+    const factor = Math.max(0.6, Math.min(1, lenCm / currTier.length));
+    qLinear = qCurr * factor;
+  }
+
+  const wExcess = (currTier.waist > 0 && waistCm > currTier.waist) ? (waistCm - currTier.waist) / currTier.waist : 0;
+  const cExcess = (currTier.chest > 0 && chestCm > currTier.chest) ? (chestCm - currTier.chest) / currTier.chest : 0;
+  const maxExcess = Math.max(wExcess, cExcess);
+  const qAdjusted = maxExcess > 0 ? qLinear * (1 + maxExcess) : qLinear;
+  const qFinal = Math.round((qAdjusted + 0.0001) * 4) / 4;
+
+  return { standard: qCurr, actual: qFinal, isGraded: Math.abs(qFinal - qCurr) >= 0.05, excessPct: Math.round(maxExcess * 100) };
+};
+
+const getBomConsumptionAndPricing = (product, category = '6-9Y', orderQty = 1, preferredUnit = 'متر', measurements = {}, fabricInventory = [], orderColor = '') => {
   const qty = Math.max(1, parseFloat(orderQty) || 1);
-  const bomItems = [];
+  const sizing = matchClientMeasurementToCategory(measurements, product);
+  const cat = sizing.category || category || '6-9Y';
+  const tiers = sizing.tiers || resolveProductTiers(product, false);
 
-  const resolveItemMeters = (b) => {
-    let m = 0;
+  let itemsList = [];
+  const rawBom = product?.bom;
+  if (Array.isArray(rawBom)) itemsList = rawBom;
+  else if (rawBom && typeof rawBom === 'object' && Array.isArray(rawBom.items)) itemsList = rawBom.items;
+  else if (typeof rawBom === 'string') {
+    try { const p = JSON.parse(rawBom); itemsList = Array.isArray(p) ? p : (p?.items || []); } catch (e) { itemsList = []; }
+  }
+
+  const bomItems = itemsList.map((b, idx) => {
+    const bName = b.fabric_name || b.name || b.material_name || `خامة ${idx + 1}`;
     const br = b.brackets || {};
-    if (br[category]) m = parseFloat(br[category]);
-    else {
-      for (const k of Object.keys(br)) {
-        if (k.includes(category) || category.includes(k)) { m = parseFloat(br[k]); break; }
-      }
+    let stdM = parseFloat(br[cat]);
+    if (isNaN(stdM) || stdM <= 0) {
+      for (const k of Object.keys(br)) { if (k.includes(cat) || cat.includes(k)) { stdM = parseFloat(br[k]); break; } }
     }
-    return m || parseFloat(b.meters || 0);
-  };
+    if (isNaN(stdM) || stdM <= 0) stdM = parseFloat(b.meters || b.cut_meters || b.qty || 0) || 0;
 
-  const fallbackMeters = {
-    '1-2Y': 2.0, '2-3Y': 2.2, '4-5Y': 2.75, '6-7Y': 3.25,
-    '6-9Y': 3.5, '8-10Y': 3.75, '10-13Y': 4.0,
-    'XS': 4.2, 'S': 4.5, 'M': 4.75, 'L': 5.0, 'XL': 5.25, 'XXL': 5.5
-  };
+    const grading = interpolateFabricQuantity(br, tiers, sizing.lengthCm, sizing.chestCm, sizing.waistCm, stdM);
+    const cutSingle = grading.actual > 0 ? grading.actual : stdM;
+    const cutTotal = parseFloat((cutSingle * qty).toFixed(2));
+    const stdTotal = parseFloat((stdM * qty).toFixed(2));
 
-  if (product && Array.isArray(product.bom) && product.bom.length > 0) {
-    product.bom.forEach((b, idx) => {
-      const bName = b.fabric_name || b.name || b.material_name || (idx === 0 ? (product.fabric_name || 'تفتة تركي') : 'قماش');
-      let sM = resolveItemMeters(b);
-      if (!sM && idx === 0) sM = fallbackMeters[category] || parseFloat(product?.fabric_qty || product?.yards_used || 3.0);
-      const tM = parseFloat((sM * qty).toFixed(2));
-      const tY = parseFloat((tM * YARDS_PER_METER).toFixed(2));
-      const u = b.unit || b.uom || preferredUnit || 'متر';
-      bomItems.push({
-        raw_item_id: b.raw_item_id || b.item_id || null,
-        fabric_name: bName,
-        single_meters: sM,
-        total_meters: tM,
-        total_yards: tY,
-        cut_meters: u === 'وار' ? tY : tM,
-        cut_unit: u,
-        unit: u,
-        deduct_inventory: true
-      });
-    });
-  }
+    const matchedInv = matchInventoryFabric(b, fabricInventory, orderColor);
+    const u = b.unit || b.cut_unit || matchedInv?.unit || preferredUnit || 'متر';
+    const invId = matchedInv?.id || matchedInv?.item_code || b.inventory_id || b.fabric_id || null;
+    const invName = matchedInv?.name || matchedInv?.item_name || bName;
 
-  let singleMeters = bomItems[0]?.single_meters || fallbackMeters[category] || parseFloat(product?.fabric_qty || product?.yards_used || 3.0);
-  let fabricName = bomItems[0]?.fabric_name || product?.fabric_name || 'تفتة تركي';
-  const totalMeters = parseFloat((singleMeters * qty).toFixed(2));
-  const totalYards = parseFloat((totalMeters * YARDS_PER_METER).toFixed(2));
-
-  if (bomItems.length === 0) {
-    bomItems.push({
-      raw_item_id: product?.raw_item_id || null,
-      fabric_name: fabricName,
-      single_meters: singleMeters,
-      total_meters: totalMeters,
-      total_yards: totalYards,
-      cut_meters: preferredUnit === 'وار' ? totalYards : totalMeters,
-      cut_unit: preferredUnit,
-      unit: preferredUnit,
-      deduct_inventory: true
-    });
-  }
+    return {
+      fabric_id: invId, inventory_id: invId, raw_item_id: invId,
+      fabric_name: invName, name: invName, original_fabric_name: bName,
+      single_meters: cutSingle, total_meters: cutTotal, cut_meters: String(cutTotal),
+      standard_single: stdM, standard_cut_meters: String(stdTotal),
+      cut_unit: u, unit: u, unit_cost: parseFloat(matchedInv?.cost_price || b.unit_cost || b.cost || 0) || 0,
+      deduct_inventory: true, is_graded: grading.isGraded, excess_pct: grading.excessPct,
+      brackets: br, matched_inventory: matchedInv ? { id: matchedInv.id, name: matchedInv.name, quantity: matchedInv.quantity, unit: matchedInv.unit } : null
+    };
+  });
 
   let unitPrice = 0;
-  const pm = product?.price_matrix || {};
-  if (pm[category]) unitPrice = parseFloat(pm[category]);
-  else {
-    for (const k of Object.keys(pm)) {
-      if (k.includes(category) || category.includes(k)) { unitPrice = parseFloat(pm[k]); break; }
-    }
+  let pm = product?.price_matrix;
+  if (typeof pm === 'string') { try { pm = JSON.parse(pm); } catch (e) { pm = {}; } }
+  if (pm && typeof pm === 'object') {
+    if (pm[cat] !== undefined && pm[cat] !== null && pm[cat] !== '') unitPrice = parseFloat(pm[cat]);
+    else { for (const k of Object.keys(pm)) { if (k.includes(cat) || cat.includes(k)) { unitPrice = parseFloat(pm[k]); break; } } }
   }
-  if (!unitPrice) unitPrice = parseFloat(product?.sell_price || product?.base_price || product?.price || 0);
-
-  const totalPrice = Math.round(unitPrice * qty);
-  const dualText = `[ ${totalMeters.toFixed(1)} متر ⇋ ${totalYards.toFixed(1)} وار ]`;
+  if (!unitPrice) unitPrice = parseFloat(product?.base_price || product?.sell_price || product?.price || 0);
 
   return {
-    fabricName, singleMeters, totalMeters, totalYards,
-    preferredQuantity: preferredUnit === 'وار' ? totalYards : totalMeters,
-    dualText, unitPrice, totalPrice, category, bomItems
+    fabricName: bomItems[0]?.fabric_name || '', singleMeters: bomItems[0]?.single_meters || 0,
+    totalMeters: bomItems.reduce((acc, it) => acc + (parseFloat(it.total_meters) || 0), 0),
+    unitPrice, totalPrice: Math.round(unitPrice * qty), category: cat, bomItems, sizing
   };
 };
 
@@ -169,8 +194,6 @@ const convertCutUnit = (val, fromUnit, toUnit) => {
 };
 
 window.SmartSizingMatcher = {
-  YARDS_PER_METER,
-  matchClientMeasurementToCategory,
-  getBomConsumptionAndPricing,
-  convertCutUnit
+  YARDS_PER_METER, resolveProductTiers, matchClientMeasurementToCategory,
+  matchInventoryFabric, interpolateFabricQuantity, getBomConsumptionAndPricing, convertCutUnit
 };

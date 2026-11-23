@@ -13,7 +13,9 @@ def get_customers(params=None):
         cur.execute("""
             SELECT id, id as customer_id, name, name as customer_name, phone, phone_alt, platform, handle, category, city, street,
                    children_count, current_balance, total_amount, deposit_amount, paid_amount, remaining_amount,
-                   notes, status, selected_color, model_id, model_image, created_at, updated_at
+                   notes, status, selected_color, model_id,
+                   CASE WHEN length(model_image) > 500 THEN NULL ELSE model_image END as model_image,
+                   created_at, updated_at
             FROM customers
             ORDER BY created_at DESC;
         """)
@@ -23,8 +25,11 @@ def get_customers(params=None):
             SELECT id, customer_id, child_id, child_name, date, measurement_date, unit,
                    total_len, dress_len, chest_len, skirt_len, sleeve_len,
                    chest_circ, waist_circ, shoulder_w, armpit_circ, neck_circ,
-                   model_name, model_img, model_image, image_url, model_id, product_id,
-                   selected_color, color, dress_color, comfort_profile, notes
+                   model_name, model_id, product_id,
+                   selected_color, color, dress_color, comfort_profile, notes,
+                   CASE WHEN length(COALESCE(image_url, model_image, model_img, '')) > 500 THEN ''
+                        ELSE COALESCE(NULLIF(image_url, ''), NULLIF(model_image, ''), NULLIF(model_img, ''), '')
+                   END as model_image
             FROM measurements;
         """)
         all_meas = cur.fetchall()

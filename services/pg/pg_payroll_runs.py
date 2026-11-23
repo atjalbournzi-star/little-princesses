@@ -48,28 +48,51 @@ def disburse_payroll_run_atomic(payload):
             p_id = clean_str(r.get('id') or r.get('payroll_id'))
             emp_id = clean_str(r.get('empId') or r.get('employee_id'))
             emp_name = clean_str(r.get('name') or r.get('empName') or r.get('employee_name') or 'موظف')
-            base_val = clean_num(r.get('baseSalary') or r.get('baseValue') or r.get('basic_salary') or r.get('totalDue'))
-            bonus = clean_num(r.get('bonus') or r.get('allowances'))
             deductions = clean_num(r.get('deduction') or r.get('deductions'))
+
+            cur.execute("SELECT id, name, type, salary FROM employees WHERE id = %s OR name = %s LIMIT 1;", (emp_id, emp_name))
+            emp_db = cur.fetchone()
+            emp_type = emp_db.get('type') if emp_db else clean_str(r.get('type') or 'راتب شهري')
+            base_fixed = clean_num(emp_db.get('salary') or 0.0) if emp_db else clean_num(r.get('baseSalary') or 0.0)
+
+            cur.execute("""
+                SELECT id, COALESCE(piece_rate_amount, 0.0) as amount, COALESCE(pieces_count, 1) as count
+                FROM piece_rate_logs
+                WHERE (worker_id = %s OR worker_name = %s)
+                  AND paid_at IS NULL
+                  AND (payment_status IN ('Accrued', 'pending', 'معلق', 'Pending') OR payment_status IS NULL)
+                  AND (qa_status ILIKE '%%pass%%' OR qa_status ILIKE '%%approv%%')
+                FOR UPDATE;
+            """, (emp_id, emp_name))
+            locked_prl = cur.fetchall()
+            locked_ids = [row['id'] for row in locked_prl]
+            real_piece_wages = sum(clean_num(row['amount']) * int(row['count']) for row in locked_prl)
+            real_piece_cnt = sum(int(row['count']) for row in locked_prl)
+
+            if emp_type == 'بالقطعة':
+                base_val = real_piece_wages if real_piece_wages > 0 else clean_num(r.get('baseSalary') or 0.0)
+                bonus = clean_num(r.get('bonus') or 0.0)
+            else:
+                base_val = base_fixed
+                bonus = real_piece_wages + clean_num(r.get('bonus') or 0.0)
             gross = base_val + bonus
-            if gross <= 0:
-                continue
+            if gross <= 0: continue
 
             eff_ded = min(deductions, gross)
             net = max(0.0, gross - eff_ded)
+            if net <= 0: continue
+
             curr = clean_str(r.get('currency') or 'YER')
             rate = resolve_exchange_rate(cur, curr, 1.0)
-            base_gross = gross * rate
-            base_ded = eff_ded * rate
-            base_net = net * rate
+            base_gross, base_ded, base_net = gross * rate, eff_ded * rate, net * rate
 
             # 1. تحديث جدول payroll
             cur.execute("""
                 UPDATE payroll
-                SET status = 'تم الصرف ✅', payment_date = CURRENT_DATE,
-                    allowances = %s, deductions = %s, notes = COALESCE(notes, '') || ' [صرف مجمع]'
+                SET status = 'تم الصرف ✅', payment_date = CURRENT_DATE, basic_salary = %s,
+                    allowances = %s, deductions = %s, pieces_count = %s, notes = COALESCE(notes, '') || ' [صرف مجمع]'
                 WHERE id = %s OR (employee_id = %s AND month = %s);
-            """, (bonus, eff_ded, p_id, emp_id, month))
+            """, (base_val, bonus, eff_ded, real_piece_cnt, p_id, emp_id, month))
 
             # 2. إنشاء سند الصرف في payments
             pay_id = generate_id("PAY")
@@ -92,28 +115,20 @@ def disburse_payroll_run_atomic(payload):
                 ) VALUES (%s, %s, CURRENT_DATE, %s, %s, %s, %s, %s, %s, %s, %s, 'Payroll', %s, 'Posted', %s, CURRENT_TIMESTAMP);
             """, (jv_id, jv_no, f"قيد صرف مسير رواتب شهر {month} للموظف {emp_name}", expense_acc, credit_acc, gross, gross, base_gross, curr, rate, pay_id, f"مسير مجمع {month}"))
 
-            # خطوط القيد: مدين للمصروف، دائن للسلف ودائن للصندوق
-            cur.execute("""
-                INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base)
-                VALUES (%s, %s, %s, %s, %s, 0.0, %s, 0.0);
-            """, (generate_id("JVL"), jv_id, expense_acc, f"استحقاق راتب {month}: {emp_name}", gross, base_gross))
+            cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, %s, %s, %s, 0.0, %s, 0.0);", (generate_id("JVL"), jv_id, expense_acc, f"استحقاق راتب {month}: {emp_name}", gross, base_gross))
             cur.execute("UPDATE chart_of_accounts SET current_balance = current_balance + %s WHERE id = %s;", (base_gross, expense_acc))
 
             if eff_ded > 0:
-                cur.execute("""
-                    INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base)
-                    VALUES (%s, %s, %s, %s, 0.0, %s, 0.0, %s);
-                """, (generate_id("JVL"), jv_id, advance_acc, f"تسوية سلف {month}: {emp_name}", eff_ded, base_ded))
+                cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, %s, %s, 0.0, %s, 0.0, %s);", (generate_id("JVL"), jv_id, advance_acc, f"تسوية سلف {month}: {emp_name}", eff_ded, base_ded))
                 cur.execute("UPDATE chart_of_accounts SET current_balance = current_balance - %s WHERE id = %s;", (base_ded, advance_acc))
 
             if net > 0:
-                cur.execute("""
-                    INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base)
-                    VALUES (%s, %s, %s, %s, 0.0, %s, 0.0, %s);
-                """, (generate_id("JVL"), jv_id, credit_acc, f"صرف صافي راتب {month}: {emp_name}", net, base_net))
+                cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, %s, %s, 0.0, %s, 0.0, %s);", (generate_id("JVL"), jv_id, credit_acc, f"صرف صافي راتب {month}: {emp_name}", net, base_net))
                 cur.execute("UPDATE chart_of_accounts SET current_balance = current_balance - %s WHERE id = %s;", (base_net, credit_acc))
 
-            # 4. تسوية أجور القطع في tailor_commissions
+            # 4. تسوية أجور القطع في piece_rate_logs و tailor_commissions
+            if locked_ids:
+                cur.execute("UPDATE piece_rate_logs SET payment_status = 'paid', paid_at = CURRENT_TIMESTAMP, voucher_no = %s WHERE id = ANY(%s) AND paid_at IS NULL;", (pay_no, locked_ids))
             cur.execute("""
                 UPDATE tailor_commissions
                 SET paid_at = CURRENT_TIMESTAMP, payout_voucher_no = %s
@@ -124,7 +139,7 @@ def disburse_payroll_run_atomic(payload):
 
             # 5. مزامنة بند مسير الرواتب في payroll_items
             item_id = generate_id("PITEM")
-            pieces_cnt = int(clean_num(r.get('piecesCount') or 0))
+            pieces_cnt = real_piece_cnt or int(clean_num(r.get('piecesCount') or 0))
             cur.execute("""
                 INSERT INTO payroll_items (
                     id, payroll_run_id, employee_id, base_amount, piece_rate_total,
@@ -142,6 +157,9 @@ def disburse_payroll_run_atomic(payload):
                 "id": p_id, "emp_id": emp_id, "emp_name": emp_name, "net": net,
                 "gross": gross, "deductions": eff_ded, "payment_no": pay_no, "entry_no": jv_no
             })
+
+        if not processed:
+            return {"success": False, "message": "لا توجد سجلات برصيد صافي موجب للصرف"}
 
         # تحديث المسير المجمع في payroll_runs
         cur.execute("""

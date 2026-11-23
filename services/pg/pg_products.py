@@ -4,7 +4,7 @@ import json
 import datetime
 from .db_pool import get_db_cursor, clean_str, clean_num, generate_id, execute_query
 from .pg_sequences import get_next_sequence_number, preview_next_sequence_number, ensure_number_sequences_schema
-from .pg_audit import log_audit_event, get_active_user_context
+from .pg_audit import log_audit_event, get_active_user_context, resolve_active_user_id
 from .pg_products_query import get_products, get_product_by_id, get_bom_models, get_product_categories
 from .pg_products_delete import delete_product, delete_bom_model
 
@@ -52,8 +52,7 @@ def add_product(payload):
     emb_w = clean_num(data.get('embroiderer_wage') or data.get('cost_embroidery') or stage_wages.get('embroiderer_wage') or 0.0)
     fin_w = clean_num(data.get('finisher_wage') or data.get('cost_finishing') or stage_wages.get('finisher_wage') or 0.0)
     pkg_cost = clean_num(data.get('packaging_cost') or data.get('cost_packaging') or stage_wages.get('packager_wage') or stage_wages.get('packaging_cost') or 0.0)
-    extra_labor = sum(clean_num(v) for k, v in stage_wages.items() if k not in ('cutter_wage', 'tailor_wage', 'embroiderer_wage', 'finisher_wage', 'packager_wage', 'packaging_cost'))
-    labor_cost = cutter_w + tailor_w + emb_w + fin_w + extra_labor
+    labor_cost = cutter_w + tailor_w + emb_w + fin_w
 
     fab_cost = clean_num(data.get('fabric_cost') or data.get('cost_fabric') or 0.0)
     if fab_cost == 0.0 and isinstance(bm_items, list):
@@ -69,20 +68,26 @@ def add_product(payload):
     if isinstance(raw_colors, str):
         try: raw_colors = json.loads(raw_colors)
         except Exception: raw_colors = [c.strip() for c in raw_colors.split(',') if c.strip()]
-    clean_cols = []
+    clean_cols, seen_c = [], set()
     for c in (raw_colors if isinstance(raw_colors, list) else []):
-        if isinstance(c, dict): clean_cols.append(clean_str(c.get('name') or c.get('color') or c.get('label') or str(c)))
-        elif isinstance(c, str): clean_cols.append(c.strip())
-        else: clean_cols.append(str(c))
+        c_str = clean_str(c.get('name') or c.get('color') or c.get('label') or str(c)) if isinstance(c, dict) else clean_str(str(c))
+        if c_str and c_str not in seen_c:
+            seen_c.add(c_str)
+            clean_cols.append(c_str)
     colors_json = json.dumps(clean_cols, ensure_ascii=False)
     bm_meta = {"barcode": barcode, "colors": clean_cols, "cutter_wage": cutter_w, "tailor_wage": tailor_w, "embroiderer_wage": emb_w, "finisher_wage": fin_w, "packaging_cost": pkg_cost, "stage_wages": stage_wages}
     bm_json = json.dumps({"items": bm_items if isinstance(bm_items, list) else [], "meta": bm_meta}, ensure_ascii=False)
-    ac_json = json.dumps(data.get('age_chart'), ensure_ascii=False) if data.get('age_chart') else None
+    raw_ac = data.get('age_chart')
+    if not raw_ac:
+        from .pg_dynamic_matching import KIDS_STANDARD_TIERS, WOMEN_STANDARD_TIERS
+        raw_ac = WOMEN_STANDARD_TIERS if target_segment == 'women_adults' else KIDS_STANDARD_TIERS
+    ac_json = json.dumps(raw_ac, ensure_ascii=False)
 
-    sell_price = clean_num(data.get('sell_price') or data.get('price') or data.get('base_price') or 0.0)
-    if sell_price == 0.0 and isinstance(pm, dict):
-        ref_key = 'M' if target_segment == 'women_adults' else ('تفصيل حر' if target_segment == 'custom_free' else '6-9Y')
+    ref_key = 'M' if target_segment == 'women_adults' else ('تفصيل حر' if target_segment == 'custom_free' else '6-9Y')
+    if isinstance(pm, dict) and pm:
         sell_price = clean_num(pm.get(ref_key) or pm.get('6-9 سنوات') or (list(pm.values())[0] if pm else 0.0))
+    else:
+        sell_price = clean_num(data.get('sell_price') or data.get('price') or data.get('base_price') or 0.0)
     profit = round(sell_price - total_cost, 2)
     margin_pct = round((profit / sell_price * 100), 2) if sell_price > 0 else 0.0
 
@@ -102,7 +107,7 @@ def add_product(payload):
             if not barcode and existing_p.get('barcode'): barcode = existing_p['barcode']
         else:
             prod_id = get_next_sequence_number(cur, 'PROD', fallback_prefix='PROD-', fallback_padding=6)
-            # التحقق من فرادة كود الموديل SKU وتثبيت الترقيم من number_sequences
+            preview_sku = sku
             is_generic_pfx = not sku or sku in ('LP-KID', 'LP-WMN', 'LP-CST') or sku.endswith('-')
             if is_generic_pfx:
                 sku = get_next_sequence_number(cur, seq_key, fallback_prefix=pfx, fallback_padding=4)
@@ -115,15 +120,18 @@ def add_product(payload):
                     num_part = int(sku.replace(pfx, ''))
                     cur.execute("UPDATE number_sequences SET current_number = GREATEST(current_number, %s), updated_at = CURRENT_TIMESTAMP WHERE sequence_key = %s;", (num_part, seq_key))
                 except Exception: pass
-            if not barcode: barcode = sku
-            if not model_no: model_no = sku
-            if not design_code: design_code = sku
+            model_no, design_code = sku, sku
+            raw_barcode = clean_str(data.get('barcode') or '')
+            is_custom = bool(raw_barcode and raw_barcode != preview_sku and not raw_barcode.startswith(('LP-KID', 'LP-WMN', 'LP-CST', 'PROD-')))
+            barcode = raw_barcode if is_custom else sku
+            bm_meta['barcode'] = barcode
+            bm_json = json.dumps({"items": bm_items if isinstance(bm_items, list) else [], "meta": bm_meta}, ensure_ascii=False)
 
         query = """INSERT INTO products (id, sku, model_name, model_no, category, subcategory, collection, design_code, base_price, cost_price, currency, image_url, image, image_data, colors, approved_colors, description, min_stock, status, labor_cost, packaging_cost, fabric_cost, bom, price_matrix, age_chart, target_segment, barcode, created_by, updated_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s::jsonb, %s, %s, %s, %s, %s, %s, %s::jsonb, %s::jsonb, %s::jsonb, %s, %s, %s, CURRENT_TIMESTAMP)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NULL, NULL, %s::jsonb, NULL, %s, %s, %s, %s, %s, %s, %s::jsonb, %s::jsonb, %s::jsonb, %s, %s, %s, CURRENT_TIMESTAMP)
             ON CONFLICT (id) DO UPDATE SET model_name = EXCLUDED.model_name, sku = products.sku, model_no = EXCLUDED.model_no, category = EXCLUDED.category,
                 subcategory = EXCLUDED.subcategory, collection = EXCLUDED.collection, design_code = EXCLUDED.design_code, base_price = EXCLUDED.base_price, cost_price = EXCLUDED.cost_price,
-                currency = EXCLUDED.currency, image_url = EXCLUDED.image_url, image = EXCLUDED.image, image_data = EXCLUDED.image_data, colors = EXCLUDED.colors, approved_colors = EXCLUDED.approved_colors,
+                currency = EXCLUDED.currency, image_url = EXCLUDED.image_url, image = NULL, image_data = NULL, colors = EXCLUDED.colors, approved_colors = NULL,
                 description = EXCLUDED.description, min_stock = EXCLUDED.min_stock, status = EXCLUDED.status, labor_cost = EXCLUDED.labor_cost, packaging_cost = EXCLUDED.packaging_cost,
                 fabric_cost = EXCLUDED.fabric_cost, bom = EXCLUDED.bom, price_matrix = EXCLUDED.price_matrix, age_chart = EXCLUDED.age_chart, target_segment = EXCLUDED.target_segment,
                 barcode = EXCLUDED.barcode, created_by = COALESCE(products.created_by, EXCLUDED.created_by), updated_at = CURRENT_TIMESTAMP
@@ -135,15 +143,15 @@ def add_product(payload):
             if u_row: user_uuid = u_row['id']
 
         params = (
-            prod_id, sku, name, model_no, category, subcategory, collection, design_code, sell_price, total_cost, currency, image_url, image_url, image_url,
-            colors_json, colors_json, desc, min_stock, status, labor_cost, pkg_cost, fab_cost, bm_json, pm_json, ac_json, target_segment, barcode, user_uuid
+            prod_id, sku, name, model_no, category, subcategory, collection, design_code, sell_price, total_cost, currency, image_url,
+            colors_json, desc, min_stock, status, labor_cost, pkg_cost, fab_cost, bm_json, pm_json, ac_json, target_segment, barcode, user_uuid
         )
         cur.execute(query, params)
         res = dict(cur.fetchone())
 
         log_audit_event(
             entity_type='products', entity_id=prod_id, action='UPDATE' if existing_p else 'INSERT',
-            new_values={'id': prod_id, 'name': name, 'sku': sku, 'price': sell_price, 'cost': total_cost, 'profit': profit, 'margin_pct': margin_pct, 'stage_wages': stage_wages},
+            new_values={'id': prod_id, 'name': name, 'sku': sku, 'price': sell_price, 'cost': total_cost, 'labor_cost': labor_cost, 'packaging_cost': pkg_cost, 'profit': profit, 'margin_pct': margin_pct, 'stage_wages': stage_wages},
             user_id=user_uuid or resolved_user, document_no=sku or prod_id,
             details=f"تعديل وتحديث مواصفات الموديل {name} ({sku}) في استوديو BOM" if existing_p else f"تسجيل موديل جديد {name} ({sku}) في استوديو BOM", cur=cur
         )
@@ -152,6 +160,9 @@ def add_product(payload):
         res['total_cost'], res['cost_price'] = total_cost, total_cost
         res['sell_price'], res['base_price'] = sell_price, sell_price
         res['profit'], res['margin_pct'] = profit, margin_pct
+        res['packaging_cost'] = pkg_cost
+        res['labor_cost'] = labor_cost
+        res['fabric_cost'] = fab_cost
         res['stage_wages'] = stage_wages
         if res.get('created_at'): res['created_at'] = str(res['created_at'])
         if res.get('updated_at'): res['updated_at'] = str(res['updated_at'])
@@ -161,3 +172,41 @@ def add_product(payload):
 
 def save_bom_model(payload):
     return add_product(payload)
+
+
+def add_product_category(payload):
+    """إضافة تصنيف فني جديد ديناميكياً مع التحقق من عدم التكرار والتوثيق بسجل التدقيق"""
+    data = payload.get('data') or payload
+    raw_name = clean_str(data.get('name') or data.get('category') or '')
+    name = " ".join(raw_name.strip().split())
+    if not name:
+        return {"success": False, "error": "اسم التصنيف الفني مطلوب ولا يمكن أن يكون فارغاً"}
+
+    raw_uid = clean_str(data.get('created_by') or data.get('user_id') or '')
+
+    with get_db_cursor(commit=True) as cur:
+        cur.execute("""CREATE TABLE IF NOT EXISTS product_categories (
+            id VARCHAR(64) PRIMARY KEY, name VARCHAR(255) UNIQUE NOT NULL,
+            created_by VARCHAR(64), created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        );""")
+        cur.execute("SELECT id, name, created_by, created_at FROM product_categories WHERE LOWER(TRIM(name)) = LOWER(TRIM(%s)) LIMIT 1;", (name,))
+        existing = cur.fetchone()
+        if existing:
+            cat_row = dict(existing)
+            if cat_row.get('created_at'): cat_row['created_at'] = str(cat_row['created_at'])
+            return {"success": False, "error": f"التصنيف ({name}) مسجل مسبقاً", "data": cat_row, "category": cat_row['name']}
+
+        cat_id = generate_id('CAT')
+        user_uuid = resolve_active_user_id(cur, raw_uid)
+
+        cur.execute("INSERT INTO product_categories (id, name, created_by, created_at) VALUES (%s, %s, %s, CURRENT_TIMESTAMP) RETURNING id, name, created_by, created_at;", (cat_id, name, str(user_uuid or '')))
+        row = dict(cur.fetchone())
+        if row.get('created_at'): row['created_at'] = str(row['created_at'])
+
+        log_audit_event(
+            entity_type='product_categories', entity_id=cat_id, action='INSERT',
+            new_values={'id': cat_id, 'name': name}, user_id=user_uuid, document_no=cat_id,
+            details=f"إضافة تصنيف فني جديد في استوديو BOM: {name}", cur=cur
+        )
+        return {"success": True, "data": row, "category": row['name'], "message": f"تمت إضافة التصنيف الفني ({name}) بنجاح 👑"}
+

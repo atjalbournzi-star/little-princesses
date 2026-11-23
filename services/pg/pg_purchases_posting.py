@@ -3,12 +3,14 @@
 
 from .pg_sequences import get_next_sequence_number
 from .db_pool import clean_str, clean_num
+from .pg_audit import resolve_active_user_id
 
 
 def post_purchase_journal(cur, pur_id, inv_no, inv_date, supp_id, supp_name, net_paid_orig, net_paid_yer, curr, rate, inv_acc, supp_acc, user_id):
     """ترحيل قيد استحقاق فاتورة المشتريات (مدين: المخزون / دائن: ذمم الموردين)"""
     if net_paid_orig <= 0 and net_paid_yer <= 0:
         return None
+    active_user = resolve_active_user_id(cur, user_id)
     jv_no = get_next_sequence_number(cur, 'JV', fallback_prefix='JV-')
     cur.execute("""
         INSERT INTO journal_entries (
@@ -19,11 +21,12 @@ def post_purchase_journal(cur, pur_id, inv_no, inv_date, supp_id, supp_name, net
             %s, %s, %s, %s, %s, %s, %s, %s, %s, 'Purchase', %s, %s, %s, 'Posted', %s, %s, CURRENT_TIMESTAMP
         ) ON CONFLICT (entry_no) DO UPDATE SET
             amount = EXCLUDED.amount, total_amount = EXCLUDED.total_amount,
-            base_amount = EXCLUDED.base_amount, credit_account_id = EXCLUDED.credit_account_id;
+            base_amount = EXCLUDED.base_amount, credit_account_id = EXCLUDED.credit_account_id,
+            created_by = COALESCE(journal_entries.created_by, EXCLUDED.created_by);
     """, (
         f"JV-{pur_id}", jv_no, inv_date, f"فاتورة توريد مشتريات خامات {inv_no} - {supp_name}",
         inv_acc, supp_acc, net_paid_orig, net_paid_orig, net_paid_yer, pur_id, curr, rate,
-        f"توريد مشتريات {inv_no}", user_id
+        f"توريد مشتريات {inv_no}", active_user
     ))
     cur.execute("SELECT id FROM journal_entries WHERE entry_no = %s LIMIT 1;", (jv_no,))
     entry_row = cur.fetchone()
@@ -44,6 +47,7 @@ def post_purchase_payment(cur, pur_id, inv_no, inv_date, supp_id, supp_name, net
     """توثيق سند الصرف وقيد السداد النمطي (مدين: ذمم الموردين / دائن: الصندوق/البنك)"""
     if pay_method == 'آجل' or net_paid_orig <= 0:
         return None
+    active_user = resolve_active_user_id(cur, user_id)
     pay_no = get_next_sequence_number(cur, 'PV', fallback_prefix='PV-')
     cur.execute("""
         INSERT INTO payments (
@@ -55,11 +59,12 @@ def post_purchase_payment(cur, pur_id, inv_no, inv_date, supp_id, supp_name, net
         ) ON CONFLICT (payment_no) DO UPDATE SET
             amount = EXCLUDED.amount, base_amount = EXCLUDED.base_amount,
             account_id = EXCLUDED.account_id, target_account_id = EXCLUDED.target_account_id,
-            party_name = EXCLUDED.party_name;
+            party_name = EXCLUDED.party_name,
+            created_by = COALESCE(payments.created_by, EXCLUDED.created_by);
     """, (
         f"PAY-{pur_id}", pay_no, pur_id, supp_id, net_paid_orig, curr, rate, net_paid_yer,
         pay_method, transfer_no, cash_acc, supp_acc, supp_name, inv_date,
-        f"سداد فاتورة مشتريات {inv_no} - {supp_name}", user_id
+        f"سداد فاتورة مشتريات {inv_no} - {supp_name}", active_user
     ))
     pay_jv_no = get_next_sequence_number(cur, 'JV', fallback_prefix='JV-')
     cur.execute("""
@@ -71,11 +76,12 @@ def post_purchase_payment(cur, pur_id, inv_no, inv_date, supp_id, supp_name, net
             %s, %s, %s, %s, %s, %s, %s, %s, %s, 'Payment', %s, %s, %s, 'Posted', %s, %s, CURRENT_TIMESTAMP
         ) ON CONFLICT (entry_no) DO UPDATE SET
             amount = EXCLUDED.amount, total_amount = EXCLUDED.total_amount,
-            base_amount = EXCLUDED.base_amount, credit_account_id = EXCLUDED.credit_account_id;
+            base_amount = EXCLUDED.base_amount, credit_account_id = EXCLUDED.credit_account_id,
+            created_by = COALESCE(journal_entries.created_by, EXCLUDED.created_by);
     """, (
         f"JV-PAY-{pur_id}", pay_jv_no, inv_date, f"سند صرف سداد فاتورة مشتريات {inv_no}: {supp_name}",
         supp_acc, cash_acc, net_paid_orig, net_paid_orig, net_paid_yer, pur_id, curr, rate,
-        f"سداد فاتورة {inv_no}", user_id
+        f"سداد فاتورة {inv_no}", active_user
     ))
     cur.execute("SELECT id FROM journal_entries WHERE entry_no = %s LIMIT 1;", (pay_jv_no,))
     pay_jv_row = cur.fetchone()

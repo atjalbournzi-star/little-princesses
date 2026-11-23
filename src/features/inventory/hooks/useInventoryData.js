@@ -35,7 +35,7 @@ function useInventoryData({ inventory = [], setInventory, purchases = [], showTo
   const refreshInventory = useCallback(async (notify = false) => {
     setIsRefreshing(true);
     try {
-      const res = await fetch('/api/inventory');
+      const res = await fetch(`/api/inventory?_t=${Date.now()}`, { cache: 'no-store' });
       const data = await res.json();
       const list = (data && Array.isArray(data.data)) ? data.data : (Array.isArray(data) ? data : []);
       if (typeof setInventory === 'function') {
@@ -53,7 +53,7 @@ function useInventoryData({ inventory = [], setInventory, purchases = [], showTo
   const fetchTransactions = useCallback(async () => {
     setIsLoadingTxns(true);
     try {
-      const res = await fetch('/api/inventory/transactions');
+      const res = await fetch(`/api/inventory/transactions?_t=${Date.now()}`, { cache: 'no-store' });
       const data = await res.json();
       const list = (data && Array.isArray(data.data)) ? data.data : (Array.isArray(data) ? data : []);
       setTransactions(list);
@@ -67,6 +67,13 @@ function useInventoryData({ inventory = [], setInventory, purchases = [], showTo
   useEffect(() => {
     refreshInventory(false);
     fetchTransactions();
+    const handleSync = () => { refreshInventory(false); fetchTransactions(); };
+    window.addEventListener('erp:inventoryChanged', handleSync);
+    window.addEventListener('erp:factoryChanged', handleSync);
+    return () => {
+      window.removeEventListener('erp:inventoryChanged', handleSync);
+      window.removeEventListener('erp:factoryChanged', handleSync);
+    };
   }, [refreshInventory, fetchTransactions]);
 
   // تصفية سجل المخزون وفق التبويب والبحث والفلاتر

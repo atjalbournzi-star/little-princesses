@@ -5,6 +5,26 @@ function useCustomersData({ customers = [], setCustomers, orders = [] }) {
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [sortBy, setSortBy] = useState('recent');
+  const [liveOrders, setLiveOrders] = useState([]);
+
+  const refreshOrders = useCallback(() => {
+    fetch('/api/orders').then(r => r.json()).then(d => {
+      const l = Array.isArray(d?.data) ? d.data : (Array.isArray(d) ? d : []);
+      if (l.length) setLiveOrders(l);
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    refreshOrders();
+    const onOrdersChanged = () => refreshOrders();
+    window.addEventListener('erp:ordersChanged', onOrdersChanged);
+    window.addEventListener('orders-updated', onOrdersChanged);
+    return () => {
+      window.removeEventListener('erp:ordersChanged', onOrdersChanged);
+      window.removeEventListener('orders-updated', onOrdersChanged);
+    };
+  }, [refreshOrders]);
+  const effectiveOrders = (liveOrders && liveOrders.length > 0) ? liveOrders : (orders || []);
 
   // جلب العملاء تلقائياً من الخادم إذا كانت القائمة فارغة
   useEffect(() => {
@@ -19,29 +39,32 @@ function useCustomersData({ customers = [], setCustomers, orders = [] }) {
     }
   }, [customers, setCustomers]);
 
-  // حساب الرصيد المتبقي بدقة مع استبعاد كلفة التوصيل عند اختيار الدفع للموصل مباشرة
+  // حساب الرصيد المتبقي بدقة عبر المصدر الموحد لمتبقي عقود التنفيذ
   const getCustRem = useCallback((c) => {
+    const calcFn = window.customerUtils?.calculateCustomerRemainingBalance;
+    if (typeof calcFn === 'function') return calcFn(c, effectiveOrders);
     if (!c) return 0;
-    const cid = String(c.customer_id || c.id || '');
-    const cName = String(c.name || c.customer_name || '').trim();
-    const ord = (orders || []).find(o => (o.customer_id && String(o.customer_id) === cid) || (o.customer_name && String(o.customer_name).trim() === cName));
-    const delMode = c.ledger?.delivery_payment_mode || c.delivery_payment_mode || ord?.delivery_payment_mode || 'DIRECT_TO_COURIER';
-    const isPrepaid = delMode === 'PREPAID_VIA_ATELIER';
-    if (ord) {
-      let ordTot = Number(ord.total_price || ord.total_amount || 0);
-      const ordDel = Number(ord.delivery_fee || 0);
-      if (!isPrepaid && ordDel > 0 && ord.subtotal && ordTot > Number(ord.subtotal)) {
-        ordTot = Number(ord.subtotal);
-      }
-      return Math.max(0, ordTot - Number(ord.paid_amount || ord.paid || 0));
+    const cid = String(c.customer_id || c.id || ''), cName = String(c.name || c.customer_name || '').trim();
+    const ords = (effectiveOrders || []).filter(o => {
+      if (!o) return false;
+      const m = (o.customer_id && (String(o.customer_id) === cid || String(o.customer_id) === String(c.id))) || (o.customer_name && String(o.customer_name).trim() === cName);
+      const st = String(o.status || '').toLowerCase();
+      return m && st !== 'cancelled' && st !== 'ملغي';
+    });
+    if (ords.length > 0) {
+      let t = 0, p = 0;
+      ords.forEach(o => {
+        const isPre = (o.delivery_payment_mode || c.delivery_payment_mode) === 'PREPAID_VIA_ATELIER';
+        let tot = Number(o.total_price || o.total_amount || 0), fee = Number(o.delivery_fee || 0);
+        if (!isPre && fee > 0 && o.subtotal && tot > Number(o.subtotal)) tot = Number(o.subtotal);
+        t += tot; p += Number(o.paid_amount || o.deposit_amount || o.deposit || o.paid || 0);
+      });
+      return Math.max(0, t - p);
     }
     const legSales = parseFloat(c.ledger?.total_sales || c.total_sales || 0);
-    const legPaid = parseFloat(c.ledger?.total_paid || c.ledger?.deposit || c.total_paid || c.deposit || 0);
-    const delFee = isPrepaid ? parseFloat(c.ledger?.delivery || c.ledger?.delivery_fee || c.delivery_fee || 0) : 0;
-    const legTotal = legSales + delFee;
-    if (legTotal > 0) return Math.max(0, legTotal - legPaid);
-    return parseFloat(c.ledger?.remaining ?? c.remaining ?? c.current_balance ?? 0);
-  }, [orders]);
+    const legPaid = parseFloat(c.ledger?.total_paid || c.ledger?.deposit_amount || c.ledger?.deposit || c.total_paid || c.deposit_amount || c.deposit || 0);
+    return Math.max(0, legSales - legPaid);
+  }, [effectiveOrders]);
 
   // فلترة وترتيب قائمة العملاء
   const filteredCustomers = useMemo(() => {
@@ -87,7 +110,7 @@ function useCustomersData({ customers = [], setCustomers, orders = [] }) {
       const dateB = new Date(b.reg_date || b.created_at || 0).getTime();
       return (dateB || 0) - (dateA || 0);
     });
-  }, [customers, search, categoryFilter, sortBy, orders, getCustRem]);
+  }, [customers, search, categoryFilter, sortBy, effectiveOrders, getCustRem]);
 
   // إحصائيات لوحة العملاء الفورية
   const stats = useMemo(() => {
@@ -103,15 +126,18 @@ function useCustomersData({ customers = [], setCustomers, orders = [] }) {
       if (cat === 'VIP') vipCount++;
       else if (cat === 'دائم') active++;
       else newCount++;
-
-      const rem = getCustRem(c);
-      if (rem > 0) totalReceivables += rem;
     });
 
-    // حساب الطلبات قيد الانتظار للعملاء
-    const pendingOrders = (orders || []).filter(o => {
-      const st = String(o.status || o.production_status || '');
-      return !st.includes('تم التسليم') && !st.includes('مكتمل') && !st.includes('ملغي');
+    totalReceivables = (filteredCustomers || []).reduce((acc, c) => acc + Math.max(0, getCustRem(c)), 0);
+
+    // حساب الطلبات النشطة الجارية للعملاء
+    const pendingOrders = (effectiveOrders || []).filter(o => {
+      const st = String(o.status || '').toLowerCase();
+      const pSt = String(o.production_status || '').toLowerCase();
+      const isClosed = st.includes('تم التسليم') || st.includes('مكتمل') || st.includes('ملغي') ||
+                       st.includes('delivered') || st.includes('completed') || st.includes('cancelled') ||
+                       pSt.includes('تم التسليم') || pSt.includes('delivered') || pSt.includes('completed') || pSt.includes('cancelled');
+      return !isClosed;
     }).length;
 
     return {
@@ -122,7 +148,7 @@ function useCustomersData({ customers = [], setCustomers, orders = [] }) {
       pendingOrders,
       totalReceivables
     };
-  }, [customers, orders]);
+  }, [customers, filteredCustomers, effectiveOrders, getCustRem]);
 
   // دالة استخراج الأميرات المسجلات لعميل معين
   const getKnownPrincesses = useCallback((targetCust) => {
@@ -179,7 +205,8 @@ function useCustomersData({ customers = [], setCustomers, orders = [] }) {
     setSortBy,
     filteredCustomers,
     stats,
-    getKnownPrincesses
+    getKnownPrincesses,
+    effectiveOrders
   };
 }
 

@@ -22,7 +22,7 @@ function ProductPricingMatrix({
   };
   const sizes = seg.sizes || ['1-2Y', '3-5Y', '6-9Y', '10-13Y'];
   const sizeLabels = seg.sizeLabels || {};
-  const additionalCost = computedTotalLabor;
+  const additionalCost = parseFloat(computedTotalLabor || 0) + parseFloat(packagingCost || 0);
 
   return (
     <div className="flex-1 overflow-hidden p-3 flex flex-col justify-between space-y-2 select-none" dir="rtl">
@@ -75,7 +75,7 @@ function ProductPricingMatrix({
               {/* تفكيك التكلفة الإجمالية */}
               <div className="bg-slate-900/90 rounded-lg px-2 py-1 border border-slate-800/80 flex items-center justify-between text-[10.5px]">
                 <span className="text-slate-400">التكلفة:</span>
-                <span className="text-white font-mono font-bold">{totalCost.toFixed(0)} <span className="text-[8.5px] text-slate-400">{currCode}</span></span>
+                <span className="text-white font-mono font-bold">{totalCost.toFixed(2)} <span className="text-[8.5px] text-slate-400">{currCode}</span></span>
               </div>
 
               {/* حقل سعر البيع البطل (Hero Input) */}
@@ -92,7 +92,7 @@ function ProductPricingMatrix({
               {/* مؤشر الربحية والنسبة الذكية */}
               <div className="pt-1 border-t border-slate-800/80 flex justify-between items-center px-0.5 text-[10px] font-mono font-bold">
                 <span className={profit > 0 ? "text-emerald-400" : (profit < 0 ? "text-rose-400" : "text-slate-400")}>
-                  {profit > 0 ? `+${profit.toFixed(0)}` : profit.toFixed(0)}
+                  {profit > 0 ? `+${profit.toFixed(2)}` : profit.toFixed(2)}
                 </span>
                 <span className={`px-1.5 py-0.2 rounded text-[9.5px] font-bold ${
                   Number(marginPct) >= 35 ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-700/60' :

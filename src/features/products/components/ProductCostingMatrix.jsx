@@ -24,15 +24,19 @@ function ProductCostingMatrix({ actions }) {
     }
   }, [actions.productionRoles]);
 
-  const effectiveRoles = React.useMemo(() => {
-    if (prodRoles.length > 0) return prodRoles;
-    return [
+  const { technicianRoles, packagingRole } = React.useMemo(() => {
+    const roles = prodRoles.length > 0 ? prodRoles : [
       { role_code: 'ROLE-0001', role_key: 'cutter', role_name: 'قصاس', display_name: 'القصاس (قص وتفصيل)', wage_key: 'cutter_wage', icon: '✂️' },
       { role_code: 'ROLE-0002', role_key: 'tailor', role_name: 'خياط', display_name: 'خياط', wage_key: 'tailor_wage', icon: '🪡' },
       { role_code: 'ROLE-0003', role_key: 'embroiderer', role_name: 'تطريز', display_name: 'التطريز والشك', wage_key: 'embroiderer_wage', icon: '✨' },
       { role_code: 'ROLE-0004', role_key: 'finisher', role_name: 'تشطيب', display_name: 'التشطيب والكي', wage_key: 'finisher_wage', icon: '👔' },
       { role_code: 'ROLE-0005', role_key: 'packager', role_name: 'تغليف', display_name: 'تكلفة التغليف والإكسسوارات', wage_key: 'packaging_cost', icon: '📦' }
     ];
+    const tech = roles.filter(r => r.role_key !== 'packager' && r.wage_key !== 'packaging_cost' && r.wage_key !== 'packager_wage');
+    const pkg = roles.find(r => r.role_key === 'packager' || r.wage_key === 'packaging_cost' || r.wage_key === 'packager_wage') || {
+      role_code: 'ROLE-0005', role_key: 'packager', role_name: 'تغليف', display_name: 'تكلفة التغليف والإكسسوارات', wage_key: 'packaging_cost', icon: '📦'
+    };
+    return { technicianRoles: tech.slice(0, 4), packagingRole: pkg };
   }, [prodRoles]);
 
   const wageInputCls = "h-6.5 w-20 font-mono text-xs font-bold text-white text-center bg-slate-900 border border-slate-700 rounded-lg outline-none focus:border-pink-500 transition";
@@ -53,6 +57,8 @@ function ProductCostingMatrix({ actions }) {
     }
   };
 
+  const cleanCurr = String(activeModelCurrencyLabel || 'YER').replace('﷼', '').replace('$', '').trim() || 'YER';
+
   return (
     <div className="grid grid-cols-2 gap-2.5 p-2.5 flex-1 select-none min-h-0 overflow-hidden" dir="rtl">
       {/* 1. اليمين: أجور مراحل التصنيع المقروءة ديناميكياً من الباك إند */}
@@ -62,12 +68,13 @@ function ProductCostingMatrix({ actions }) {
             🏭 أجور مراحل التصنيع والتشغيل الفنية:
           </span>
           <span className="text-[10.5px] font-mono font-bold text-pink-400 bg-pink-950/40 px-2 py-0.5 rounded border border-pink-800/40">
-            {activeModelCurrencyLabel}
+            {cleanCurr}
           </span>
         </div>
 
         <div className="space-y-1.5 my-auto max-h-[220px] overflow-y-auto custom-scrollbar pr-0.5">
-          {effectiveRoles.map((role, idx) => {
+          {/* أجور الفنيين الأربعة */}
+          {technicianRoles.map((role, idx) => {
             const wKey = role.wage_key || `${role.role_key}_wage`;
             const val = actions.getStageWage ? actions.getStageWage(wKey, role) : (actions[wKey] || '');
             return (
@@ -75,7 +82,7 @@ function ProductCostingMatrix({ actions }) {
                 <div className="flex items-center gap-2">
                   <span className="text-sm">{role.icon || '🧵'}</span>
                   <span className="text-xs font-semibold text-slate-200">
-                    {idx + 1}. {(role.role_key === 'packager' || role.wage_key === 'packaging_cost' || role.wage_key === 'packager_wage') ? '' : 'أجرة '}{role.display_name || role.role_name}:
+                    {idx + 1}. أجرة {role.display_name || role.role_name}:
                   </span>
                 </div>
                 <input
@@ -86,10 +93,44 @@ function ProductCostingMatrix({ actions }) {
               </div>
             );
           })}
+
+          {/* البند الخامس: تكلفة التغليف والإكسسوارات مفصول بصرياً */}
+          <div className="pt-1.5 mt-1 border-t border-purple-900/40">
+            <div className="flex items-center justify-between gap-1 bg-purple-950/30 hover:bg-purple-950/40 py-1.5 px-2.5 rounded-lg border border-purple-700/50 shadow-inner transition-colors">
+              <div className="flex items-center gap-2">
+                <span className="text-sm">{packagingRole.icon || '📦'}</span>
+                <div>
+                  <span className="text-xs font-bold text-purple-200 block">
+                    5. تكلفة التغليف والإكسسوارات:
+                  </span>
+                  <span className="text-[9.5px] text-slate-400 block">
+                    (العلب، الأكياس، الشرائط، والملحقات)
+                  </span>
+                </div>
+              </div>
+              <input
+                type="number" min="0" step="0.5"
+                value={actions.packagingCost !== undefined && actions.packagingCost !== null ? actions.packagingCost : (actions.getStageWage ? actions.getStageWage('packaging_cost') : '')}
+                onChange={e => {
+                  if (actions.setPackagingCost) actions.setPackagingCost(e.target.value);
+                  if (actions.setStageWage) {
+                    actions.setStageWage('packaging_cost', e.target.value);
+                    actions.setStageWage('packager_wage', e.target.value);
+                  }
+                }}
+                className={wageInputCls + " border-purple-600/70 focus:border-purple-400 text-purple-200"}
+              />
+            </div>
+          </div>
         </div>
 
-        <div className="text-[11px] text-slate-300 text-center py-1 bg-slate-900/60 rounded-lg border border-slate-800/80">
-          مجموع أجور الورشة: <strong className="text-pink-400 font-mono font-bold">+{parseFloat(computedTotalLabor || 0).toFixed(1)} {activeModelCurrencyLabel}</strong>
+        <div className="grid grid-cols-2 gap-1 text-[10.5px] text-slate-300 py-1 bg-slate-900/60 rounded-lg border border-slate-800/80 px-2">
+          <div>
+            أجور الفنيين: <strong className="text-pink-400 font-mono font-bold">+{parseFloat(computedTotalLabor || 0).toFixed(2)}</strong>
+          </div>
+          <div className="text-left">
+            التغليف: <strong className="text-purple-300 font-mono font-bold">+{parseFloat(actions.packagingCost || 0).toFixed(2)} {cleanCurr}</strong>
+          </div>
         </div>
       </div>
 

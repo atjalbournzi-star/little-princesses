@@ -8,12 +8,11 @@
 function App() {
   const { useState, useEffect, useCallback } = React;
 
+  const [activeTab, setActiveTab] = useState('dashboard');
   const RouterComp = window.AppRouter || (() => null);
   const ModalsComp = window.AppModals || (() => null);
   const useData = window.useAppData || (() => ({}));
-  const appData = useData();
-
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const appData = useData({ activeTab });
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [toast, setToast] = useState(null);
   const [loginModalOpen, setLoginModalOpen] = useState(false);

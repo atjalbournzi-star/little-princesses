@@ -91,7 +91,6 @@ function OrderAlterationModal({
               rows="3"
               value={alterationForm.notes}
               onChange={e => setAlterationForm({ ...alterationForm, notes: e.target.value })}
-              placeholder="مثال: تقصير الذيل 2 سم وتضييق الخصر 1.5 سم من الجانبين..."
               className="w-full p-3 rounded-xl border border-[#E8E5EA] dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-[#25232A] dark:text-slate-100 outline-none focus:border-purple-600 resize-none"
             ></textarea>
           </div>
@@ -114,7 +113,7 @@ function OrderAlterationModal({
           {/* Assigned Tailor */}
           <div>
             <label className={labelCls}>إسناد إلى خياط / فني معين (اختياري)</label>
-            <input type="text" value={alterationForm.assigned_tailor} onChange={e => setAlterationForm({ ...alterationForm, assigned_tailor: e.target.value })} placeholder="اسم الخياط أو مسؤول التعديل..." className={inputCls} />
+            <input type="text" value={alterationForm.assigned_tailor} onChange={e => setAlterationForm({ ...alterationForm, assigned_tailor: e.target.value })} className={inputCls} />
           </div>
 
           {/* Submit */}

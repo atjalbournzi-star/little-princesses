@@ -25,7 +25,7 @@
     getCurrencyDef: function(curr) {
       return (window.CurrencyConverter && window.CurrencyConverter.getCurrencyDef)
         ? window.CurrencyConverter.getCurrencyDef(curr)
-        : { code: 'YER', symbol: '﷼', decimals: 0, display: 'YER ﷼' };
+        : { code: 'YER', symbol: '﷼', decimals: 0, display: 'YER' };
     },
 
     getSupportedCurrencies: function() {

@@ -3,7 +3,7 @@ function useProductActions({ products = [], setProducts, inventory = [], showToa
   const { useState, useEffect, useMemo } = React;
   const u = window.productUtils || {};
   const getCurrencyCode = u.getCurrencyCode || ((c) => (typeof c === 'object' ? c.code : c) || 'YER');
-  const getCurrencyLabel = u.getCurrencyLabel || ((c) => `${getCurrencyCode(c)} ﷼`);
+  const getCurrencyLabel = u.getCurrencyLabel || ((c) => getCurrencyCode(c));
 
   const [modalOpen, setModalOpen] = useState(false), [activeTab, setActiveTab] = useState("basic"), [editId, setEditId] = useState(null), [isSaving, setIsSaving] = useState(false);
   const [modelName, setModelName] = useState(""), [smartCode, setSmartCode] = useState(""), [targetSegment, setTargetSegment] = useState("kids"), [category, setCategory] = useState(""), [subcategory, setSubcategory] = useState(""), [collection, setCollection] = useState(""), [imageUrl, setImageUrl] = useState(""), [description, setDescription] = useState(""), [status, setStatus] = useState("Active");
@@ -42,7 +42,7 @@ function useProductActions({ products = [], setProducts, inventory = [], showToa
     setStageWages(prev => ({ ...prev, [k]: v }));
     if (k === 'cutter_wage') setCutterWage(v); else if (k === 'tailor_wage') setTailorWage(v);
     else if (k === 'embroiderer_wage') setEmbroidWage(v); else if (k === 'finisher_wage') setFinisherWage(v);
-    else if (k === 'packager_wage' || k === 'packaging_cost') setPackagingCost(v);
+    else if (k === 'packager_wage' || k === 'packaging_cost') { setPackagingCost(v); setStageWages(p => ({ ...p, packaging_cost: v, packager_wage: v })); }
   };
 
   const handleTargetSegmentChange = (newSeg) => {
@@ -78,22 +78,19 @@ function useProductActions({ products = [], setProducts, inventory = [], showToa
   const handleFabricBracketChange = (id, sz, val) => setFabricsList(prev => prev.map(f => f.id === id ? { ...f, brackets: { ...(f.brackets || {}), [sz]: val } } : f));
   const addFabricRow = () => setFabricsList(prev => [...prev, u.createDefaultFabricRow ? u.createDefaultFabricRow(activeModelCurrency, targetSegment, prev.length + 1) : { id: prev.length + 1, inventory_id: "", name: "", unit: "متر", currency: activeModelCurrency, brackets: {}, cost: 0 }]);
   const removeFabricRow = (id) => { if (fabricsList.length > 1) setFabricsList(prev => prev.filter(f => f.id !== id)); };
-  const handlePriceChange = (b, v) => setPricesMatrix(prev => ({ ...prev, [b]: v }));
-  const updateAgeChart = (id, field, v) => setAgeChart(prev => prev.map(a => a.id === id ? { ...a, [field]: v } : a));
+  const handlePriceChange = (b, v) => setPricesMatrix(prev => ({ ...prev, [b]: v })); const updateAgeChart = (id, field, v) => setAgeChart(prev => prev.map(a => a.id === id ? { ...a, [field]: v } : a));
   const productionRoles = useMemo(() => (internalRoles || []).filter(r => r.is_production !== false), [internalRoles]);
   const costsPerBracket = useMemo(() => u.calculateCostsPerBracket ? u.calculateCostsPerBracket(fabricsList, targetSegment, activeModelCurrency) : {}, [fabricsList, targetSegment, activeModelCurrency, u]);
   const refSize = useMemo(() => (u.SEGMENTS?.[targetSegment] || u.SEGMENTS?.kids)?.referenceSize || '6-9Y', [targetSegment, u]);
   const computedTotalLabor = useMemo(() => {
-    const base = parseFloat(cutterWage || 0) + parseFloat(tailorWage || 0) + parseFloat(embroidWage || 0) + parseFloat(finisherWage || 0) + parseFloat(packagingCost || 0);
-    const extra = Object.entries(stageWages).reduce((acc, [k, v]) => !['cutter_wage', 'tailor_wage', 'embroiderer_wage', 'finisher_wage', 'packager_wage', 'packaging_cost'].includes(k) ? acc + parseFloat(v || 0) : acc, 0);
-    return base + extra;
-  }, [cutterWage, tailorWage, embroidWage, finisherWage, packagingCost, stageWages]);
+    return parseFloat(cutterWage || 0) + parseFloat(tailorWage || 0) + parseFloat(embroidWage || 0) + parseFloat(finisherWage || 0);
+  }, [cutterWage, tailorWage, embroidWage, finisherWage]);
   const computedFabricTotal = costsPerBracket[refSize] || Object.values(costsPerBracket)[0] || 0;
-  const computedTotalCost = computedFabricTotal + computedTotalLabor;
+  const computedTotalCost = computedFabricTotal + computedTotalLabor + parseFloat(packagingCost || 0);
   const computedProfit = parseFloat(pricesMatrix[refSize] || Object.values(pricesMatrix)[0] || 0) - computedTotalCost;
   const handleApplyPresetMargin = (pct = 40) => {
     if (u.calculateSuggestedPrices) {
-      setPricesMatrix(u.calculateSuggestedPrices(costsPerBracket, computedTotalLabor, pct));
+      setPricesMatrix(u.calculateSuggestedPrices(costsPerBracket, computedTotalLabor + parseFloat(packagingCost || 0), pct));
       if (showToast) showToast(`تم تطبيق أسعار مقترحة بهامش ربح +${pct}% ✨`);
     }
   };
@@ -123,25 +120,13 @@ function useProductActions({ products = [], setProducts, inventory = [], showToa
 
       let rawBom = p.bom; if (typeof rawBom === 'string') { try { rawBom = JSON.parse(rawBom); } catch (e) { rawBom = {}; } }
       const bmMeta = (rawBom && typeof rawBom === 'object' && !Array.isArray(rawBom)) ? (rawBom.meta || {}) : {};
-      const cw = p.cutter_wage ?? bmMeta.cutter_wage ?? "", tw = p.tailor_wage ?? bmMeta.tailor_wage ?? "";
-      const ew = p.embroiderer_wage ?? bmMeta.embroiderer_wage ?? "", fw = p.finisher_wage ?? bmMeta.finisher_wage ?? "", pw = p.packaging_cost ?? bmMeta.packaging_cost ?? "";
+      const stgSrc = (p.stage_wages && typeof p.stage_wages === 'object' && Object.keys(p.stage_wages).length > 0)
+        ? p.stage_wages : ((bmMeta.stage_wages && typeof bmMeta.stage_wages === 'object' && Object.keys(bmMeta.stage_wages).length > 0) ? bmMeta.stage_wages : p);
+      const cw = stgSrc.cutter_wage ?? p.cutter_wage ?? "", tw = stgSrc.tailor_wage ?? p.tailor_wage ?? "";
+      const ew = stgSrc.embroiderer_wage ?? p.embroiderer_wage ?? "", fw = stgSrc.finisher_wage ?? p.finisher_wage ?? "";
+      const pw = stgSrc.packaging_cost ?? stgSrc.packager_wage ?? p.packaging_cost ?? p.cost_packaging ?? "";
       setCutterWage(cw); setTailorWage(tw); setEmbroidWage(ew); setFinisherWage(fw); setPackagingCost(pw);
-
-      let loadedStg = p.stage_wages || bmMeta.stage_wages || {};
-      if (typeof loadedStg === 'string') { try { loadedStg = JSON.parse(loadedStg); } catch (e) { loadedStg = {}; } }
-      const initialStg = { ...(loadedStg || {}), cutter_wage: cw, tailor_wage: tw, embroiderer_wage: ew, finisher_wage: fw, packager_wage: pw, packaging_cost: pw };
-      const activeRoles = (Array.isArray(internalRoles) && internalRoles.length) ? internalRoles : (productionRoles || []);
-      activeRoles.forEach(r => {
-        const keys = [r.wage_key, r.role_key, r.role_code].filter(Boolean);
-        for (const k of keys) {
-          const val = initialStg[k] ?? p[k] ?? bmMeta[k];
-          if (val !== undefined && val !== null && val !== '') {
-            keys.forEach(alias => { if (initialStg[alias] === undefined || initialStg[alias] === '') initialStg[alias] = val; });
-            break;
-          }
-        }
-      });
-      setStageWages(initialStg);
+      setStageWages({ cutter_wage: cw, tailor_wage: tw, embroiderer_wage: ew, finisher_wage: fw, packaging_cost: pw, packager_wage: pw });
 
       let loadedSizes = p.sizes || bmMeta.sizes;
       if (typeof loadedSizes === 'string') { try { loadedSizes = JSON.parse(loadedSizes); } catch (e) { loadedSizes = null; } }

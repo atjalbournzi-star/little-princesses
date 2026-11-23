@@ -15,25 +15,25 @@ function useProductsData({ products = [], currency }) {
   const [viewMode, setViewMode] = useState("table"); // 'table' | 'grid'
   const [dbCategories, setDbCategories] = useState([]);
 
-  useEffect(() => {
+  const loadCategories = () => {
     fetch('/api/products/categories').then(r => r.json()).then(res => {
       const list = Array.isArray(res?.data) ? res.data : (Array.isArray(res?.categories) ? res.categories : []);
-      if (list.length > 0) setDbCategories(list);
+      if (Array.isArray(list)) setDbCategories(list);
     }).catch(() => {});
+  };
+
+  useEffect(() => {
+    loadCategories();
   }, []);
 
-  // استخراج التصنيفات المتاحة حصرياً من قاعدة البيانات والمنتجات دون قيم افتراضية
+  // استخراج خيارات التصنيف الفني حصرياً وبشكل ديناميكي من جدول product_categories دون استنباط سجلات صفرية
   const availableCategories = useMemo(() => {
-    const set = new Set(dbCategories);
-    (products || []).forEach(p => {
-      const cat = p?.category || p?.classification;
-      if (cat && typeof cat === 'string') {
-        const clean = cat.trim();
-        if (clean && !clean.includes('???')) set.add(clean);
-      }
-    });
-    return Array.from(set).sort();
-  }, [products, dbCategories]);
+    return Array.from(new Set(
+      (dbCategories || [])
+        .map(c => typeof c === 'string' ? c.trim() : (c?.name ? String(c.name).trim() : ''))
+        .filter(c => Boolean(c) && !c.includes('???'))
+    )).sort();
+  }, [dbCategories]);
 
   // استخراج التشكيلات والمجموعات المتاحة حصرياً من قاعدة البيانات والمنتجات
   const availableCollections = useMemo(() => {
@@ -95,11 +95,19 @@ function useProductsData({ products = [], currency }) {
       avgCost,
       avgSellPrice,
       avgProfit,
-      avgMarginPct: Math.round(avgMarginPct * 10) / 10,
+      avgMarginPct: Math.round(avgMarginPct * 100) / 100,
       currencyDisplay,
       activeCategoriesCount: availableCategories.length
     };
   }, [products, availableCategories.length, currencyDisplay]);
+
+  const addCategoryToList = (newCat) => {
+    if (!newCat || typeof newCat !== 'string') return;
+    const clean = newCat.trim();
+    if (!clean) return;
+    setDbCategories(prev => prev.includes(clean) ? prev : [...prev, clean].sort());
+    loadCategories();
+  };
 
   return {
     search, setSearch,
@@ -111,7 +119,10 @@ function useProductsData({ products = [], currency }) {
     availableCategories,
     availableCollections,
     filteredProducts,
-    stats
+    stats,
+    addCategoryToList,
+    loadCategories,
+    setDbCategories
   };
 }
 

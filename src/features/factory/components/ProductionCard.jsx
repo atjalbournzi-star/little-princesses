@@ -10,18 +10,19 @@ function ProductionCard({
   loadIntoForm, handleDeleteOrder
 }) {
   if (!f) return null;
-  const orderLabel = f?.order_no || f?.id || '—';
+  const orderLabel = f?.order_no || f?.production_order_no || f?.id || '—';
   const isActionLocked = actionLoadingId === orderLabel;
   const isApproved = f?.tailor_status === 'approved' || f?.quality_status === 'passed' || Number(f?.quality_score || 0) >= 4.0;
   const isDelivered = f?.stage === 'تم التسليم ✅' || f?.stage === 'Delivered' || f?.status === 'delivered';
   const isDone = (Number(f?.progress) >= 100) || (f?.stage && f.stage.includes('جاهز')) || isDelivered;
   const isReadyForDelivery = (isDone || f?.status === 'ready_for_delivery') && !isDelivered;
   const isReadyToWear = f?.production_type === 'ready_to_wear' || f?.production_type === 'stock' || (f?.order_no && (String(f.order_no).startsWith('RTW') || String(f.order_no).startsWith('STOCK')));
-  const sizeCode = f?.size_code || f?.standard_size || (isReadyToWear ? '6-9Y' : 'مخصص');
+  const sizeCode = f?.size_code || f?.standard_size || (isReadyToWear ? '—' : 'مخصص');
 
   const allProducts = Array.isArray(products) && products.length > 0 ? products : (window.products || []);
   const linkedProduct = Array.isArray(allProducts) ? allProducts.find(p => (f?.product_id && (p.id === f.product_id || p.product_id === f.product_id)) || (p.name && (p.name === f?.product || p.name === f?.product_name)) || (p.model_code && (p.model_code === f?.model_code || p.model_code === f?.product))) : null;
   const prodImg = f?.product_image || f?.image_url || f?.image || f?.items?.[0]?.image || f?.model_details?.image_url || linkedProduct?.image_url || linkedProduct?.image || '';
+  const allFabrics = (Array.isArray(f.fabrics_data) && f.fabrics_data.length > 0) ? f.fabrics_data : ((Array.isArray(f.bom_items) && f.bom_items.length > 0) ? f.bom_items : ((Array.isArray(f.materials) && f.materials.length > 0) ? f.materials : (f.fabric_name ? [{ fabric_name: f.fabric_name, cut_meters: f.cut_meters, cut_unit: f.cut_unit || 'متر' }] : [])));
   const displayProgress = window.FactoryUtils?.calculateDynamicProgress ? window.FactoryUtils.calculateDynamicProgress(f.stage) : (Number(f.progress) || 0);
 
   const rawStage = String(f?.stage || '');
@@ -53,10 +54,11 @@ function ProductionCard({
             {isReadyToWear ? 'جاهز' : 'مخصص'}
           </span>
         </div>
-        {isReadyToWear ? (
-          <div className="text-[10px] font-medium text-cyan-700 dark:text-cyan-300 font-mono truncate">مقاس: {sizeCode}</div>
-        ) : (
-          <div className="text-[10px] font-semibold text-slate-900 dark:text-slate-100 truncate">{f.child_name ? `الطفلة: ${f.child_name}` : (f.customer_name || f.customer || 'تفصيل مخصص')}</div>
+        {isReadyToWear ? <div className="text-[10px] font-medium text-cyan-700 dark:text-cyan-300 font-mono truncate">مقاس: {sizeCode}</div> : (
+          <div className="text-[10px] font-semibold text-slate-900 dark:text-slate-100 truncate">
+            {f.child_name ? `الطفلة: ${f.child_name}` : (f.customer_name || f.customer || 'تفصيل مخصص')}
+            {f.size_code ? <span className="font-mono text-pink-600 dark:text-pink-400 font-bold mr-1">({f.size_code})</span> : null}
+          </div>
         )}
         <div className="text-[9.5px] text-slate-600 dark:text-slate-300 font-mono truncate">بدء: {f.start_date ? String(f.start_date).slice(0, 10) : '—'}</div>
       </td>
@@ -74,15 +76,21 @@ function ProductionCard({
           <div className="flex-1 min-w-0">
             <div className="font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-1 text-[11px] truncate">
               <span className="truncate">{f.product || f.product_name}</span>
-              <span className="text-[9.5px] bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-mono px-1 py-0.2 rounded border border-slate-200 dark:border-slate-700 font-bold shrink-0">{f.quantity || 1} قط</span>
+              <span className="text-[9.5px] bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-mono px-1 py-0.2 rounded border border-slate-200 dark:border-slate-700 font-bold shrink-0">{f.quantity || 1} قطعة</span>
             </div>
             <div className="flex items-center gap-1 mt-0.5 flex-wrap">
               {(f.selected_color || f.color || f.dress_color) && (
                 <span className="text-[9.5px] bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 px-1 py-0.2 rounded font-medium border border-teal-200 dark:border-teal-800/60 truncate">{f.selected_color || f.color || f.dress_color}</span>
               )}
-              {f.fabric_name && (
-                <span className="text-[9.5px] text-slate-600 dark:text-slate-300 font-medium truncate">{f.fabric_name}{f.cut_meters ? ` (${f.cut_meters}م)` : ''}</span>
-              )}
+              {allFabrics.length > 0 ? allFabrics.map((fb, idx) => {
+                const fName = fb.fabric_name || fb.name || 'خامة', rawQty = fb.cut_meters ?? fb.meters ?? fb.quantity ?? fb.qty, fUnit = fb.cut_unit || fb.unit || 'متر';
+                const hasQty = rawQty !== undefined && rawQty !== null && rawQty !== '' && !isNaN(parseFloat(rawQty)) && parseFloat(rawQty) > 0;
+                return (
+                  <span key={idx} className="text-[9px] bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-1.5 py-0.2 rounded font-medium border border-slate-200 dark:border-slate-700 whitespace-nowrap" title={`${fName}${hasQty ? `: ${parseFloat(rawQty)} ${fUnit}` : ''}`}>
+                    {fName}{hasQty ? ` (${parseFloat(rawQty)} ${fUnit})` : ''}
+                  </span>
+                );
+              }) : (f.fabric_name && <span className="text-[9.5px] text-slate-600 dark:text-slate-300 font-medium truncate">{f.fabric_name}{f.cut_meters ? ` (${f.cut_meters} ${f.cut_unit || 'متر'})` : ''}</span>)}
             </div>
           </div>
         </div>
@@ -164,14 +172,18 @@ function ProductionCard({
         </div>
       </td>
 
-      {/* 5. الوقت المتبقي - عرض موسع لمنع الاقتصاص */}
+      {/* 5. الوقت المتبقي - احتساب تقويمي دقيق ومنع الاقتصاص */}
       <td className="w-[165px] min-w-[150px] py-1.5 px-3 text-center whitespace-nowrap">
         {f.due_date ? (() => {
-          const diffDays = Math.ceil((new Date(f.due_date) - new Date()) / (1000 * 60 * 60 * 24)), isOverdue = diffDays < 0;
+          const targetD = new Date(String(f.due_date).slice(0, 10));
+          const nowD = new Date(new Date().toISOString().slice(0, 10));
+          const diffDays = Math.round((targetD - nowD) / 86400000);
+          const isOverdue = diffDays < 0;
+          const statusText = isOverdue ? `متأخر (${Math.abs(diffDays)} يوم)` : (diffDays === 0 ? 'موعد التسليم اليوم ⏳' : `متبقي ${diffDays} يوم`);
           return (
             <div className="inline-flex flex-col items-center justify-center w-full gap-0.5 whitespace-nowrap">
-              <span className={`inline-flex items-center justify-center text-[10px] font-bold px-2 py-0.5 rounded border font-mono whitespace-nowrap ${isOverdue ? 'bg-rose-50 dark:bg-rose-950/70 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800/70 animate-pulse' : 'bg-emerald-50 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/70'}`}>
-                {isOverdue ? `متأخر (${Math.abs(diffDays)} يوم)` : `متبقي ${diffDays} يوم`}
+              <span className={`inline-flex items-center justify-center text-[10px] font-bold px-2 py-0.5 rounded border font-mono whitespace-nowrap ${isOverdue ? 'bg-rose-50 dark:bg-rose-950/70 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800/70 animate-pulse' : (diffDays === 0 ? 'bg-amber-50 dark:bg-amber-950/70 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800/70' : 'bg-emerald-50 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/70')}`}>
+                {statusText}
               </span>
               <span className="text-[10px] font-semibold text-slate-800 dark:text-slate-200 font-mono tracking-tight whitespace-nowrap mt-0.5">
                 {String(f.due_date).slice(0, 10)}

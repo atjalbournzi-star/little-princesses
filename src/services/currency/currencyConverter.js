@@ -25,7 +25,7 @@
     var defs = (window.CurrencyRates && window.CurrencyRates.DEFINITIONS) || [];
     var code = normalizeCode(curr);
     var def = defs.find(function(c) { return c.code === code; });
-    return def || defs[0] || { code: 'YER', symbol: '﷼', decimals: 0, display: 'YER ﷼' };
+    return def || defs[0] || { code: 'YER', symbol: '﷼', decimals: 0, display: 'YER' };
   }
 
   function getRate(curr) {

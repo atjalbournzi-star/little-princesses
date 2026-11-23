@@ -9,19 +9,27 @@ logger = logging.getLogger("LittlePrincesses_PG_Employees")
 def get_employees(params=None):
     with get_db_cursor() as cur:
         cur.execute("""
-            SELECT e.*, COALESCE(t.active_tasks_count, 0) as active_tasks_count
+            SELECT e.*, COALESCE((
+                SELECT COUNT(DISTINCT po.id)
+                FROM production_orders po
+                WHERE po.status NOT IN ('Completed', 'Delivered', 'Cancelled', 'مكتمل', 'تم التسليم', 'ملغي', 'Ready', 'جاهز')
+                  AND po.stage NOT ILIKE '%تسليم%' AND po.stage NOT ILIKE '%جاهز%'
+                  AND COALESCE(po.progress, 0) < 100
+                  AND (
+                      po.order_id IS NULL OR EXISTS (
+                          SELECT 1 FROM orders o WHERE (o.id = po.order_id OR o.order_no = po.order_id)
+                            AND o.status NOT IN ('Delivered', 'Cancelled', 'تم التسليم', 'ملغي', 'مكتمل', 'Completed')
+                      )
+                  )
+                  AND (
+                      po.cutter_id = e.id OR po.cutter_name = e.name OR po.cutter_name = e.full_name OR
+                      po.tailor_id = e.id OR po.assigned_tailor_id = e.id OR po.tailor_name = e.name OR po.tailor_name = e.full_name OR
+                      po.embroiderer_id = e.id OR po.embroiderer_name = e.name OR po.embroiderer_name = e.full_name OR
+                      po.finisher_id = e.id OR po.finisher_name = e.name OR po.finisher_name = e.full_name OR
+                      po.packager_id = e.id OR po.packager_name = e.name OR po.packager_name = e.full_name
+                  )
+            ), 0) as active_tasks_count
             FROM employees e
-            LEFT JOIN (
-                SELECT emp_name, COUNT(*) as active_tasks_count FROM (
-                    SELECT cutter_name AS emp_name FROM production_orders WHERE status NOT IN ('Completed', 'Delivered', 'Cancelled', 'مكتمل', 'تم التسليم', 'ملغي') AND cutter_name IS NOT NULL AND cutter_name != ''
-                    UNION ALL
-                    SELECT tailor_name AS emp_name FROM production_orders WHERE status NOT IN ('Completed', 'Delivered', 'Cancelled', 'مكتمل', 'تم التسليم', 'ملغي') AND tailor_name IS NOT NULL AND tailor_name != ''
-                    UNION ALL
-                    SELECT embroiderer_name AS emp_name FROM production_orders WHERE status NOT IN ('Completed', 'Delivered', 'Cancelled', 'مكتمل', 'تم التسليم', 'ملغي') AND embroiderer_name IS NOT NULL AND embroiderer_name != ''
-                    UNION ALL
-                    SELECT finisher_name AS emp_name FROM production_orders WHERE status NOT IN ('Completed', 'Delivered', 'Cancelled', 'مكتمل', 'تم التسليم', 'ملغي') AND finisher_name IS NOT NULL AND finisher_name != ''
-                ) sub GROUP BY emp_name
-            ) t ON (e.name = t.emp_name OR e.full_name = t.emp_name)
             ORDER BY e.created_at DESC;
         """)
         rows = cur.fetchall()

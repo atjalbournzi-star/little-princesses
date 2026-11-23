@@ -68,7 +68,7 @@ function ReportsFilterBar({
             className={`${selectCls} font-bold`}
             title="عملة العرض والتقارير"
           >
-            {["YER ﷼", "SAR ﷼", "USD $"].map(c => <option key={c} value={c}>{c}</option>)}
+            {["ريال يمني", "ريال سعودي", "دولار أمريكي"].map(c => <option key={c} value={c}>{c}</option>)}
           </select>
         </div>
 

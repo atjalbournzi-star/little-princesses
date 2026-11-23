@@ -1,0 +1,86 @@
+CODE SUMMARY: BackendRoutes=317 | Matched=136 | REAL_MISSING=6 | LiveTested=75
+
+=== [1] LIVE READ ENDPOINTS (1-BY-1) ===
+[404_POST?] 404  3294ms  /api/accounting/journal              HTTP 404
+[OK       ] 200  8990ms  /api/accounts                        {data:37}
+[404_POST?] 404  2035ms  /api/accounts/audit-log              HTTP 404
+[OK       ] 200  6856ms  /api/accounts/list                   {data:37}
+[OK       ] 200  3640ms  /api/alterations                     {data:0}
+[OK       ] 200  4003ms  /api/atelier/watchdog                Obj(2 keys)
+[OK       ] 200  4557ms  /api/audit-logs                      Obj(2 keys)
+[OK       ] 200  2049ms  /api/auth/me                         Obj(2 keys)
+[404_POST?] 404  2016ms  /api/backup/list                     HTTP 404
+[OK       ] 200  3841ms  /api/backup/status                   {snapshots:0}
+[OK       ] 200  3520ms  /api/cost-centers                    {data:3}
+[TIMEOUT  ] -1  14017ms  /api/crm/customers                   timed out
+[TIMEOUT  ] -1  14034ms  /api/customers                       timed out
+[OK       ] 200 10606ms  /api/exchange-rates                  Obj(2 keys)
+[OK       ] 200  6032ms  /api/expenses                        {data:0}
+[TIMEOUT  ] -1  14025ms  /api/factory                         timed out
+[OK       ] 200  5420ms  /api/factory/analytics               {models_costing:3, technicians_kpi:4}
+[OK       ] 200  3623ms  /api/feedback                        {data:0}
+[OK       ] 200  3632ms  /api/finance/expenses                {data:0}
+[OK       ] 200 11983ms  /api/gas                             Obj(3 keys)
+[OK       ] 200  4186ms  /api/hr/commissions                  {data:23}
+[OK       ] 200  3758ms  /api/hr/employees                    {data:4}
+[OK       ] 200  6036ms  /api/hr/job-roles                    {data:6}
+[TIMEOUT  ] -1  14050ms  /api/hr/payroll                      timed out
+[OK       ] 200  9027ms  /api/hr/payroll/calculate            {data:4}
+[OK       ] 200  6369ms  /api/hr/piece-rate-logs              {data:23}
+[OK       ] 200  6597ms  /api/hr/tailor-pieces                {data:23}
+[OK       ] 200  5891ms  /api/hr/tailors-summary              {data:4}
+[OK       ] 200 10332ms  /api/inventory                       {data:2}
+[404_POST?] 404  2052ms  /api/inventory/items                 HTTP 404
+[404_POST?] 404  2087ms  /api/inventory/procurement           HTTP 404
+[OK       ] 200  6375ms  /api/inventory/transactions          {data:12}
+[OK       ] 200 11589ms  /api/job-roles                       {data:6}
+[OK       ] 200  7381ms  /api/journal                         {data:33}
+[OK       ] 200  6009ms  /api/marketing/campaigns             {data:0}
+[OK       ] 200  5769ms  /api/marketing/capability-matrix     {data:0}
+[OK       ] 200  5909ms  /api/marketing/content               {data:0}
+[OK       ] 200  5648ms  /api/marketing/dashboard             Obj(2 keys)
+[OK       ] 200  5912ms  /api/marketing/platforms             {data:0}
+[OK       ] 200  5601ms  /api/measurements/studio/recent      {data:0}
+[TIMEOUT  ] -1  14040ms  /api/orders                          timed out
+[OK       ] 200  2048ms  /api/pricing/quick-quote             Obj(4 keys)
+[TIMEOUT  ] -1  14027ms  /api/production/pipeline             timed out
+[OK       ] 200 11899ms  /api/products                        {data:3}
+[OK       ] 200  6802ms  /api/products/bom                    {data:3}
+[OK       ] 200  5692ms  /api/products/categories             {categories:1, data:1}
+[OK       ] 200  6876ms  /api/products/get                    {data:3}
+[OK       ] 200  7804ms  /api/products/next-sku               Obj(4 keys)
+[OK       ] 200  8991ms  /api/purchases                       {data:1}
+[404_POST?] 404  2034ms  /api/quality/checkpoints             HTTP 404
+[404_POST?] 404  2020ms  /api/quality/complaints              HTTP 404
+[404_POST?] 404  2055ms  /api/quality/corrective_actions      HTTP 404
+[TIMEOUT  ] -1  14041ms  /api/quality/dashboard               timed out
+[404_POST?] 404  2025ms  /api/quality/defects                 HTTP 404
+[404_POST?] 404  2041ms  /api/quality/evaluations             HTTP 404
+[OK       ] 200  5610ms  /api/quality/feedback                {data:0}
+[404_POST?] 404  2035ms  /api/quality/inspections             HTTP 404
+[404_POST?] 404  2036ms  /api/quality/returns                 HTTP 404
+[404_POST?] 404  2028ms  /api/quality/settings                HTTP 404
+[OK       ] 200  3565ms  /api/reports/balance-sheet           Obj(2 keys)
+[OK       ] 200  4221ms  /api/reports/financial-statements    Obj(2 keys)
+[OK       ] 200  7557ms  /api/reports/general-ledger          Obj(2 keys)
+[OK       ] 200  3496ms  /api/reports/income-statement        Obj(2 keys)
+[OK       ] 200  3489ms  /api/reports/trial-balance           Obj(2 keys)
+[TIMEOUT  ] -1  14028ms  /api/sales/orders                    timed out
+[404_POST?] 404  2074ms  /api/sequences                       HTTP 404
+[OK       ] 200 12361ms  /api/sequences/next                  Obj(4 keys)
+[OK       ] 200  4036ms  /api/sequences/preview               Obj(4 keys)
+[OK       ] 200  3527ms  /api/settings                        Obj(5 keys)
+[404_POST?] 404  2050ms  /api/settings/fx-rates               HTTP 404
+[OK       ] 200  3229ms  /api/suppliers                       {data:1}
+[OK       ] 200  3584ms  /api/system/settings                 Obj(5 keys)
+[OK       ] 200  3186ms  /api/users                           {data:4, users:4}
+[OK       ] 200  3585ms  /api/vouchers                        {data:34}
+[TIMEOUT  ] -1  14022ms  /api/warehouses                      timed out
+
+=== [2] REAL MISSING IN BACKEND CODE (404 CONFIRMED) ===
+MISSING: /api/quality/intelligence              <-- src\services\api\atelierApi.js
+MISSING: /api/reports/reconciliations           <-- src\services\api\accountingApi.js
+MISSING: /api/tenants/create                    <-- src\services\api\authApi.js
+MISSING: /api/tenants/current                   <-- src\services\api\authApi.js
+MISSING: /api/tenants/list                      <-- src\services\api\authApi.js
+MISSING: /api/tenants/switch                    <-- src\services\api\authApi.js

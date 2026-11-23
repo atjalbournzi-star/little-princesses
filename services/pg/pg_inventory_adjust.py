@@ -55,26 +55,49 @@ def adjust_inventory(payload):
 
         cur.execute("UPDATE inventory SET quantity = %s, total_value = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s;", (new_q, new_total_val, inv_id))
 
+        wh_raw = clean_str(data.get('warehouse_id') or data.get('warehouse') or '')
+        cur.execute("SELECT id, name, account_id FROM warehouses WHERE id = %s OR code = %s OR name = %s LIMIT 1;", (wh_raw, wh_raw, wh_raw))
+        wh_row = cur.fetchone()
+        if not wh_row:
+            cur.execute("SELECT id, name, account_id FROM warehouses WHERE is_active = TRUE ORDER BY id ASC LIMIT 1;")
+            wh_row = cur.fetchone()
+        warehouse_id = wh_row['id'] if wh_row else ''
+        wh_acc = wh_row.get('account_id') if wh_row else None
+        if not wh_acc and wh_row:
+            from .pg_warehouse_accounts import create_or_link_warehouse_account
+            wh_acc = create_or_link_warehouse_account(cur, wh_row['id'], wh_row['name'], user_id=resolved_user)
+
         tx_id = get_next_sequence_number(cur, 'INV-TXN', fallback_prefix='INV-TXN-')
         cur.execute("""
             INSERT INTO inventory_transactions (
-                id, inventory_id, transaction_type, quantity, unit_cost, reference_type, reference_id, notes, created_by, created_at
-            ) VALUES (%s, %s, %s, %s, %s, 'ADJUSTMENT', %s, %s, %s, CURRENT_TIMESTAMP);
-        """, (tx_id, inv_id, tx_type, change_qty, u_cost, inv_id, reason, resolved_user))
+                id, inventory_id, warehouse_id, transaction_type, quantity, unit_cost, reference_type, reference_id, notes, created_by, created_at
+            ) VALUES (%s, %s, %s, %s, %s, %s, 'ADJUSTMENT', %s, %s, %s, CURRENT_TIMESTAMP);
+        """, (tx_id, inv_id, warehouse_id, tx_type, change_qty, u_cost, inv_id, reason, resolved_user))
 
-        if adj_amount > 0:
+        if warehouse_id:
+            cur.execute("""
+                INSERT INTO warehouse_stock (id, warehouse_id, inventory_id, quantity, reserved_qty, updated_at)
+                VALUES (%s, %s, %s, %s, 0.0, CURRENT_TIMESTAMP)
+                ON CONFLICT (warehouse_id, inventory_id) DO UPDATE SET quantity = GREATEST(0, warehouse_stock.quantity + EXCLUDED.quantity), updated_at = CURRENT_TIMESTAMP;
+            """, (f"WS-{inv_id}-{warehouse_id}", warehouse_id, inv_id, change_qty))
+
+        if adj_amount > 0 and wh_acc:
             entry_no = get_next_sequence_number(cur, 'JV', fallback_prefix='JV-')
             jv_id = entry_no
             today = today_str()
 
             if adj_type == 'wastage':
-                debit_acc, credit_acc = 'ACC-509', 'ACC-105'
+                cur.execute("SELECT id FROM chart_of_accounts WHERE is_postable = TRUE AND (account_name ILIKE '%تالف%' OR account_name ILIKE '%هالك%' OR account_category ILIKE 'Expenses') ORDER BY level DESC LIMIT 1;")
+                exp_acc = (cur.fetchone() or {}).get('id') or 'ACC-509'
+                debit_acc, credit_acc = exp_acc, wh_acc
                 jv_desc = f"إهلاك تالف وهالك أقمشة: {actual_name} ({variance_qty} متر) - {reason}"
-                line1_desc, line2_desc = f"إهلاك تالف خامات: {actual_name}", f"تخفيض مخزون خامات: {actual_name}"
+                line1_desc, line2_desc = f"إهلاك تالف خامات: {actual_name}", f"تخفيض مخزون مستودع [{wh_row['name']}]: {actual_name}"
             else:
-                debit_acc, credit_acc = 'ACC-105', 'ACC-404'
+                cur.execute("SELECT id FROM chart_of_accounts WHERE is_postable = TRUE AND (account_name ILIKE '%فائض%' OR account_name ILIKE '%تسوية%' OR account_category ILIKE 'Revenue') ORDER BY level DESC LIMIT 1;")
+                rev_acc = (cur.fetchone() or {}).get('id') or 'ACC-404'
+                debit_acc, credit_acc = wh_acc, rev_acc
                 jv_desc = f"تسوية فائض جردي للأقمشة: {actual_name} ({variance_qty} متر) - {reason}"
-                line1_desc, line2_desc = f"إضافة فائض لمخزون: {actual_name}", f"أرباح تسوية جردية: {actual_name}"
+                line1_desc, line2_desc = f"إضافة فائض لمخزون مستودع [{wh_row['name']}]: {actual_name}", f"أرباح تسوية جردية: {actual_name}"
 
             cur.execute("""
                 INSERT INTO journal_entries (
@@ -92,6 +115,11 @@ def adjust_inventory(payload):
                 INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base)
                 VALUES (%s, %s, %s, %s, 0.0, %s, 0.0, %s);
             """, (generate_id("JVL"), jv_id, credit_acc, line2_desc, adj_amount, adj_amount_yer))
+
+            for aid in (debit_acc, credit_acc):
+                cur.execute("SELECT COALESCE(SUM(debit_base - credit_base), 0.0) as net FROM journal_entry_lines WHERE account_id = %s;", (aid,))
+                net = cur.fetchone()['net'] or 0.0
+                cur.execute("UPDATE chart_of_accounts SET current_balance = %s WHERE id = %s;", (net, aid))
 
         log_audit_event(
             entity_type='inventory_transactions',

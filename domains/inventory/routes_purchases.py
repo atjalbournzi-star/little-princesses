@@ -19,13 +19,13 @@ def handle_post(handler, path, parsed_url) -> bool:
             supplier_id = data.get('supplier_id') or ''
             supplier = data.get('supplier') or data.get('supplier_name') or ''
             supplier_phone = str(data.get('supplier_phone') or data.get('phone') or data.get('supplier_number') or '').strip()
-            warehouse_id = data.get('warehouse_id') or data.get('warehouse') or data.get('branch_id') or data.get('location') or 'WH-MAIN'
+            warehouse_id = data.get('warehouse_id') or data.get('warehouse') or data.get('branch_id') or data.get('location') or ''
             discount = float(data.get('discount') or data.get('discount_amount') or 0.0)
             notes_val = str(data.get('notes') or '').strip()
             currency = data.get('currency', 'YER')
             date_val = data.get('date') or data.get('invoice_date') or time.strftime('%Y-%m-%d')
             pay_type = data.get('pay_type') or data.get('payment_method') or 'نقدي'
-            payment_source = data.get('payment_source') or data.get('payment_account_code') or '101.1 - صندوق الريال اليمني'
+            payment_source = data.get('payment_source') or data.get('payment_account_code') or ''
             transfer_no = data.get('transfer_no') or data.get('transaction_ref') or ''
             freight_cost = float(data.get('freight_cost') or data.get('shipping_cost') or 0.0)
             transfer_fees = float(data.get('transfer_fees') or data.get('transfer_fee') or 0.0)
@@ -33,7 +33,7 @@ def handle_post(handler, path, parsed_url) -> bool:
             grand_tot = float(data.get('grand_total') or data.get('net_amount') or 0.0)
             receipt_url = data.get('receipt_url') or data.get('receipt_attachment') or ''
             invoice_image_url = data.get('invoice_image_url') or data.get('invoice_attachment') or data.get('invoice_url') or ''
-            created_by = data.get('created_by', 'admin')
+            created_by = data.get('created_by') or data.get('user_id') or 'admin'
 
             items = data.get('items', [])
             if not items and (data.get('item') or data.get('item_name') or data.get('fabric_name')):
@@ -77,6 +77,7 @@ def handle_post(handler, path, parsed_url) -> bool:
                 'invoice_attachment': invoice_image_url,
                 'notes': notes_val,
                 'created_by': created_by,
+                'user_id': data.get('user_id') or created_by,
                 'items': items
             }
 

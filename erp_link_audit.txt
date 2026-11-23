@@ -1,0 +1,139 @@
+SUMMARY: Static=129 | OK=3 | EMPTY_0=0 | BROKEN=124 | Dynamic=6
+
+[404_MISS] 404 /api/accounting/journal                HTTP 404       <-- src\features\purchases\hooks\usePurchaseActions.js
+[TIMEOUT ] -1  /api/accounts                          timed out      <-- src\features\customers\components\CustomerFinancialLedgerBar.jsx, src\features\purchases\hooks\usePurchaseActions.js
+[404_MISS] 404 /api/accounts/audit-log                HTTP 404       <-- src\services\api\accountingApi.js
+[TIMEOUT ] -1  /api/accounts/list                     timed out      <-- src\components\app\useAppData.js, src\features\accounts\hooks\useAccountActions.js, src\features\factory\components\DeliveryModal.jsx, src\features\orders\components\OrderDeliveryModal.jsx, src\features\vouchers\hooks\useVouchersData.js, src\services\api\dataLoader.js
+[404_MISS] 404 /api/accounts/save                     HTTP 404       <-- src\features\accounts\hooks\useAccountActions.js, src\features\expenses\hooks\useExpenseActions.js, src\services\api\accountingApi.js
+[TIMEOUT ] -1  /api/accounts/suggest-code             timed out      <-- src\services\api\accountingApi.js
+[404_MISS] 404 /api/accounts/sync-cloud               HTTP 404       <-- src\services\api\accountingApi.js
+[TIMEOUT ] -1  /api/alterations                       timed out      <-- src\features\factory\hooks\useFactoryData.js, src\features\factory\services\factoryService.js, src\features\orders\hooks\useOrderActions.js
+[404_MISS] 404 /api/alterations/update-status         HTTP 404       <-- src\features\factory\services\factoryService.js
+[TIMEOUT ] -1  /api/atelier/watchdog                  timed out      <-- src\components\Header.jsx, src\features\dashboard\hooks\useDashboardActions.js
+[TIMEOUT ] -1  /api/audit-logs                        timed out      <-- src\services\api\authApi.js
+[404_MISS] 404 /api/auth/login                        HTTP 404       <-- src\services\api\authApi.js
+[OK      ] 200 /api/auth/me                           Obj(2 keys)    <-- src\services\api\authApi.js
+[404_MISS] 404 /api/backup/export                     HTTP 404       <-- src\features\settings\hooks\useSettingsActions.js
+[404_MISS] 404 /api/backup/list                       HTTP 404       <-- src\services\api\systemApi.js
+[404_MISS] 404 /api/backup/snapshot                   HTTP 404       <-- src\services\api\systemApi.js
+[TIMEOUT ] -1  /api/backup/status                     timed out      <-- src\services\api\systemApi.js
+[TIMEOUT ] -1  /api/cost-centers                      timed out      <-- src\features\expenses\components\ExpenseModal.jsx, src\features\expenses\components\NewExpenseModal.jsx
+[TIMEOUT ] -1  /api/crm/customers                     timed out      <-- src\features\customers\components\CustomerMeasurementsModal.jsx, src\features\customers\hooks\useCustomerActions.js, src\features\customers\hooks\useCustomersData.js, src\features\orders\components\POSCart.jsx, src\services\api\customersApi.js
+[TIMEOUT ] -1  /api/customers                         timed out      <-- src\components\app\useAppData.js, src\features\factory\hooks\useFactoryData.js, src\services\api\dataLoader.js
+[TIMEOUT ] -1  /api/exchange-rates                    timed out      <-- src\services\currency\currencyRates.js
+[TIMEOUT ] -1  /api/expenses                          timed out      <-- src\components\app\useAppData.js, src\services\api\accountingApi.js, src\services\api\dataLoader.js
+[TIMEOUT ] -1  /api/factory                           timed out      <-- src\components\app\useAppData.js, src\features\factory\hooks\useFactoryData.js, src\services\api\dataLoader.js
+[TIMEOUT ] -1  /api/factory/analytics                 timed out      <-- src\features\factory\hooks\useFactoryData.js, src\features\factory\services\factoryService.js
+[404_MISS] 404 /api/factory/job-card/approve          HTTP 404       <-- src\features\factory\components\QualityAssurance.jsx, src\features\factory\hooks\useFactoryOrderActions.js, src\features\factory\services\factoryService.js, src\features\quality\hooks\useQualityStationActions.js
+[404_MISS] 404 /api/factory/job-card/rework           HTTP 404       <-- src\features\factory\services\factoryService.js
+[404_MISS] 404 /api/factory/stock-inflow              HTTP 404       <-- src\features\factory\services\factoryService.js
+[404_MISS] 404 /api/factory/stock-inflow/reverse      HTTP 404       <-- src\features\factory\services\factoryService.js
+[404_MISS] 404 /api/factory/update                    HTTP 404       <-- src\features\factory\services\factoryService.js
+[TIMEOUT ] -1  /api/feedback                          timed out      <-- src\components\app\useAppData.js
+[TIMEOUT ] -1  /api/finance/expenses                  timed out      <-- src\features\expenses\hooks\useExpenseActions.js, src\features\expenses\hooks\useExpensesData.js, src\services\api\accountingApi.js
+[404_MISS] 404 /api/finance/expenses/approve          HTTP 404       <-- src\features\expenses\hooks\useExpenseActions.js, src\services\api\accountingApi.js
+[TIMEOUT ] -1  /api/gas                               timed out      <-- src\features\settings\hooks\useSettingsActions.js, src\features\vouchers\hooks\useVoucherOperations.js, src\services\api\apiCore.js
+[TIMEOUT ] -1  /api/hr/advances                       timed out      <-- src\services\api\systemApi.js
+[TIMEOUT ] -1  /api/hr/commissions                    timed out      <-- src\features\hr\hooks\useHRData.js
+[TIMEOUT ] -1  /api/hr/employees                      timed out      <-- src\components\app\useAppData.js, src\features\factory\components\StageWagesMatrix.jsx, src\features\factory\hooks\useFactoryData.js, src\services\api\dataLoader.js, src\services\api\systemApi.js
+[404_MISS] 404 /api/hr/employees/advance              HTTP 404       <-- src\features\hr\components\AdvancesModal.jsx, src\services\api\systemApi.js
+[TIMEOUT ] -1  /api/hr/job-roles                      timed out      <-- src\components\app\useAppData.js, src\services\api\dataLoader.js, src\services\api\jobRolesApi.js
+[404_MISS] 404 /api/hr/liquidate-pieces               HTTP 404       <-- src\features\hr\components\PieceRateDetailsModal.jsx, src\features\hr\hooks\useHRData.js
+[TIMEOUT ] -1  /api/hr/payroll                        timed out      <-- src\components\app\useAppData.js, src\services\api\dataLoader.js, src\services\api\systemApi.js
+[404_MISS] 404 /api/hr/payroll/batch                  HTTP 404       <-- src\features\hr\hooks\useHRActions.js
+[TIMEOUT ] -1  /api/hr/payroll/calculate              timed out      <-- src\services\api\systemApi.js
+[404_MISS] 404 /api/hr/payroll/disburse-bulk          HTTP 404       <-- src\features\hr\hooks\useHRActions.js
+[404_MISS] 404 /api/hr/payroll/post                   HTTP 404       <-- src\features\hr\hooks\useHRActions.js, src\services\api\systemApi.js
+[TIMEOUT ] -1  /api/hr/piece-rate-logs                timed out      <-- src\features\hr\hooks\useTailorPieceLogs.js
+[404_MISS] 404 /api/hr/tailor-payout                  HTTP 404       <-- src\features\hr\hooks\useHRActions.js
+[TIMEOUT ] -1  /api/hr/tailor-pieces                  timed out      <-- src\features\hr\hooks\useTailorPieceLogs.js
+[TIMEOUT ] -1  /api/hr/tailors-summary                timed out      <-- src\features\hr\hooks\useHRData.js
+[TIMEOUT ] -1  /api/inventory                         timed out      <-- src\components\app\useAppData.js, src\features\inventory\hooks\useInventoryData.js, src\features\products\components\ProductBomMatrix.jsx, src\features\products\hooks\useProductActions.js, src\features\purchases\hooks\usePurchaseActions.js, src\services\api\dataLoader.js
+[404_MISS] 404 /api/inventory/adjust                  HTTP 404       <-- src\services\api\inventoryApi.js
+[404_MISS] 404 /api/inventory/issue                   HTTP 404       <-- src\services\api\inventoryApi.js
+[404_MISS] 404 /api/inventory/items                   HTTP 404       <-- src\services\api\inventoryApi.js
+[404_MISS] 404 /api/inventory/procurement             HTTP 404       <-- src\services\api\inventoryApi.js
+[404_MISS] 404 /api/inventory/reconcile               HTTP 404       <-- src\features\inventory\hooks\useInventoryActions.js
+[TIMEOUT ] -1  /api/inventory/transactions            timed out      <-- src\features\inventory\hooks\useInventoryData.js
+[404_MISS] 404 /api/inventory/transfer                HTTP 404       <-- src\features\inventory\hooks\useInventoryActions.js, src\services\api\inventoryApi.js
+[TIMEOUT ] -1  /api/job-roles                         timed out      <-- src\features\products\components\ProductCostingMatrix.jsx, src\features\products\hooks\useProductActions.js
+[TIMEOUT ] -1  /api/journal                           timed out      <-- src\components\app\useAppData.js, src\features\accounts\hooks\useAccountActions.js, src\services\api\dataLoader.js
+[404_MISS] 404 /api/journal/create                    HTTP 404       <-- src\features\journal\hooks\useJournalActions.js, src\features\vouchers\components\JournalVoucherModal.jsx
+[404_MISS] 404 /api/journal/update                    HTTP 404       <-- src\features\journal\hooks\useJournalActions.js
+[TIMEOUT ] -1  /api/marketing/campaigns               timed out      <-- src\components\app\useAppData.js, src\services\api\dataLoader.js, src\services\api\marketingApi.js
+[TIMEOUT ] -1  /api/marketing/capability-matrix       timed out      <-- src\services\api\marketingApi.js
+[TIMEOUT ] -1  /api/marketing/content                 timed out      <-- src\services\api\marketingApi.js
+[TIMEOUT ] -1  /api/marketing/dashboard               timed out      <-- src\services\api\marketingApi.js
+[TIMEOUT ] -1  /api/marketing/platforms               timed out      <-- src\services\api\marketingApi.js
+[ERR_400 ] 400 /api/measurements/studio               HTTP 400       <-- src\services\api\measurementApi.js
+[TIMEOUT ] -1  /api/measurements/studio/approve       timed out      <-- src\services\api\measurementApi.js
+[TIMEOUT ] -1  /api/measurements/studio/detect-a4-subpixel timed out      <-- src\services\api\measurementApi.js
+[TIMEOUT ] -1  /api/measurements/studio/recent        timed out      <-- src\services\api\measurementApi.js
+[TIMEOUT ] -1  /api/measurements/studio/save          timed out      <-- src\services\api\measurementApi.js
+[TIMEOUT ] -1  /api/orders                            timed out      <-- src\features\customers\hooks\useCustomersData.js, src\services\api\dataLoader.js
+[ERR_400 ] 400 /api/orders/dress-card                 HTTP 400       <-- src\services\atelier\dressCardParser.js
+[OK      ] 200 /api/pricing/quick-quote               Obj(4 keys)    <-- src\features\Orders.jsx
+[404_MISS] 404 /api/production/assign                 HTTP 404       <-- src\services\api\atelierApi.js
+[TIMEOUT ] -1  /api/production/pipeline               timed out      <-- src\services\api\atelierApi.js
+[404_MISS] 404 /api/production/update-stage           HTTP 404       <-- src\services\api\atelierApi.js
+[TIMEOUT ] -1  /api/products                          timed out      <-- src\components\app\useAppData.js, src\features\customers\components\CustomerMeasurementsModal.jsx, src\features\factory\hooks\useFactoryData.js, src\features\products\hooks\useProductActions.js, src\services\api\dataLoader.js
+[TIMEOUT ] -1  /api/products/bom                      timed out      <-- src\services\api\atelierApi.js
+[TIMEOUT ] -1  /api/products/categories               timed out      <-- src\features\products\components\ProductBasicInfoForm.jsx, src\features\products\hooks\useProductsData.js
+[TIMEOUT ] -1  /api/products/get                      timed out      <-- src\features\products\hooks\useProductActions.js, src\services\api\atelierApi.js
+[TIMEOUT ] -1  /api/products/next-sku                 timed out      <-- src\features\products\hooks\useProductActions.js
+[TIMEOUT ] -1  /api/purchases                         timed out      <-- src\components\app\useAppData.js, src\features\purchases\hooks\usePurchaseActions.js, src\features\purchases\hooks\usePurchasesData.js, src\services\api\dataLoader.js
+[TIMEOUT ] -1  /api/purchases/update                  timed out      <-- src\features\purchases\hooks\usePurchaseActions.js
+[404_MISS] 404 /api/quality/checkpoints               HTTP 404       <-- src\services\api\atelierApi.js
+[404_MISS] 404 /api/quality/complaints                HTTP 404       <-- src\services\api\atelierApi.js
+[404_MISS] 404 /api/quality/corrective_actions        HTTP 404       <-- src\services\api\atelierApi.js
+[TIMEOUT ] -1  /api/quality/dashboard                 timed out      <-- src\features\quality\hooks\useQualityStationData.js, src\services\api\atelierApi.js
+[404_MISS] 404 /api/quality/defects                   HTTP 404       <-- src\services\api\atelierApi.js
+[404_MISS] 404 /api/quality/evaluations               HTTP 404       <-- src\services\api\atelierApi.js
+[TIMEOUT ] -1  /api/quality/feedback                  timed out      <-- src\services\api\atelierApi.js, src\services\api\dataLoader.js
+[404_MISS] 404 /api/quality/inspections               HTTP 404       <-- src\services\api\atelierApi.js
+[404_MISS] 404 /api/quality/intelligence              HTTP 404       <-- src\services\api\atelierApi.js
+[404_MISS] 404 /api/quality/returns                   HTTP 404       <-- src\services\api\atelierApi.js
+[404_MISS] 404 /api/quality/settings                  HTTP 404       <-- src\services\api\atelierApi.js
+[TIMEOUT ] -1  /api/reports/balance-sheet             timed out      <-- src\supabaseClient.js
+[TIMEOUT ] -1  /api/reports/financial-statements      timed out      <-- src\services\api\accountingApi.js
+[TIMEOUT ] -1  /api/reports/general-ledger            timed out      <-- src\features\journal\hooks\useJournalData.js, src\features\reports\hooks\useReportsData.js, src\services\api\accountingApi.js, src\supabaseClient.js
+[TIMEOUT ] -1  /api/reports/income-statement          timed out      <-- src\supabaseClient.js
+[404_MISS] 404 /api/reports/reconciliations           HTTP 404       <-- src\services\api\accountingApi.js
+[TIMEOUT ] -1  /api/reports/trial-balance             timed out      <-- src\services\api\accountingApi.js, src\supabaseClient.js
+[TIMEOUT ] -1  /api/sales/orders                      timed out      <-- src\components\app\useAppData.js, src\features\Orders.jsx, src\features\factory\hooks\useFactoryData.js, src\features\orders\hooks\useOrdersData.js, src\services\api\ordersApi.js
+[404_MISS] 404 /api/sales/orders/deliver-and-settle   HTTP 404       <-- src\features\factory\services\factoryService.js, src\features\orders\hooks\useOrderActions.js
+[404_MISS] 404 /api/sales/orders/reverse-delivery     HTTP 404       <-- src\features\factory\services\factoryService.js
+[404_MISS] 404 /api/sales/orders/update               HTTP 404       <-- src\features\orders\hooks\useOrderActions.js, src\services\api\ordersApi.js
+[404_MISS] 404 /api/sales/scan-to-deliver             HTTP 404       <-- src\features\orders\hooks\useOrderActions.js
+[404_MISS] 404 /api/sequences                         HTTP 404       <-- src\services\api\authApi.js
+[TIMEOUT ] -1  /api/sequences/next                    timed out      <-- src\services\api\apiCore.js
+[TIMEOUT ] -1  /api/sequences/preview                 timed out      <-- src\features\customers\components\CustomerModal.jsx, src\services\api\apiCore.js
+[TIMEOUT ] -1  /api/settings                          timed out      <-- src\services\api\systemApi.js, src\services\brandService.js
+[404_MISS] 404 /api/settings/fx-rates                 HTTP 404       <-- src\services\api\systemApi.js
+[TIMEOUT ] -1  /api/suppliers                         timed out      <-- src\features\purchases\hooks\usePurchasesData.js
+[404_MISS] 404 /api/suppliers/create                  HTTP 404       <-- src\features\purchases\components\SupplierQuickAddModal.jsx
+[404_MISS] 404 /api/sync/google-sheets                HTTP 404       <-- src\services\api\systemApi.js
+[OK      ] 200 /api/sync/status                       Obj(5 keys)    <-- src\services\api.js, src\services\api\systemApi.js
+[TIMEOUT ] -1  /api/system/settings                   timed out      <-- src\services\brandService.js
+[404_MISS] 404 /api/tenants/create                    HTTP 404       <-- src\services\api\authApi.js
+[404_MISS] 404 /api/tenants/current                   HTTP 404       <-- src\services\api\authApi.js
+[404_MISS] 404 /api/tenants/list                      HTTP 404       <-- src\services\api\authApi.js
+[404_MISS] 404 /api/tenants/switch                    HTTP 404       <-- src\services\api\authApi.js
+[TIMEOUT ] -1  /api/users                             timed out      <-- src\services\api\authApi.js
+[404_MISS] 404 /api/users/save                        HTTP 404       <-- src\services\api\authApi.js
+[404_MISS] 404 /api/users/sync                        HTTP 404       <-- src\services\api\authApi.js
+[TIMEOUT ] -1  /api/vouchers                          timed out      <-- src\components\app\useAppData.js, src\features\vouchers\hooks\useVouchersData.js, src\services\api\dataLoader.js
+[404_MISS] 404 /api/vouchers/create                   HTTP 404       <-- src\features\vouchers\hooks\useVoucherOperations.js
+[404_MISS] 404 /api/vouchers/reverse                  HTTP 404       <-- src\features\vouchers\hooks\useVoucherOperations.js
+[404_MISS] 404 /api/vouchers/update                   HTTP 404       <-- src\features\vouchers\hooks\useVoucherOperations.js
+[TIMEOUT ] -1  /api/warehouses                        timed out      <-- src\features\inventory\components\WarehouseAddModal.jsx, src\features\inventory\components\WarehouseManageModal.jsx, src\features\inventory\utils\inventoryUtils.js, src\services\api\inventoryApi.js
+[404_MISS] 404 /api/warehouses/toggle-status          HTTP 404       <-- src\features\inventory\components\WarehouseManageModal.jsx
+[404_MISS] 404 /api/warehouses/update                 HTTP 404       <-- src\features\inventory\components\WarehouseManageModal.jsx
+
+=== DYNAMIC ROUTES ===
+/api/quality/intelligence/${dimension} <-- src\services\api\atelierApi.js
+/api/reports/balance-sheet${qs} <-- src\features\reports\hooks\useReportsData.js
+/api/reports/income-statement${qs} <-- src\features\reports\hooks\useReportsData.js
+/api/reports/trial-balance${qStart}${qEnd} <-- src\features\journal\hooks\useJournalData.js
+/api/reports/trial-balance${qs} <-- src\features\reports\hooks\useReportsData.js
+/api/rpc/${fnName} <-- src\supabaseClient.js

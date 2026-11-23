@@ -34,7 +34,7 @@ function AppLayout({
     try { localStorage.setItem('lp_theme', next); document.documentElement.classList.toggle('dark', next === 'dark'); if (document.body) document.body.classList.toggle('dark', next === 'dark'); window.dispatchEvent(new CustomEvent('lp:themeChanged', { detail: { theme: next } })); } catch(e) {}
   };
   const brand = (typeof window !== 'undefined' && window.BrandService) ? window.BrandService.getProfile() : { name: 'نظام الإدارة المتكامل الذكي', shortName: 'ERP Master' };
-  const currencyOpts = [{ code: 'YER', label: 'ريال يمني', display: 'YER ﷼' }, { code: 'SAR', label: 'ريال سعودي', display: 'SAR ﷼' }, { code: 'USD', label: 'دولار أمريكي', display: 'USD $' }];
+  const currencyOpts = [{ code: 'YER', label: 'ريال يمني', symbol: '﷼', display: 'YER' }, { code: 'SAR', label: 'ريال سعودي', symbol: '﷼', display: 'SAR' }, { code: 'USD', label: 'دولار أمريكي', symbol: '$', display: 'USD' }];
   const currentCurr = systemCurrency || currencyOpts[0];
   const handleSelectCurrency = (c) => { if (setSystemCurrency) setSystemCurrency(c); try { localStorage.setItem('erp_system_currency', c.code); window.dispatchEvent(new CustomEvent('erp:currencyChanged', { detail: c })); } catch(e) {} setCurrencyDropdown(false); };
   const navSections = React.useMemo(() => [
@@ -144,7 +144,6 @@ function AppLayout({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="بحث سريع في السجلات... (Ctrl+K)"
               className="w-full h-[30px] text-xs text-white placeholder-slate-400 bg-slate-900/90 border border-slate-700 rounded-lg pr-7 pl-2.5 outline-none font-medium focus:border-pink-500 transition-colors"
             />
             <span className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-xs">🔍</span>
@@ -165,7 +164,7 @@ function AppLayout({
 
             <div className="relative">
               <button type="button" onClick={() => setCurrencyDropdown(!currencyDropdown)} className="h-7 px-2 text-[10.5px] font-mono font-bold text-slate-300 bg-slate-900 border border-slate-700 rounded-lg flex items-center gap-1 cursor-pointer transition">
-                <span>{currentCurr.display || currentCurr.code}</span>
+                <span>{currentCurr.code || currentCurr.display}</span>
                 <span className="text-[9px] text-slate-400">▼</span>
               </button>
               {currencyDropdown && (

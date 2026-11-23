@@ -12,6 +12,7 @@ function Vouchers({
   const {
     currencyDisplay = "YER ﷼", activeTargetCurr = "YER", search = '', setSearch = () => {},
     typeFilter = 'الكل', setTypeFilter = () => {}, isRefreshing = false, loading = false,
+    fetchError = null,
     partnerAccounts = [], getCleanPartnerName = (a) => '', findPartnerAccount = () => null,
     normalizeVoucher = (v) => v, filteredVouchers = [],
     totals = { receipts: 0, payments: 0, net: 0, count: 0 },
@@ -68,6 +69,14 @@ function Vouchers({
           <div className="flex flex-col items-center justify-center py-12 text-center text-slate-400">
             <div className="w-7 h-7 border-2 border-teal-500/30 border-t-teal-600 rounded-full animate-spin mb-2"></div>
             <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">جاري تحميل السندات والمعاملات المالية...</p>
+          </div>
+        ) : fetchError ? (
+          <div className="flex flex-col items-center justify-center py-10 text-center text-rose-400 bg-rose-950/20 rounded-xl border border-rose-800/40 m-2 p-6">
+            <div className="text-2xl mb-1.5">⚠️</div>
+            <p className="text-xs font-bold text-rose-300 mb-2">{fetchError}</p>
+            <button type="button" onClick={refreshVouchers} className="px-3 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded text-xs font-bold transition cursor-pointer">
+              إعادة المحاولة 🔄
+            </button>
           </div>
         ) : Table ? (
           <Table

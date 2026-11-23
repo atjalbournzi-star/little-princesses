@@ -27,7 +27,8 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
     OrdersHeader: HeaderComp, OrdersFilterBar: FilterBarComp, OrdersTable: TableComp,
     OrderFormModal: FormModalComp, OrdersPosStudio: PosStudioComp, OrderDeliveryModal: DeliveryModalComp,
     OrderScanDeliverModal: ScanDeliverModalComp, OrderAlterationModal: AlterationModalComp,
-    OrderCustomerMessageModal: MessageModalComp, OrderQuoteModal: QuoteModalComp, OrderDetailModal: DetailModalComp
+    OrderCustomerMessageModal: MessageModalComp, OrderQuoteModal: QuoteModalComp, OrderDetailModal: DetailModalComp,
+    ReadyOrdersPanel: ReadyOrdersComp
   } = window;
 
   const { search, setSearch, statusFilter, setStatusFilter, deliveryDateFilter, setDeliveryDateFilter, filteredOrders, stats, currencyDisplay } = useData({ orders, setOrders, currency });
@@ -134,6 +135,31 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
           onOpenScanDeliver={() => setScanDeliverModalOpen(true)}
           stats={stats}
         />
+      )}
+
+      {activeMode === 'ready' && (
+        <div className="h-full flex flex-col space-y-1.5 overflow-hidden">
+          {window.POSHeader && React.createElement(window.POSHeader, {
+            activeMode,
+            setActiveMode,
+            cartCount: cart.reduce((s, i) => s + (i.qty || 1), 0),
+            ordersCount: orders.length,
+            onOpenScanDeliver: () => setScanDeliverModalOpen(true),
+            stats,
+            currencyDisplay
+          })}
+          {ReadyOrdersComp && (
+            <ReadyOrdersComp
+              orders={orders}
+              customers={customers}
+              currencyDisplay={currencyDisplay}
+              onOpenDeliveryModal={setDeliveryModalOrder}
+              onOpenCustomerMessage={openCustomerMessageModal}
+              onOpenPrintModal={openPrintModal}
+              setActiveMode={setActiveMode}
+            />
+          )}
+        </div>
       )}
 
       {activeMode === 'archive' && (

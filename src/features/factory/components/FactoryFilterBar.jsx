@@ -43,7 +43,6 @@ function FactoryFilterBar({
             type="text"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="بحث في الطلبات..."
             className="pl-5 pr-6 h-6 rounded-md border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0F172A] text-[11px] font-medium w-full text-slate-900 dark:text-white focus:border-teal-600 dark:focus:border-teal-500 outline-none transition"
           />
           <svg className="w-3 h-3 absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">

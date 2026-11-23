@@ -38,28 +38,22 @@ def add_warehouse(payload):
         """, (code, code, name, location))
         wh = dict(cur.fetchone())
 
-        # إنشاء حساب فرعي تحت مجموعة المخزون (كود الأب 105)
-        acc_suffix = code.replace("WH-", "").lower()
-        acc_code = f"105.{acc_suffix}"
-        acc_id = f"ACC-105-{acc_suffix}"
-        acc_name = f"جرد مستودع {name}"
-        cur.execute("""
-            INSERT INTO chart_of_accounts (
-                id, account_code, account_name, account_name_en, account_type,
-                account_category, parent_account_code, level, is_group, is_postable,
-                normal_balance, currency, notes
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT (account_code) DO NOTHING;
-        """, (acc_id, acc_code, acc_name, f"Warehouse Inventory - {name}", "أصول",
-              "Inventory", "105", 3, False, True, "Debit", "YER",
-              f"حساب جرد آلي مرتبط بالمستودع {code}"))
+        # ربط المستودع بحساب مخزون فرعي مستقل ديناميكياً تحت حساب المخزون الرئيسي
+        from .pg_warehouse_accounts import create_or_link_warehouse_account
+        from .pg_audit import get_active_user_context
+        resolved_user = clean_str(data.get("user_id") or data.get("created_by")) or get_active_user_context()
+        acc_id = create_or_link_warehouse_account(cur, code, name, code, user_id=resolved_user)
+        cur.execute("SELECT account_code, account_name FROM chart_of_accounts WHERE id = %s LIMIT 1;", (acc_id,))
+        acc_row = cur.fetchone() or {"account_code": "", "account_name": name}
+        acc_code = acc_row.get("account_code")
+        acc_name = acc_row.get("account_name")
 
     logger.info(f"New warehouse created: {code} | Account: {acc_code}")
     wh_clean = {k: str(v) if not isinstance(v, (str, int, float, bool, type(None))) else v for k, v in wh.items()}
     return {
         "success": True, "status": "created",
-        "data": {**wh_clean, "account_code": acc_code, "account_name": acc_name},
-        "message": f"تم إنشاء المستودع [{name}] ({code}) وحساب الجرد [{acc_code}] بنجاح 🏢✅"
+        "data": {**wh_clean, "account_id": acc_id, "account_code": acc_code, "account_name": acc_name},
+        "message": f"تم إنشاء المستودع [{name}] ({code}) وحساب المخزون [{acc_code}] بنجاح 🏢✅"
     }
 
 
@@ -89,16 +83,16 @@ def update_warehouse(payload):
         """, (name, location, wh["id"]))
         updated_wh = dict(cur.fetchone())
 
-        acc_suffix = code.replace("WH-", "").lower()
-        acc_code = f"105.{acc_suffix}"
-        cur.execute("""
-            UPDATE chart_of_accounts
-            SET account_name = %s, account_name_en = %s
-            WHERE account_code = %s;
-        """, (f"جرد مستودع {name}", f"Warehouse Inventory - {name}", acc_code))
-
-    WAREHOUSE_NORMALIZE.pop(old_name, None)
-    WAREHOUSE_NORMALIZE[name] = code
+        acc_id = updated_wh.get('account_id')
+        if not acc_id:
+            from .pg_warehouse_accounts import create_or_link_warehouse_account
+            acc_id = create_or_link_warehouse_account(cur, wh["id"], name, code)
+        else:
+            cur.execute("""
+                UPDATE chart_of_accounts
+                SET account_name = %s, account_name_en = %s
+                WHERE id = %s;
+            """, (name, f"Inventory - {code}", acc_id))
 
     logger.info(f"Warehouse updated: {code} | Name: {name}")
     wh_clean = {k: str(v) if not isinstance(v, (str, int, float, bool, type(None))) else v for k, v in updated_wh.items()}
@@ -154,41 +148,35 @@ def delete_warehouse_if_empty(payload):
         raise ValueError("محظور حوكمياً: لا يمكن حذف مستودعات النظام الأساسية السيادية إطلاقاً")
 
     with get_db_cursor(commit=True) as cur:
-        cur.execute("SELECT id, code, name FROM warehouses WHERE id = %s OR code = %s LIMIT 1 FOR UPDATE;", (wh_id, wh_id))
+        cur.execute("SELECT id, code, name, account_id FROM warehouses WHERE id = %s OR code = %s LIMIT 1 FOR UPDATE;", (wh_id, wh_id))
         wh = cur.fetchone()
         if not wh:
             raise ValueError(f"لم يتم العثور على المستودع: {wh_id}")
 
         code = wh["code"]
         name = wh["name"]
+        acc_id = wh.get("account_id")
 
-        cur.execute("SELECT COALESCE(SUM(quantity), 0) as tot FROM warehouse_stock WHERE warehouse_id = %s;", (code,))
+        cur.execute("SELECT COALESCE(SUM(quantity), 0) as tot FROM warehouse_stock WHERE warehouse_id = %s;", (wh["id"],))
         tot_stock = float(cur.fetchone()["tot"] or 0)
         if tot_stock > 0:
             raise ValueError(f"لا يمكن حذف المستودع [{name}]: يحتوي على رصيد مخزني حالي ({tot_stock} وحدة). يرجى تصفير أو مناقلة الرصيد أولاً.")
 
-        cur.execute("SELECT COUNT(*) as cnt FROM inventory_transactions WHERE warehouse_id = %s;", (code,))
+        cur.execute("SELECT COUNT(*) as cnt FROM inventory_transactions WHERE warehouse_id = %s;", (wh["id"],))
         txn_cnt = int(cur.fetchone()["cnt"] or 0)
         if txn_cnt > 0:
             raise ValueError(f"حظر حوكمي: لا يمكن حذف المستودع [{name}] لوجود ({txn_cnt}) حركة مخزنية مسجلة به. يمكنك تعطيله بدلاً من ذلك.")
 
-        acc_suffix = code.replace("WH-", "").lower()
-        acc_code = f"105.{acc_suffix}"
-        cur.execute("""
-            SELECT COUNT(*) as cnt FROM journal_entry_lines jel
-            JOIN chart_of_accounts coa ON (jel.account_id = coa.id OR jel.account_id = coa.account_code)
-            WHERE coa.account_code = %s OR coa.id = %s;
-        """, (acc_code, f"ACC-105-{acc_suffix}"))
-        j_cnt = int(cur.fetchone()["cnt"] or 0)
-        if j_cnt > 0:
-            raise ValueError(f"حظر مالي حوكمي: حساب الجرد المرتبط بهذا المستودع مسجل عليه ({j_cnt}) قيد محاسبي. لا يمكن حذفه للحفاظ على سلامة الحسابات.")
+        if acc_id:
+            cur.execute("SELECT COUNT(*) as cnt FROM journal_entry_lines WHERE account_id = %s;", (acc_id,))
+            j_cnt = int(cur.fetchone()["cnt"] or 0)
+            if j_cnt > 0:
+                raise ValueError(f"حظر مالي حوكمي: حساب المخزون المرتبط بهذا المستودع مسجل عليه ({j_cnt}) قيد محاسبي. لا يمكن حذفه للحفاظ على سلامة الحسابات.")
 
-        cur.execute("DELETE FROM warehouse_stock WHERE warehouse_id = %s;", (code,))
+        cur.execute("DELETE FROM warehouse_stock WHERE warehouse_id = %s;", (wh["id"],))
         cur.execute("DELETE FROM warehouses WHERE id = %s;", (wh["id"],))
-        cur.execute("DELETE FROM chart_of_accounts WHERE account_code = %s;", (acc_code,))
-
-    WAREHOUSE_NORMALIZE.pop(code, None)
-    WAREHOUSE_NORMALIZE.pop(name, None)
+        if acc_id:
+            cur.execute("DELETE FROM chart_of_accounts WHERE id = %s;", (acc_id,))
 
     logger.info(f"Empty warehouse safely deleted: {code} | {name}")
     return {

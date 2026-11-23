@@ -9,19 +9,19 @@ def get_products(params=None):
     query = """SELECT id, sku, model_name, model_name as name, model_no, category, subcategory, collection, design_code,
                base_price, base_price as price, base_price as sell_price, cost_price, cost_price as cost, cost_price as total_cost,
                labor_cost, packaging_cost, fabric_cost, bom, price_matrix, age_chart, target_segment, barcode, currency,
-               image_url, image, image_data, colors, approved_colors, description, min_stock, status, created_by,
+               image_url, colors, description, min_stock, status, created_by,
                (status = 'Active') as is_active, created_at, updated_at FROM products ORDER BY created_at DESC;"""
     rows = execute_query(query, fetch_all=True) or []
     for r in rows:
         if r.get('created_at'): r['created_at'] = str(r['created_at'])
         if r.get('updated_at'): r['updated_at'] = str(r['updated_at'])
-        for jf in ('bom', 'price_matrix', 'age_chart', 'colors', 'approved_colors'):
+        for jf in ('bom', 'price_matrix', 'age_chart', 'colors'):
             if isinstance(r.get(jf), str):
                 try: r[jf] = json.loads(r[jf])
                 except Exception: pass
         r['target_segment'] = r.get('target_segment') or 'kids'
         r['barcode'] = r.get('barcode') or r.get('sku') or f"PRD-{r.get('id')}"
-        img = clean_str(r.get('image_url') or r.get('image') or r.get('image_data') or '')
+        img = clean_str(r.get('image_url') or '')
         r['image_url'], r['image'], r['image_data'] = img, img, img
 
         raw_bm = r.get('bom') or {}
@@ -38,25 +38,27 @@ def get_products(params=None):
         else:
             r['fabric_name'], r['yards_used'] = r.get('description') or '', 0.0
 
-        r['cutter_wage'] = clean_num(bm_meta.get('cutter_wage') or r.get('cutter_wage') or 0.0)
-        r['tailor_wage'] = clean_num(bm_meta.get('tailor_wage') or r.get('tailor_wage') or 0.0)
-        r['embroiderer_wage'] = clean_num(bm_meta.get('embroiderer_wage') or r.get('embroiderer_wage') or 0.0)
-        r['finisher_wage'] = clean_num(bm_meta.get('finisher_wage') or r.get('finisher_wage') or 0.0)
         stg = bm_meta.get('stage_wages') or {}
-        for wk in ('cutter_wage', 'tailor_wage', 'embroiderer_wage', 'finisher_wage'):
+        r['cutter_wage'] = clean_num(stg.get('cutter_wage') or bm_meta.get('cutter_wage') or r.get('cutter_wage') or 0.0)
+        r['tailor_wage'] = clean_num(stg.get('tailor_wage') or bm_meta.get('tailor_wage') or r.get('tailor_wage') or 0.0)
+        r['embroiderer_wage'] = clean_num(stg.get('embroiderer_wage') or bm_meta.get('embroiderer_wage') or r.get('embroiderer_wage') or 0.0)
+        r['finisher_wage'] = clean_num(stg.get('finisher_wage') or bm_meta.get('finisher_wage') or r.get('finisher_wage') or 0.0)
+        r['packaging_cost'] = clean_num(stg.get('packaging_cost') or stg.get('packager_wage') or r.get('packaging_cost') or bm_meta.get('packaging_cost') or 0.0)
+        r['packager_wage'] = r['packaging_cost']
+        for wk in ('cutter_wage', 'tailor_wage', 'embroiderer_wage', 'finisher_wage', 'packager_wage', 'packaging_cost'):
             if not stg.get(wk) and r.get(wk): stg[wk] = r[wk]
-        if not stg.get('packager_wage') and r.get('packaging_cost'): stg['packager_wage'] = float(r['packaging_cost'])
         r['stage_wages'] = stg
 
-        cols = r.get('colors') or r.get('approved_colors') or bm_meta.get('colors') or []
+        cols = r.get('colors') or bm_meta.get('colors') or []
         if isinstance(cols, str):
             try: cols = json.loads(cols)
             except Exception: cols = [c.strip() for c in cols.split(',') if c.strip()]
-        clean_cols = []
+        clean_cols, seen_c = [], set()
         for c in (cols if isinstance(cols, list) else []):
-            if isinstance(c, dict): clean_cols.append(c.get('name') or c.get('color') or c.get('label') or str(c))
-            elif isinstance(c, str): clean_cols.append(c.strip())
-            else: clean_cols.append(str(c))
+            c_str = c.get('name') or c.get('color') or c.get('label') or str(c) if isinstance(c, dict) else clean_str(str(c))
+            if c_str and c_str not in seen_c:
+                seen_c.add(c_str)
+                clean_cols.append(c_str)
         r['colors'], r['approved_colors'] = clean_cols, clean_cols
         if not r.get('price_matrix'):
             ref = 'M' if r['target_segment'] == 'women_adults' else ('تفصيل حر' if r['target_segment'] == 'custom_free' else '6-9Y')
@@ -83,14 +85,13 @@ def get_bom_models(payload=None):
     avg_c, avg_p = (tot_cost / n if n else 0.0), (tot_price / n if n else 0.0)
     avg_m = ((avg_p - avg_c) / avg_p * 100) if avg_p > 0 else 0.0
     return {"success": True, "status": "success", "data": prods, "count": n,
-            "kpis": {"total_models": n, "avg_cost": round(avg_c, 2), "avg_price": round(avg_p, 2), "avg_margin": round(avg_m, 1)}}
+            "kpis": {"total_models": n, "avg_cost": round(avg_c, 2), "avg_price": round(avg_p, 2), "avg_margin": round(avg_m, 2)}}
 
 
 def get_product_categories():
-    """استرجاع خيارات التصنيف الفني ديناميكياً من قاعدة البيانات دون أي قيم ثابتة"""
-    query = """SELECT DISTINCT category FROM products 
-               WHERE category IS NOT NULL AND TRIM(category) != '' 
-               ORDER BY category ASC;"""
+    """استرجاع خيارات التصنيف الفني ديناميكياً من جدول product_categories حصراً دون قراءة أي سجلات صفرية"""
+    query = """SELECT name FROM product_categories 
+               WHERE name IS NOT NULL AND TRIM(name) != '' 
+               ORDER BY created_at ASC, name ASC;"""
     rows = execute_query(query, fetch_all=True) or []
-    cats = [clean_str(r['category']) for r in rows if clean_str(r.get('category'))]
-    return cats
+    return [clean_str(r['name']) for r in rows if clean_str(r.get('name'))]

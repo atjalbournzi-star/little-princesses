@@ -9,27 +9,23 @@ function useFactoryOrderActions(props) {
     const wage = (pW !== undefined && pW !== '' && pW !== null) ? String(pW) : '';
     const dW = (window.WageMatrixService?.resolveStageWages) ? window.WageMatrixService.resolveStageWages(form) : {};
     const keyMap = { cutter: 'cutter', tailor: 'tailor', embroiderer: 'embroiderer', finisher: 'finisher', packager: 'packager' };
-    const prefix = keyMap[stageRole] || stageRole;
-    setForm(p => ({
-      ...p, [`${prefix}_name`]: empName, ...(prefix === 'tailor' ? { tailor: empName } : {}),
-      [`${prefix}_wage`]: wage !== '' ? wage : (p[`${prefix}_wage`] || String(dW[`${prefix}_wage`] || ''))
-    }));
+    const prefix = keyMap[stageRole] || stageRole, empId = matched ? matched.id : '';
+    setForm(p => {
+      const curW = p[`${prefix}_wage`], hasCurW = curW !== undefined && curW !== '' && curW !== null && parseFloat(curW) > 0;
+      return { ...p, [`${prefix}_name`]: empName, [`${prefix}_id`]: empId, ...(prefix === 'tailor' ? { tailor: empName, tailor_id: empId, assigned_tailor_id: empId } : {}), [`${prefix}_wage`]: hasCurW ? curW : (wage !== '' ? wage : (curW || String(dW[`${prefix}_wage`] || ''))) };
+    });
   };
 
   const selectLatestCustomer = () => {
-    if (!customers?.length) return showToast('لا يوجد عملاء مسجلون حالياً ⚠️', 'warning');
-    const c = customers[0], m = c.measurements?.[0], ch = m?.child_name || c.children?.[0]?.child_name || 'الأميرة', pName = m?.selected_model || m?.model_name || '';
-    const ord = (orders || []).find(o => o.customer_id === c.id || o.customer_id === c.customer_id || (o.customer_name && o.customer_name === c.name));
-    const autoCalc = utils.calculateMetersForModel ? utils.calculateMetersForModel(pName, ch, c.name, products, customers, fabricInventory) : { fabric: 'تفتة تركي', meters: 3 };
-    const due = ord?.delivery_date || (utils.addDays ? utils.addDays(todayStrIso, 4) : ''), autoM = utils.autoDistributeMilestones ? utils.autoDistributeMilestones(todayStrIso, due) : {};
-    setForm(p => ({
-      ...p, order_no: ord ? (ord.order_no || ord.id) : '',
-      customer: c.name || c.customer_name, customer_name: c.name || c.customer_name, child_name: ch, product: pName, product_name: pName, product_id: ord?.product_id || '',
-      quantity: ord?.qty || 1, tailor: p.tailor || (employees?.find(e => e.status === 'نشط')?.name || ''),
-      stage: stages[0], progress: '0', start_date: todayStrIso, due_date: due, cutting_due_date: autoM.cutting, sewing_due_date: autoM.sewing,
-      embroidery_due_date: autoM.embroidery, finishing_due_date: autoM.finishing, fabric_name: autoCalc.fabric, cut_meters: String(autoCalc.meters), deduct_inventory: true
-    }));
-    showToast(`تم تحميل بيانات آخر زبونة: (${c.name}) بنجاح ⚡👗`, 'success');
+    const validOrds = (orders || []).filter(o => {
+      const st = String(o?.status || '').toLowerCase();
+      return st !== 'cancelled' && st !== 'ملغي';
+    });
+    if (!validOrds.length) return showToast('لا توجد طلبات معتمدة في النظام حالياً ⚠️', 'warning');
+    const openOrd = validOrds.find(o => String(o.status || '').toLowerCase() !== 'delivered' && o.stage !== 'تم التسليم') || validOrds[0];
+    const ordNum = openOrd.order_no || openOrd.id;
+    handleOrderSelect(ordNum);
+    showToast(`تم ربط أمر التشغيل بأحدث طلب معتمد (${ordNum}) للعميلة (${openOrd.customer_name || 'العميلة'}) وسحب موقف السداد ⚡👗`, 'success');
   };
 
   const handleOrderSelect = (e) => {
@@ -49,8 +45,10 @@ function useFactoryOrderActions(props) {
     const targetModel = String(ord.product_id || ord.product_name || ord.product || '').trim().toLowerCase();
     const prod = (allProds || []).find(p => (ord.product_id && String(p.id) === String(ord.product_id)) || (targetModel && (String(p.id) === targetModel || p.name?.toLowerCase() === targetModel || p.model_name?.toLowerCase() === targetModel)));
     const childMeas = ord.measurements_spec || ord.measurements || {}, orderQty = parseFloat(ord.qty || ord.quantity || 1) || 1;
+    const ordColor = ord.dress_color || ord.selected_color || ord.color || '';
     const conv = window.MeasurementConverter, selectedSize = conv ? conv.resolveSizeCode(childMeas, prod?.target_segment || 'kids') : (form.size_code || '6-9Y'), dressInches = conv ? conv.resolveDressLengthInches(childMeas) : 26;
-    const bomItems = conv ? conv.buildBomItems(prod, selectedSize, dressInches, orderQty, fabricInventory, ord) : [], firstBom = bomItems[0] || {}, unitPrice = conv ? conv.resolveUnitPrice(prod, selectedSize) : 0;
+    const smBom = window.SmartSizingMatcher?.getBomConsumptionAndPricing ? window.SmartSizingMatcher.getBomConsumptionAndPricing(prod, selectedSize, orderQty, 'متر', childMeas, fabricInventory, ordColor)?.bomItems : null;
+    const bomItems = (Array.isArray(smBom) && smBom.length > 0) ? smBom : (conv ? conv.buildBomItems(prod, selectedSize, dressInches, orderQty, fabricInventory, ord) : []), firstBom = bomItems[0] || {}, unitPrice = conv ? conv.resolveUnitPrice(prod, selectedSize) : 0;
     const delFee = parseFloat(ord.delivery_fee ?? ord.delivery ?? 0), delMode = ord.delivery_payment_mode || 'DIRECT_TO_COURIER', isPrepaid = delMode === 'PREPAID_VIA_ATELIER';
     const rawOrdTot = ord.total_amount ?? ord.total_price ?? ord.grand_total ?? ord.total ?? ord.price ?? ord.base_amount, ordTotNum = (rawOrdTot !== undefined && rawOrdTot !== null && rawOrdTot !== '') ? parseFloat(rawOrdTot) : 0;
     const baseDressTot = unitPrice > 0 ? (unitPrice * orderQty) : (ordTotNum - (isPrepaid ? delFee : 0)), finalTot = ordTotNum > 0 ? ordTotNum : (baseDressTot + (isPrepaid ? delFee : 0));
@@ -61,16 +59,13 @@ function useFactoryOrderActions(props) {
 
     setForm(p => ({
       ...p, order_no: ord.order_no || val, customer: ord.customer_name || ord.customer || '', customer_name: ord.customer_name || ord.customer || '',
-      child_name: ord.child_name || '', product: prod?.model_name || prod?.name || ord.product_name || ord.product || '', product_name: prod?.model_name || prod?.name || ord.product_name || ord.product || '',
+      child_name: ord.child_name || '', selected_color: ordColor, color: ordColor, dress_color: ordColor, product: prod?.model_name || prod?.name || ord.product_name || ord.product || '', product_name: prod?.model_name || prod?.name || ord.product_name || ord.product || '',
       product_id: prod?.id || ord.product_id || '', image_url: prod?.image_url || prod?.image || p.image_url || '', target_segment: prod?.target_segment || 'kids', quantity: orderQty,
       measurements_spec: childMeas, size_code: selectedSize, size_badge: `[ الفئة: ${selectedSize} - طول ${dressInches.toFixed(1)}" ]`,
       tailor: p.tailor || (employees?.find(e => e.status === 'نشط' && e.role === 'خياط')?.name || employees?.find(e => e.status === 'نشط')?.name || ''),
-      tailor_name: p.tailor_name || '', cutter_name: p.cutter_name || '', cutter_wage: String(stageWages.cutter_wage ?? prod?.cutter_wage ?? p.cutter_wage ?? ''),
-      tailor_wage: String(stageWages.tailor_wage ?? prod?.tailor_wage ?? p.tailor_wage ?? ''),
-      embroiderer_name: p.embroiderer_name || '', embroiderer_wage: String(stageWages.embroiderer_wage ?? prod?.embroiderer_wage ?? p.embroiderer_wage ?? ''),
-      finisher_name: p.finisher_name || '', finisher_wage: String(stageWages.finisher_wage ?? prod?.finisher_wage ?? p.finisher_wage ?? ''),
-      packager_name: p.packager_name || '', packager_wage: pkgW, packaging_cost: pkgW,
-      stage: p.stage || stages[0], progress: p.progress || '0', start_date: todayStrIso, due_date: targetDueDate,
+      tailor_name: p.tailor_name || '', cutter_name: p.cutter_name || '', cutter_wage: String(stageWages.cutter_wage || prod?.cutter_wage || p.cutter_wage || ''), tailor_wage: String(stageWages.tailor_wage || prod?.tailor_wage || p.tailor_wage || ''),
+      embroiderer_name: p.embroiderer_name || '', embroiderer_wage: String(stageWages.embroiderer_wage || prod?.embroiderer_wage || p.embroiderer_wage || ''), finisher_name: p.finisher_name || '', finisher_wage: String(stageWages.finisher_wage || prod?.finisher_wage || p.finisher_wage || ''), packager_name: p.packager_name || '', packager_wage: pkgW, packaging_cost: pkgW,
+      stage: p.stage || stages[0], progress: p.progress || '0', start_date: todayStrIso, due_date: targetDueDate, delivery_date: targetDueDate,
       cutting_due_date: autoM.cutting, sewing_due_date: autoM.sewing, embroidery_due_date: autoM.embroidery, finishing_due_date: autoM.finishing, packaging_due_date: autoM.packaging || targetDueDate,
       fabric_name: firstBom.fabric_name || p.fabric_name, cut_meters: firstBom.cut_meters || '1.50',
       cut_unit: firstBom.cut_unit || firstBom.unit || 'متر', deduct_inventory: true, production_type: 'bespoke', bom_items: bomItems, bom: bomItems, materials: bomItems,
@@ -86,58 +81,66 @@ function useFactoryOrderActions(props) {
   };
 
   const loadIntoForm = (f) => {
-    const fTot = parseFloat(f.total_amount ?? f.total_price ?? f.total ?? 0), fPd = parseFloat(f.paid_amount ?? f.advance_paid ?? f.paid ?? f.deposit ?? 0), fRem = Math.max(0, fTot - fPd);
-    const pkgW = String(f.packaging_cost || f.packager_wage || '');
+    const ordMatch = (orders || []).find(o => String(o.id) === String(f.order_id || f.order_no) || String(o.order_no) === String(f.order_no || f.order_id));
+    const ordNo = ordMatch?.order_no || f.order_no || f.order_id || f.id;
+    const fTot = parseFloat(f.total_amount ?? ordMatch?.total_amount ?? 0), fPd = parseFloat(f.paid_amount ?? ordMatch?.paid_amount ?? 0), fRem = Math.max(0, fTot - fPd);
+    const pkgW = String(f.packaging_cost || f.packager_wage || ''), hasEx = Boolean(f.allow_unpaid_exception || (f.notes && f.notes.includes('استثناء إداري')));
+    const cMeas = (f.measurements_spec && Object.keys(f.measurements_spec).length > 0) ? f.measurements_spec : (ordMatch?.measurements_spec || f.measurements || ordMatch?.measurements || {});
+    const cCode = f.size_code || ordMatch?.size_code || '', cFabs = (Array.isArray(f.fabrics_data) && f.fabrics_data.length > 0) ? f.fabrics_data : (ordMatch?.fabrics_data || f.bom_items || []);
     setForm({
-      order_no: f.order_no || f.id, customer: f.customer || f.customer_name || '', customer_name: f.customer_name || f.customer || '',
-      child_name: f.child_name || '', product: f.product || f.product_name || '', product_name: f.product || f.product_name || '',
-      product_id: f.product_id || '', quantity: f.quantity || 1, tailor: f.tailor_name || f.tailor || '', tailor_name: f.tailor_name || f.tailor || '',
+      order_no: ordNo, order_id: ordNo, customer: f.customer || f.customer_name || ordMatch?.customer_name || '', customer_name: f.customer_name || f.customer || ordMatch?.customer_name || '',
+      child_name: f.child_name || ordMatch?.child_name || '', product: f.product || f.product_name || ordMatch?.product_name || '', product_name: f.product || f.product_name || ordMatch?.product_name || '',
+      product_id: f.product_id || ordMatch?.product_id || '', quantity: f.quantity || ordMatch?.quantity || 1, tailor: f.tailor_name || f.tailor || '', tailor_name: f.tailor_name || f.tailor || '',
       stage: f.stage || stages[0], progress: f.progress ? String(f.progress).replace('%', '') : (utils.calculateDynamicProgress ? String(utils.calculateDynamicProgress(f.stage)) : '0'),
-      start_date: f.start_date || todayStrIso, due_date: f.due_date || '', cutting_due_date: f.cutting_due_date || '', sewing_due_date: f.sewing_due_date || '',
+      start_date: f.start_date || todayStrIso, due_date: f.due_date || ordMatch?.delivery_date || '', cutting_due_date: f.cutting_due_date || '', sewing_due_date: f.sewing_due_date || '',
       embroidery_due_date: f.embroidery_due_date || '', finishing_due_date: f.finishing_due_date || '', packaging_due_date: f.packaging_due_date || f.due_date || '',
-      cutter_name: f.cutter_name || '', cutter_wage: String(f.cutter_wage || ''), tailor_wage: String(f.tailor_wage || ''),
-      embroiderer_name: f.embroiderer_name || '', embroiderer_wage: String(f.embroiderer_wage || f.embroidery_wage || ''),
-      finisher_name: f.finisher_name || '', finisher_wage: String(f.finisher_wage || ''), packager_name: f.packager_name || '', packager_wage: pkgW, packaging_cost: pkgW,
-      fabric_name: f.fabric_name || '', cut_meters: f.cut_meters ? String(f.cut_meters) : '', cut_unit: f.cut_unit || 'متر', bom_items: f.bom_items || [],
-      delivery_fee: f.delivery_fee || 0, total_amount: fTot, paid_amount: fPd, advance_paid: fPd, deposit: fPd, remaining_balance: fRem, remaining_amount: fRem, remaining: fRem, subtotal: f.subtotal, deduct_inventory: false
+      cutter_name: f.cutter_name || '', cutter_wage: String(f.cutter_wage || ''), tailor_wage: String(f.tailor_wage || ''), embroiderer_name: f.embroiderer_name || '', embroiderer_wage: String(f.embroiderer_wage || f.embroidery_wage || ''), finisher_name: f.finisher_name || '', finisher_wage: String(f.finisher_wage || ''), packager_name: f.packager_name || '', packager_wage: pkgW, packaging_cost: pkgW,
+      fabric_name: f.fabric_name || '', cut_meters: f.cut_meters ? String(f.cut_meters) : '', cut_unit: f.cut_unit || 'متر', bom_items: cFabs.length ? cFabs : (f.bom_items || []),
+      fabrics_data: cFabs, measurements_spec: cMeas, measurements: cMeas, size_code: cCode, size_badge: cCode ? `[ الفئة: ${cCode} ]` : '', production_type: f.production_type || ordMatch?.production_type || 'bespoke',
+      delivery_fee: f.delivery_fee || ordMatch?.delivery_fee || 0, total_amount: fTot, paid_amount: fPd, advance_paid: fPd, deposit: fPd, remaining_balance: fRem, remaining_amount: fRem, remaining: fRem, subtotal: f.subtotal || ordMatch?.subtotal, deduct_inventory: false, allow_unpaid_exception: hasEx
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    showToast(`تم تحميل بيانات أمر التشغيل (${f.order_no || f.id}) للتعديل ✏️`, 'info');
+    showToast(`تم تحميل بيانات أمر التشغيل (${ordNo}) للتعديل ✏️`, 'info');
   };
 
   const handleSubmit = async (e) => {
     if (e && typeof e.preventDefault === 'function') { e.preventDefault(); e.stopPropagation(); }
-    if (!form.order_no) return showToast('يرجى اختيار الطلب أو الزبون ⚠️', 'error');
+    const isRtw = form.production_type === 'ready_to_wear' || form.production_type === 'stock';
+    let ordKey = String(form.order_no || form.order_id || '').trim();
+    if (!isRtw) {
+      if (!ordKey) return showToast('في وضع التفصيل الخاص، يجب ربط أمر التشغيل بطلب رسمي معتمد من جدول الطلبات ⚠️', 'error');
+      let validOrd = (orders || []).find(o => String(o.order_no || o.id) === ordKey || String(o.id) === ordKey);
+      if (!validOrd && (/^\d{10,}$/.test(ordKey) || form.customer || form.customer_id)) {
+        validOrd = (orders || []).find(o => (form.customer_id && String(o.customer_id) === String(form.customer_id)) || (form.customer && o.customer_name && o.customer_name.trim() === form.customer.trim()));
+        if (validOrd) { ordKey = validOrd.order_no || validOrd.id; form.order_no = ordKey; form.order_id = ordKey; }
+      }
+      if (!validOrd) return showToast(`رقم الطلب (${ordKey}) غير مربوط بطلب رسمي معتمد في جدول الطلبات ⚠️`, 'error');
+    } else if (!ordKey) {
+      return showToast('يرجى إدخال رقم دفعة الإنتاج الجاهز ⚠️', 'error');
+    }
     if (!form.tailor) return showToast('يرجى تحديد الفني المسند إليه ⚠️', 'error');
-
-    const rawBom = (Array.isArray(form.bom_items) && form.bom_items.length > 0) ? form.bom_items : [{ fabric_name: form.fabric_name || '', cut_meters: form.cut_meters || '', cut_unit: form.cut_unit || 'متر' }];
-
-    if (form.deduct_inventory && typeof setInventory === 'function') {
-      setInventory(prev => {
-        let list = [...(prev || [])];
-        rawBom.forEach(b => {
-          const cutQty = parseFloat(b.cut_meters || 0), name = b.fabric_name || form.fabric_name;
-          if (cutQty <= 0) return;
-          const fi = (fabricInventory || []).find(i => (i.name || i.item_name) === name || i.id === name);
-          const ded = window.UnitConversionService?.calculateDeduction ? window.UnitConversionService.calculateDeduction(cutQty, b.cut_unit || form.cut_unit || 'متر', fi?.unit || 'وار (ياردة)') : { deductAmount: cutQty };
-          list = list.map(item => ((item.name || item.item_name) === name || item.id === name) ? { ...item, quantity: Math.max(0, (parseFloat(item.quantity || item.qty || 0)) - ded.deductAmount) } : item);
-        });
-        return list;
-      });
+    const subTot = parseFloat(form.total_amount ?? form.total_price ?? form.total ?? 0), subPd = parseFloat(form.paid_amount ?? form.advance_paid ?? form.paid ?? form.deposit ?? 0), subRem = Math.max(0, subTot - subPd);
+    if (!isRtw && subPd <= 0 && !form.allow_unpaid_exception) {
+      return showToast('⚠️ قفل رقابي: لا يمكن اعتماد أمر التشغيل واقتطاع الخامات لطلب غير مسدد (العربون = 0) إلا بتفعيل خيار الاستثناء الإداري الصريح.', 'error');
     }
 
-    const first = rawBom[0] || {}, existing = (factory || []).find(f => f.order_no === form.order_no || f.id === form.order_no);
-    const subTot = parseFloat(form.total_amount ?? form.total_price ?? form.total ?? 0), subPd = parseFloat(form.paid_amount ?? form.advance_paid ?? form.paid ?? form.deposit ?? 0), subRem = Math.max(0, subTot - subPd);
+    const rawBom = (Array.isArray(form.bom_items) && form.bom_items.length > 0) ? form.bom_items : [{ fabric_name: form.fabric_name || '', cut_meters: form.cut_meters || '', cut_unit: form.cut_unit || 'متر' }];
+    for (const b of rawBom) {
+      const fi = window.SmartSizingMatcher?.matchInventoryFabric ? window.SmartSizingMatcher.matchInventoryFabric(b, fabricInventory, form.dress_color || form.color) : null;
+      if (fi && form.deduct_inventory !== false) {
+        const stk = parseFloat(fi.quantity || fi.qty || 0), req = parseFloat(b.cut_meters || 0);
+        const ded = window.UnitConversionService?.calculateDeduction ? window.UnitConversionService.calculateDeduction(req, b.cut_unit || 'متر', fi.unit || 'متر').deductAmount : req;
+        if (stk - ded < 0 && !form.allow_insufficient_stock) return showToast(`⚠️ رصيد الخامة (${fi.name}) غير كافٍ للقص (${stk} ${fi.unit})`, 'error');
+      }
+    }
+    const first = rawBom[0] || {}, existing = (factory || []).find(f => f.order_no === form.order_no || f.id === form.order_no), clr = form.dress_color || form.selected_color || form.color || '';
     const newF = {
       id: existing ? existing.id : (form.id || form.production_order_no || ''), ...form, customer_name: form.customer || form.customer_name, child_name: form.child_name,
-      product_name: form.product || form.product_name, quantity: form.quantity || 1, cut_meters: parseFloat(first.cut_meters || form.cut_meters || 0),
-      cut_quantity: parseFloat(first.cut_meters || form.cut_meters || 0), cut_unit: first.cut_unit || form.cut_unit || 'متر', fabric_name: first.fabric_name || form.fabric_name,
-      total_amount: subTot, paid_amount: subPd, advance_paid: subPd, deposit: subPd, remaining_amount: subRem, remaining_balance: subRem, remaining: subRem,
-      bom_items: rawBom, bom: rawBom, materials: rawBom, fabrics: rawBom, deduct_inventory: form.deduct_inventory !== false,
-      cutter_name: form.cutter_name, cutter_wage: parseFloat(form.cutter_wage || 0), tailor_name: form.tailor_name || form.tailor, tailor: form.tailor_name || form.tailor,
-      tailor_wage: parseFloat(form.tailor_wage || 0), embroiderer_name: form.embroiderer_name, embroiderer_wage: parseFloat(form.embroiderer_wage || 0),
-      finisher_name: form.finisher_name, finisher_wage: parseFloat(form.finisher_wage || 0), packager_name: form.packager_name, packager_wage: parseFloat(form.packager_wage || form.packaging_cost || 0),
-      packaging_cost: parseFloat(form.packaging_cost || form.packager_wage || 0)
+      order_no: form.order_no || ordKey, order_id: form.order_id || ordKey, allow_unpaid_exception: Boolean(form.allow_unpaid_exception), selected_color: clr, color: clr, dress_color: clr,
+      product_name: form.product || form.product_name, quantity: form.quantity || 1, cut_meters: parseFloat(first.cut_meters || form.cut_meters || 0), cut_quantity: parseFloat(first.cut_meters || form.cut_meters || 0), cut_unit: first.cut_unit || form.cut_unit || 'متر', fabric_name: first.fabric_name || form.fabric_name,
+      total_amount: subTot, paid_amount: subPd, advance_paid: subPd, deposit: subPd, remaining_amount: subRem, remaining_balance: subRem, remaining: subRem, bom_items: rawBom, bom: rawBom, materials: rawBom, fabrics: rawBom, deduct_inventory: form.deduct_inventory !== false,
+      cutter_name: form.cutter_name, cutter_id: form.cutter_id, cutter_wage: parseFloat(form.cutter_wage || 0), tailor_name: form.tailor_name || form.tailor, tailor_id: form.tailor_id, assigned_tailor_id: form.tailor_id || form.assigned_tailor_id, tailor: form.tailor_name || form.tailor, tailor_wage: parseFloat(form.tailor_wage || 0),
+      embroiderer_name: form.embroiderer_name, embroiderer_id: form.embroiderer_id, embroiderer_wage: parseFloat(form.embroiderer_wage || 0), finisher_name: form.finisher_name, finisher_id: form.finisher_id, finisher_wage: parseFloat(form.finisher_wage || 0), packager_name: form.packager_name, packager_id: form.packager_id, packager_wage: parseFloat(form.packager_wage || form.packaging_cost || 0), packaging_cost: parseFloat(form.packaging_cost || form.packager_wage || 0)
     };
 
     try {
@@ -147,6 +150,7 @@ function useFactoryOrderActions(props) {
       showToast(res?.message || 'تم اعتماد أمر التشغيل وحفظه بنجاح في قاعدة البيانات 🚀', 'success');
       window.dispatchEvent(new CustomEvent('erp:factoryChanged', { detail: { orderNo: form.order_no, status: 'updated' } }));
       window.dispatchEvent(new CustomEvent('erp:ordersChanged', { detail: { orderNo: form.order_no } }));
+      window.dispatchEvent(new CustomEvent('erp:inventoryChanged', { detail: { orderNo: form.order_no } }));
     } catch (err) {
       showToast(`فشل الحفظ في قاعدة البيانات ❌: ${err.message || 'خطأ في الاتصال بالخادم'}`, 'error');
     }
@@ -203,14 +207,11 @@ function useFactoryOrderActions(props) {
     } catch (err) { showToast('خطأ أثناء حذف أمر التشغيل: ' + err.message, 'error'); }
   };
 
-  const handleOpenPrintModal = (f) => {
-    setPrintModalData(utils.preparePrintData ? utils.preparePrintData(f, orders, customers, products) : { order: f });
-  };
+  const handleOpenPrintModal = (f) => setPrintModalData(utils.preparePrintData ? utils.preparePrintData(f, orders, customers, products) : { order: f });
 
   return {
-    handleStageEmpChange, selectLatestCustomer, handleOrderSelect, handleStageChange,
-    loadIntoForm, handleSubmit, advanceToNextStage, handleFastTrackQc, actionLoadingId,
-    handleDeleteOrder, handleOpenPrintModal
+    handleStageEmpChange, selectLatestCustomer, handleOrderSelect, handleStageChange, loadIntoForm,
+    handleSubmit, advanceToNextStage, handleFastTrackQc, actionLoadingId, handleDeleteOrder, handleOpenPrintModal
   };
 }
 

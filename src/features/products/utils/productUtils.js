@@ -8,18 +8,18 @@ const SEGMENTS = {
 };
 
 const DEFAULT_AGE_CHART = [
-  { id: 1, size: '1-2Y', age: '1-2 سنة', chest: '', waist: '', length: '', min: '', max: '' },
-  { id: 2, size: '3-5Y', age: '3-5 سنوات', chest: '', waist: '', length: '', min: '', max: '' },
-  { id: 3, size: '6-9Y', age: '6-9 سنوات', chest: '', waist: '', length: '', min: '', max: '' },
-  { id: 4, size: '10-13Y', age: '10-13 سنة', chest: '', waist: '', length: '', min: '', max: '' }
+  { id: 1, size: '1-2Y', age: '1-2 سنة', chest: 50.8, waist: 48.3, length: 55.9, min: '', max: 55.9 },
+  { id: 2, size: '3-5Y', age: '3-5 سنوات', chest: 61.0, waist: 55.9, length: 68.6, min: '', max: 68.6 },
+  { id: 3, size: '6-9Y', age: '6-9 سنوات', chest: 81.3, waist: 66.0, length: 83.8, min: '', max: 83.8 },
+  { id: 4, size: '10-13Y', age: '10-13 سنة', chest: 86.4, waist: 71.1, length: 101.6, min: '', max: 101.6 }
 ];
 const DEFAULT_WOMEN_SIZE_CHART = [
-  { id: 1, size: 'XS', label: 'XS (34)', chest: '', waist: '', length: '' },
-  { id: 2, size: 'S', label: 'S (36)', chest: '', waist: '', length: '' },
-  { id: 3, size: 'M', label: 'M (38)', chest: '', waist: '', length: '' },
-  { id: 4, size: 'L', label: 'L (40)', chest: '', waist: '', length: '' },
-  { id: 5, size: 'XL', label: 'XL (42)', chest: '', waist: '', length: '' },
-  { id: 6, size: 'XXL', label: 'XXL (44)', chest: '', waist: '', length: '' }
+  { id: 1, size: 'XS', label: 'XS (34)', chest: 82.0, waist: 64.0, length: 135.0 },
+  { id: 2, size: 'S', label: 'S (36)', chest: 88.0, waist: 70.0, length: 138.0 },
+  { id: 3, size: 'M', label: 'M (38)', chest: 94.0, waist: 76.0, length: 140.0 },
+  { id: 4, size: 'L', label: 'L (40)', chest: 102.0, waist: 84.0, length: 142.0 },
+  { id: 5, size: 'XL', label: 'XL (42)', chest: 110.0, waist: 92.0, length: 145.0 },
+  { id: 6, size: 'XXL', label: 'XXL (44)', chest: 118.0, waist: 100.0, length: 145.0 }
 ];
 
 const DEFAULT_BRACKETS = ['1-2Y', '3-5Y', '6-9Y', '10-13Y'];
@@ -44,10 +44,7 @@ const getCurrencyCode = (c) => {
   return 'YER';
 };
 
-const getCurrencyLabel = (c) => {
-  const code = getCurrencyCode(c);
-  return code === 'SAR' ? 'SAR ﷼' : (code === 'USD' ? 'USD $' : 'YER ﷼');
-};
+const getCurrencyLabel = (c) => getCurrencyCode(c);
 
 const getFabricCostInModelCurrency = (f, activeModelCurrency) => {
   const rawCost = parseFloat(f.cost || 0);
@@ -99,7 +96,7 @@ const calculateProfitAndMargin = (sellPrice = 0, totalCost = 0) => {
   const sp = parseFloat(sellPrice || 0), tc = parseFloat(totalCost || 0);
   const profit = sp - tc;
   const marginPct = sp > 0 ? (profit / sp) * 100 : 0;
-  return { profit: Math.round(profit * 100) / 100, marginPct: Math.round(marginPct * 10) / 10 };
+  return { profit: Math.round(profit * 100) / 100, marginPct: Math.round(marginPct * 100) / 100 };
 };
 
 const calculateSuggestedPrices = (costsPerSize = {}, additionalCosts = 0, targetMarginPct = 40) => {
@@ -169,7 +166,7 @@ const buildProductPayload = (d) => {
     id: d.editId || undefined, sku: smartVal || undefined, model_no: smartVal || undefined, design_code: smartVal || undefined, barcode: smartVal || undefined,
     name: pName, model_name: pName, target_segment: d.targetSegment || 'kids',
     category: d.category || '', subcategory: subcat, collection: coll,
-    image_url: d.imageUrl || '', image: d.imageUrl || '', image_data: d.imageUrl || '', description: desc, min_stock: 2, status: d.status || 'Active',
+    image_url: d.imageUrl || '', image: null, image_data: null, description: desc, min_stock: 2, status: d.status || 'Active',
     fabric_name: fabricNames, yards_used: totalMeters, fabric_cost: parseFloat(d.computedFabricTotal || 0),
     cutter_wage: parseFloat(d.cutterWage || 0), tailor_wage: parseFloat(d.tailorWage || 0),
     embroiderer_wage: parseFloat(d.embroidWage || 0), finisher_wage: parseFloat(d.finisherWage || 0),
@@ -178,7 +175,7 @@ const buildProductPayload = (d) => {
     sell_price: parseFloat(d.pricesMatrix?.[d.refSize] || Object.values(d.pricesMatrix || {})[0] || 0),
     base_price: parseFloat(d.pricesMatrix?.[d.refSize] || Object.values(d.pricesMatrix || {})[0] || 0),
     price_matrix: d.pricesMatrix || {}, currency: d.activeModelCurrencyLabel || 'YER', profit: parseFloat(d.computedProfit || 0),
-    calc_date: d.calcDate, sizes: d.selectedSizes || [], colors: d.selectedColors || [], approved_colors: d.selectedColors || [],
+    calc_date: d.calcDate, sizes: d.selectedSizes || [], colors: d.selectedColors || [], approved_colors: null,
     bom: {
       items: buildBomArray(validFabrics),
       meta: {

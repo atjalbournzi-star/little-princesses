@@ -19,13 +19,18 @@ function VouchersTable({
     if (s.includes('bank') || s.includes('تحويل') || s.includes('بنك')) return 'تحويل بنكي';
     if (s.includes('cheque') || s.includes('شيك')) return 'شيك بنكي';
     if (s.includes('network') || s.includes('شبكة')) return 'شبكة مصرفية';
-    return (s === 'cash' || s === 'كاش') ? 'نقدي' : m;
+    if (s.includes('cash') || s.includes('كاش') || s.includes('صندوق') || s.includes('خزين') || s.includes('101')) return 'نقدي';
+    return m;
   };
 
   const getAccLabel = (raw, fallback) => {
     if (!raw) return fallback;
     const code = String(raw).trim().split(' - ')[0].trim();
     const m = (accounts || []).find(a => [String(a.id), String(a.code), String(a.acc_code), `ACC-${a.code}`].includes(code) || String(a.id) === `ACC-${code}`);
+    if (m && m.is_group) {
+      const child = (accounts || []).find(a => !a.is_group && (a.parent_account_id === m.id || String(a.parent_account_code) === String(m.code) || String(a.code || '').startsWith(`${m.code}.`)));
+      if (child) return `${child.code || child.acc_code} - ${child.name || child.account_name || child.acc_name || child.code}`;
+    }
     return m ? `${m.code || m.acc_code} - ${m.name || m.account_name || m.acc_name || m.name_en || m.code}` : raw;
   };
 

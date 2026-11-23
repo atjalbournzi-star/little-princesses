@@ -114,7 +114,7 @@ function ProductQrModal({ product, isOpen, onClose }) {
             <div className="pt-2 border-t border-dashed border-slate-200 dark:border-slate-800 flex justify-between items-center text-xs font-bold">
               <span className="text-[#6F6B75] dark:text-slate-400">سعر البيع:</span>
               <span className="text-[#007F8C] dark:text-cyan-400 font-mono text-sm">
-                {(parseFloat(price) || 0).toLocaleString()} {curr}
+                {(parseFloat(price) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {curr}
               </span>
             </div>
           </div>

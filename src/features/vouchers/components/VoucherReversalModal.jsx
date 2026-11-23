@@ -62,7 +62,6 @@ function VoucherReversalModal({
             <textarea
               rows="3"
               className="w-full px-3 py-2 text-xs border border-[#E8E5EA] dark:border-[#2d3748] bg-white dark:bg-[#111827] text-[#25232A] dark:text-white rounded-xl focus:outline-none focus:border-rose-500 focus:ring-1 focus:ring-rose-500 resize-none"
-              placeholder="أدخل سبب الإلغاء (مثال: خطأ في الحساب، شيك مرتجع، إلغاء الطلب من العميل)..."
               value={reversalReason}
               onChange={e => setReversalReason(e.target.value)}
               autoFocus

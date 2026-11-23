@@ -123,6 +123,17 @@ def scan_to_deliver_order(payload):
             return {"success": False, "error": f"عذراً، لم نتمكن من العثور على فستان برقم/باركود: {order_target}"}
 
         o_id = ord_row['id']
+        st, pst = str(ord_row.get('status') or '').lower(), str(ord_row.get('production_status') or '').lower()
+        if 'deliver' in st or 'مسلم' in st or 'deliver' in pst or 'مسلم' in pst or 'completed' in st:
+            return {"success": False, "error": f"الطلب [{ord_row.get('order_no')}] تم تسليمه مسبقاً ولا يمكن تكرار التسليم"}
+
+        cur.execute("SELECT id, stage, status FROM production_orders WHERE order_id = %s OR id = %s LIMIT 1;", (o_id, o_id))
+        po_chk = cur.fetchone()
+        if po_chk:
+            po_st, po_sg = str(po_chk.get('status') or '').lower(), str(po_chk.get('stage') or '')
+            if 'deliver' in po_st or 'مسلم' in po_st or 'تم التسليم' in po_sg:
+                return {"success": False, "error": f"الطلب [{ord_row.get('order_no')}] تم تسليمه مسبقاً ولا يمكن تكرار التسليم"}
+
         tot = clean_num(ord_row.get('total_amount') or ord_row.get('total') or 0.0)
         pd = clean_num(ord_row.get('paid_amount') or ord_row.get('paid') or 0.0)
         rem = max(0.0, tot - pd)

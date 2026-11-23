@@ -16,14 +16,19 @@ function FactoryHeader({
     if (!f) return false;
     const st = String(f.status || f.production_status || '').toLowerCase();
     const sg = String(f.stage || '');
-    return st !== 'delivered' && !sg.includes('تم التسليم');
+    return !st.includes('deliver') && !st.includes('مسلم') && !sg.includes('تم التسليم') && !sg.includes('مسلّم');
   });
 
   const countCutter = activeFactory.filter(f => (f.stage || '').includes('قص')).length;
   const countTailor = activeFactory.filter(f => (f.stage || '').includes('خياطة')).length;
   const countEmbroidery = activeFactory.filter(f => (f.stage || '').includes('تطريز') || (f.stage || '').includes('شك')).length;
   const countFinisher = activeFactory.filter(f => (f.stage || '').includes('فحص') || (f.stage || '').includes('تشطيب')).length;
-  const countReady = activeFactory.filter(f => ((f.stage || '').includes('جاهز') || (f.stage || '').includes('تسليم') || Number(f.progress) >= 100)).length;
+  const countReady = activeFactory.filter(f => {
+    const st = String(f.status || f.production_status || '').toLowerCase();
+    const sg = String(f.stage || '');
+    const isDelivered = st.includes('deliver') || st.includes('مسلم') || sg.includes('تم التسليم') || sg.includes('مسلّم');
+    return !isDelivered && ((f.stage || '').includes('جاهز') || Number(f.progress) >= 100);
+  }).length;
 
   return (
     <div className="shrink-0 space-y-1 select-none text-right" dir="rtl">

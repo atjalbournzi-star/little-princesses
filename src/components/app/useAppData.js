@@ -5,8 +5,8 @@
  * ============================================================================
  */
 
-function useAppData() {
-  const { useState, useEffect, useCallback } = React;
+function useAppData({ activeTab = 'dashboard' } = {}) {
+  const { useState, useEffect, useCallback, useRef } = React;
 
   // 0. Clean operational cache on zero-state factory reset while preserving auth & settings
   const PRESERVED_KEYS = new Set([
@@ -65,9 +65,11 @@ function useAppData() {
   const [feedback, setFeedState] = useState(() => getInitialCache('lp_cache_feedback', []));
   const [campaigns, setCampState] = useState(() => getInitialCache('lp_cache_campaigns', []));
   const [employees, setEmpState] = useState(() => getInitialCache('lp_cache_employees', []));
-  const [payroll, setPayState] = useState(() => getInitialCache('lp_cache_payroll', []));
+  const [payroll, setPayroll] = useState([]);
   const [jobRoles, setJobRolesState] = useState(() => getInitialCache('lp_cache_job_roles', []));
   const [targetProductionJob, setTargetProductionJob] = useState(null);
+
+  try { localStorage.removeItem('lp_cache_payroll'); } catch (e) {}
 
   // Auto-caching state mutators
   const createSyncSetter = (setter, key) => (updater) => {
@@ -91,64 +93,77 @@ function useAppData() {
   const setFeedback = useCallback(createSyncSetter(setFeedState, 'lp_cache_feedback'), []);
   const setCampaigns = useCallback(createSyncSetter(setCampState, 'lp_cache_campaigns'), []);
   const setEmployees = useCallback(createSyncSetter(setEmpState, 'lp_cache_employees'), []);
-  const setPayroll = useCallback(createSyncSetter(setPayState, 'lp_cache_payroll'), []);
   const setJobRoles = useCallback(createSyncSetter(setJobRolesState, 'lp_cache_job_roles'), []);
 
-  // 2. Stale-While-Revalidate Silent Background Data Refresh
-  useEffect(() => {
-    const fetchBackground = (url, setter) => {
-      fetch(url)
-        .then(r => r.json())
-        .then(d => {
-          const list = (d && Array.isArray(d.data)) ? d.data : (Array.isArray(d) ? d : null);
-          if (list !== null) setter(list);
-        })
-        .catch(() => {});
-    };
+  // 2. Stale-While-Revalidate Smart Lazy-Loading Background Sync
+  const loadedTabsRef = useRef(new Set());
 
-    fetchBackground('/api/products', setProducts);
-    fetchBackground('/api/customers', setCustomers);
+  const fetchBackground = useCallback((url, setter) => {
+    fetch(url)
+      .then(r => r.json())
+      .then(d => {
+        const list = (d && Array.isArray(d.data)) ? d.data : (Array.isArray(d) ? d : null);
+        if (list !== null) setter(list);
+      })
+      .catch(() => {});
+  }, []);
+
+  // Essential Core Dashboard Endpoints (Fetched Once on Initial Mount)
+  useEffect(() => {
     fetchBackground('/api/accounts/list', setAccounts);
-    fetchBackground('/api/inventory', setInventory);
     fetchBackground('/api/sales/orders', setOrders);
     fetchBackground('/api/factory', setFactory);
-    fetchBackground('/api/purchases', setPurchases);
     fetchBackground('/api/vouchers', setVouchers);
     fetchBackground('/api/expenses', setExpenses);
-    fetchBackground('/api/journal', setJournal);
-    fetchBackground('/api/hr/employees', setEmployees);
-    fetchBackground('/api/hr/job-roles', setJobRoles);
-    fetchBackground('/api/feedback', setFeedback);
+  }, [fetchBackground, setAccounts, setOrders, setFactory, setVouchers, setExpenses]);
 
-    const initData = async () => {
-      try {
-        if (typeof window.loadAllData === 'function') {
-          const data = await window.loadAllData();
-          if (data) {
-            if (data.customers !== undefined) setCustomers(data.customers);
-            if (data.inventory !== undefined) setInventory(data.inventory);
-            if (data.accounts !== undefined) setAccounts(data.accounts);
-            if (data.products !== undefined) setProducts(data.products);
-            if (data.orders !== undefined) setOrders(data.orders);
-            if (data.purchases !== undefined) setPurchases(data.purchases);
-            if (data.factory !== undefined) setFactory(data.factory);
-            if (data.vouchers !== undefined) setVouchers(data.vouchers);
-            if (data.expenses !== undefined) setExpenses(data.expenses);
-            if (data.journal !== undefined) setJournal(data.journal);
-            if (data.feedback !== undefined) setFeedback(data.feedback);
-            const camps = data.campaigns || data.marketing_campaigns;
-            if (camps !== undefined) setCampaigns(camps);
-            if (data.employees !== undefined) setEmployees(data.employees);
-            if (data.payroll !== undefined) setPayroll(data.payroll);
-            if (data.jobRoles !== undefined) setJobRoles(data.jobRoles);
-          }
-        }
-      } catch (e) {
-        console.warn('Initial data background refresh warning:', e);
-      }
-    };
-    initData();
-  }, [setCustomers, setInventory, setAccounts, setProducts, setOrders, setPurchases, setFactory, setVouchers, setExpenses, setJournal, setFeedback, setCampaigns, setEmployees, setPayroll, setJobRoles]);
+  // Tab-specific Lazy Loading (Triggered Only When Tab is Visited)
+  useEffect(() => {
+    if (!activeTab) return;
+    if (activeTab !== 'hr') {
+      if (loadedTabsRef.current.has(activeTab)) return;
+      loadedTabsRef.current.add(activeTab);
+    }
+
+    switch (activeTab) {
+      case 'journal':
+        fetchBackground('/api/journal', setJournal);
+        break;
+      case 'customers':
+        fetchBackground('/api/customers', setCustomers);
+        break;
+      case 'products':
+        fetchBackground('/api/products', setProducts);
+        fetchBackground('/api/hr/job-roles', setJobRoles);
+        break;
+      case 'inventory':
+        fetchBackground('/api/inventory', setInventory);
+        break;
+      case 'purchases':
+        fetchBackground('/api/purchases', setPurchases);
+        break;
+      case 'hr':
+        fetchBackground('/api/hr/employees', setEmployees);
+        fetchBackground('/api/hr/payroll', setPayroll);
+        fetchBackground('/api/hr/job-roles', setJobRoles);
+        break;
+      case 'feedback':
+        fetchBackground('/api/feedback', setFeedback);
+        break;
+      case 'marketing':
+        fetchBackground('/api/marketing/campaigns', setCampaigns);
+        break;
+      case 'reports':
+        fetchBackground('/api/journal', setJournal);
+        fetchBackground('/api/purchases', setPurchases);
+        fetchBackground('/api/inventory', setInventory);
+        fetchBackground('/api/customers', setCustomers);
+        fetchBackground('/api/products', setProducts);
+        break;
+      default:
+        break;
+    }
+  }, [activeTab, fetchBackground, setJournal, setCustomers, setProducts, setInventory, setPurchases, setEmployees, setPayroll, setJobRoles, setFeedback, setCampaigns]);
 
   return {
     customers, setCustomers,

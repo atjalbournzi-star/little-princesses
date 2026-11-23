@@ -1,6 +1,7 @@
 import datetime
 import logging
 from .db_pool import get_db_cursor, clean_num, clean_str, generate_id, today_str
+from .stage_normalizer import normalize_canonical_stage, CANONICAL_STAGE_NAMES
 
 logger = logging.getLogger("LittlePrincesses_PG_FactoryStageSync")
 
@@ -47,15 +48,20 @@ def sync_production_order_commissions(cur, po_id_or_data):
             prod_wages = p_row['bom'].get('meta') or {}
 
     stages_config = [
-        (0, po.get('cutter_name'), po.get('cutter_wage') or prod_wages.get('cutter_wage'), 'قصاص', 'القص والتحضير ✂️'),
-        (1, po.get('tailor_name') or po.get('assigned_tailor_id'), po.get('tailor_wage') or prod_wages.get('tailor_wage'), 'خياط', 'مرحلة الخياطة 🪡'),
-        (2, po.get('embroiderer_name'), po.get('embroiderer_wage') or prod_wages.get('embroiderer_wage'), 'تطريز', 'التطريز والشك ✨'),
-        (3, po.get('finisher_name'), po.get('finisher_wage') or prod_wages.get('finisher_wage'), 'تشطيب', 'الفحص والتشطيب النهائي 🔍'),
-        (4, po.get('packager_name'), po.get('packaging_cost') or prod_wages.get('packaging_cost'), 'تغليف', 'التغليف والإكسسوار 📦')
+        (0, po.get('cutter_name'), po.get('cutter_wage') or prod_wages.get('cutter_wage'), 'قصاص', 'cutting'),
+        (1, po.get('tailor_name') or po.get('assigned_tailor_id'), po.get('tailor_wage') or prod_wages.get('tailor_wage'), 'خياط', 'sewing'),
+        (2, po.get('embroiderer_name'), po.get('embroiderer_wage') or prod_wages.get('embroiderer_wage'), 'تطريز', 'embroidery'),
+        (3, po.get('finisher_name'), po.get('finisher_wage') or prod_wages.get('finisher_wage'), 'تشطيب', 'finishing')
     ]
 
+    cur.execute("SELECT id, worker_id, worker_name, stage_id FROM piece_rate_logs WHERE production_order_id = %s OR production_order_id = %s;", (po_id, order_no))
+    prl_existing = {normalize_canonical_stage(r['stage_id']): r for r in cur.fetchall() if normalize_canonical_stage(r['stage_id'])}
+
+    cur.execute("SELECT id, employee_id, employee_name, stage, status FROM tailor_commissions WHERE production_order_id = %s OR order_no = %s;", (po_id, order_no))
+    comm_existing = {normalize_canonical_stage(r['stage']): r for r in cur.fetchall() if normalize_canonical_stage(r['stage'])}
+
     synced_emps = set()
-    for s_idx, w_name, w_wage, def_role, stg_title in stages_config:
+    for s_idx, w_name, w_wage, def_role, c_stage in stages_config:
         w_name = clean_str(w_name)
         if not w_name or not _is_stage_done(s_idx, prog, stage_str):
             continue
@@ -70,40 +76,48 @@ def sync_production_order_commissions(cur, po_id_or_data):
         emp_id = emp['id'] if emp else generate_id("EMP")
         final_wage = raw_wage if raw_wage > 0 else (clean_num(emp['salary']) if emp else 0.0)
         final_role = (emp.get('role') if emp else None) or def_role
+        stg_title = CANONICAL_STAGE_NAMES.get(c_stage, 'القص والتحضير ✂️')
+        stg_due = po.get(f"{c_stage}_due_date") or po.get('due_date')
+        if c_stage == 'sewing':
+            cur.execute("UPDATE production_orders SET tailor_completed_at = COALESCE(tailor_completed_at, CURRENT_TIMESTAMP) WHERE id = %s;", (po_id,))
 
-        cur.execute("""
-            SELECT id, status FROM tailor_commissions 
-            WHERE (production_order_id = %s OR order_no = %s) AND stage = %s LIMIT 1;
-        """, (po_id, order_no, stg_title))
-        comm = cur.fetchone()
-
+        comm = comm_existing.get(c_stage)
         if not comm:
             comm_id = generate_id("COMM")
             cur.execute("""
                 INSERT INTO tailor_commissions (
                     id, production_order_id, order_no, employee_id, employee_name, role,
-                    product_name, child_name, stage, wage_amount, pieces_count, production_type,
+                    product_name, child_name, stage, wage_amount, target_due_date, pieces_count, production_type,
                     order_date, completed_at, is_on_time, quality_score, quality_notes, status,
                     approved_by, approved_at
                 ) VALUES (
-                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                    %s, CURRENT_TIMESTAMP, true, 5.0, 'إنجاز مرحلة تصنيع معتمدة ⭐', 'Approved',
-                    'إدارة المعمل ✂️', CURRENT_TIMESTAMP
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                    %s, CURRENT_TIMESTAMP, true, NULL, 'بانتظار فحص الجودة (GATE-03)', 'Pending QA',
+                    NULL, NULL
                 );
-            """, (comm_id, po_id, order_no, emp_id, w_name, final_role, p_name, c_name, stg_title, final_wage, p_count, p_type, o_date))
+            """, (comm_id, po_id, order_no, emp_id, w_name, final_role, p_name, c_name, stg_title, final_wage, stg_due, p_count, p_type, o_date))
+            comm_existing[c_stage] = {'id': comm_id, 'status': 'Pending QA'}
         elif comm.get('status') != 'Paid':
             cur.execute("""
                 UPDATE tailor_commissions
-                SET employee_id = %s, employee_name = %s, wage_amount = %s, pieces_count = %s
+                SET employee_id = %s, employee_name = %s, wage_amount = %s, pieces_count = %s, target_due_date = COALESCE(target_due_date, %s)
                 WHERE id = %s;
-            """, (emp_id, w_name, final_wage, p_count, comm['id']))
+            """, (emp_id, w_name, final_wage, p_count, stg_due, comm['id']))
 
-        cur.execute("SELECT id FROM piece_rate_logs WHERE (production_order_id = %s OR production_order_id = %s) AND stage_id = %s LIMIT 1;", (po_id, order_no, stg_title))
-        if not cur.fetchone():
+        if c_stage not in prl_existing:
+            prl_id = generate_id("PRL")
             cur.execute("""
                 INSERT INTO piece_rate_logs (id, worker_id, worker_name, production_order_id, stage_id, piece_rate_amount, pieces_count, payment_status, qa_status, completed_at, created_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, 'Pending', 'Approved', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
-            """, (generate_id("PRL"), emp_id, w_name, po_id, stg_title, final_wage, p_count))
+                VALUES (%s, %s, %s, %s, %s, %s, %s, 'Pending', 'pending_qa', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+            """, (prl_id, emp_id, w_name, po_id, stg_title, final_wage, p_count))
+            prl_existing[c_stage] = {'id': prl_id}
+
+        clean_title = stg_title.replace('✂️','').replace('🪡','').replace('✨','').replace('🔍','').replace('📦','').strip()
+        cur.execute("""
+            UPDATE order_stages
+            SET status = 'Completed', completed_at = CURRENT_TIMESTAMP
+            WHERE (production_order_id = %s OR order_id = %s) AND (stage_name ILIKE %s OR stage_name ILIKE %s) AND status != 'Completed';
+        """, (po_id, order_no, f"%{clean_title}%", f"%{stg_title}%"))
 
         synced_emps.add((emp_id, w_name))
 

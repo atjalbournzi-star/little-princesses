@@ -15,7 +15,7 @@ from services.pg.pg_financial_sync import sync_customer_order_from_voucher, retr
 from services.pg.pg_products import (
     get_products, add_product, delete_product,
     get_bom_models, save_bom_model, delete_bom_model, get_product_by_id,
-    get_next_product_sku, get_product_categories
+    get_next_product_sku, get_product_categories, add_product_category
 )
 from services.pg.pg_inventory import (
     get_inventory, add_or_update_inventory,
@@ -25,6 +25,12 @@ from services.pg.pg_warehouses import (
     get_warehouses, add_warehouse, update_warehouse, toggle_warehouse_status,
     delete_warehouse_if_empty, transfer_warehouse_stock,
     get_item_stock_by_warehouse, ensure_warehouses_schema
+)
+from services.pg.pg_warehouse_accounts import (
+    sync_all_warehouses_accounts, create_or_link_warehouse_account
+)
+from services.pg.pg_warehouse_transfer_post import (
+    reconcile_past_journal_lines_to_warehouses, post_warehouse_transfer_journal
 )
 from services.pg.pg_orders import get_orders, add_order, update_order, delete_order
 from services.pg.pg_order_stages import create_order_stages, resolve_product_stages, get_order_stages_by_order
@@ -48,6 +54,8 @@ from services.pg.pg_accounts import (
 )
 from services.pg.pg_journal import get_journal_entries, add_journal_entry, delete_journal_entry
 from services.pg.pg_financial_reports import get_balance_sheet_pg, get_trial_balance_pg
+from services.pg.pg_reconciliations import get_reconciliations_pg
+from services.pg.pg_income_statement import get_income_statement_pg
 from services.pg.pg_factory import (
     get_factory, update_factory, delete_factory_order,
     process_stock_inflow, reverse_stock_inflow,

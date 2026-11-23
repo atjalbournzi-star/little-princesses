@@ -188,14 +188,6 @@ def approve_expense():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 400
 
-@accounting_bp.route('/api/reports/general-ledger', methods=['GET'])
-def general_ledger_report():
-    try:
-        from services.pg.pg_general_ledger import get_general_ledger_pg
-        return jsonify({'success': True, 'data': get_general_ledger_pg(request.args.to_dict())}), 200
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e), 'data': {'rows': [], 'total_rows': 0}}), 500
-
 @accounting_bp.route('/api/cost-centers', methods=['GET'])
 @accounting_bp.route('/api/accounting/cost-centers', methods=['GET'])
 def list_cost_centers():

@@ -9,9 +9,10 @@ logger = logging.getLogger("LittlePrincesses_PG_DeliveryCOGS")
 def cascade_account_balances(cur):
     """
     تحديث الأرصدة التجميعية للحسابات الأبوية (Group Accounts) في شجرة الحسابات
-    تصاعدياً من المستوى الأدنى إلى المستوى الأعلى لضمان توازن الميزانية التام.
+    تصاعدياً من المستوى الأدنى إلى المستوى الأعلى كـ (مجموع أرصدة أبنائه المباشرين فقط).
     """
-    cur.execute("SELECT DISTINCT level FROM chart_of_accounts WHERE is_group = true ORDER BY level DESC;")
+    cur.execute("UPDATE chart_of_accounts SET current_balance = 0.0 WHERE is_group = TRUE;")
+    cur.execute("SELECT DISTINCT level FROM chart_of_accounts WHERE is_group = TRUE AND level IS NOT NULL ORDER BY level DESC;")
     levels = [r['level'] for r in cur.fetchall() if r.get('level') is not None]
     for lvl in levels:
         cur.execute("""
@@ -19,18 +20,64 @@ def cascade_account_balances(cur):
             SET current_balance = COALESCE((
                 SELECT SUM(c.current_balance)
                 FROM chart_of_accounts c
-                WHERE c.parent_account_code = p.account_code OR c.parent_account_id = p.id
+                WHERE (c.parent_account_code = p.account_code OR c.parent_account_id = p.id) AND c.id != p.id
             ), 0.0)
-            WHERE p.level = %s AND p.is_group = true;
+            WHERE p.level = %s AND p.is_group = TRUE;
         """, (lvl,))
+
+
+def refresh_chart_balances_atomic(cur):
+    """مزامنة واحتساب أرصدة الحسابات التفصيلية والتجميعية من قيود اليومية المعتمدة حصراً"""
+    cur.execute("""
+        WITH leaf_calc AS (
+            SELECT c.id,
+                   ROUND(COALESCE(c.opening_balance, 0.0) + 
+                   CASE WHEN c.normal_balance = 'Credit' 
+                        THEN (COALESCE(SUM(l.credit_base), 0.0) - COALESCE(SUM(l.debit_base), 0.0))
+                        ELSE (COALESCE(SUM(l.debit_base), 0.0) - COALESCE(SUM(l.credit_base), 0.0))
+                   END, 4) as calc_balance
+            FROM chart_of_accounts c
+            LEFT JOIN (
+                journal_entry_lines l 
+                JOIN journal_entries j ON (l.entry_id = j.id OR l.entry_id = j.entry_no) AND j.status = 'Posted'
+            ) ON (
+                l.account_id = c.id 
+                OR l.account_id = c.account_code
+                OR REPLACE(REPLACE(l.account_id, 'ACC-', ''), 'ACC_', '') = c.account_code
+            )
+            WHERE c.is_group = FALSE OR c.is_group IS NULL
+            GROUP BY c.id, c.normal_balance, c.opening_balance
+        )
+        UPDATE chart_of_accounts
+        SET current_balance = leaf_calc.calc_balance
+        FROM leaf_calc
+        WHERE chart_of_accounts.id = leaf_calc.id;
+    """)
+    cascade_account_balances(cur)
 
 
 def record_delivery_cogs(cur, real_order_id, order_no, cust_name=None, child_name=None):
     """
-    توليد قيد إثبات تكلفة البضاعة المباعة (COGS Journal Entry):
-    حساب تكلفة الخامات المستهلكة من inventory_transactions أو BOM
-    قيد من حـ/ 504 تكلفة الأقمشة والخامات (مدين) إلى حـ/ 105 مخزون الأقمشة والخامات (دائن).
+    إثبات تكلفة البضاعة المباعة (COGS) مع حارس منع الازدواجية (Idempotent Guard):
+    إذا تم ترحيل تكلفة الأقمشة مسبقاً عند القص، يُمنع توليد قيد تكلفة ثانٍ.
     """
+    # 0. حارس منع الازدواجية: فحص وجود قيود صرف أقمشة أو تكلفة سابقة لهذا الطلب
+    cur.execute("""
+        SELECT j.id, j.entry_no, j.amount
+        FROM journal_entries j
+        JOIN journal_entry_lines l ON l.entry_id = j.id
+        WHERE (j.ref_id = %s OR j.ref_id = %s OR j.description LIKE %s OR j.notes LIKE %s OR j.id LIKE %s)
+          AND (j.ref_type IN ('FabricCut', 'ProductionConsumption', 'MaterialIssue', 'ProductionCOGS') OR j.id LIKE 'JV-FAB-CUT-%%' OR j.entry_no LIKE 'JV-COGS-%%')
+          AND j.status = 'Posted'
+          AND (l.account_id IN ('ACC-504', '504') OR l.account_id LIKE '%%504%%')
+          AND l.debit > 0
+        LIMIT 1;
+    """, (real_order_id, order_no, f"%{order_no}%", f"%{order_no}%", f"%{order_no}%"))
+    existing_cogs = cur.fetchone()
+    if existing_cogs:
+        logger.info(f"COGS already recorded for order {order_no} via {existing_cogs['entry_no']} - skipping duplicate entry.")
+        return {"cogs_amount": clean_num(existing_cogs['amount']), "entry_no": existing_cogs['entry_no'], "already_recorded": True}
+
     # 1. البحث عن تكلفة المواد المستهلكة في حركات المخزون
     cur.execute("""
         SELECT COALESCE(SUM(ABS(total_cost)), 0.0) as total_cogs
@@ -78,7 +125,11 @@ def record_delivery_cogs(cur, real_order_id, order_no, cust_name=None, child_nam
         return {"cogs_amount": 0.0, "entry_no": None}
 
     cogs_acc = 'ACC-504'
-    inv_acc = 'ACC-105'
+    # الترحيل حصراً على حساب مخزون فرعي حركي (معمل وورشة الخياطة) وليس على حساب تجميعي أب
+    cur.execute("SELECT id FROM chart_of_accounts WHERE account_code = '105.02' OR id = 'ACC-105-02' LIMIT 1;")
+    inv_row = cur.fetchone()
+    inv_acc = inv_row['id'] if inv_row else 'ACC-105-02'
+
     jv_cogs_id = generate_id("JV")
     jv_cogs_no = f"JV-COGS-{order_no}"
     desc = f"تكلفة الخامات والأقمشة المستهلكة (COGS) لطلب {order_no} ({cust_name or 'العميل'})"
@@ -107,9 +158,6 @@ def record_delivery_cogs(cur, real_order_id, order_no, cust_name=None, child_nam
         VALUES (%s, %s, %s, %s, 0.0, %s, 0.0, %s);
     """, (generate_id("JVL"), act_id, inv_acc, f"دائن - صرف مخزون أقمشة وخامات طلب {order_no}", total_cogs, total_cogs))
 
-    cur.execute("UPDATE chart_of_accounts SET current_balance = COALESCE(current_balance, 0.0) + %s WHERE id = %s OR account_code = '504';", (total_cogs, cogs_acc))
-    cur.execute("UPDATE chart_of_accounts SET current_balance = GREATEST(0.0, COALESCE(current_balance, 0.0) - %s) WHERE id = %s OR account_code = '105';", (total_cogs, inv_acc))
-
     logger.info(f"Recorded COGS {total_cogs} YER for order {order_no} via {jv_cogs_no}")
     return {"cogs_amount": total_cogs, "entry_no": jv_cogs_no}
 
@@ -117,10 +165,8 @@ def record_delivery_cogs(cur, real_order_id, order_no, cust_name=None, child_nam
 def reverse_delivery_cogs(cur, real_order_id, order_no):
     """عكس قيد تكلفة البضاعة المباعة عند إلغاء التسليم"""
     jv_cogs_no = f"JV-COGS-{order_no}"
-    cur.execute("SELECT amount FROM journal_entries WHERE entry_no = %s LIMIT 1;", (jv_cogs_no,))
+    cur.execute("SELECT id FROM journal_entries WHERE entry_no = %s LIMIT 1;", (jv_cogs_no,))
     c_row = cur.fetchone()
     if c_row:
-        amt = clean_num(c_row['amount'])
-        cur.execute("UPDATE chart_of_accounts SET current_balance = GREATEST(0.0, COALESCE(current_balance, 0.0) - %s) WHERE id = 'ACC-504' OR account_code = '504';", (amt,))
-        cur.execute("UPDATE chart_of_accounts SET current_balance = COALESCE(current_balance, 0.0) + %s WHERE id = 'ACC-105' OR account_code = '105';", (amt,))
-        cur.execute("DELETE FROM journal_entries WHERE entry_no = %s;", (jv_cogs_no,))
+        cur.execute("DELETE FROM journal_entry_lines WHERE entry_id = %s;", (c_row['id'],))
+        cur.execute("DELETE FROM journal_entries WHERE id = %s;", (c_row['id'],))

@@ -43,8 +43,11 @@ def add_order(payload):
         pay_method = clean_str(data.get('payment_method') or 'نقد (كاش)')
         delivery_fee = clean_num(data.get('delivery_fee') or data.get('delivery') or 0.0)
         del_mode = clean_str(data.get('delivery_payment_mode') or 'DIRECT_TO_COURIER')
-        notes, color_val = clean_str(data.get('notes') or ''), clean_str(data.get('selected_color') or data.get('color') or '')
-        img_val = clean_str(data.get('model_image') or data.get('image_url') or '')
+        notes, color_val = clean_str(data.get('notes') or ''), clean_str(data.get('dress_color') or data.get('selected_color') or data.get('color') or '')
+        raw_img = clean_str(data.get('model_image') or data.get('image_url') or '')
+        is_b64 = raw_img.startswith('data:image') or len(raw_img) > 500
+        model_img = raw_img if raw_img else None
+        img_url = None if is_b64 else (raw_img if raw_img else None)
 
         ch_id, ch_name = clean_str(data.get('child_id')) or None, clean_str(data.get('child_name'))
         prod_id, p_name = clean_str(data.get('product_id') or data.get('model_id')) or None, clean_str(data.get('product_name') or data.get('model_name') or data.get('name'))
@@ -63,15 +66,22 @@ def add_order(payload):
             order_no = get_next_sequence_number(cur, 'ORD', fallback_prefix='ORD-')
             order_id = order_no
 
-        if not ch_id and ch_name and cust_id != 'CUST-GENERAL':
-            cur.execute("SELECT id FROM children WHERE customer_id = %s AND child_name = %s LIMIT 1;", (cust_id, ch_name))
-            c_ch = cur.fetchone()
-            if c_ch: ch_id = c_ch['id']
+        if not ch_id and cust_id and cust_id != 'CUST-GENERAL':
+            if ch_name:
+                cur.execute("SELECT id, child_name FROM children WHERE customer_id = %s AND child_name = %s LIMIT 1;", (cust_id, ch_name))
+                c_ch = cur.fetchone()
+                if c_ch: ch_id = c_ch['id']
+            if not ch_id:
+                cur.execute("SELECT id, child_name FROM children WHERE customer_id = %s ORDER BY created_at ASC LIMIT 1;", (cust_id,))
+                c_ch = cur.fetchone()
+                if c_ch:
+                    ch_id = c_ch['id']
+                    if not ch_name: ch_name = c_ch['child_name']
 
         query = """
             INSERT INTO orders (
                 id, order_no, customer_id, child_id, product_id, model_id,
-                selected_color, color, model_image, image_url, order_date, delivery_date,
+                selected_color, color, dress_color, model_image, image_url, order_date, delivery_date,
                 currency, exchange_rate, subtotal, discount, tax, total_amount,
                 paid_amount, base_amount, payment_status, production_status,
                 payment_method, delivery_fee, delivery_payment_mode, fabrics_data, status, notes, created_by, updated_at
@@ -80,12 +90,13 @@ def add_order(payload):
             )
             ON CONFLICT (id) DO UPDATE SET
                 order_no = COALESCE(orders.order_no, EXCLUDED.order_no), child_id = COALESCE(EXCLUDED.child_id, orders.child_id),
+                dress_color = COALESCE(EXCLUDED.dress_color, orders.dress_color), selected_color = COALESCE(EXCLUDED.selected_color, orders.selected_color), color = COALESCE(EXCLUDED.color, orders.color),
                 total_amount = EXCLUDED.total_amount, paid_amount = EXCLUDED.paid_amount, payment_status = EXCLUDED.payment_status,
                 production_status = EXCLUDED.production_status, delivery_fee = EXCLUDED.delivery_fee, fabrics_data = COALESCE(NULLIF(EXCLUDED.fabrics_data, '[]'::jsonb), orders.fabrics_data),
                 notes = EXCLUDED.notes, created_by = COALESCE(orders.created_by, EXCLUDED.created_by), updated_at = CURRENT_TIMESTAMP
             RETURNING *;
         """
-        cur.execute(query, (order_id, order_no, cust_id, ch_id, prod_id, prod_id, color_val, color_val, img_val, img_val, order_date, del_date, curr, rate, subtotal, discount, tax, tot_amt, paid_amt, base_amt, pay_status, prod_status, pay_method, delivery_fee, del_mode, ord_fb_json, notes, resolved_user))
+        cur.execute(query, (order_id, order_no, cust_id, ch_id, prod_id, prod_id, color_val, color_val, color_val, model_img, img_url, order_date, del_date, curr, rate, subtotal, discount, tax, tot_amt, paid_amt, base_amt, pay_status, prod_status, pay_method, delivery_fee, del_mode, ord_fb_json, notes, resolved_user))
         res = dict(cur.fetchone())
 
         items = data.get('items') or []
@@ -102,7 +113,7 @@ def add_order(payload):
                     INSERT INTO order_items (id, order_id, product_id, measurement_id, model_id, product_name, selected_color, color, model_image, image_url, quantity, unit_price, total_price, total_amount, paid_amount, remaining_amount, fabrics_data, notes)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s)
                     ON CONFLICT (id) DO UPDATE SET total_price = EXCLUDED.total_price, total_amount = EXCLUDED.total_amount, paid_amount = EXCLUDED.paid_amount, remaining_amount = EXCLUDED.remaining_amount;
-                """, (itm_id, order_id, p_id, itm.get('measurement_id') or data.get('measurement_id'), p_id, clean_str(itm.get('product_name') or p_name), color_val, color_val, img_val, img_val, qty, u_price, t_price, t_price, paid_amt, max(0.0, t_price - paid_amt), json.dumps(itm.get('fabrics_data') or raw_ord_fb, ensure_ascii=False), clean_str(itm.get('notes') or '')))
+                """, (itm_id, order_id, p_id, itm.get('measurement_id') or data.get('measurement_id'), p_id, clean_str(itm.get('product_name') or p_name), color_val, color_val, model_img, img_url, qty, u_price, t_price, t_price, paid_amt, max(0.0, t_price - paid_amt), json.dumps(itm.get('fabrics_data') or raw_ord_fb, ensure_ascii=False), clean_str(itm.get('notes') or '')))
                 create_order_stages(cur, order_id, itm_id, p_id, clean_str(itm.get('product_name') or p_name), f"PO-{order_no}")
 
         # Stock deduction
@@ -127,34 +138,49 @@ def add_order(payload):
             cur.execute("UPDATE customers SET current_balance = current_balance + %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s;", (rem_amt, cust_id))
 
         if prod_status not in ('Delivered', 'Cancelled', 'Ready'):
-            po_no = get_next_sequence_number(cur, 'PROD-ORD', fallback_prefix='PROD-ORD-')
             c_w, t_w, e_w, f_w, p_w = 0.0, 0.0, 0.0, 0.0, 0.0
             if prod_id or p_name:
                 cur.execute("SELECT bom, labor_cost, packaging_cost FROM products WHERE id = %s OR model_name = %s LIMIT 1;", (prod_id or p_name, p_name))
                 p_r = cur.fetchone()
                 if p_r and isinstance(p_r.get('bom'), dict):
                     bm = p_r['bom'].get('meta') or {}
-                    c_w = clean_num(bm.get('cutter_wage') or 0.0)
-                    t_w = clean_num(bm.get('tailor_wage') or 0.0)
-                    e_w = clean_num(bm.get('embroiderer_wage') or 0.0)
-                    f_w = clean_num(bm.get('finisher_wage') or 0.0)
+                    c_w, t_w = clean_num(bm.get('cutter_wage') or 0.0), clean_num(bm.get('tailor_wage') or 0.0)
+                    e_w, f_w = clean_num(bm.get('embroiderer_wage') or 0.0), clean_num(bm.get('finisher_wage') or 0.0)
                     p_w = clean_num(bm.get('packaging_cost') or p_r.get('packaging_cost') or 0.0)
 
-            cur.execute("""
-                INSERT INTO production_orders (
-                    id, production_order_no, order_id, customer_id, customer_name, product_id, model_id, product_name, child_name,
-                    selected_color, color, model_image, product_image, stage, start_date, due_date, progress, status, notes,
-                    cutter_wage, tailor_wage, embroiderer_wage, finisher_wage, packager_wage
-                ) VALUES (
-                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'القص والتحضير ✂️', %s, %s, 20, 'In Progress', %s,
-                    %s, %s, %s, %s, %s
-                )
-                ON CONFLICT (production_order_no) DO UPDATE SET stage = EXCLUDED.stage, due_date = EXCLUDED.due_date, notes = EXCLUDED.notes;
-            """, (po_no, po_no, order_id, cust_id, c_name or '', prod_id, prod_id, p_name or 'فستان أميرات', ch_name or 'الأميرة', color_val, color_val, img_val, img_val, order_date, del_date, notes, c_w, t_w, e_w, f_w, p_w))
-
-            log_audit_event(cur=cur, entity_type='production_orders', entity_id=po_no, action='INSERT',
-                            new_values={'production_order_no': po_no, 'order_id': order_id, 'due_date': del_date},
-                            document_no=po_no, details=f"إنشاء أمر تشغيل {po_no} للطلب {order_no}")
+            cur.execute("SELECT id, production_order_no FROM production_orders WHERE order_id = %s LIMIT 1;", (order_id,))
+            ex_po = cur.fetchone()
+            if ex_po:
+                po_no = ex_po.get('production_order_no') or ex_po['id']
+                cur.execute("""
+                    UPDATE production_orders SET customer_name = COALESCE(NULLIF(%s, ''), customer_name),
+                        product_name = COALESCE(NULLIF(%s, ''), product_name), child_name = COALESCE(NULLIF(%s, ''), child_name),
+                        selected_color = COALESCE(NULLIF(%s, ''), selected_color), color = COALESCE(NULLIF(%s, ''), color), dress_color = COALESCE(NULLIF(%s, ''), dress_color),
+                        model_image = COALESCE(NULLIF(%s, ''), model_image), due_date = COALESCE(%s::date, due_date),
+                        cutter_wage = CASE WHEN %s > 0 THEN %s ELSE cutter_wage END, tailor_wage = CASE WHEN %s > 0 THEN %s ELSE tailor_wage END,
+                        embroiderer_wage = CASE WHEN %s > 0 THEN %s ELSE embroiderer_wage END, finisher_wage = CASE WHEN %s > 0 THEN %s ELSE finisher_wage END,
+                        packager_wage = CASE WHEN %s > 0 THEN %s ELSE packager_wage END, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = %s;
+                """, (c_name, p_name, ch_name, color_val, color_val, color_val, model_img, del_date, c_w, c_w, t_w, t_w, e_w, e_w, f_w, f_w, p_w, p_w, ex_po['id']))
+            else:
+                po_no = get_next_sequence_number(cur, 'PROD-ORD', fallback_prefix='PROD-ORD-')
+                raw_sz = clean_str(data.get('size_code') or data.get('age_tier') or '6-9Y')
+                po_sz = None if raw_sz in ('EMPTY', '', 'null', 'None') else raw_sz
+                p_type = clean_str(data.get('production_type') or 'custom')
+                cur.execute("""
+                    INSERT INTO production_orders (
+                        id, production_order_no, order_id, customer_id, customer_name, product_id, model_id, product_name, child_name,
+                        selected_color, color, dress_color, model_image, product_image, stage, start_date, due_date, progress, status, notes,
+                        cutter_wage, tailor_wage, embroiderer_wage, finisher_wage, packager_wage,
+                        size_code, fabrics_data, total_amount, deposit_amount, remaining_amount, production_type
+                    ) VALUES (
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'القص والتحضير', %s, %s, 0.0, 'In Progress', %s,
+                        %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s, %s
+                    );
+                """, (po_no, po_no, order_id, cust_id, c_name or '', prod_id, prod_id, p_name or '', ch_name or '', color_val, color_val, color_val, model_img, img_url, order_date, del_date, notes, c_w, t_w, e_w, f_w, p_w, po_sz, ord_fb_json, tot_amt, paid_amt, max(0.0, tot_amt - paid_amt), p_type))
+                log_audit_event(cur=cur, entity_type='production_orders', entity_id=po_no, action='INSERT',
+                                new_values={'production_order_no': po_no, 'order_id': order_id, 'size_code': po_sz, 'due_date': del_date},
+                                document_no=po_no, details=f"إنشاء أمر تشغيل {po_no} للطلب {order_no}")
 
         log_audit_event(
             entity_type='orders',

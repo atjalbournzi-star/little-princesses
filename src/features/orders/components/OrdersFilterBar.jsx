@@ -69,7 +69,6 @@ function OrdersFilterBar({
             value={search}
             onChange={e => setSearch(e.target.value)}
             className="pl-7 pr-8 h-10 rounded-xl border border-[#E8E5EA] dark:border-slate-700 bg-[#FAFAFB] dark:bg-slate-900 text-xs font-medium text-[#25232A] dark:text-slate-100 w-full focus:bg-white dark:focus:bg-slate-800 focus:border-[#B0005A] outline-none"
-            placeholder="بحث برقم الطلب، العميل، أو الموديل..."
           />
           <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#6F6B75] dark:text-slate-400 text-xs pointer-events-none">🔍</span>
           {search && (

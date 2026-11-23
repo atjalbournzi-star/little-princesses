@@ -42,8 +42,9 @@ function ReceiptVoucherModal({
   const nextPayId = useRef(2);
 
   useEffect(() => {
-    if (isOpen && !isEdit && !voucherNo && window.getNextSequenceNumber) {
-      window.getNextSequenceNumber('RV').then(seq => { if (seq) setVoucherNo(seq); });
+    if (isOpen && !isEdit && !voucherNo) {
+      const getSeq = window.previewNextSequenceNumber || window.getNextSequenceNumber;
+      if (getSeq) getSeq('RV').then(seq => { if (seq) setVoucherNo(seq); });
     }
   }, [isOpen, isEdit, voucherNo]);
 
@@ -68,21 +69,22 @@ function ReceiptVoucherModal({
     if (totalAmount <= 0) return showToast?.('يرجى إدخال مبلغ السند ⚠️', 'error');
     setSubmittingLocal(true);
     try {
-      let vNo = voucherNo;
-      if (!vNo && window.getNextSequenceNumber) {
-        try { vNo = await window.getNextSequenceNumber('RV'); } catch (err) {}
-        if (vNo) setVoucherNo(vNo);
-      }
+      const vNo = voucherNo || '';
       const vRate = parseFloat(exchangeRate) || 1.0, vBaseAmt = totalAmount * vRate;
       const paySummary = payments.map(p => `${p.method}: ${(parseFloat(p.amount) || 0).toLocaleString('en-US')} ${currCode}`).join(' + ');
+      const cleanMethod = payments.length > 1 ? 'نقد (كاش)' : (payments[0]?.method?.includes('بنك') || payments[0]?.method?.includes('حوالة') ? 'حوالة بنكية' : 'نقد (كاش)');
+      const matchedCust = (customers || []).find(c => (c.name && c.name.trim() === party.trim()) || (c.id && c.id === party));
+      const resolvedCustId = matchedCust?.id || editData?.customer_id || null;
+      const resolvedOrderId = editData?.order_id || matchedCust?.latest_order_no || matchedCust?.order_id || null;
       const newV = {
-        id: editData?.id || vNo, v_no: vNo, voucher_no: vNo, payment_no: vNo,
+        id: editData?.id || undefined, v_no: vNo, voucher_no: vNo, payment_no: vNo,
         v_type: 'سند قبض', voucher_type: 'سند قبض', payment_type: 'سند قبض',
+        customer_id: resolvedCustId, order_id: resolvedOrderId,
         party, party_name: party, phone, amount: totalAmount, currency: currCode,
         exchange_rate: vRate, base_amount: vBaseAmt,
         date: editData?.date || (typeof TODAY_STR_ISO !== 'undefined' ? TODAY_STR_ISO : new Date().toISOString().slice(0, 10)),
-        notes: notes ? `${notes} | الحساب المقابل: ${targetAcc}` : `سند قبض - ${party} (${paySummary}) | الحساب المقابل: ${targetAcc}`,
-        pay_method: paySummary, payment_method: paySummary,
+        notes: notes ? `${notes} | ${paySummary} | الحساب المقابل: ${targetAcc}` : `سند قبض - ${party} (${paySummary}) | الحساب المقابل: ${targetAcc}`,
+        pay_method: cleanMethod, payment_method: cleanMethod,
         acc_code: payments[0]?.acc_code || defCashCode, target_acc: targetAcc
       };
       const entries = payments.filter(p => (parseFloat(p.amount) || 0) > 0).map((p, idx) => {
@@ -135,7 +137,7 @@ function ReceiptVoucherModal({
                     const pAcc = findPartnerAccount?.(val);
                     if (pAcc) { setTargetAcc(String(pAcc.code || pAcc.acc_code)); const cName = getCleanPartnerName?.(pAcc) || val; if (!notes || notes.includes('رأس المال')) setNotes(`إيداع حصة في رأس المال - ${cName}`); }
                   }}
-                  className="w-full h-9 px-3 rounded-xl border border-[#374151] bg-[#111827] text-white text-xs outline-none focus:border-[#00E5FF]" placeholder="اختر عميلاً أو شريكاً أو اكتب اسماً..." />
+                  className="w-full h-9 px-3 rounded-xl border border-[#374151] bg-[#111827] text-white text-xs outline-none focus:border-[#00E5FF]" />
                 <datalist id="receipt-parties">
                   {(partnerAccounts || []).map(p => <option key={p.code || p.id} value={getCleanPartnerName?.(p) || p.name}>💼 {p.name}</option>)}
                   {(customers || []).map(c => <option key={c.id || c.name} value={c.name}>👗 {c.name}</option>)}
@@ -143,7 +145,7 @@ function ReceiptVoucherModal({
               </div>
               <div>
                 <label className="block text-[11px] font-bold text-gray-300 mb-1">هاتف الواتساب 📱</label>
-                <input type="text" value={phone} onChange={e => setPhone(e.target.value)} placeholder="770000000" dir="ltr" className="w-full h-9 px-3 rounded-xl border border-[#374151] bg-[#111827] text-white text-xs font-mono outline-none text-left" />
+                <input type="text" value={phone} onChange={e => setPhone(e.target.value)} dir="ltr" className="w-full h-9 px-3 rounded-xl border border-[#374151] bg-[#111827] text-white text-xs font-mono outline-none text-left" />
               </div>
 
               <div>
@@ -180,7 +182,7 @@ function ReceiptVoucherModal({
                     </select>
                   </div>
                   <div className="col-span-4">
-                    <input type="number" step="any" placeholder="0.00" value={p.amount} onChange={e => handlePaymentChange(idx, 'amount', e.target.value)} dir="ltr" className="w-full h-8 px-2 rounded-lg border border-[#374151] bg-[#181d2a] text-[#00E5FF] font-mono font-bold text-xs outline-none text-left" />
+                    <input type="number" step="any" value={p.amount} onChange={e => handlePaymentChange(idx, 'amount', e.target.value)} dir="ltr" className="w-full h-8 px-2 rounded-lg border border-[#374151] bg-[#181d2a] text-[#00E5FF] font-mono font-bold text-xs outline-none text-left" />
                   </div>
                   <div className="col-span-1 text-center">
                     <button type="button" onClick={() => handleRemovePayment(idx)} className="text-rose-400 hover:text-rose-300 text-xs p-1 cursor-pointer">🗑️</button>
@@ -195,7 +197,7 @@ function ReceiptVoucherModal({
 
             <div>
               <label className="block text-[11px] font-bold text-gray-300 mb-1">البيان والشرح المحاسبي</label>
-              <input type="text" value={notes} onChange={e => setNotes(e.target.value)} placeholder="شرح لعملية القبض..." className="w-full h-9 px-3 rounded-xl border border-[#374151] bg-[#111827] text-white text-xs outline-none" />
+              <input type="text" value={notes} onChange={e => setNotes(e.target.value)} className="w-full h-9 px-3 rounded-xl border border-[#374151] bg-[#111827] text-white text-xs outline-none" />
             </div>
           </div>
 

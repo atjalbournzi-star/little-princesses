@@ -10,6 +10,7 @@ function useVouchersData({ vouchers = [], setVouchers, accounts = [], setAccount
   const [typeFilter, setTypeFilter] = useState('الكل');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [fetchError, setFetchError] = useState(null);
 
   const getCleanPartnerName = useCallback((acc) => {
     if (!acc) return '';
@@ -103,12 +104,17 @@ function useVouchersData({ vouchers = [], setVouchers, accounts = [], setAccount
 
   const refreshVouchers = useCallback(async () => {
     setIsRefreshing(true);
+    setFetchError(null);
     try {
       const res = await fetch('/api/vouchers').then(r => r.json());
+      if (res && res.success === false) {
+        throw new Error(res.error || 'تعذر جلب السندات والمعاملات المالية');
+      }
       const vList = (res && Array.isArray(res.data)) ? res.data : (Array.isArray(res) ? res : []);
       if (typeof setVouchers === 'function') setVouchers(vList);
     } catch (err) {
       console.error("refreshVouchers error:", err);
+      setFetchError(err.message || 'حدث خطأ في الاتصال بالخادم لجلب السندات');
     } finally {
       setIsRefreshing(false);
       setLoading(false);
@@ -131,7 +137,7 @@ function useVouchersData({ vouchers = [], setVouchers, accounts = [], setAccount
 
   return {
     currencyDisplay, activeTargetCurr, activeCurrencyDef, activeCurrencyDisplay,
-    search, setSearch, typeFilter, setTypeFilter, isRefreshing, loading, setLoading,
+    search, setSearch, typeFilter, setTypeFilter, isRefreshing, loading, setLoading, fetchError,
     partnerAccounts, getCleanPartnerName, findPartnerAccount,
     normalizeVoucher, filteredVouchers: filteredVouchers || [], totals: totals || { receipts: 0, payments: 0, net: 0, count: 0 },
     stats: stats || { totalCount: 0, totalIn: 0, totalOut: 0, netCash: 0 },

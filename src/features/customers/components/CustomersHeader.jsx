@@ -2,7 +2,7 @@
 // شريط العنوان العلوي وبطاقات المؤشرات الأفقية المدمجة لشاشة العملاء (CRM)
 
 function CustomersHeader({ stats = {}, onOpenAddCustomer, currency = { display: 'YER', symbol: '﷼' } }) {
-  const currencyDisplay = currency?.display || 'YER ﷼';
+  const currencyDisplay = currency?.symbol || currency?.code || (typeof currency === 'string' ? currency.split(' ')[0] : 'YER');
 
   return (
     <div className="shrink-0 space-y-1 select-none" dir="rtl">
@@ -97,7 +97,7 @@ function CustomersHeader({ stats = {}, onOpenAddCustomer, currency = { display: 
             <svg className="w-3 h-3 text-emerald-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
             </svg>
-            <span className="text-[11px] font-medium text-slate-300">إجمالي الذمم</span>
+            <span className="text-[11px] font-medium text-slate-300">متبقي عقود التنفيذ</span>
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
             <span className="text-[11px] font-bold text-emerald-400 font-mono tracking-tight tabular-nums">

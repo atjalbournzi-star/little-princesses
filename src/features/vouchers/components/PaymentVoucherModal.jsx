@@ -39,12 +39,13 @@ function PaymentVoucherModal({
   const [cashAcc, setCashAcc] = useState(editData?.acc_code || defaultCashCode);
   const [voucherNo, setVoucherNo] = useState(editData?.v_no || editData?.payment_no || '');
   const [amount, setAmount] = useState(editData?.amount ? String(editData.amount) : '');
-  const [payMethod, setPayMethod] = useState(editData?.pay_method || 'نقدي');
+  const [payMethod, setPayMethod] = useState(editData?.pay_method || 'نقد (كاش)');
   const [notes, setNotes] = useState(editData?.notes || '');
 
   useEffect(() => {
-    if (isOpen && !isEdit && !voucherNo && window.getNextSequenceNumber) {
-      window.getNextSequenceNumber('PV').then(seq => { if (seq) setVoucherNo(seq); });
+    if (isOpen && !isEdit && !voucherNo) {
+      const getSeq = window.previewNextSequenceNumber || window.getNextSequenceNumber;
+      if (getSeq) getSeq('PV').then(seq => { if (seq) setVoucherNo(seq); });
     }
   }, [isOpen, isEdit, voucherNo]);
 
@@ -65,22 +66,19 @@ function PaymentVoucherModal({
     if (!party.trim()) return showToast?.('يرجى اختيار أو كتابة اسم المستفيد ⚠️', 'error');
     if (numAmount <= 0) return showToast?.('يرجى إدخال مبلغ السند ⚠️', 'error');
 
-    let vNo = voucherNo;
-    if (!vNo && window.getNextSequenceNumber) {
-      try { vNo = await window.getNextSequenceNumber('PV'); } catch (err) {}
-      if (vNo) setVoucherNo(vNo);
-    }
-
+    const vNo = voucherNo || '';
     const vRate = parseFloat(exchangeRate) || 1.0;
     const vBaseAmt = numAmount * vRate;
     const debitObj = (accounts || []).find(a => String(a.code || a.acc_code) === String(targetAcc));
     const creditObj = (accounts || []).find(a => String(a.code || a.acc_code) === String(cashAcc));
     const debitLabel = debitObj ? `${debitObj.code || debitObj.acc_code} - ${debitObj.name || debitObj.account_name}` : targetAcc;
     const creditLabel = creditObj ? `${creditObj.code || creditObj.acc_code} - ${creditObj.name || creditObj.account_name}` : cashAcc;
+    const matchedSupp = (purchases || []).find(p => (p.supplier || p.vendor_name) === party);
 
     const newV = {
-      id: editData?.id || vNo, v_no: vNo, voucher_no: vNo, payment_no: vNo,
+      id: editData?.id || undefined, v_no: vNo, voucher_no: vNo, payment_no: vNo,
       v_type: 'سند صرف', voucher_type: 'سند صرف', payment_type: 'سند صرف',
+      supplier_id: matchedSupp?.supplier_id || null,
       party, party_name: party, amount: numAmount, currency: currCode,
       exchange_rate: vRate, base_amount: vBaseAmt,
       date: editData?.date || (typeof TODAY_STR_ISO !== 'undefined' ? TODAY_STR_ISO : new Date().toISOString().slice(0, 10)),
@@ -146,7 +144,6 @@ function PaymentVoucherModal({
                     if (pAcc) setTargetAcc(String(pAcc.code || pAcc.acc_code));
                   }}
                   className="w-full h-9 px-3 rounded-xl border border-[#374151] bg-[#111827] text-white text-xs outline-none focus:border-[#00E5FF]"
-                  placeholder="اختر مورداً، خياطاً، أو اكتب اسماً..."
                 />
                 <datalist id="payment-parties">
                   {supplierNames.map(s => <option key={s} value={s}>🧵 مورد: {s}</option>)}
@@ -157,7 +154,7 @@ function PaymentVoucherModal({
 
               <div>
                 <label className="block text-[11px] font-bold text-gray-300 mb-1">المبلغ المطلوب صرفه *</label>
-                <input type="number" step="any" placeholder="0.00" value={amount} onChange={e => setAmount(e.target.value)} dir="ltr" className="w-full h-9 px-3 rounded-xl border border-[#374151] bg-[#111827] text-[#00E5FF] font-mono font-bold text-xs outline-none text-left" />
+                <input type="number" step="any" value={amount} onChange={e => setAmount(e.target.value)} dir="ltr" className="w-full h-9 px-3 rounded-xl border border-[#374151] bg-[#111827] text-[#00E5FF] font-mono font-bold text-xs outline-none text-left" />
               </div>
               <div>
                 <label className="block text-[11px] font-bold text-gray-300 mb-1">العملة</label>
@@ -173,7 +170,7 @@ function PaymentVoucherModal({
               <div>
                 <label className="block text-[11px] font-bold text-gray-300 mb-1">طريقة الدفع</label>
                 <select value={payMethod} onChange={e => setPayMethod(e.target.value)} className="w-full h-9 px-2 rounded-xl border border-[#374151] bg-[#111827] text-white text-xs outline-none">
-                  {["نقدي", "حوالة بنكية", "تحويل إلكتروني"].map(p => <option key={p} value={p}>{p}</option>)}
+                  {["نقد (كاش)", "حوالة بنكية", "شبكة / بطاقة", "آجل (على الحساب)"].map(p => <option key={p} value={p}>{p}</option>)}
                 </select>
               </div>
 
@@ -192,7 +189,7 @@ function PaymentVoucherModal({
 
               <div className="sm:col-span-2">
                 <label className="block text-[11px] font-bold text-gray-300 mb-1">البيان والشرح المحاسبي</label>
-                <input type="text" value={notes} onChange={e => setNotes(e.target.value)} placeholder="شرح لعملية الصرف..." className="w-full h-9 px-3 rounded-xl border border-[#374151] bg-[#111827] text-white text-xs outline-none" />
+                <input type="text" value={notes} onChange={e => setNotes(e.target.value)} className="w-full h-9 px-3 rounded-xl border border-[#374151] bg-[#111827] text-white text-xs outline-none" />
               </div>
             </div>
           </div>

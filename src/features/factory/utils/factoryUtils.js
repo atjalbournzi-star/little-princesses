@@ -128,36 +128,41 @@ const preparePrintData = (f, orders = [], customers = [], products = []) => {
 };
 
 const getBespokeOrdersList = (orders = [], customers = [], products = []) => {
-  const result = [], seen = new Set();
+  const result = [], seen = new Set(), customerOrderMap = new Map();
   (orders || []).forEach(o => {
     if (!o) return;
-    const num = o.order_no || o.id, cid = o.customer_id || '';
+    const num = o.order_no || o.id, cid = String(o.customer_id || '');
     if (!num) return;
-    const cust = (customers || []).find(c => (cid && String(c.id || c.customer_id) === String(cid)) || (c.name && o.customer_name && (c.name === o.customer_name || c.name.includes(o.customer_name) || o.customer_name.includes(c.name))));
+    const cust = (customers || []).find(c => (cid && String(c.id || c.customer_id) === cid) || (c.name && o.customer_name && (c.name === o.customer_name || c.name.includes(o.customer_name) || o.customer_name.includes(c.name))));
     const cName = o.customer_name || cust?.name || cust?.customer_name || '';
     if (cName.includes('تجربة') || cName === 'Test Cust') return;
     const ch = o.child_name || cust?.children?.[0]?.child_name || cust?.measurements?.[0]?.child_name || '';
-    const pName = o.product_name || o.product || cust?.measurements?.[0]?.selected_model || cust?.measurements?.[0]?.model_name || cust?.measurements?.[0]?.profile_name || '';
+    const pName = o.product_name || o.product || cust?.measurements?.[0]?.selected_model || cust?.measurements?.[0]?.model_name || '';
     const matchedProd = (products || []).find(p => (o.product_id && String(p.id) === String(o.product_id)) || p.model_name === pName || p.name === pName || (pName && ((p.model_name && pName.includes(p.model_name)) || (p.name && pName.includes(p.name)))));
-    const meas = o.measurements || o.measurements_spec || cust?.measurements?.find(m => m.child_name === ch) || cust?.measurements?.[0] || {};
-    const tot = parseFloat(o.total_amount ?? o.total ?? o.grand_total ?? o.price ?? cust?.ledger?.total_sales ?? cust?.total_sales ?? 0), pd = parseFloat(o.paid_amount ?? o.paid ?? o.deposit ?? cust?.ledger?.total_paid ?? cust?.ledger?.deposit ?? cust?.deposit ?? 0), code = o.order_no || o.id || 'ORD';
-    seen.add(String(num)); seen.add(String(o.id)); if (cid) seen.add(String(cid));
-    result.push({ ...o, id: o.id || num, order_no: num, display_code: code, customer_id: cid, customer_name: cName, customer: cName, child_name: ch, product_name: pName, product: pName, product_id: o.product_id || matchedProd?.id || '', delivery_date: o.delivery_date || o.due_date || (cust?.delivery_date || ''), due_date: o.delivery_date || o.due_date || '', measurements_spec: meas, image_url: o.image_url || o.prod_image_url || matchedProd?.image_url || matchedProd?.image || '', total_amount: tot, paid_amount: pd, remaining_amount: Math.max(0, tot - pd), currency: o.currency || cust?.ledger?.currency || 'YER' });
+    const custMeas = cust?.measurements?.find(m => m.child_name === ch) || cust?.measurements?.[0] || {};
+    const meas = o.measurements || o.measurements_spec || custMeas, measNotes = o.measurement_notes || meas?.notes || custMeas?.notes || (o.notes && o.notes.includes('تنبيه') ? o.notes : '');
+    const tot = parseFloat(o.total_amount ?? o.total ?? o.grand_total ?? o.price ?? 0), pd = parseFloat(o.paid_amount ?? o.deposit_amount ?? o.paid ?? o.deposit ?? o.advance_paid ?? 0), rem = parseFloat(o.remaining_amount ?? Math.max(0, tot - pd)), code = o.order_no || o.id || 'ORD';
+    seen.add(String(num)); seen.add(String(o.id));
+    if (cid) { seen.add(cid); customerOrderMap.set(cid, o); }
+    if (cName) { seen.add(cName.trim().toLowerCase()); customerOrderMap.set(cName.trim().toLowerCase(), o); }
+    result.push({ ...o, id: o.id || num, order_no: num, order_id: o.id || num, display_code: code, customer_id: cid, customer_name: cName, customer: cName, child_name: ch, product_name: pName, product: pName, product_id: o.product_id || matchedProd?.id || '', delivery_date: o.delivery_date || o.due_date || (cust?.delivery_date || ''), due_date: o.delivery_date || o.due_date || '', delivery_fee: parseFloat(o.delivery_fee ?? 0), delivery_payment_mode: o.delivery_payment_mode || 'DIRECT_TO_COURIER', measurements_spec: { ...meas, notes: measNotes }, notes: o.notes || measNotes, measurement_notes: measNotes, image_url: o.image_url || o.prod_image_url || matchedProd?.image_url || '', total_amount: tot, paid_amount: pd, remaining_amount: rem, currency: o.currency || cust?.ledger?.currency || 'YER' });
   });
+
   (customers || []).forEach(c => {
     if (!c) return;
-    const cid = String(c.id || c.customer_id || ''), cName = c.name || c.customer_name || '';
-    if (!cName || cName.includes('تجربة') || cName === 'Test Cust' || (cid && seen.has(cid))) return;
+    const cid = String(c.id || c.customer_id || ''), cName = String(c.name || c.customer_name || '').trim(), norm = cName.toLowerCase();
+    const matchedOrd = customerOrderMap.get(cid) || customerOrderMap.get(norm) || (orders || []).find(o => (o.customer_id && String(o.customer_id) === cid) || (o.customer_name && (o.customer_name === cName || o.customer_name.includes(cName) || cName.includes(o.customer_name))));
+    if (matchedOrd || !cName || cName.includes('تجربة') || cName === 'Test Cust' || seen.has(cid) || seen.has(norm)) return;
     const measList = Array.isArray(c.measurements) && c.measurements.length > 0 ? c.measurements : null;
     if (measList) {
       measList.forEach(m => {
-        const num = m.order_no || m.id;
-        if (!num || seen.has(String(num))) return;
+        const num = m.order_no;
+        if (!num || !String(num).startsWith('ORD-') || seen.has(String(num))) return;
         seen.add(String(num));
         const ch = m.child_name || c.child_name || c.children?.[0]?.child_name || '', pName = m.selected_model || m.model_name || m.profile_name || '';
         const matchedProd = (products || []).find(p => (m.product_id && String(p.id) === String(m.product_id)) || p.model_name === pName || p.name === pName);
-        const tot = parseFloat(m.total_price || m.price || 0), pd = parseFloat(m.deposit || m.paid || 0);
-        result.push({ id: num, order_no: num, display_code: num, customer_id: cid, customer_name: cName, customer: cName, child_name: ch, product_name: pName, product: pName, product_id: m.product_id || matchedProd?.id || '', delivery_date: m.delivery_date || c.delivery_date || '', due_date: m.delivery_date || c.delivery_date || '', measurements_spec: m, image_url: m.image_url || matchedProd?.image_url || matchedProd?.image || '', total_amount: tot, paid_amount: pd, remaining_amount: Math.max(0, tot - pd), currency: m.currency || c.ledger?.currency || 'YER' });
+        const tot = parseFloat(m.total_price || m.price || c.ledger?.total_sales || c.total_amount || 0), pd = parseFloat(c.ledger?.deposit || c.ledger?.total_paid || c.deposit_amount || c.paid_amount || 0), mNotes = m.notes || m.sewing_notes || '';
+        result.push({ id: num, order_no: num, order_id: num, display_code: num, customer_id: cid, customer_name: cName, customer: cName, child_name: ch, product_name: pName, product: pName, product_id: m.product_id || matchedProd?.id || '', delivery_date: m.delivery_date || c.delivery_date || '', due_date: m.delivery_date || c.delivery_date || '', delivery_fee: 0, delivery_payment_mode: 'DIRECT_TO_COURIER', measurements_spec: { ...m, notes: mNotes }, notes: mNotes, measurement_notes: mNotes, image_url: m.image_url || matchedProd?.image_url || '', total_amount: tot, paid_amount: pd, remaining_amount: Math.max(0, tot - pd), currency: m.currency || c.ledger?.currency || 'YER' });
       });
     }
   });
@@ -171,7 +176,11 @@ const filterRealFactoryOrders = (factory = [], customers = [], orders = [], sear
 
   return list.filter(f => {
     if (!f) return false;
-    const isDelivered = f?.status === 'delivered' || f?.stage === 'تم التسليم' || f?.stage === 'تم التسليم ✅' || f?.production_status === 'delivered';
+    const st = String(f?.status || f?.production_status || '').toLowerCase();
+    const sg = String(f?.stage || '');
+    const isDelivered = st.includes('deliver') || st.includes('مسلم') || sg.includes('تم التسليم') || sg.includes('مسلّم');
+    if (isDelivered) return false;
+
     const fCustId = String(f.customer_id || '').toLowerCase().trim();
     const fCustName = String(f.customer || f.customer_name || f.client || f.client?.name || '').toLowerCase().trim();
     const fOrderNo = String(f.order_no || f.id || '').toLowerCase().trim();
@@ -186,7 +195,7 @@ const filterRealFactoryOrders = (factory = [], customers = [], orders = [], sear
       String(f?.tailor || f?.tailor_name || '').toLowerCase().includes(searchStr);
 
     const matchStage = stageFilter === 'الكل'
-      ? !isDelivered
+      ? true
       : (f?.stage === stageFilter || norm(f?.stage) === norm(stageFilter) || (norm(f?.stage) && norm(stageFilter).includes(norm(f?.stage))));
 
     return matchSearch && matchStage;

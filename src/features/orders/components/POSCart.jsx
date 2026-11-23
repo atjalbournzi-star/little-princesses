@@ -16,6 +16,21 @@ function POSCart({
   const getCustName = window.getCustomerName || ((c) => c?.name || c?.customer_name || '');
   const PaymentComp = window.POSCartPayment || (typeof POSCartPayment !== 'undefined' ? POSCartPayment : null);
 
+  const [fetchedCusts, setFetchedCusts] = React.useState([]);
+  React.useEffect(() => {
+    if ((!customers || customers.length === 0) && (!window.customers || window.customers.length === 0)) {
+      fetch('/api/crm/customers').then(r => r.json()).then(d => {
+        const list = (d && Array.isArray(d.data)) ? d.data : (Array.isArray(d) ? d : []);
+        if (list.length) setFetchedCusts(list);
+      }).catch(() => {});
+    }
+  }, [customers]);
+
+  const activeCustomers = (customers && customers.length) ? customers : (window.customers?.length ? window.customers : fetchedCusts);
+  const selectedCustomer = React.useMemo(() => {
+    return (activeCustomers || []).find(c => getCustName(c) === posCustomerName);
+  }, [activeCustomers, posCustomerName, getCustName]);
+
   const posSubtotal = React.useMemo(() => {
     return (cart || []).reduce((s, itm) => s + ((parseFloat(itm.unit_price) || 0) * (parseInt(itm.qty) || 1)), 0);
   }, [cart]);
@@ -58,7 +73,7 @@ function POSCart({
             className="w-full h-6 px-2 text-[11px] font-medium bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-md outline-none cursor-pointer truncate transition hover:border-slate-300 dark:hover:border-slate-600"
           >
             <option value="عميل عام / زائر صالة العرض">عميل عام / زائر</option>
-            {(customers || []).map(c => {
+            {(activeCustomers || []).map(c => {
               const n = getCustName(c);
               return n ? <option key={c.id || n} value={n}>{n}</option> : null;
             })}
@@ -81,6 +96,16 @@ function POSCart({
           )}
         </div>
       </div>
+
+      {/* Customer Balance Indicator */}
+      {selectedCustomer && posCustomerName !== 'عميل عام / زائر صالة العرض' && (
+        <div className="h-6 px-2.5 bg-pink-50/50 dark:bg-pink-950/20 border-b border-pink-200/40 dark:border-pink-900/40 flex items-center justify-between text-[10px] shrink-0">
+          <span className="text-slate-500 dark:text-slate-400">رصيد العميل الحالي:</span>
+          <span className="font-mono font-bold text-pink-600 dark:text-pink-400">
+            {Number(selectedCustomer.current_balance || 0).toLocaleString('en-US')} {currCode}
+          </span>
+        </div>
+      )}
 
       {/* ZONE 2: Scrollable Cart Items List - ISOLATED SCROLL */}
       <div className="flex-1 overflow-y-auto custom-scrollbar p-1.5 space-y-1 min-h-0 bg-slate-50/50 dark:bg-transparent">

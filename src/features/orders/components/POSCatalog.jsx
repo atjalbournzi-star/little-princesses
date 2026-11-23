@@ -52,8 +52,7 @@ function POSCatalog({
               <input
                 ref={barcodeInputRef} type="text" value={barcodeInput}
                 onChange={e => setBarcodeInput && setBarcodeInput(e.target.value)}
-                placeholder="امسح بالباركود أو اكتب الرمز..."
-                className="w-full h-6 text-[11px] bg-white dark:bg-[#0F172A] border border-slate-300 dark:border-slate-600 rounded-md text-slate-900 dark:text-white placeholder:text-slate-500 dark:placeholder:text-slate-400 pr-6 pl-2 outline-none focus:border-pink-500 font-medium transition shadow-2xs"
+                className="w-full h-6 text-[11px] bg-white dark:bg-[#0F172A] border border-slate-300 dark:border-slate-600 rounded-md text-slate-900 dark:text-white pr-6 pl-2 outline-none focus:border-pink-500 font-medium transition shadow-2xs"
               />
               <svg className="w-3 h-3 absolute right-1.5 top-1/2 -translate-y-1/2 text-pink-500 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 7h.01M7 11h.01M7 15h.01M11 7h.01M11 11h.01M11 15h.01M15 7h.01M15 11h.01M15 15h.01M19 7h.01M19 11h.01M19 15h.01" />
@@ -69,8 +68,7 @@ function POSCatalog({
             <input
               type="text" value={posSearch}
               onChange={e => setPosSearch && setPosSearch(e.target.value)}
-              placeholder="بحث في الموديلات..."
-              className="w-full h-6 text-[11px] bg-white dark:bg-[#0F172A] border border-slate-300 dark:border-slate-600 rounded-md text-slate-900 dark:text-white placeholder:text-slate-500 dark:placeholder:text-slate-400 pr-6 pl-6 outline-none focus:border-pink-500 font-medium transition shadow-2xs"
+              className="w-full h-6 text-[11px] bg-white dark:bg-[#0F172A] border border-slate-300 dark:border-slate-600 rounded-md text-slate-900 dark:text-white pr-6 pl-6 outline-none focus:border-pink-500 font-medium transition shadow-2xs"
             />
             <svg className="w-3 h-3 absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />

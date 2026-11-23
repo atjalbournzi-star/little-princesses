@@ -19,7 +19,7 @@ function Reports({
   const {
     activeTab = 'financial', setActiveTab = () => {}, financialSubTab = 'pnl', setFinancialSubTab = () => {},
     periodPreset = 'this_month', setPeriodPreset = () => {}, dateRange = { start: '', end: '' }, setDateRange = () => {},
-    reportCurrency = 'YER ﷼', setReportCurrency = () => {}, selectedLedgerAcc = '', setSelectedLedgerAcc = () => {},
+    reportCurrency = 'ريال يمني', setReportCurrency = () => {}, selectedLedgerAcc = '', setSelectedLedgerAcc = () => {},
     statementType = 'treasury', setStatementType = () => {}, selectedPartyId = '', setSelectedPartyId = () => {},
     targetCode = 'YER', toReportAmount = (a) => parseFloat(a) || 0, fmtMoney = (n) => String(n),
     filteredJournal = [], liveAccountsMap = {}, pnlData = {}, balanceSheetData = {},

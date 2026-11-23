@@ -45,8 +45,16 @@ function Products({
     availableCategories,
     availableCollections,
     filteredProducts,
-    stats
+    stats,
+    addCategoryToList,
+    loadCategories
   } = useData({ products, currency });
+
+  const handleCategoryCreated = (newCat) => {
+    if (addCategoryToList) addCategoryToList(newCat);
+    else if (loadCategories) loadCategories();
+    if (actions.setCategory) actions.setCategory(newCat);
+  };
 
   // تشغيل خطاف العمليات والإجراءات
   const actions = useActions({
@@ -148,6 +156,7 @@ function Products({
           availableCategories={availableCategories}
           availableCollections={availableCollections}
           jobRoles={jobRoles}
+          onCategoryCreated={handleCategoryCreated}
         />
       )}
 

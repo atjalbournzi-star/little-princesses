@@ -20,27 +20,19 @@ function useCustomerActions({
     }
     setIsSaving(true);
     const custId = payload.customer_id || payload.id;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 90000);
 
     try {
-      let apiRes = null;
-      try {
-        const res = await fetch('/api/crm/customers', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        apiRes = await res.json();
-        if (!res.ok || apiRes.success === false) {
-          throw new Error(apiRes.error || 'فشل حفظ بيانات العميل');
-        }
-      } catch (backendErr) {
-        if (backendErr.message && backendErr.message.includes('مسجل مسبقاً')) {
-          showToast && showToast(backendErr.message, 'error');
-          return false;
-        }
-        if (typeof callGAS === 'function') {
-          apiRes = await callGAS('addCustomer', payload);
-        }
+      const res = await fetch('/api/crm/customers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal: controller.signal
+      });
+      const apiRes = await res.json();
+      if (!res.ok || apiRes.success === false) {
+        throw new Error(apiRes.error || 'فشل حفظ بيانات العميل في السيرفر');
       }
 
       const rawRec = (apiRes && (apiRes.data || apiRes.customer)) || {};
@@ -56,75 +48,84 @@ function useCustomerActions({
       if (typeof setCustomers === 'function') {
         setCustomers(prev => [newRecord, ...(prev || []).filter(c => {
           const cid = c.customer_id || c.id;
-          return cid !== finalCustId && cid !== custId && (!payload.phone.trim() || c.phone !== payload.phone.trim());
+          return cid !== finalCustId && cid !== custId && (!payload.phone?.trim() || c.phone !== payload.phone.trim());
         })]);
       }
-      window.dispatchEvent(new CustomEvent('erp:ordersChanged'));
-      const depAmt = parseFloat(payload.ledger?.deposit || 0);
-      const vNo = options?.voucherNo || payload.ledger?.latest_voucher_no || '';
+      const isConfirmed = Boolean(payload.confirm_order || payload.isDraftOrder || rawRec.latest_order_no || rawRec.order_no);
+      if (isConfirmed) {
+        window.dispatchEvent(new CustomEvent('erp:ordersChanged'));
+      }
+      const depAmt = parseFloat(payload.ledger?.deposit || payload.deposit || 0);
+      const vNo = options?.voucherNo || payload.ledger?.latest_voucher_no || rawRec.latest_voucher_no || '';
       const cName = payload.name || payload.customer_name || 'العميل';
+      const currSym = currency?.symbol || currency?.code || (currency?.display ? currency.display.split(' ')[0] : 'YER');
       const successMsg = (depAmt > 0 && vNo)
         ? `✅ تم حفظ بيانات ${cName}، اعتماد سند القبض (${vNo})، وقيد العربون بنجاح ✨`
         : (depAmt > 0
-            ? `✅ تم حفظ بيانات ${cName} وقيد دفعة (${depAmt.toLocaleString('en-US')} ${currency.display}) بنجاح ✨`
+            ? `✅ تم حفظ بيانات ${cName} وقيد دفعة (${depAmt.toLocaleString('en-US')} ${currSym}) بنجاح ✨`
             : `✅ تم حفظ بيانات ${cName} بنجاح ✨`);
       if (!options?.silent) {
         showToast && showToast(successMsg, 'success');
       }
       return newRecord;
     } catch (err) {
-      console.error('Save customer fallback:', err);
-      const localRecord = { ...payload, id: custId };
-      if (typeof setCustomers === 'function') {
-        setCustomers(prev => [localRecord, ...(prev || []).filter(c => (c.customer_id || c.id) !== custId && (!payload.phone.trim() || c.phone !== payload.phone.trim()))]);
-      }
-      showToast && showToast('تم الحفظ محلياً ⚡', 'warning');
-      return localRecord;
-    } finally { setIsSaving(false); }
+      console.error('Save customer error:', err);
+      const errMsg = err?.name === 'AbortError'
+        ? 'انتهت مهلة انتظار السيرفر (90 ثانية) ⚠️ المعاملة قد تكون اكتملت بنجاح في السيرفر، يرجى تحديث الصفحة/الجدول للتأكد قبل إعادة الإرسال منعاً للتكرار!'
+        : (err.message || 'فشل حفظ بيانات العميل في السيرفر ⚠️');
+      showToast && showToast(errMsg, 'error');
+      if (options?.throwOnError) throw err;
+      return false;
+    } finally {
+      clearTimeout(timeoutId);
+      setIsSaving(false);
+    }
   }, [setCustomers, showToast, currency]);
 
-  // ── 2. حفظ وتحديث مقاسات العميل ──
-  const handleSaveMeasurements = useCallback(async (targetCust, newMeasurements) => {
+  // ── 2. حفظ وتحديث مقاسات العميل فقط دون إنشاء طلب ──
+  const handleSaveMeasurements = useCallback(async (targetCust, newMeasurements, options = {}) => {
     if (!targetCust) return false;
-    const cid = targetCust.customer_id || targetCust.id;
-    const updatedCustomer = {
-      ...targetCust,
-      measurements: newMeasurements
-    };
-    return await handleSaveCustomer(updatedCustomer);
+    const updatedCustomer = { ...targetCust, measurements: newMeasurements, confirm_order: false, save_mode: 'measurements_only' };
+    return await handleSaveCustomer(updatedCustomer, options);
   }, [handleSaveCustomer]);
 
-  // ── 3. حفظ وتحديث كشف الحساب والمدفوعات ──
+  // ── 3. حفظ الحساب المالي واعتماد الطلب وسند العربون ──
   const handleSaveLedger = useCallback(async (targetCust, newLedger, options = {}) => {
     if (!targetCust) return false;
+    const shouldConfirm = options?.confirmOrder || newLedger?.confirm_order || targetCust?.isDraftOrder;
     const updatedCustomer = {
-      ...targetCust,
-      ledger: newLedger,
-      total_sales: newLedger.total_sales,
-      total_paid: newLedger.total_paid,
-      deposit: newLedger.deposit,
-      remaining: newLedger.remaining
+      ...targetCust, ledger: newLedger, confirm_order: Boolean(shouldConfirm),
+      delivery_date: newLedger.delivery_date || targetCust.delivery_date, event_date: newLedger.event_date || targetCust.event_date,
+      child_id: newLedger.child_id || targetCust.child_id, child_name: newLedger.child_name || targetCust.child_name,
+      total_sales: newLedger.total_sales, subtotal: newLedger.subtotal !== undefined ? newLedger.subtotal : newLedger.total_sales,
+      total_paid: newLedger.total_paid, deposit: newLedger.deposit,
+      delivery_fee: newLedger.delivery_fee !== undefined ? newLedger.delivery_fee : newLedger.delivery,
+      delivery_payment_mode: newLedger.delivery_payment_mode, remaining: newLedger.remaining
     };
-    return await handleSaveCustomer(updatedCustomer, options);
+    return await handleSaveCustomer(updatedCustomer, { throwOnError: true, ...options });
   }, [handleSaveCustomer]);
 
   // ── 4. حذف أو أرشفة سجل العميل ──
   const handleDeleteCustomer = useCallback(async (customerId, skipConfirm = false) => {
     if (!skipConfirm && !window.confirm('هل أنت متأكد من رغبتك في حذف هذا العميل؟')) return false;
     try {
-      await fetch('/api/customers/delete', {
+      const res = await fetch('/api/customers/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ customer_id: customerId, id: customerId })
       });
+      const d = await res.json();
+      if (!res.ok || d.success === false) throw new Error(d.error || 'فشل حذف سجل العميل');
+      if (typeof setCustomers === 'function') {
+        setCustomers(prev => (prev || []).filter(c => (c.customer_id || c.id) !== customerId));
+      }
+      showToast && showToast('تم حذف سجل العميل بنجاح 🗑️', 'info');
+      return true;
     } catch (e) {
-      console.warn('API delete error, deleting locally:', e);
+      console.error('API delete error:', e);
+      showToast && showToast(e.message || 'تعذر حذف العميل من السيرفر', 'error');
+      return false;
     }
-    if (typeof setCustomers === 'function') {
-      setCustomers(prev => (prev || []).filter(c => (c.customer_id || c.id) !== customerId));
-    }
-    showToast && showToast('تم حذف سجل العميل بنجاح 🗑️', 'info');
-    return true;
   }, [setCustomers, showToast]);
 
   // ── 5. فتح كرت فستان الأميرة الفاخر في نافذة جديدة ──

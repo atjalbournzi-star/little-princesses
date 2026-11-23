@@ -8,6 +8,7 @@ from routes.products_bp import products_bp
 from routes.inventory_bp import inventory_bp
 from routes.atelier_bp import atelier_bp
 from routes.accounting_bp import accounting_bp
+from routes.accounting_reports_bp import accounting_reports_bp
 from routes.hr_bp import hr_bp
 from routes.marketing_bp import marketing_bp
 from routes.system_bp import system_bp
@@ -21,6 +22,7 @@ ALL_BLUEPRINTS = [
     inventory_bp,
     atelier_bp,
     accounting_bp,
+    accounting_reports_bp,
     hr_bp,
     marketing_bp,
     system_bp,

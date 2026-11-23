@@ -6,51 +6,42 @@ from .db_pool import (
     get_db_cursor, execute_query, clean_num,
     clean_str, generate_id, today_str
 )
-from .account_resolver import resolve_exchange_rate, resolve_account_id
+from .account_resolver import resolve_exchange_rate, resolve_account_id, resolve_leaf_account
 from .pg_sequences import get_next_sequence_number
 from .pg_audit import log_audit_event, get_active_user_context, resolve_active_user_id
+from .pg_delivery_cogs import refresh_chart_balances_atomic
 
 logger = logging.getLogger("LittlePrincesses_PG_Journal")
 
 
 def get_journal_entries(params=None):
     query = """
-        SELECT id, entry_no, entry_date, description, debit_account_id,
-               credit_account_id, amount, total_amount, base_amount, ref_type,
-               ref_id, currency, exchange_rate, status, notes, created_by, created_at
-        FROM journal_entries
-        ORDER BY created_at DESC;
+        SELECT j.id, j.entry_no, j.entry_date, j.description, j.debit_account_id,
+               j.credit_account_id, j.amount, j.total_amount, j.base_amount, j.ref_type,
+               j.ref_id, j.currency, j.exchange_rate, j.status, j.notes, j.created_by, j.created_at,
+               COALESCE(
+                   json_agg(
+                       json_build_object(
+                           'id', l.id,
+                           'entry_id', l.entry_id,
+                           'account_id', l.account_id,
+                           'line_description', l.line_description,
+                           'debit', COALESCE(l.debit, 0.0),
+                           'credit', COALESCE(l.credit, 0.0),
+                           'debit_base', COALESCE(l.debit_base, 0.0),
+                           'credit_base', COALESCE(l.credit_base, 0.0)
+                       ) ORDER BY l.id ASC
+                   ) FILTER (WHERE l.id IS NOT NULL),
+                   '[]'::json
+               ) AS lines
+        FROM journal_entries j
+        LEFT JOIN journal_entry_lines l ON l.entry_id = j.id
+        GROUP BY j.id, j.entry_no, j.entry_date, j.description, j.debit_account_id,
+                 j.credit_account_id, j.amount, j.total_amount, j.base_amount, j.ref_type,
+                 j.ref_id, j.currency, j.exchange_rate, j.status, j.notes, j.created_by, j.created_at
+        ORDER BY j.created_at DESC;
     """
     rows = execute_query(query, fetch_all=True) or []
-    if not rows:
-        return []
-
-    lines_map = {}
-    try:
-        lines_query = """
-            SELECT id, entry_id, account_id, line_description, debit,
-                   credit, debit_base, credit_base
-            FROM journal_entry_lines
-            ORDER BY id ASC;
-        """
-        all_lines = execute_query(lines_query, fetch_all=True) or []
-        for l in all_lines:
-            eid = l.get('entry_id')
-            if eid not in lines_map:
-                lines_map[eid] = []
-            lines_map[eid].append({
-                'id': l.get('id'),
-                'entry_id': eid,
-                'account_id': l.get('account_id'),
-                'line_description': l.get('line_description'),
-                'debit': clean_num(l.get('debit')),
-                'credit': clean_num(l.get('credit')),
-                'debit_base': clean_num(l.get('debit_base')),
-                'credit_base': clean_num(l.get('credit_base'))
-            })
-    except Exception as e:
-        logger.warning(f"Failed to fetch journal_entry_lines: {e}")
-
     for r in rows:
         if r.get('created_at'): r['created_at'] = str(r['created_at'])
         if r.get('entry_date'): r['entry_date'] = str(r['entry_date'])
@@ -59,8 +50,16 @@ def get_journal_entries(params=None):
         r['debit'] = r.get('debit_account_id')
         r['credit'] = r.get('credit_account_id')
         r['exchange_rate'] = clean_num(r.get('exchange_rate'), 1.0)
+        r['party_id'] = r.get('ref_id') or ''
+        r['party_type'] = r.get('ref_type') or ''
+        r['link_subparty'] = bool(r.get('ref_id'))
+        r['general_notes'] = r.get('notes') or ''
 
-        entry_lines = lines_map.get(r['id']) or []
+        entry_lines = r.get('lines') or []
+        if isinstance(entry_lines, str):
+            import json
+            try: entry_lines = json.loads(entry_lines)
+            except Exception: entry_lines = []
         if not entry_lines and (r.get('debit_account_id') or r.get('credit_account_id')):
             amt = clean_num(r.get('amount') or r.get('total_amount'))
             rate = r['exchange_rate']
@@ -93,9 +92,9 @@ def add_journal_entry(payload):
     curr = clean_str(data.get('currency') or 'YER')
     rate = clean_num(data.get('exchange_rate') or 1.0)
     base_amt = clean_num(data.get('base_amount') or (amt * rate))
-    ref_type = clean_str(data.get('ref_type') or 'Manual')
-    ref_id = clean_str(data.get('ref_id') or '')
-    notes = clean_str(data.get('notes') or '')
+    ref_type = clean_str(data.get('ref_type') or data.get('party_type') or 'Manual')
+    ref_id = clean_str(data.get('ref_id') or data.get('party_id') or '')
+    notes = clean_str(data.get('notes') or data.get('general_notes') or '')
 
     with get_db_cursor(commit=True) as cur:
         resolved_user = resolve_active_user_id(cur, raw_uid)
@@ -115,8 +114,8 @@ def add_journal_entry(payload):
             j_no = get_next_sequence_number(cur, 'JV', fallback_prefix='JV-')
             j_id = j_no
 
-        deb_acc = resolve_account_id(cur, data.get('debit_account_id') or data.get('debit') or data.get('debit_code') or 'ACC-101', 'ACC-101')
-        crd_acc = resolve_account_id(cur, data.get('credit_account_id') or data.get('credit') or data.get('credit_code') or 'ACC-401', 'ACC-401')
+        deb_acc = resolve_leaf_account(cur, resolve_account_id(cur, data.get('debit_account_id') or data.get('debit') or data.get('debit_code') or 'ACC-101-1', 'ACC-101-1', curr), curr)
+        crd_acc = resolve_leaf_account(cur, resolve_account_id(cur, data.get('credit_account_id') or data.get('credit') or data.get('credit_code') or 'ACC-401', 'ACC-401', curr), curr)
 
         query = """
             INSERT INTO journal_entries (
@@ -137,7 +136,21 @@ def add_journal_entry(payload):
         cur.execute(query, (j_id, j_no, j_date, desc, deb_acc, crd_acc, amt, amt, base_amt, ref_type, ref_id, curr, rate, notes, resolved_user))
         res = dict(cur.fetchone())
 
-        if amt > 0:
+        lines_data = data.get('lines')
+        if isinstance(lines_data, list) and len(lines_data) > 0:
+            cur.execute("DELETE FROM journal_entry_lines WHERE entry_id = %s;", (res['id'],))
+            for l in lines_data:
+                l_acc = resolve_leaf_account(cur, resolve_account_id(cur, l.get('account_id'), 'ACC-101-1', curr), curr)
+                l_deb = clean_num(l.get('debit'))
+                l_crd = clean_num(l.get('credit'))
+                l_deb_b = clean_num(l.get('debit_base')) or (l_deb * rate)
+                l_crd_b = clean_num(l.get('credit_base')) or (l_crd * rate)
+                l_desc = clean_str(l.get('line_description') or l.get('description') or desc)
+                cur.execute("""
+                    INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
+                """, (generate_id("JVL"), res['id'], l_acc, l_desc, l_deb, l_crd, l_deb_b, l_crd_b))
+        elif amt > 0:
             cur.execute("DELETE FROM journal_entry_lines WHERE entry_id = %s;", (res['id'],))
             cur.execute("""
                 INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base)
@@ -147,6 +160,8 @@ def add_journal_entry(payload):
                 INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base)
                 VALUES (%s, %s, %s, %s, 0.0, %s, 0.0, %s);
             """, (generate_id("JVL"), res['id'], crd_acc, f"دائن - {desc}", amt, base_amt))
+
+        refresh_chart_balances_atomic(cur)
 
         log_audit_event(
             entity_type='journal_entries',
@@ -178,5 +193,6 @@ def delete_journal_entry(payload):
             cur.execute("DELETE FROM journal_entries WHERE entry_no = %s;", (entry_no,))
         elif ref_id:
             cur.execute("DELETE FROM journal_entries WHERE ref_id = %s;", (ref_id,))
+        refresh_chart_balances_atomic(cur)
         log_audit_event('journal_entries', t_id or 'UNKNOWN', 'DELETE', user_id=u_id, document_no=entry_no, details="حذف قيد يومية", cur=cur)
     return {"deleted": True}

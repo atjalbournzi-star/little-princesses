@@ -172,10 +172,8 @@ function useAccountsData({ accounts, journal, searchTerm, filterType, maxDepthFi
         memoSum[key] = parseFloat(acc.balance) || 0.0;
         return memoSum[key];
       }
-      // الحساب التجميعي: مجموع صافي لأرصدة الأبناء مع الحركات المباشرة فقط وتجاهل الرصيد المسبق المكرر
-      const direct = (acc.hasMovements || acc.total_debit > 0 || acc.total_credit > 0) ? (parseFloat(acc.balance) || 0.0) : 0.0;
-      let total = direct;
-      children.forEach(c => { total += calcNodeRollup(c, new Set(visited)); });
+      // الحساب التجميعي: مجموع أرصدة الأبناء المباشرين فقط دون جمع أي رصيد مخزن للأب لمنع الازدواجية
+      const total = children.reduce((sum, c) => sum + calcNodeRollup(c, new Set(visited)), 0.0);
       memoSum[key] = total;
       return total;
     };

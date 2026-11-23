@@ -1,0 +1,318 @@
+=== 3-WAY SUPABASE <-> BACKEND <-> FRONTEND COLUMN AUDIT (65 Tables, 511 Unique Cols) ===
+
+TABLE                           ROWS COLS FULL_OK NULL_100% NO_BE NO_FE
+------------------------------------------------------------------------
+ai_comment_nlp                     0   12       7         0     0     4
+ai_conversation_intent             0    7       5         0     0     2
+ai_daily_briefs                    0   10       9         0     0     1
+ai_recommendations                 0   10       9         0     0     1
+ai_scoring_weights                 0    5       3         0     0     1
+attribution_records                0    7       4         0     0     2
+audit_logs                       152   13      10         0     0     2
+campaigns                          0   19      14         0     4     1
+capability_matrix                  0   11      10         0     0     1
+chart_of_accounts                 37   22      18         2     0     3
+children                          14   10       7         1     0     2
+comments                           0    9       6         0     0     3
+company_profile                    1   11       9         3     0     1
+content                            0   13       9         0     0     4
+content_metrics                    0   17      10         0     0     7
+conversations                      0    7       5         0     0     2
+cost_centers                       0    6       5         0     0     0
+currencies                         3    9       7         1     0     1
+customer_platform_mappings        19    6       3         0     0     3
+customers                         21   24      21         1     1     1
+employee_advances                  0   12       8         0     0     3
+employees                          4   15      14         0     0     0
+expense_transactions               0   28      27         0     0     0
+expenses                           0   30      29         0     0     0
+fitting_alterations                0   25      17         0     0     7
+garment_measurements_studio        0   18      16         0     0     1
+idempotency_keys                   0    4       3         0     1     0
+inventory                          2   18      16         0     0     1
+inventory_transactions            12   15      12         2     0     2
+job_roles                          6   14      12         0     0     1
+journal_entries                   34   17      16         0     0     0
+journal_entry_lines               83    8       6         0     0     1
+marketing_platforms                0   14      11         0     0     3
+measurements                      14   34      33         0     0     0
+messages                           0    7       3         0     0     4
+number_sequences                  23    8       5         0     0     2
+order_items                       13   19      17         1     0     1
+order_stages                      70   17      11         2     0     5
+orders                            13   36      34         2     0     1
+payments                          20   25      21         4     0     3
+payroll                            4   16      11         0     0     4
+payroll_items                      0   15       8         0     0     6
+payroll_runs                       0   12       5         0     0     6
+piece_rate_logs                   23   13      12         2     0     0
+product_categories                 1    4       3         0     0     0
+production_orders                 15   63      58         5     0     4
+products                           3   32      31         5     0     0
+purchase_items                     2    9       8         0     0     0
+purchases                          1   29      28         4     0     0
+quality_actions                    0   13      12         0     0     0
+quality_checkpoints                5    9       8         0     0     0
+quality_complaints                 0   13      11         0     0     1
+quality_defects                    0   29      26         0     0     2
+quality_feedback                   0   14      10         0     0     3
+quality_inspections                5   21      18         7     0     2
+quality_returns                    0   12      11         0     0     0
+quality_settings                   8   10       8         0     0     1
+raw_platform_events                0   10       8         0     0     2
+suppliers                          1   12      11         0     0     0
+system_settings                    4    5       5         0     0     0
+tailor_commissions                23   24      20         3     1     2
+tenants                            0    9       5         0     3     0
+users                              4   10       8         0     0     1
+warehouse_stock                    2    7       5         0     0     1
+warehouses                         4    8       7         0     0     0
+------------------------------------------------------------------------
+TOTALS: Tables=65 | Cols=991 | LinkedOK=819 | AlwaysNull=45 | NoBackend=10 | NoUI=112 | OrphanUIKeys=71
+
+=== [A] TABLE COLUMN GAPS (UNLINKED / ALWAYS NULL / BACKEND-ONLY) ===
+
+[ai_comment_nlp] (rows=0, cols=12)
+  - BACKEND_ONLY_NO_UI (4): sentiment_cause, extracted_size, extracted_age, analyzed_at
+
+[ai_conversation_intent] (rows=0, cols=7)
+  - BACKEND_ONLY_NO_UI (2): silent_high_intent, analyzed_at
+
+[ai_daily_briefs] (rows=0, cols=10)
+  - BACKEND_ONLY_NO_UI (1): recommended_actions
+
+[ai_recommendations] (rows=0, cols=10)
+  - BACKEND_ONLY_NO_UI (1): evidence
+
+[ai_scoring_weights] (rows=0, cols=5)
+  - BACKEND_ONLY_NO_UI (1): weight_name
+
+[attribution_records] (rows=0, cols=7)
+  - BACKEND_ONLY_NO_UI (2): model_type, calculated_at
+
+[audit_logs] (rows=152, cols=13)
+  - BACKEND_ONLY_NO_UI (2): ip_address, document_no
+
+[campaigns] (rows=0, cols=19)
+  - NOT_IN_BACKEND (4): campaign_code, campaign_type, sales_count, revenue_achieved
+  - BACKEND_ONLY_NO_UI (1): actual_spend
+
+[capability_matrix] (rows=0, cols=11)
+  - BACKEND_ONLY_NO_UI (1): audience
+
+[chart_of_accounts] (rows=37, cols=22)
+  - ALWAYS_NULL_IN_DB (2): account_path, establishment_date
+  - BACKEND_ONLY_NO_UI (3): account_path, balance_type, establishment_date
+
+[children] (rows=14, cols=10)
+  - ALWAYS_NULL_IN_DB (1): birth_date
+  - BACKEND_ONLY_NO_UI (2): gender, birth_date
+
+[comments] (rows=0, cols=9)
+  - BACKEND_ONLY_NO_UI (3): platform_comment_id, parent_comment_id, raw_data
+
+[company_profile] (rows=1, cols=11)
+  - ALWAYS_NULL_IN_DB (3): logo_url, establishment_date, notes
+  - BACKEND_ONLY_NO_UI (1): establishment_date
+
+[content] (rows=0, cols=13)
+  - BACKEND_ONLY_NO_UI (4): platform_content_id, media_url, thumbnail_url, publish_date
+
+[content_metrics] (rows=0, cols=17)
+  - BACKEND_ONLY_NO_UI (7): metric_id, metric_date, impressions, views, likes, clicks, profile_visits
+
+[conversations] (rows=0, cols=7)
+  - BACKEND_ONLY_NO_UI (2): started_at, last_message_at
+
+[currencies] (rows=3, cols=9)
+  - ALWAYS_NULL_IN_DB (1): currency_code
+  - BACKEND_ONLY_NO_UI (1): last_updated
+
+[customer_platform_mappings] (rows=19, cols=6)
+  - BACKEND_ONLY_NO_UI (3): mapping_id, platform_user_id, whatsapp_phone_reference
+
+[customers] (rows=21, cols=24)
+  - NOT_IN_BACKEND (1): color_preference
+  - ALWAYS_NULL_IN_DB (1): color_preference
+  - BACKEND_ONLY_NO_UI (1): children_count
+
+[employee_advances] (rows=0, cols=12)
+  - BACKEND_ONLY_NO_UI (3): cash_account_id, advance_date, month_deduction
+
+[fitting_alterations] (rows=0, cols=25)
+  - BACKEND_ONLY_NO_UI (7): alteration_type, alteration_details, ticket_date, is_free, charge_amount, reason_category, completion_notes
+
+[garment_measurements_studio] (rows=0, cols=18)
+  - BACKEND_ONLY_NO_UI (1): image_storage_path
+
+[idempotency_keys] (rows=0, cols=4)
+  - NOT_IN_BACKEND (1): response_payload
+
+[inventory] (rows=2, cols=18)
+  - BACKEND_ONLY_NO_UI (1): reserved_qty
+
+[inventory_transactions] (rows=12, cols=15)
+  - ALWAYS_NULL_IN_DB (2): product_id, variant_id
+  - BACKEND_ONLY_NO_UI (2): variant_id, reference_type
+
+[job_roles] (rows=6, cols=14)
+  - BACKEND_ONLY_NO_UI (1): sort_order
+
+[journal_entry_lines] (rows=83, cols=8)
+  - BACKEND_ONLY_NO_UI (1): entry_id
+
+[marketing_platforms] (rows=0, cols=14)
+  - BACKEND_ONLY_NO_UI (3): access_token_reference, refresh_token_reference, token_expiry
+
+[messages] (rows=0, cols=7)
+  - BACKEND_ONLY_NO_UI (4): message_id, platform_message_id, sender_type, raw_data
+
+[number_sequences] (rows=23, cols=8)
+  - BACKEND_ONLY_NO_UI (2): entity, current_number
+
+[order_items] (rows=13, cols=19)
+  - ALWAYS_NULL_IN_DB (1): variant_id
+  - BACKEND_ONLY_NO_UI (1): variant_id
+
+[order_stages] (rows=70, cols=17)
+  - ALWAYS_NULL_IN_DB (2): qa_inspected_at, qa_notes
+  - BACKEND_ONLY_NO_UI (5): qa_score, qa_inspected_at, qa_notes, order_item_id, stage_fee
+
+[orders] (rows=13, cols=36)
+  - ALWAYS_NULL_IN_DB (2): variant_id, dress_color
+  - BACKEND_ONLY_NO_UI (1): variant_id
+
+[payments] (rows=20, cols=25)
+  - ALWAYS_NULL_IN_DB (4): reversal_reason, reversed_at, reversed_by, reversal_entry_id
+  - BACKEND_ONLY_NO_UI (3): invoice_id, reversed_at, reversed_by
+
+[payroll] (rows=4, cols=16)
+  - BACKEND_ONLY_NO_UI (4): payroll_no, basic_salary, allowances, payment_date
+
+[payroll_items] (rows=0, cols=15)
+  - BACKEND_ONLY_NO_UI (6): payroll_run_id, piece_rate_total, incentives, advances_recovered, net_payable, payment_id
+
+[payroll_runs] (rows=0, cols=12)
+  - BACKEND_ONLY_NO_UI (6): run_no, run_date, total_gross, total_deductions, total_net, disbursed_at
+
+[piece_rate_logs] (rows=23, cols=13)
+  - ALWAYS_NULL_IN_DB (2): voucher_no, paid_at
+
+[production_orders] (rows=15, cols=63)
+  - ALWAYS_NULL_IN_DB (5): variant_id, assigned_designer_id, tailor_completed_at, packager_id, dress_color
+  - BACKEND_ONLY_NO_UI (4): variant_id, assigned_designer_id, tailor_completed_at, is_on_time
+
+[products] (rows=3, cols=32)
+  - ALWAYS_NULL_IN_DB (5): designer_id, fabric_id, approved_colors, image, image_data
+
+[purchases] (rows=1, cols=29)
+  - ALWAYS_NULL_IN_DB (4): transaction_ref, invoice_attachment, receipt_attachment, notes
+
+[quality_complaints] (rows=0, cols=13)
+  - BACKEND_ONLY_NO_UI (1): response_date
+
+[quality_defects] (rows=0, cols=29)
+  - BACKEND_ONLY_NO_UI (2): preventive_action, resolved_date
+
+[quality_feedback] (rows=0, cols=14)
+  - BACKEND_ONLY_NO_UI (3): csat_score, feedback_category, feedback_comment
+
+[quality_inspections] (rows=5, cols=21)
+  - ALWAYS_NULL_IN_DB (7): sku, model_id, color, size, batch_id, inspector_id, attachment_url
+  - BACKEND_ONLY_NO_UI (2): batch_id, inspector_id
+
+[quality_settings] (rows=8, cols=10)
+  - BACKEND_ONLY_NO_UI (1): formula
+
+[raw_platform_events] (rows=0, cols=10)
+  - BACKEND_ONLY_NO_UI (2): processed_at, retry_count
+
+[tailor_commissions] (rows=23, cols=24)
+  - NOT_IN_BACKEND (1): target_due_date
+  - ALWAYS_NULL_IN_DB (3): target_due_date, payout_voucher_no, paid_at
+  - BACKEND_ONLY_NO_UI (2): is_on_time, payout_voucher_no
+
+[tenants] (rows=0, cols=9)
+  - NOT_IN_BACKEND (3): subdomain, gas_url, plan
+
+[users] (rows=4, cols=10)
+  - BACKEND_ONLY_NO_UI (1): password_hash
+
+[warehouse_stock] (rows=2, cols=7)
+  - BACKEND_ONLY_NO_UI (1): reserved_qty
+
+=== [B] UI FIELDS WITH NO MATCH IN BACKEND OR SUPABASE (71) ===
+  - algorithm_version                <-- src\features\measurement\hooks\useStudioSync.js
+  - alterations_pending_count        <-- src\features\dashboard\components\WatchdogAlertBanner.jsx
+  - arm_circ                         <-- src\features\customers\components\CustomerMeasurementsModal.jsx
+  - attachment_name                  <-- src\features\expenses\components\ExpenseModal.jsx, src\features\expenses\components\NewExpenseModal.jsx
+  - balance_base                     <-- src\features\reports\utils\reportUtils.js
+  - balance_target                   <-- src\features\reports\utils\reportUtils.js
+  - base_balance                     <-- src\features\dashboard\utils\dashboardUtils.js
+  - base_paid                        <-- src\features\orders\hooks\useOrderActions.js
+  - base_total                       <-- src\features\orders\hooks\useOrderActions.js
+  - bodice_length                    <-- src\features\measurement\utils\garmentLandmarkDetector.js
+  - bust_drop                        <-- src\features\customers\components\CustomerMeasurementsModal.jsx
+  - camera_profile                   <-- src\features\measurement\hooks\useStudioSync.js
+  - confirmed_orders                 <-- src\services\api\atelierApi.js
+  - created_time                     <-- src\features\quality\hooks\useQualityStationData.js
+  - credit_account                   <-- src\features\vouchers\components\PaymentVoucherModal.jsx
+  - credit_balance_target            <-- src\features\reports\hooks\useReportsData.js
+  - debit_account                    <-- src\features\expenses\utils\expenseAccountUtils.js, src\features\vouchers\components\PaymentVoucherModal.jsx
+  - debit_balance_target             <-- src\features\reports\hooks\useReportsData.js
+  - default_rate                     <-- src\services\currency\currencyRates.js
+  - defect_note                      <-- src\features\quality\hooks\useQualityStationActions.js
+  - diff_amount                      <-- src\services\currencyService.js, src\services\currency\currencyConverter.js
+  - display_code                     <-- src\features\factory\utils\factoryUtils.js
+  - fabric_meters                    <-- src\features\customers\components\CustomerMeasurementsModal.jsx
+  - fabric_summary                   <-- src\features\customers\components\CustomerMeasurementsModal.jsx
+  - final_balance_base               <-- src\features\journal\hooks\useJournalData.js
+  - final_balance_orig               <-- src\features\journal\hooks\useJournalData.js
+  - foreign_amount                   <-- src\services\currency\currencyConverter.js
+  - garment_profile                  <-- src\features\measurement\hooks\useStudioSync.js
+  - gate_id                          <-- src\features\quality\hooks\useQualityStationData.js
+  - gate_title                       <-- src\features\quality\hooks\useQualityStationData.js
+  - general_notes                    <-- src\features\journal\components\JournalCompoundModal.jsx, src\features\journal\hooks\useJournalActions.js
+  - generic_rectilinear              <-- src\features\measurement\utils\cameraCalibrationEngine.js
+  - girl_name                        <-- src\features\feedback\hooks\useFeedbackActions.js
+  - hip_circ                         <-- src\features\factory\utils\factorySizeChart.js
+  - hips_circ                        <-- src\features\customers\components\CustomerMeasurementsModal.jsx
+  - initial_balance                  <-- src\features\reports\utils\reportUtils.js
+  - ipad_tablet                      <-- src\features\measurement\utils\cameraCalibrationEngine.js
+  - iphone_wide                      <-- src\features\measurement\utils\cameraCalibrationEngine.js
+  - latest_voucher_no                <-- src\features\customers\components\CustomerHistoryModal.jsx
+  - link_subparty                    <-- src\features\journal\hooks\useJournalActions.js, src\features\vouchers\components\JournalVoucherModal.jsx
+  - net_balance_base                 <-- src\services\accounting\trialBalance.js
+  - opening_target                   <-- src\features\reports\hooks\useReportsData.js
+  - operation_mode                   <-- src\features\measurement\hooks\useStudioSync.js
+  - order_number                     <-- src\features\hr\hooks\useTailorPieceLogs.js
+  - original_base_amount             <-- src\services\currency\currencyConverter.js
+  - original_rate                    <-- src\services\currency\currencyConverter.js
+  - party_id                         <-- src\features\journal\hooks\useJournalActions.js, src\features\vouchers\components\JournalVoucherModal.jsx
+  - party_type                       <-- src\features\journal\hooks\useJournalActions.js, src\features\vouchers\components\JournalVoucherModal.jsx
+  - pending_count                    <-- src\components\Header.jsx
+  - primary_currency                 <-- src\features\journal\hooks\useJournalData.js
+  - rate_date                        <-- src\services\currency\currencyConverter.js
+  - raw_item_id                      <-- src\features\factory\utils\smartSizingMatcher.js
+  - resolved_tier_price              <-- src\features\orders\hooks\useOrderPricing.js
+  - rework_hours                     <-- src\features\quality\hooks\useQualityStationActions.js
+  - running_balance_orig             <-- src\services\accounting\ledgerEngine.js
+  - samsung_galaxy                   <-- src\features\measurement\utils\cameraCalibrationEngine.js
+  - save_mode                        <-- src\features\customers\hooks\useCustomerActions.js
+  - scan_code                        <-- src\features\orders\hooks\useOrderActions.js
+  - settlement_base_amount           <-- src\services\currency\currencyConverter.js
+  - settlement_rate                  <-- src\services\currency\currencyConverter.js
+
+=== [C] REAL MISSING IN BACKEND CODE (404 CONFIRMED) ===
+
+MISSING: /api/quality/intelligence              <-- src\services\api\atelierApi.js
+
+MISSING: /api/reports/reconciliations           <-- src\services\api\accountingApi.js
+
+MISSING: /api/tenants/create                    <-- src\services\api\authApi.js
+
+MISSING: /api/tenants/current                   <-- src\services\api\authApi.js
+
+MISSING: /api/tenants/list                      <-- src\services\api\authApi.js
+
+MISSING: /api/tenants/switch                    <-- src\services\api\authApi.js

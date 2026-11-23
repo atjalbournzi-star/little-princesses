@@ -34,3 +34,12 @@
    - Automated line-count excludes vendor bundles (*.min.js), database seed/migration scripts, and backups.
    - Runtime health check: Backend responding, browser console clean (zero red errors/ReferenceErrors), and zero Babel runtime syntax crashes.
 
+7. **Strict Zero Hardcode Policy**:
+   - Strictly forbidden to hardcode financial, operational, or business data in frontend or backend files (amounts, prices, currencies, exchange rates, account codes, warehouse names, employee names, job roles, units of measure, sequence prefixes, categories, credentials, or mock/localStorage data).
+   - Fetch and persist all data dynamically from Supabase PostgreSQL (credentials only from `.env`).
+
+8. **Transaction Atomicity & Schema Integrity**:
+   - Multi-step financial, inventory, or manufacturing operations must execute within a single atomic database transaction (All-or-Nothing) in the backend with audit logs and sequence generation.
+   - Never guess tables or columns; inspect real PostgreSQL schema first.
+   - Frontend state and balances must strictly update from confirmed backend responses (Single Source of Truth).
+

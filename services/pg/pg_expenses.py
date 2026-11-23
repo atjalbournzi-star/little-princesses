@@ -31,6 +31,7 @@ def get_expenses(params=None):
         r['status'] = 'posted' if r.get('status') == 'Paid' else (r.get('status') or 'draft')
         r['exp_category'] = r.get('category') or 'مصروف تشغيلي'
         r['payment_source'] = r.get('source_account_id') or r.get('account_id') or ''
+        r['attachment_name'] = r.get('attachment_name') or (r.get('attachment_url') or '').split('/')[-1] if r.get('attachment_url') else ''
     return rows
 
 
@@ -56,13 +57,16 @@ def add_expense(payload):
     beneficiary = clean_str(data.get('beneficiary') or data.get('recipient') or cat)
     cost_center = clean_str(data.get('cost_center') or 'مشغل التفصيل والخياطة')
     cost_center_id = clean_str(data.get('cost_center_id') or 'CC-01')
-    ref_no, att_url = clean_str(data.get('reference_no') or data.get('invoice_no') or ''), clean_str(data.get('attachment_url') or data.get('receipt_b64') or '')
+    att_name = clean_str(data.get('attachment_name') or '')
+    ref_no = clean_str(data.get('reference_no') or data.get('invoice_no') or '')
+    att_url = clean_str(data.get('attachment_url') or data.get('receipt_b64') or att_name)
     branch_id, tenant_id = clean_str(data.get('branch_id') or 'BR-01'), clean_str(data.get('tenant_id') or 'TENANT-01')
     status = clean_str(data.get('status') or 'posted')
     if status not in ('draft', 'posted', 'rejected'): status = 'posted'
     raw_acc = data.get('account_id') or data.get('account') or data.get('exp_account') or cat
     source_acc_input = data.get('source_account_id') or data.get('payment_source') or data.get('source_acc')
     notes = clean_str(data.get('notes') or '')
+    if att_name and att_name not in notes: notes = f"{notes} [المرفق: {att_name}]".strip()
 
     with get_db_cursor(commit=True) as cur:
         if resolved_user:

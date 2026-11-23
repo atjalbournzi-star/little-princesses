@@ -74,7 +74,17 @@ def delete_inventory():
 def inventory_transactions():
     try:
         from services.pg.db_pool import execute_query
-        q = "SELECT t.*, COALESCE(w.name, t.warehouse_id, 'المستودع الرئيسي') as warehouse_name FROM inventory_transactions t LEFT JOIN warehouses w ON t.warehouse_id = w.id ORDER BY t.created_at DESC;"
+        q = """
+            SELECT t.*, 
+                   COALESCE(i.name, i.item_code, t.inventory_id) as item_name,
+                   COALESCE(w.name, t.warehouse_id, 'المستودع الرئيسي') as warehouse_name,
+                   COALESCE(u.username, u.full_name, t.created_by, 'النظام') as user_name
+            FROM inventory_transactions t 
+            LEFT JOIN inventory i ON t.inventory_id = i.id
+            LEFT JOIN warehouses w ON t.warehouse_id = w.id 
+            LEFT JOIN users u ON (t.created_by = u.id OR t.created_by = u.username)
+            ORDER BY t.created_at DESC;
+        """
         txns = execute_query(q, fetch_all=True) or []
         for tx in txns:
             if tx.get('created_at'): tx['created_at'] = str(tx['created_at'])

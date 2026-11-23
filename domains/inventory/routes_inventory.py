@@ -25,7 +25,15 @@ def _get_body(handler):
 
 
 def handle_get(handler, path, parsed_url) -> bool:
-    if path in ('/api/products/get', '/api/products/detail') or (path.startswith('/api/products/') and path not in ('/api/products/list', '/api/products/bom', '/api/products/save', '/api/products/update', '/api/products/delete')):
+    if path in ('/api/products/categories', '/api/categories'):
+        try:
+            cats = pg_service.get_product_categories()
+            _send_json(handler, {'success': True, 'data': cats, 'categories': cats})
+        except Exception as e:
+            _send_json(handler, {'success': False, 'error': str(e), 'data': []}, 500)
+        return True
+
+    if path in ('/api/products/get', '/api/products/detail') or (path.startswith('/api/products/') and path not in ('/api/products/list', '/api/products/bom', '/api/products/save', '/api/products/update', '/api/products/delete', '/api/products/categories', '/api/products/next-sku')):
         query_params = urllib.parse.parse_qs(parsed_url.query)
         pid = query_params.get('id', query_params.get('product_id', query_params.get('sku', [''])))[0]
         if not pid and path.startswith('/api/products/') and path not in ('/api/products/get', '/api/products/detail'):
@@ -143,7 +151,16 @@ def handle_post(handler, path, parsed_url) -> bool:
             _send_json(handler, {'success': False, 'error': str(e)}, 400)
         return True
 
-    if path in ('/api/products', '/api/products/bom', '/api/products/save', '/api/products/update', '/api/products/edit') or (path.startswith('/api/products/') and not path.endswith('/delete') and not path.endswith('/remove')):
+    if path in ('/api/products/categories', '/api/categories'):
+        try:
+            body = _get_body(handler)
+            res = pg_service.add_product_category(body)
+            _send_json(handler, res, 200 if res.get('success') else 400)
+        except Exception as e:
+            _send_json(handler, {'success': False, 'error': str(e)}, 400)
+        return True
+
+    if path in ('/api/products', '/api/products/bom', '/api/products/save', '/api/products/update', '/api/products/edit') or (path.startswith('/api/products/') and not path.endswith('/delete') and not path.endswith('/remove') and not path.endswith('/categories')):
         try:
             body = _get_body(handler)
             if path.startswith('/api/products/') and path not in ('/api/products/bom', '/api/products/save', '/api/products/update', '/api/products/edit'):

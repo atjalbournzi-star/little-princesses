@@ -81,7 +81,7 @@ function useQualityStationData(props = {}) {
           product_name: resolvedProduct,
           child_name: resolvedChild,
           customer_name: resolvedCustomer,
-          tailor_name: f.tailor || f.tailor_name || '',
+          tailor_name: f.tailor_name || f.tailor || '',
           gate_id: isFinal ? 'final' : 'in_process',
           gate_title: isFinal ? 'اعتماد نهائي 👑' : 'تجميع وخياطة 🪡',
           status: f.tailor_status === 'rework' ? 'rework' : (f.tailor_status === 'approved' ? 'passed' : 'pending'),

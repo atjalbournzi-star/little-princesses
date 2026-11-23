@@ -30,13 +30,15 @@ def get_balance_sheet_pg(params=None):
                 COALESCE(SUM(l.debit_base), 0.0) as total_debit,
                 COALESCE(SUM(l.credit_base), 0.0) as total_credit
             FROM chart_of_accounts a
-            LEFT JOIN journal_entry_lines l ON (
+            LEFT JOIN (
+                journal_entry_lines l
+                JOIN journal_entries j ON l.entry_id = j.id AND j.status = 'Posted' {date_filter}
+            ) ON (
                 a.id = l.account_id 
                 OR a.account_code = l.account_id
                 OR REPLACE(REPLACE(a.id, 'ACC-', ''), 'ACC_', '') = REPLACE(REPLACE(l.account_id, 'ACC-', ''), 'ACC_', '')
                 OR a.account_code = REPLACE(REPLACE(l.account_id, 'ACC-', ''), 'ACC_', '')
             )
-            LEFT JOIN journal_entries j ON l.entry_id = j.id {date_filter}
             WHERE a.is_group = FALSE OR a.is_group IS NULL
             GROUP BY a.id, a.account_code, a.account_name, a.account_type, a.normal_balance, a.opening_balance
         )
@@ -121,15 +123,16 @@ def get_trial_balance_pg(params=None):
             COALESCE(SUM(CASE WHEN (%s::date IS NULL OR j.entry_date::date >= %s::date) AND (%s::date IS NULL OR j.entry_date::date <= %s::date) THEN l.debit_base ELSE 0.0 END), 0.0) as total_debit,
             COALESCE(SUM(CASE WHEN (%s::date IS NULL OR j.entry_date::date >= %s::date) AND (%s::date IS NULL OR j.entry_date::date <= %s::date) THEN l.credit_base ELSE 0.0 END), 0.0) as total_credit
         FROM chart_of_accounts a
-        LEFT JOIN journal_entry_lines l ON (
+        LEFT JOIN (
+            journal_entry_lines l
+            JOIN journal_entries j ON (l.entry_id = j.id OR l.entry_id = j.entry_no) AND j.status = 'Posted'
+        ) ON (
             a.id = l.account_id 
             OR a.account_code = l.account_id
             OR REPLACE(REPLACE(a.id, 'ACC-', ''), 'ACC_', '') = REPLACE(REPLACE(l.account_id, 'ACC-', ''), 'ACC_', '')
             OR a.account_code = REPLACE(REPLACE(l.account_id, 'ACC-', ''), 'ACC_', '')
         )
-        LEFT JOIN journal_entries j ON (l.entry_id = j.id OR l.entry_id = j.entry_no)
         WHERE (a.is_group = FALSE OR a.is_group IS NULL)
-          AND (j.id IS NULL OR j.status IS NULL OR LOWER(j.status) NOT IN ('void', 'cancelled', 'ملغي'))
         GROUP BY a.id, a.account_code, a.account_name, a.account_type, a.normal_balance, a.opening_balance
         ORDER BY a.account_code ASC;
     """

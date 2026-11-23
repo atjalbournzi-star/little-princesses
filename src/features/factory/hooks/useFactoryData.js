@@ -113,16 +113,16 @@ function useFactoryData({
   }, [factory, customers, orders, search, stageFilter, utils]);
 
   const syncOrders = useCallback(() => {
-    if (typeof setOrders === 'function') {
-      fetch('/api/sales/orders').then(r => r.json()).then(d => {
-        const list = (d && Array.isArray(d.data)) ? d.data : (Array.isArray(d) ? d : []);
-        if (list.length > 0) setOrders(list);
-      }).catch(() => {});
-    }
+    if (typeof setOrders === 'function') fetch('/api/sales/orders').then(r => r.json()).then(d => { const l = (d && Array.isArray(d.data)) ? d.data : (Array.isArray(d) ? d : []); if (l.length > 0) setOrders(l); }).catch(() => {});
   }, [setOrders]);
+
+  const syncFactory = useCallback(() => {
+    if (typeof setFactory === 'function') fetch('/api/factory').then(r => r.json()).then(d => { const l = (d && Array.isArray(d.data)) ? d.data : (Array.isArray(d) ? d : []); if (l.length > 0) setFactory(l); }).catch(() => {});
+  }, [setFactory]);
 
   useEffect(() => {
     syncOrders();
+    syncFactory();
     const handleQcSync = (e) => {
       const detail = e?.detail || {};
       const targetClean = String(detail.orderId || detail.order_no || '').replace(/^#/, '').trim().toLowerCase();
@@ -148,11 +148,12 @@ function useFactoryData({
         }
       }
       syncOrders();
+      syncFactory();
     };
 
     ['order_status_changed', 'order_qc_updated', 'erp:ordersChanged', 'erp:factoryChanged', 'orders-updated'].forEach(ev => window.addEventListener(ev, handleQcSync));
     return () => ['order_status_changed', 'order_qc_updated', 'erp:ordersChanged', 'erp:factoryChanged', 'orders-updated'].forEach(ev => window.removeEventListener(ev, handleQcSync));
-  }, [syncOrders, setFactory, setOrders]);
+  }, [syncOrders, syncFactory, setFactory, setOrders]);
 
   useEffect(() => {
     if ((!customers || customers.length === 0) && typeof setCustomers === 'function') fetch('/api/customers').then(r => r.json()).then(d => { const l = (d && Array.isArray(d.data)) ? d.data : (Array.isArray(d) ? d : []); if (l.length > 0) setCustomers(l); }).catch(() => {});

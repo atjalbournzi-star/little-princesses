@@ -1,9 +1,14 @@
 import logging
 from .db_pool import get_db_cursor, clean_num, clean_str, generate_id, today_str
-from .account_resolver import resolve_account_id
+from .account_resolver import (
+    resolve_account_id, resolve_receiving_account,
+    resolve_customer_advance_account, resolve_receivables_account,
+    resolve_sales_revenue_account, resolve_leaf_account
+)
 from .pg_factory_commission_approve import auto_credit_all_stages_commissions
 from .pg_delivery_cogs import record_delivery_cogs, reverse_delivery_cogs, cascade_account_balances
-from .pg_account_code import generate_sequential_voucher_no
+from .pg_accounts import refresh_chart_balances_atomic
+from .pg_sequences import get_next_sequence_number
 
 logger = logging.getLogger("LittlePrincesses_PG_FactoryDelivery")
 
@@ -16,7 +21,7 @@ def deliver_and_settle_order(payload):
 
     collected_amt = clean_num(data.get('amount_collected') if data.get('amount_collected') is not None else data.get('amount'))
     discount_amt = clean_num(data.get('discount') or 0.0)
-    account_id = clean_str(data.get('account_id') or 'ACC-101')
+    account_id = clean_str(data.get('account_id') or 'ACC-101-1')
     payment_method = clean_str(data.get('payment_method') or 'نقد (كاش)')
     delivery_notes = clean_str(data.get('notes') or 'تسليم الفستان واستلام المتبقي')
 
@@ -36,8 +41,18 @@ def deliver_and_settle_order(payload):
 
             real_order_id = order['id']
             order_no = order.get('order_no') or real_order_id
-            cust_id = order.get('customer_id')
+            st, pst = str(order.get('status') or '').lower(), str(order.get('production_status') or '').lower()
+            if 'delivered' in st or 'مسلم' in st or 'delivered' in pst or 'مسلم' in pst or 'completed' in st:
+                return {"success": False, "error": f"الطلب [{order_no}] تم تسليمه مسبقاً ولا يمكن تكرار التسليم"}
 
+            cur.execute("SELECT id, stage, status FROM production_orders WHERE order_id = %s OR production_order_no = %s OR id = %s LIMIT 1;", (real_order_id, f"PO-{order_no}", real_order_id))
+            po_chk = cur.fetchone()
+            if po_chk:
+                po_st, po_sg = str(po_chk.get('status') or '').lower(), str(po_chk.get('stage') or '')
+                if 'deliver' in po_st or 'مسلم' in po_st or 'تم التسليم' in po_sg:
+                    return {"success": False, "error": f"الطلب [{order_no}] تم تسليمه مسبقاً ولا يمكن تكرار التسليم"}
+
+            cust_id = order.get('customer_id')
             cust_name = ''
             if cust_id:
                 cur.execute("SELECT name FROM customers WHERE id = %s LIMIT 1;", (cust_id,))
@@ -63,27 +78,18 @@ def deliver_and_settle_order(payload):
             new_remaining = max(0.0, new_total - new_paid)
             new_pay_status = 'Paid' if new_remaining <= 0 else ('Partial' if new_paid > 0 else 'Unpaid')
 
-            # 2. Update order & order_items status to 'delivered'
+            # 2. Update order & items status to delivered
             cur.execute("""
-                UPDATE orders
-                SET status = 'delivered', production_status = 'Delivered',
+                UPDATE orders SET status = 'delivered', production_status = 'Delivered',
                     total_amount = %s, paid_amount = %s, payment_status = %s,
-                    delivery_date = CURRENT_DATE, updated_at = CURRENT_TIMESTAMP
-                WHERE id = %s;
+                    delivery_date = CURRENT_DATE, updated_at = CURRENT_TIMESTAMP WHERE id = %s;
             """, (new_total, new_paid, new_pay_status, real_order_id))
 
+            cur.execute("UPDATE order_items SET paid_amount = total_amount, remaining_amount = 0.0 WHERE order_id = %s;", (real_order_id,))
             cur.execute("""
-                UPDATE order_items
-                SET paid_amount = total_amount, remaining_amount = 0.0
-                WHERE order_id = %s;
-            """, (real_order_id,))
-
-            # 3. Update production_orders stage
-            cur.execute("""
-                UPDATE production_orders
-                SET stage = 'تم التسليم', progress = 100, status = 'Completed', updated_at = CURRENT_TIMESTAMP
-                WHERE order_id = %s OR production_order_no = %s OR order_id = %s OR production_order_no = 'PO-' || %s;
-            """, (real_order_id, f"PO-{order_no}", order_no, order_no))
+                UPDATE production_orders SET stage = 'تم التسليم ✅', progress = 100, status = 'Completed', updated_at = CURRENT_TIMESTAMP
+                WHERE order_id = %s OR production_order_no = %s OR id = %s OR production_order_no = 'PO-' || %s;
+            """, (real_order_id, f"PO-{order_no}", real_order_id, order_no))
 
             if cust_id and collected_amt > 0:
                 cur.execute("UPDATE customers SET current_balance = GREATEST(0.0, COALESCE(current_balance, 0.0) - %s), updated_at = CURRENT_TIMESTAMP WHERE id = %s;", (collected_amt + discount_amt, cust_id))
@@ -92,66 +98,56 @@ def deliver_and_settle_order(payload):
 
             # 4. Atomic Double-Entry Financial Settlement at Delivery
             pay_id, jv_id = None, None
-            target_treasury_acc = resolve_account_id(cur, account_id, "ACC-101-1")
-            revenue_acc = resolve_account_id(cur, "ACC-401", "ACC-401")
-            advance_acc = "ACC-202"
+            raw_target = resolve_account_id(cur, account_id, resolve_receiving_account(cur, payment_method, 'YER'), currency='YER')
+            target_treasury_acc = resolve_leaf_account(cur, raw_target, 'YER')
+            revenue_acc = resolve_leaf_account(cur, resolve_sales_revenue_account(cur, "ACC-401"))
+            advance_acc = resolve_leaf_account(cur, resolve_customer_advance_account(cur, "ACC-202"))
+            ar_acc = resolve_leaf_account(cur, resolve_receivables_account(cur, "ACC-104"))
 
-            # أ) إصدار سند قبض نقدي للمبلغ المتبقي المحصل فعلياً عند التسليم فقط
             if collected_amt > 0:
-                pay_id = generate_id("PAY")
-                pay_no = generate_sequential_voucher_no(cur, 'Receipt', today_str())
+                pay_no = get_next_sequence_number(cur, 'RV', fallback_prefix='RV-')
+                pay_id = pay_no
                 p_notes = f"سند قبض تسليم نهائي لطلب {order_no} ({cust_name or 'العميل'}) | {delivery_notes}"
                 cur.execute("""
                     INSERT INTO payments (id, payment_no, order_id, customer_id, payment_type, amount, currency,
                         exchange_rate, base_amount, payment_method, reference_no, account_id, date, status, notes, party_name, target_account_id)
                     VALUES (%s, %s, %s, %s, 'Receipt', %s, 'YER', 1.0, %s, %s, %s, %s, CURRENT_DATE, 'Confirmed', %s, %s, %s);
                 """, (pay_id, pay_no, real_order_id, cust_id, collected_amt, collected_amt, payment_method, order_no, target_treasury_acc, p_notes, cust_name or 'العميل', revenue_acc))
-                v_jv_no = f"AUTO-VCH-{pay_no}"
-                cur.execute("""
-                    INSERT INTO journal_entries (id, entry_no, entry_date, description, debit_account_id, credit_account_id,
-                        amount, total_amount, base_amount, ref_type, ref_id, currency, exchange_rate, status, notes)
-                    VALUES (%s, %s, CURRENT_DATE, %s, %s, %s, %s, %s, %s, 'Receipt', %s, 'YER', 1.0, 'Posted', %s)
-                    ON CONFLICT (entry_no) DO UPDATE SET amount = EXCLUDED.amount;
-                """, (generate_id("JV"), v_jv_no, p_notes, target_treasury_acc, revenue_acc, collected_amt, collected_amt, collected_amt, pay_id, p_notes))
-                cur.execute("SELECT id FROM journal_entries WHERE entry_no = %s LIMIT 1;", (v_jv_no,))
-                act_v_id = cur.fetchone()['id']
-                cur.execute("DELETE FROM journal_entry_lines WHERE entry_id = %s;", (act_v_id,))
-                cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, %s, %s, %s, 0.0, %s, 0.0);", (generate_id("JVL"), act_v_id, target_treasury_acc, f"مدين - تحصيل نقد تسليم فستان {order_no}", collected_amt, collected_amt))
-                cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, %s, %s, 0.0, %s, 0.0, %s);", (generate_id("JVL"), act_v_id, revenue_acc, f"دائن - إيراد تحصيل تسليم فستان {order_no} ({cust_name or 'العميل'})", collected_amt, collected_amt))
 
-            # ب) ترحيل العربون المسدد مسبقاً كقيد تسوية أمانة من حساب 202 إلى حساب الإيرادات 401
-            if old_paid > 0:
-                jv_id = generate_id("JV")
-                jv_no = f"JV-SETTLE-DEP-{order_no}"
-                j_desc = f"تسوية أمانات وعربون طلب {order_no} ({cust_name or 'العميل'}) وترحيلها للإيرادات"
+            if new_total > 0:
+                jv_no = get_next_sequence_number(cur, 'JV', fallback_prefix='JV-')
+                jv_id = f"JV-DELIV-{order_no}"
+                j_desc = f"إثبات إيراد وتسليم طلب {order_no} ({cust_name or 'العميل'})"
                 cur.execute("""
                     INSERT INTO journal_entries (id, entry_no, entry_date, description, debit_account_id, credit_account_id,
                         amount, total_amount, base_amount, ref_type, ref_id, currency, exchange_rate, status, notes)
-                    VALUES (%s, %s, CURRENT_DATE, %s, %s, %s, %s, %s, %s, 'AdvanceSettlement', %s, 'YER', 1.0, 'Posted', %s)
+                    VALUES (%s, %s, CURRENT_DATE, %s, %s, %s, %s, %s, %s, 'SalesDelivery', %s, 'YER', 1.0, 'Posted', %s)
                     ON CONFLICT (entry_no) DO UPDATE SET amount = EXCLUDED.amount;
-                """, (jv_id, jv_no, j_desc, advance_acc, revenue_acc, old_paid, old_paid, old_paid, real_order_id, j_desc))
+                """, (jv_id, jv_no, j_desc, target_treasury_acc, revenue_acc, new_total, new_total, new_total, real_order_id, j_desc))
                 cur.execute("SELECT id FROM journal_entries WHERE entry_no = %s LIMIT 1;", (jv_no,))
                 act_jv_id = cur.fetchone()['id']
                 cur.execute("DELETE FROM journal_entry_lines WHERE entry_id = %s;", (act_jv_id,))
-                cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, %s, %s, %s, 0.0, %s, 0.0);", (generate_id("JVL"), act_jv_id, advance_acc, f"مدين - تسوية أمانات وعربون طلب {order_no}", old_paid, old_paid))
-                cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, %s, %s, 0.0, %s, 0.0, %s);", (generate_id("JVL"), act_jv_id, revenue_acc, f"دائن - إيراد فستان مقابل عربون مسدد {order_no}", old_paid, old_paid))
 
-            # تحديث الأرصدة في شجرة الحسابات بدقة تامة
-            if collected_amt > 0:
-                cur.execute("UPDATE chart_of_accounts SET current_balance = COALESCE(current_balance, 0.0) + %s WHERE id = %s OR account_code = %s;", (collected_amt, target_treasury_acc, target_treasury_acc))
-            if old_paid > 0:
-                cur.execute("UPDATE chart_of_accounts SET current_balance = GREATEST(0.0, COALESCE(current_balance, 0.0) - %s) WHERE id = 'ACC-202' OR account_code = '202';", (old_paid,))
-            if new_total > 0:
-                cur.execute("UPDATE chart_of_accounts SET current_balance = COALESCE(current_balance, 0.0) + %s WHERE id = %s;", (new_total, revenue_acc))
+                if old_paid > 0:
+                    cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, %s, %s, %s, 0.0, %s, 0.0);",
+                                (generate_id("JVL"), act_jv_id, advance_acc, f"مدين - تسوية أمانات وعربون مسدد مسبقاً {order_no}", old_paid, old_paid))
+                if collected_amt > 0:
+                    cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, %s, %s, %s, 0.0, %s, 0.0);",
+                                (generate_id("JVL"), act_jv_id, target_treasury_acc, f"مدين - نقد محصل عند تسليم طلب {order_no}", collected_amt, collected_amt))
+                if new_remaining > 0:
+                    cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, %s, %s, %s, 0.0, %s, 0.0);",
+                                (generate_id("JVL"), act_jv_id, ar_acc, f"مدين - رصيد آجل متبقي على العميل {cust_name} ({order_no})", new_remaining, new_remaining))
+
+                cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, %s, %s, 0.0, %s, 0.0, %s);",
+                            (generate_id("JVL"), act_jv_id, revenue_acc, f"دائن - إيراد تفصيل فستان {order_no} ({cust_name})", new_total, new_total))
 
             # 5. COGS Recognition & Rollup Cascade
             cogs_data = record_delivery_cogs(cur, real_order_id, order_no, cust_name, child_name)
-            cascade_account_balances(cur)
+            refresh_chart_balances_atomic(cur)
 
         congrats = f"👑 مبروك! تم تسليم فستان الأميرة [{child_name or 'الجميلة'}] للعميل [{cust_name or 'الكريمة'}] بنجاح، وتحصيل {collected_amt} ر.ي وإثبات سند القبض وإيراد المبيعات ✨"
         return {
-            "success": True,
-            "message": congrats,
+            "success": True, "message": congrats,
             "data": {
                 "order_id": real_order_id, "order_no": order_no, "customer_name": cust_name,
                 "child_name": child_name, "total_amount": new_total, "paid_amount": new_paid,
@@ -187,7 +183,7 @@ def reverse_order_delivery(payload):
             cur.execute("DELETE FROM payments WHERE order_id = %s AND payment_type IN ('Receipt', 'Final_Receipt', 'Final_Settlement') AND notes ILIKE '%%تسليم نهائي%%';", (real_order_id,))
             cur.execute("DELETE FROM journal_entries WHERE ref_type = 'SalesDelivery' AND ref_id = %s;", (real_order_id,))
             reverse_delivery_cogs(cur, real_order_id, order_no)
-            cascade_account_balances(cur)
+            refresh_chart_balances_atomic(cur)
 
             cur.execute("""
                 UPDATE orders SET status = 'جاهز للتسليم 🛍️', production_status = 'Ready',

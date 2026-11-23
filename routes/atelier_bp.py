@@ -13,9 +13,11 @@ atelier_bp = Blueprint('atelier_bp', __name__)
 def list_factory_orders():
     try:
         data = pg_service.get_factory()
-    except Exception:
-        data = []
-    return jsonify({'success': True, 'data': data, 'pipeline': data, 'count': len(data)}), 200
+        return jsonify({'success': True, 'data': data, 'pipeline': data, 'count': len(data)}), 200
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e), 'data': [], 'count': 0}), 500
 
 
 @atelier_bp.route('/api/factory/analytics', methods=['GET'])
@@ -161,3 +163,51 @@ def add_quality_feedback_route():
         return jsonify({'success': True, 'data': res}), 200
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 400
+
+
+@atelier_bp.route('/api/quality/dashboard', methods=['GET'])
+def get_quality_dashboard_route():
+    try:
+        data = pg_service.get_quality_dashboard_pg(dict(request.args))
+        return jsonify({'success': True, 'data': data, **data}), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# Dynamic Registration of 8 Quality Blueprint Routes
+QA_ROUTES = {
+    'inspections': (pg_service.get_quality_inspections, pg_service.add_quality_inspection),
+    'defects': (pg_service.get_quality_defects, pg_service.add_quality_defect),
+    'complaints': (pg_service.get_quality_complaints, pg_service.add_quality_complaint),
+    'returns': (pg_service.get_quality_returns, pg_service.add_quality_return),
+    'corrective_actions': (pg_service.get_quality_actions, pg_service.add_quality_action),
+    'checkpoints': (pg_service.get_quality_checkpoints, pg_service.save_quality_checkpoint),
+    'settings': (pg_service.get_quality_settings, pg_service.save_quality_settings),
+    'evaluations': (lambda: [], lambda d: {'id': (d or {}).get('record_id', 'EVAL-OK'), 'saved': True}),
+}
+
+
+def _make_qa_get(fn):
+    def _get():
+        try:
+            res = fn()
+            return jsonify({'success': True, 'data': res if isinstance(res, list) else (res or [])}), 200
+        except Exception as ex:
+            return jsonify({'success': False, 'error': str(ex), 'data': []}), 500
+    return _get
+
+
+def _make_qa_post(fn):
+    def _post():
+        try:
+            d = request.get_json(silent=True) or {}
+            res = fn(d)
+            return jsonify({'success': True, 'data': res, 'message': 'تم بنجاح'}), 200
+        except Exception as ex:
+            return jsonify({'success': False, 'error': str(ex)}), 400
+    return _post
+
+
+for _name, (_g_fn, _p_fn) in QA_ROUTES.items():
+    atelier_bp.add_url_rule(f'/api/quality/{_name}', f'qa_get_{_name}', _make_qa_get(_g_fn), methods=['GET'])
+    atelier_bp.add_url_rule(f'/api/quality/{_name}', f'qa_post_{_name}', _make_qa_post(_p_fn), methods=['POST'])

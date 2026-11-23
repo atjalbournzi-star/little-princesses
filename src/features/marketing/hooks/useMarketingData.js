@@ -73,7 +73,7 @@ function useMarketingData({ campaigns, setCampaigns, showToast, timeframe }) {
         if (cntRes?.success) setContentData(cntRes.data || []);
         if (cmtRes?.success) setCommentsData(cmtRes.data || []);
         if (whRes?.success) setWebhookLogs(whRes.data || []);
-        if (dRes?.success) setDashboardSummary(dRes.summary || null);
+        if (dRes?.success) setDashboardSummary(dRes.data || dRes.summary || null);
         if (aiScRes?.success) setAiScores(aiScRes.data || []);
         if (nlpRes?.success) setNlpCommentsData({ data: nlpRes.data || [], summary: nlpRes.summary || {} });
         if (intRes?.success) setIntentConvsData(intRes.data || []);

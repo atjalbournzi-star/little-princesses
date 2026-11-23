@@ -122,6 +122,34 @@ def list_number_sequences():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@system_bp.route('/api/sequences/preview', methods=['GET', 'POST'])
+@system_bp.route('/api/number-sequences/preview', methods=['GET', 'POST'])
+def preview_sequence():
+    try:
+        key = request.args.get('key') or request.args.get('sequence_key')
+        if not key and request.is_json:
+            b = request.get_json(silent=True) or {}
+            key = b.get('key') or b.get('sequence_key')
+        res = pg_service.preview_next_sequence({'sequence_key': key or 'GEN'})
+        return jsonify(res), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@system_bp.route('/api/sequences/next', methods=['GET', 'POST'])
+@system_bp.route('/api/number-sequences/next', methods=['GET', 'POST'])
+def next_sequence():
+    try:
+        key = request.args.get('key') or request.args.get('sequence_key')
+        if not key and request.is_json:
+            b = request.get_json(silent=True) or {}
+            key = b.get('key') or b.get('sequence_key')
+        res = pg_service.fetch_next_sequence({'sequence_key': key or 'GEN'})
+        return jsonify(res), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @system_bp.route('/api/number-sequences/update', methods=['POST'])
 def update_number_sequence():
     try:

@@ -22,7 +22,7 @@ function FinancialReportView({
   return (
     <div className="space-y-1.5 animate-fadeIn">
       {/* شريط التبويبات الفرعية للقوائم والتقارير المالية */}
-      <div className="print-hidden flex items-center gap-1 overflow-x-auto bg-white dark:bg-[#111C38] px-1.5 py-1 rounded-lg border border-slate-200 dark:border-slate-800 shadow-xs select-none shrink-0 h-8">
+      <div className="print-hidden flex items-center gap-1 overflow-x-auto overflow-y-hidden no-scrollbar bg-white dark:bg-[#111C38] px-1.5 py-1 rounded-lg border border-slate-200 dark:border-slate-800 shadow-xs select-none shrink-0 h-8">
         {subTabs.map(tab => {
           const isActive = financialSubTab === tab.id;
           return (

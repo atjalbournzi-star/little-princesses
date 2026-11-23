@@ -43,7 +43,7 @@ function OrderDeliveryModal({
     return filtered.length ? filtered : rawAccs.filter(a => !a.is_group);
   }, [rawAccs]);
 
-  const defaultAccId = (treasuryAccounts[0] && (treasuryAccounts[0].id || treasuryAccounts[0].account_code)) || 'ACC-101';
+  const defaultAccId = (treasuryAccounts[0] && (treasuryAccounts[0].id || treasuryAccounts[0].account_code)) || 'ACC-101-1';
 
   const [deliveryForm, setDeliveryForm] = useState({
     amount_collected: String(rem),
@@ -156,11 +156,11 @@ function OrderDeliveryModal({
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className={labelCls}>المبلغ المحصل الآن ({currencyDisplay.split(' ')[0]}) *</label>
-                <input type="number" step="100" min="0" className={inputCls + " font-mono font-bold text-[#B0005A] text-center"} value={deliveryForm.amount_collected} onChange={e => setDeliveryForm({ ...deliveryForm, amount_collected: e.target.value })} placeholder="0.00" />
+                <input type="number" step="100" min="0" className={inputCls + " font-mono font-bold text-[#B0005A] text-center"} value={deliveryForm.amount_collected} onChange={e => setDeliveryForm({ ...deliveryForm, amount_collected: e.target.value })} />
               </div>
               <div>
                 <label className={labelCls}>خصم إضافي إن وجد</label>
-                <input type="number" step="100" min="0" className={inputCls + " font-mono text-center"} value={deliveryForm.discount} onChange={e => setDeliveryForm({ ...deliveryForm, discount: e.target.value })} placeholder="0" />
+                <input type="number" step="100" min="0" className={inputCls + " font-mono text-center"} value={deliveryForm.discount} onChange={e => setDeliveryForm({ ...deliveryForm, discount: e.target.value })} />
               </div>
             </div>
 
@@ -175,8 +175,8 @@ function OrderDeliveryModal({
                     return <option key={val} value={val}>{codeStr} - {nameStr}{acc.currency ? ` (${acc.currency})` : ''}</option>;
                   }) : (
                     <>
-                      <option value="ACC-101">ACC-101 (الصندوق الرئيسي - كاش)</option>
-                      <option value="ACC-102-2">ACC-102-2 (102.02 - بنك الكريمي / المحافظ)</option>
+                      <option value="ACC-101-1">ACC-101-1 (101.1 - صندوق النقدية الرئيسي YER)</option>
+                      <option value="ACC-102-1">ACC-102-1 (102.01 - حساب بنك اليمن والكويت)</option>
                     </>
                   )}
                 </select>
@@ -193,7 +193,7 @@ function OrderDeliveryModal({
 
             <div>
               <label className={labelCls}>ملاحظات التسليم والتسوية</label>
-              <input type="text" className={inputCls} value={deliveryForm.notes} onChange={e => setDeliveryForm({ ...deliveryForm, notes: e.target.value })} placeholder="تم تسليم الفستان للأميرة واستلام المتبقي..." />
+              <input type="text" className={inputCls} value={deliveryForm.notes} onChange={e => setDeliveryForm({ ...deliveryForm, notes: e.target.value })} />
             </div>
 
             <div className="pt-2 flex items-center gap-2">

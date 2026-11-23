@@ -121,7 +121,6 @@ function PayoutModal({
                 type="number"
                 min="0"
                 step="any"
-                placeholder="0"
                 value={payoutDeductions}
                 onChange={(e) => setPayoutDeductions(e.target.value)}
                 className={`${inputCls} font-mono font-bold text-rose-400`}
@@ -151,7 +150,6 @@ function PayoutModal({
               type="text"
               value={payoutNotes}
               onChange={(e) => setPayoutNotes(e.target.value)}
-              placeholder="مثال: صرف مستحقات تفصيل فساتين دفعة منتصف الشهر..."
               className={inputCls}
             />
           </div>

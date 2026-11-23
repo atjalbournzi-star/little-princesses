@@ -14,6 +14,7 @@ function JobTicketPrintModal({ isOpen, onClose, job, product }) {
   const isReadyToWear = job.production_type === 'ready_to_wear';
   const specs = job.measurements_spec || job.measurements || {};
   const qty = job.quantity || job.pieces_count || 1;
+  const cutterAlert = job.measurement_notes || specs.notes || (job.notes && job.notes.includes('تنبيه') ? job.notes : '');
 
   const handlePrint = () => {
     window.print();
@@ -105,6 +106,16 @@ function JobTicketPrintModal({ isOpen, onClose, job, product }) {
               </div>
             </div>
           </div>
+
+          {cutterAlert && (
+            <div className="p-2.5 rounded-xl bg-amber-50 border-2 border-amber-400 text-amber-950 text-xs space-y-0.5">
+              <div className="flex items-center gap-1 font-black text-amber-900 text-[11px]">
+                <span>⚠️</span>
+                <span>تنبيه فني للقصاص (Fit Variance Alert):</span>
+              </div>
+              <p className="font-semibold text-[10.5px] leading-relaxed">{String(cutterAlert).replace(/^⚠️\s*/, '').replace(/^تنبيه فني للقصاص:\s*/, '').replace(/^⚠️\s*/, '').trim()}</p>
+            </div>
+          )}
 
           {/* Detailed Measurements Specifications (Blind: No customer info) */}
           <div className="p-3 rounded-2xl border border-[#E8E5EA] space-y-2">

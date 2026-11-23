@@ -106,7 +106,6 @@ function WarehouseTransferModal({
               min="0.1"
               max={curQty}
               required
-              placeholder=""
               value={transferQty}
               onChange={e => setTransferQty(e.target.value)}
               className="w-full h-11 px-3.5 rounded-xl border border-[#E8E5EA] bg-[#FAFAFB] text-xs font-mono font-bold focus:bg-white focus:border-[#009FAE] outline-none"
@@ -118,7 +117,6 @@ function WarehouseTransferModal({
             <label className="block font-bold text-[#25232A] mb-1">ملاحظات ورقم إذن المناقلة:</label>
             <input
               type="text"
-              placeholder=""
               value={transferNotes}
               onChange={e => setTransferNotes(e.target.value)}
               className="w-full h-11 px-3.5 rounded-xl border border-[#E8E5EA] bg-[#FAFAFB] text-xs font-medium focus:bg-white focus:border-[#009FAE] outline-none"

@@ -17,6 +17,18 @@ def get_categories():
         return jsonify({'success': False, 'error': str(e), 'data': []}), 500
 
 
+@products_bp.route('/api/products/categories', methods=['POST'])
+@products_bp.route('/api/categories', methods=['POST'])
+def add_category():
+    """إضافة تصنيف فني جديد ديناميكياً وتوثيقه في قاعدة البيانات وسجل التدقيق"""
+    try:
+        data = request.get_json(silent=True) or {}
+        res = pg_service.add_product_category(data)
+        return jsonify(res), (200 if res.get('success') else 400)
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+
 @products_bp.route('/api/products/next-sku', methods=['GET'])
 @products_bp.route('/api/sequences/next-sku', methods=['GET'])
 def get_next_sku():
@@ -35,7 +47,8 @@ def get_next_sku():
 @products_bp.route('/api/products/<path:product_id>', methods=['GET'])
 def list_products(product_id=None):
     try:
-        pid = product_id or request.args.get('id') or request.args.get('sku') or request.args.get('product_id')
+        req_id = request.args.get('id') or request.args.get('sku') or request.args.get('product_id')
+        pid = req_id or (product_id if product_id not in ('get', 'list') else None)
         if pid and pid not in ('bom', 'list', 'categories', 'next-sku'):
             prod = pg_service.get_product_by_id(pid)
             if prod: return jsonify({'success': True, 'data': prod}), 200

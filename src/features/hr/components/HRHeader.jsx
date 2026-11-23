@@ -15,16 +15,15 @@ function HRHeader({
     (e) => e.status === "نشط" || e.status === "active"
   ).length;
 
-  // 2. مستحقات أجور القطع المعلقة (Approved & unpaid)
-  const pendingCommissions = commissions.filter(
-    (c) => (c.status === "Approved" || c.status === "معتمد") && !c.paid_at && c.status !== "Paid"
-  );
-  const unliquidatedPiecesSum = pendingCommissions.length > 0
-    ? pendingCommissions.reduce((sum, c) => sum + (parseFloat(c.wage_amount) || 0), 0)
-    : tailorSummaries.reduce((sum, t) => sum + (parseFloat(t.unpaid_total_amount) || 0), 0);
-  const unliquidatedPiecesCount = pendingCommissions.length > 0
-    ? pendingCommissions.reduce((sum, c) => sum + (parseInt(c.pieces_count) || 1), 0)
-    : tailorSummaries.reduce((sum, t) => sum + (parseInt(t.unpaid_pieces_count) || 0), 0);
+  // 2. مستحقات أجور القطع المعلقة لحظياً من نفس مصدر piece_rate_logs الموحد
+  const unliquidatedPiecesSum = tailorSummaries.length > 0
+    ? tailorSummaries.reduce((sum, t) => sum + (parseFloat(t.unpaid_total_amount) || 0), 0)
+    : commissions.filter(c => (c.status === "Approved" || c.status === "معتمد") && !c.paid_at && c.status !== "Paid")
+                 .reduce((sum, c) => sum + (parseFloat(c.wage_amount) || 0), 0);
+  const unliquidatedPiecesCount = tailorSummaries.length > 0
+    ? tailorSummaries.reduce((sum, t) => sum + (parseInt(t.unpaid_pieces_count) || 0), 0)
+    : commissions.filter(c => (c.status === "Approved" || c.status === "معتمد") && !c.paid_at && c.status !== "Paid")
+                 .reduce((sum, c) => sum + (parseInt(c.pieces_count) || 1), 0);
 
   // 3. إجمالي السلف القائمة
   const openAdvances = advances.filter(

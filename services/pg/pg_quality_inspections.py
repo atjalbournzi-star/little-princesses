@@ -52,15 +52,25 @@ def add_quality_inspection(payload):
 
         valid_po_id = None
         if po_id:
-            cur.execute("SELECT id FROM production_orders WHERE id = %s LIMIT 1;", (po_id,))
-            if cur.fetchone():
-                valid_po_id = po_id
+            cur.execute("SELECT id, product_id, model_id, production_order_no, dress_color, selected_color, color, size_code, product_name FROM production_orders WHERE id = %s OR production_order_no = %s LIMIT 1;", (po_id, po_id))
+            po_r = cur.fetchone()
+            if po_r:
+                valid_po_id = po_r['id']
+                if not valid_prod_id and po_r.get('product_id'): valid_prod_id = po_r['product_id']
+                if not model_id: model_id = po_r.get('model_id') or po_r.get('product_id') or ''
+                if not sku: sku = po_r.get('production_order_no') or valid_po_id
+                if not color: color = po_r.get('dress_color') or po_r.get('selected_color') or po_r.get('color') or ''
+                if not size: size = po_r.get('size_code') or ''
+                if not p_name and po_r.get('product_name'): p_name = po_r['product_name']
 
         valid_insp_id = None
         if insp_id:
             cur.execute("SELECT id FROM users WHERE id = %s LIMIT 1;", (insp_id,))
-            if cur.fetchone():
-                valid_insp_id = insp_id
+            if cur.fetchone(): valid_insp_id = insp_id
+        if not valid_insp_id:
+            cur.execute("SELECT id FROM users WHERE username = %s OR full_name = %s OR username = 'admin' LIMIT 1;", (insp_name, insp_name))
+            u_r = cur.fetchone()
+            valid_insp_id = u_r['id'] if u_r else None
 
         cur.execute("""
             INSERT INTO quality_inspections (

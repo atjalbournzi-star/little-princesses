@@ -4,20 +4,14 @@
 function ProductBasicInfoForm({
   actions,
   availableCategories = [],
-  availableCollections = []
+  availableCollections = [],
+  onCategoryCreated
 }) {
   const {
-    modelName, setModelName,
-    smartCode, setSmartCode, generateNewSmartCode,
-    targetSegment = 'kids', setTargetSegment,
-    category, setCategory,
-    subcategory, setSubcategory,
-    collection, setCollection,
-    imageUrl, setImageUrl,
-    description, setDescription,
-    status, setStatus,
-    selectedSizes = [], toggleSize,
-    selectedColors = [], setSelectedColors, toggleColor
+    modelName, setModelName, smartCode, setSmartCode, generateNewSmartCode,
+    targetSegment = 'kids', setTargetSegment, category, setCategory,
+    collection, setCollection, imageUrl, setImageUrl,
+    selectedSizes = [], toggleSize, selectedColors = [], setSelectedColors, toggleColor
   } = actions;
 
   const u = window.productUtils || {};
@@ -26,6 +20,35 @@ function ProductBasicInfoForm({
   const currentSizes = currentSeg.sizes || ['1-2Y', '3-5Y', '6-9Y', '10-13Y'];
 
   const [customColorInput, setCustomColorInput] = React.useState('');
+  const [showAddCat, setShowAddCat] = React.useState(false);
+  const [newCatName, setNewCatName] = React.useState('');
+  const [isAddingCat, setIsAddingCat] = React.useState(false);
+
+  const handleSaveNewCat = async () => {
+    const clean = (newCatName || '').trim();
+    if (!clean) return;
+    setIsAddingCat(true);
+    try {
+      const res = await fetch('/api/products/categories', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: clean })
+      }).then(r => r.json());
+      if (res?.success) {
+        const catSaved = res.category || res.data?.name || clean;
+        if (typeof onCategoryCreated === 'function') onCategoryCreated(catSaved);
+        if (typeof setCategory === 'function') setCategory(catSaved);
+        setNewCatName('');
+        setShowAddCat(false);
+      } else {
+        const msg = res?.error || "تعذر إضافة التصنيف ⚠️";
+        if (window.showToast) window.showToast(msg, "error");
+        else alert(msg);
+      }
+    } catch (e) {
+      if (window.showToast) window.showToast("خطأ في الاتصال بالخادم ⚠️", "error");
+    } finally { setIsAddingCat(false); }
+  };
+
   const handleAddCustomColor = (e) => {
     if (e?.preventDefault) e.preventDefault();
     const val = (customColorInput || '').trim();
@@ -49,10 +72,7 @@ function ProductBasicInfoForm({
     reader.onload = (ev) => { if (setImageUrl) setImageUrl(ev.target.result); };
     reader.readAsDataURL(file);
   };
-  const removeImage = (e) => {
-    if (e?.stopPropagation) e.stopPropagation();
-    if (setImageUrl) setImageUrl('');
-  };
+  const removeImage = (e) => { if (e?.stopPropagation) e.stopPropagation(); if (setImageUrl) setImageUrl(''); };
 
   const isSizeActive = (sz) => {
     if (!selectedSizes || !Array.isArray(selectedSizes)) return false;
@@ -91,16 +111,32 @@ function ProductBasicInfoForm({
         </div>
       </div>
 
-      {/* 2. Form Row 2: 2 inline classifications */}
+      {/* 2. Form Row 2: 2 inline classifications with dynamic category (+) button */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <div>
-          <label className={labelCls}>التصنيف الفني</label>
-          <select value={category} onChange={e => setCategory(e.target.value)} className={inputCls + " cursor-pointer"}>
-            <option value="">-- اختر التصنيف --</option>
-            {availableCategories.map(c => (
-              <option key={c} value={c}>{c}</option>
-            ))}
-          </select>
+          <div className="flex items-center justify-between mb-0.5">
+            <label className="text-[11px] font-semibold text-slate-300">التصنيف الفني</label>
+            <button type="button" onClick={() => setShowAddCat(p => !p)} className="text-[10px] text-pink-400 hover:text-pink-300 font-bold flex items-center gap-0.5 cursor-pointer" title="إضافة تصنيف فني جديد">
+              <span>{showAddCat ? '✕ إلغاء' : '+ إضافة تصنيف'}</span>
+            </button>
+          </div>
+          {showAddCat ? (
+            <div className="flex items-center gap-1">
+              <input type="text" autoFocus placeholder="اسم التصنيف الجديد..." value={newCatName} onChange={e => setNewCatName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleSaveNewCat(); } }} className={inputCls + " flex-1 border-pink-500"} />
+              <button type="button" disabled={isAddingCat} onClick={handleSaveNewCat} className="h-7 px-2.5 bg-pink-600 hover:bg-pink-500 text-white rounded-lg text-xs font-bold shrink-0 cursor-pointer disabled:opacity-50">
+                {isAddingCat ? '...' : 'حفظ'}
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1">
+              <select value={category} onChange={e => setCategory(e.target.value)} className={inputCls + " cursor-pointer flex-1"}>
+                <option value="">-- اختر التصنيف --</option>
+                {availableCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                {category && !availableCategories.includes(category) && <option value={category}>{category}</option>}
+              </select>
+              <button type="button" onClick={() => setShowAddCat(true)} className="h-7 w-7 bg-slate-800 hover:bg-slate-700 text-pink-400 border border-slate-700 rounded-lg text-xs font-bold flex items-center justify-center shrink-0 cursor-pointer" title="إضافة تصنيف فني جديد">+</button>
+            </div>
+          )}
         </div>
         <div>
           <label className={labelCls}>الكولكشن / التشكيلة</label>
@@ -112,41 +148,19 @@ function ProductBasicInfoForm({
       {/* 3. Row 3: Media & Available Sizes (2-Column Grid) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
-        <div
-          onClick={() => fileInputRef.current?.click()}
-          className="p-2 bg-slate-900/70 border border-slate-800 hover:border-pink-500/70 rounded-xl flex items-center justify-between gap-2 cursor-pointer transition select-none group"
-          title="انقر هنا لرفع أو استبدال صورة الموديل"
-        >
+        <div onClick={() => fileInputRef.current?.click()} className="p-2 bg-slate-900/70 border border-slate-800 hover:border-pink-500/70 rounded-xl flex items-center justify-between gap-2 cursor-pointer transition select-none group" title="انقر هنا لرفع أو استبدال صورة الموديل">
           <div className="flex items-center gap-2 min-w-0">
             <div className="w-10 h-10 rounded-lg bg-slate-800 border border-slate-700 overflow-hidden flex items-center justify-center shrink-0 group-hover:border-pink-500/80 transition">
-              {imageUrl ? (
-                <img src={imageUrl} alt="" className="w-full h-full object-contain" />
-              ) : (
-                <svg className="w-5 h-5 text-slate-400 group-hover:text-pink-400 transition" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-              )}
+              {imageUrl ? <img src={imageUrl} alt="" className="w-full h-full object-contain" /> : <svg className="w-5 h-5 text-slate-400 group-hover:text-pink-400 transition" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>}
             </div>
             <div className="min-w-0 text-right">
-              <span className="text-[11px] font-bold text-slate-200 block truncate group-hover:text-pink-300">
-                {imageUrl ? "تغيير صورة الموديل" : "رفع صورة الموديل 📷"}
-              </span>
-              <span className="text-[9.5px] text-slate-400 block truncate">
-                {imageUrl ? "انقر في أي مكان للاستبدال" : "انقر في أي مكان لاختيار الصورة"}
-              </span>
+              <span className="text-[11px] font-bold text-slate-200 block truncate group-hover:text-pink-300">{imageUrl ? "تغيير صورة الموديل" : "رفع صورة الموديل 📷"}</span>
+              <span className="text-[9.5px] text-slate-400 block truncate">{imageUrl ? "انقر للاستبدال" : "انقر لاختيار الصورة"}</span>
             </div>
           </div>
           <div className="flex items-center gap-1.5 shrink-0" onClick={e => e.stopPropagation()}>
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="h-6 px-2.5 text-[10px] font-bold bg-slate-800 hover:bg-slate-700 text-white rounded-md cursor-pointer flex items-center justify-center transition border border-slate-700"
-            >
-              {imageUrl ? "تغيير" : "رفع"}
-            </button>
-            {imageUrl && (
-              <button type="button" onClick={removeImage} className="h-6 px-2 text-[10px] font-bold bg-red-600/30 text-red-300 hover:bg-red-600/50 rounded-md transition cursor-pointer border border-red-500/30">
-                حذف
-              </button>
-            )}
+            <button type="button" onClick={() => fileInputRef.current?.click()} className="h-6 px-2.5 text-[10px] font-bold bg-slate-800 hover:bg-slate-700 text-white rounded-md cursor-pointer border border-slate-700">{imageUrl ? "تغيير" : "رفع"}</button>
+            {imageUrl && <button type="button" onClick={removeImage} className="h-6 px-2 text-[10px] font-bold bg-red-600/30 text-red-300 hover:bg-red-600/50 rounded-md transition cursor-pointer border border-red-500/30">حذف</button>}
           </div>
         </div>
 
@@ -154,23 +168,11 @@ function ProductBasicInfoForm({
         <div className="p-2 bg-slate-900/70 border border-slate-800 rounded-xl flex flex-col justify-center gap-1">
           <span className="text-[11px] text-slate-300 font-semibold">المقاسات المتاحة:</span>
           <div className="flex items-center gap-1 flex-wrap">
-            {currentSizes.map(size => {
-              const active = isSizeActive(size);
-              return (
-                <button
-                  key={size}
-                  type="button"
-                  onClick={() => toggleSize && toggleSize(size)}
-                  className={`h-6 px-2 rounded-md text-[10px] font-mono font-bold transition-all cursor-pointer ${
-                    active
-                      ? 'bg-pink-600 text-white shadow-md ring-1 ring-pink-400 font-extrabold'
-                      : 'bg-slate-800 text-slate-400 hover:text-white border border-slate-700'
-                  }`}
-                >
-                  {size}
-                </button>
-              );
-            })}
+            {currentSizes.map(size => (
+              <button key={size} type="button" onClick={() => toggleSize && toggleSize(size)} className={`h-6 px-2 rounded-md text-[10px] font-mono font-bold transition-all cursor-pointer ${isSizeActive(size) ? 'bg-pink-600 text-white shadow-md ring-1 ring-pink-400 font-extrabold' : 'bg-slate-800 text-slate-400 hover:text-white border border-slate-700'}`}>
+                {size}
+              </button>
+            ))}
           </div>
         </div>
       </div>
@@ -180,22 +182,15 @@ function ProductBasicInfoForm({
         <span className="text-[11px] text-slate-300 font-semibold block">الألوان المعتمدة للموديل:</span>
         <div className="flex items-center gap-2">
           <input type="text" value={customColorInput} onChange={e => setCustomColorInput(e.target.value)} onKeyDown={handleKeyDown} className="h-7 flex-1 text-xs px-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white outline-none focus:border-pink-500 font-medium" />
-          <button type="button" onClick={handleAddCustomColor} className="h-7 px-3 bg-pink-600 hover:bg-pink-500 text-white rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 shrink-0">
-            <span>+ إضافة لون</span>
-          </button>
+          <button type="button" onClick={handleAddCustomColor} className="h-7 px-3 bg-pink-600 hover:bg-pink-500 text-white rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 shrink-0">+ إضافة لون</button>
         </div>
         <div className="flex items-center gap-1.5 flex-wrap min-h-[22px]">
-          {(selectedColors || []).length > 0 ? (selectedColors || []).map((color, idx) => {
-            const colorStr = typeof color === 'object' && color !== null ? (color.name || color.color || color.label || JSON.stringify(color)) : String(color);
-            return (
-              <span key={idx} className="h-5.5 px-2 bg-pink-600/20 text-pink-300 border border-pink-500/30 rounded-md text-[10px] font-medium flex items-center gap-1.5 shrink-0">
-                <span>{colorStr}</span>
-                <button type="button" onClick={() => removeColor(color)} className="text-pink-400 hover:text-white font-bold cursor-pointer text-sm leading-none">&times;</button>
-              </span>
-            );
-          }) : (
-            <span className="text-[10px] text-slate-500 italic">لم يتم إضافة ألوان بعد (أضف ألوان الموديل بالأعلى)</span>
-          )}
+          {(selectedColors || []).length > 0 ? (selectedColors || []).map((color, idx) => (
+            <span key={idx} className="h-5.5 px-2 bg-pink-600/20 text-pink-300 border border-pink-500/30 rounded-md text-[10px] font-medium flex items-center gap-1.5 shrink-0">
+              <span>{typeof color === 'object' && color !== null ? (color.name || color.color || color.label || JSON.stringify(color)) : String(color)}</span>
+              <button type="button" onClick={() => removeColor(color)} className="text-pink-400 hover:text-white font-bold cursor-pointer text-sm leading-none">&times;</button>
+            </span>
+          )) : <span className="text-[10px] text-slate-500 italic">لم يتم إضافة ألوان بعد (أضف ألوان الموديل بالأعلى)</span>}
         </div>
       </div>
     </div>

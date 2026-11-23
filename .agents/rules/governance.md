@@ -13,3 +13,5 @@ description: Mandatory software and financial governance guardrails for Little P
 6. **Decimal Only:** Never use `Float` for money. Always use `Decimal` with 4 decimal places.
 7. **Server-Side Authorization:** Never rely solely on frontend UI hiding for permissions. Enforce in backend.
 8. **Definition of Done:** Never declare a task complete without running empirical tests and checking runtime health.
+9. **Strict Zero Hardcode Policy:** Never hardcode financial, business, or operational data (amounts, codes, currencies, warehouses, roles, mock data). All data must come dynamically from PostgreSQL/Supabase.
+10. **Transaction Atomicity & Schema Verification:** Always execute multi-table writes inside atomic backend transactions (`All-or-Nothing`) with audit logs. Inspect real DB schema before editing. Never guess columns.

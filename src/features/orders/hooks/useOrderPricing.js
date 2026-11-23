@@ -18,6 +18,10 @@
       if (s.includes('1-2') || s.includes('صغير')) return '1-2Y';
     }
 
+    if (window.SmartSizingMatcher?.matchClientMeasurementToCategory && typeof input === 'object') {
+      const match = window.SmartSizingMatcher.matchClientMeasurementToCategory(input);
+      if (match?.category) return match.category;
+    }
     if (window.MeasurementConverter?.resolveSizeCode) {
       return window.MeasurementConverter.resolveSizeCode(input, targetSegment);
     }
@@ -29,10 +33,9 @@
       if (input.unit === 'إنش' || input.unit === 'inch') len *= 2.54;
     }
     if (len <= 0) return '6-9Y';
-    const inches = len / 2.54;
-    if (inches <= 19) return '1-2Y';
-    if (inches <= 24) return '3-5Y';
-    if (inches <= 29) return '6-9Y';
+    if (len <= 55.9) return '1-2Y';
+    if (len <= 68.6) return '3-5Y';
+    if (len <= 83.8) return '6-9Y';
     return '10-13Y';
   }
 
