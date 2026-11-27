@@ -7,16 +7,13 @@ from .db_pool import execute_query, clean_num, clean_str
 
 
 def get_balance_sheet_pg(params=None):
-    """حساب الميزانية العمومية والمركز المالي حصراً من قيود اليومية المحاسبية دون تكرار"""
+    """حساب الميزانية العمومية التراكمية كما في تاريخ النهاية وفق IAS 1 حصراً من قيود اليومية"""
     params = params or {}
-    start = clean_str(params.get('start_date') or params.get('start') or '')
+    # IAS 1: Balance Sheet is a cumulative snapshot "As of end_date"; start_date is intentionally ignored.
     end = clean_str(params.get('end_date') or params.get('end') or '')
 
     date_filter = ""
     sql_params = []
-    if start:
-        date_filter += " AND j.entry_date::date >= %s::date"
-        sql_params.append(start)
     if end:
         date_filter += " AND j.entry_date::date <= %s::date"
         sql_params.append(end)
@@ -32,7 +29,7 @@ def get_balance_sheet_pg(params=None):
             FROM chart_of_accounts a
             LEFT JOIN (
                 journal_entry_lines l
-                JOIN journal_entries j ON l.entry_id = j.id AND j.status = 'Posted' {date_filter}
+                JOIN journal_entries j ON l.entry_id = j.id AND j.status IN ('Posted', 'Reversed') {date_filter}
             ) ON (
                 a.id = l.account_id 
                 OR a.account_code = l.account_id
@@ -125,7 +122,7 @@ def get_trial_balance_pg(params=None):
         FROM chart_of_accounts a
         LEFT JOIN (
             journal_entry_lines l
-            JOIN journal_entries j ON (l.entry_id = j.id OR l.entry_id = j.entry_no) AND j.status = 'Posted'
+            JOIN journal_entries j ON (l.entry_id = j.id OR l.entry_id = j.entry_no) AND j.status IN ('Posted', 'Reversed')
         ) ON (
             a.id = l.account_id 
             OR a.account_code = l.account_id

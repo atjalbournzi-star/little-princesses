@@ -15,23 +15,23 @@ function BOMFooter({
   const profitSign = profitNum > 0 ? "+" : "";
 
   return (
-    <div className="h-10 min-h-[40px] px-4 border-t border-slate-800 bg-[#0F172A] flex items-center justify-between shrink-0 select-none">
+    <div className="h-10 min-h-[40px] px-4 border-t border-[#CBD5E1] dark:border-slate-800 bg-[#F8FAFC] dark:bg-[#0F172A] flex items-center justify-between shrink-0 select-none">
       {/* 1. يمين: زر الإلغاء */}
       <button
         type="button"
         onClick={onClose}
-        className="h-7 px-3 text-xs text-slate-400 hover:text-white rounded-lg border border-slate-700/60 hover:bg-slate-800/80 transition cursor-pointer"
+        className="h-7 px-3 text-xs text-[#334155] dark:text-slate-400 hover:text-[#0F172A] dark:hover:text-white rounded-lg border border-[#CBD5E1] dark:border-slate-700/60 hover:bg-slate-200 dark:hover:bg-slate-800/80 transition cursor-pointer"
       >
         إلغاء
       </button>
 
       {/* 2. المنتصف: ملخص التكلفة والربح الحي */}
-      <div className="text-[11px] font-semibold text-slate-300 flex items-center gap-2">
+      <div className="text-[11px] font-semibold text-[#334155] dark:text-slate-300 flex items-center gap-2">
         <span>التكلفة:</span>
-        <span className="text-white font-mono font-bold">{formattedCost} {currencyLabel}</span>
-        <span className="text-slate-600 px-0.5">|</span>
+        <span className="text-[#0F172A] dark:text-white font-mono font-bold">{formattedCost} {currencyLabel}</span>
+        <span className="text-slate-400 dark:text-slate-600 px-0.5">|</span>
         <span>الربح المتوقع:</span>
-        <span className="text-emerald-400 font-mono font-bold">
+        <span className="text-emerald-700 dark:text-emerald-400 font-mono font-bold">
           {profitSign}{formattedProfit} {currencyLabel}
         </span>
       </div>

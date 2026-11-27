@@ -11,7 +11,7 @@ function ReportsPrintHeader({ brandProfile, getTabTitle, dateRange, reportCurren
             <div className="text-3xl">{brandProfile?.systemIcon || '🏢'}</div>
           )}
           <div>
-            <h1 className="text-xl font-bold text-[#000000]">{brandProfile?.name || 'مؤسسة الأميرات الصغيرات'}</h1>
+            <h1 className="text-xl font-bold text-[#000000]">{brandProfile?.name || 'نظام الإدارة المتكامل'}</h1>
             <p className="text-xs text-[#555555]">{brandProfile?.tagline || brandProfile?.shortName}</p>
             <h2 className="text-base font-bold text-[#007F8C] mt-1.5">{getTabTitle ? getTabTitle() : ''}</h2>
           </div>

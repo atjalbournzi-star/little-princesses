@@ -34,6 +34,7 @@ function AppSidebar({
     window.addEventListener('erp:brandProfileChanged', hb);
     return () => window.removeEventListener('erp:brandProfileChanged', hb);
   }, []);
+  const enablePhase2 = typeof window !== 'undefined' && window.ENABLE_PHASE2_MODULES === true;
   const navSections = React.useMemo(() => [
     { title: 'العمليات والتشغيل', items: [
       { id: 'dashboard', label: 'لوحة التحكم والعمليات', icon: Icons.Dashboard, roles: ['admin','accountant','workshop_manager','data_entry','sales_rep'] },
@@ -43,7 +44,7 @@ function AppSidebar({
     { title: 'إدارة العمليات والإنتاج', items: [
       { id: 'products', label: 'المنتجات ومواصفات التشغيل', icon: Icons.Calculator, roles: ['admin','workshop_manager'] },
       { id: 'factory', label: 'خطوط التصنيع والتشغيل', icon: Icons.Factory, roles: ['admin','workshop_manager'] },
-      { id: 'measurement', label: 'استوديو المقاسات (A4)', icon: Icons.Scissors, roles: ['admin','workshop_manager','data_entry','sales_rep','accountant'] },
+      { id: 'measurement', label: 'استوديو المقاسات (A4)', icon: Icons.Scissors, roles: ['admin','workshop_manager','data_entry','sales_rep','accountant'], phase2: true },
       { id: 'inventory', label: 'المخزون وسلاسل الإمداد', icon: Icons.Scissors, roles: ['admin','workshop_manager'] },
       { id: 'purchases', label: 'المشتريات وإدارة الموردين', icon: Icons.Purchases, roles: ['admin','accountant'] }
     ]},
@@ -54,7 +55,7 @@ function AppSidebar({
       { id: 'reports', label: 'التقارير المالية والتشغيلية', icon: Icons.Reports, roles: ['admin','accountant'] }
     ]},
     { title: 'الحوكمة ونمو الأعمال', items: [
-      { id: 'marketing', label: 'التسويق ونمو الأعمال', icon: Icons.Marketing, roles: ['admin','data_entry'] },
+      { id: 'marketing', label: 'التسويق ونمو الأعمال', icon: Icons.Marketing, roles: ['admin','data_entry'], phase2: true },
       { id: 'hr', label: 'الموارد البشرية والرواتب', icon: Icons.HR, roles: ['admin'] },
       { id: 'feedback', label: 'إدارة الجودة الشاملة (QA)', icon: Icons.Star, roles: ['admin','workshop_manager'] },
       { id: 'settings', label: 'إعدادات النظام والحوكمة', icon: Icons.Settings, roles: ['admin','accountant'] }
@@ -66,13 +67,13 @@ function AppSidebar({
       <div className={`h-11 py-1 flex items-center border-b border-slate-200 dark:border-slate-800 flex-shrink-0 ${isCollapsed ? 'justify-center px-1.5' : 'justify-between px-3 gap-2'}`}>
         <div className="flex items-center gap-2 min-w-0">
           <button type="button" onClick={toggleSidebar} className="w-7 h-7 rounded-lg bg-gradient-to-tr from-[#B0005A] via-[#8F2A87] to-[#F28A00] flex items-center justify-center text-white text-xs shadow-xs shrink-0 cursor-pointer hover:scale-105 transition-transform" title={isCollapsed ? 'توسيع القائمة' : 'طي القائمة'}>🏢</button>
-          {!isCollapsed && (<div className="flex flex-col min-w-0 flex-1"><span className="text-xs font-bold text-slate-900 dark:text-white leading-tight">{brandProfile.shortName || 'ERP Master'}</span><span className="text-[11px] font-semibold text-pink-600 dark:text-pink-400 whitespace-normal leading-tight">{brandProfile.name || 'الأميرات الصغيرات'}</span></div>)}
+          {!isCollapsed && (<div className="flex flex-col min-w-0 flex-1"><span className="text-xs font-bold text-slate-900 dark:text-white leading-tight">{brandProfile.shortName || 'ERP Master'}</span><span className="text-[11px] font-semibold text-[#E11D48] dark:text-pink-400 whitespace-normal leading-tight">{brandProfile.name || 'نظام الإدارة المتكامل'}</span></div>)}
         </div>
         {!isCollapsed && (<button type="button" onClick={toggleSidebar} className="p-1 rounded-md text-slate-400 hover:text-slate-700 dark:text-white dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer shrink-0" title="طي القائمة الجانبية"><span className="text-xs font-bold">⇤</span></button>)}
       </div>
       <nav className={`flex-1 overflow-hidden ${isCollapsed ? 'px-1' : 'px-2'} py-2 space-y-0.5`}>
         {navSections.map((section, sIdx) => {
-          const visible = section.items.filter(it => !it.roles || it.roles.includes(role));
+          const visible = section.items.filter(it => (!it.phase2 || enablePhase2) && (!it.roles || it.roles.includes(role)));
           if (!visible.length) return null;
           return (
             <React.Fragment key={sIdx}>

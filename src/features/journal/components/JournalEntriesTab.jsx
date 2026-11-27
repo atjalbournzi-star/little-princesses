@@ -1,7 +1,7 @@
 // src/features/journal/components/JournalEntriesTab.jsx
 // Journal Entries tab: simple entry form + journal entries table with edit/delete actions
 
-function JournalEntriesTab({ journal, accounts, postingAccounts, formData, setFormData, currencyCode, isBaseCurrency, handleSubmit, handleOpenEdit, handleDeleteEntry, isDeletingId, handleOpenCompoundModal }) {
+function JournalEntriesTab({ journal, accounts, postingAccounts, formData, setFormData, currencyCode, isBaseCurrency, isSubmitting, handleSubmit, handleOpenEdit, handleDeleteEntry, isDeletingId, handleOpenCompoundModal }) {
   const { inputCls, labelCls, getAccLabel } = window.JournalUtils || {};
   const REF_TYPES = ["قيد يدوي","إيجارات","مرتبات وأجور","مشتريات","مصروفات تشغيلية","سند صرف","سند قبض","تسوية"];
   const CURRENCIES = ["YER ﷼","SAR ﷼","USD $"];
@@ -87,8 +87,9 @@ function JournalEntriesTab({ journal, accounts, postingAccounts, formData, setFo
             </div>
           </div>
           <div className="flex justify-end pt-2">
-            <button type="submit" className="w-full sm:w-auto px-8 py-3 rounded-xl font-bold text-xs text-white bg-[#8F2A87] hover:bg-[#73216C] transition shadow-xs flex items-center justify-center gap-2 cursor-pointer">
-              <Icons.Check className="w-4 h-4" /><span>حفظ وترحيل القيد المحاسبي 📑</span>
+            <button type="submit" disabled={isSubmitting} className="w-full sm:w-auto px-8 py-3 rounded-xl font-bold text-xs text-white bg-[#8F2A87] hover:bg-[#73216C] transition shadow-xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+              {isSubmitting ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Icons.Check className="w-4 h-4" />}
+              <span>{isSubmitting ? 'جاري الترحيل...' : 'حفظ وترحيل القيد المحاسبي 📑'}</span>
             </button>
           </div>
         </form>
@@ -106,7 +107,7 @@ function JournalEntriesTab({ journal, accounts, postingAccounts, formData, setFo
           {(!journal || journal.length === 0) ? (
             <div className="text-center py-12 text-[#6F6B75] text-xs font-medium">لا توجد قيود مسجلة بعد 📑</div>
           ) : (
-            <table className="w-full text-xs table-fixed border-collapse">
+            <table className="w-full min-w-[820px] text-xs table-fixed border-collapse">
               <thead>
                 <tr className="bg-[#FAFAFB] text-[#6F6B75] font-bold border-b border-[#E8E5EA]">
                   <th className="px-3.5 py-3 text-right w-[15%]">رقم القيد والتاريخ</th>

@@ -17,8 +17,8 @@ function QualityCertificateModal({
           <div className="w-10 h-10 mx-auto bg-pink-50 dark:bg-pink-950/40 text-pink-600 dark:text-pink-400 rounded-xl flex items-center justify-center text-xl mb-1 shadow-xs border border-pink-200 dark:border-pink-800/60">
             👑
           </div>
-          <h2 className="font-extrabold text-sm text-slate-900 dark:text-white">مؤسسة ومعمل الأميرات الصغيرات</h2>
-          <p className="text-[10px] text-pink-600 dark:text-pink-400 font-bold tracking-wider">LITTLE PRINCESSES LUXURY ATELIER</p>
+          <h2 className="font-extrabold text-sm text-slate-900 dark:text-white">{(window.BrandService && window.BrandService.getProfile().name) || 'نظام الإدارة المتكامل'}</h2>
+          <p className="text-[10px] text-pink-600 dark:text-pink-400 font-bold tracking-wider">{(window.BrandService && window.BrandService.getProfile().shortName) || 'QUALITY ASSURANCE'}</p>
           <div className="inline-block mt-1.5 px-2.5 py-0.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 rounded-full text-[10.5px] font-bold border border-emerald-200 dark:border-emerald-800/60">
             بطاقة اعتماد الجودة والمطابقة الفاخرة (Quality Pass)
           </div>

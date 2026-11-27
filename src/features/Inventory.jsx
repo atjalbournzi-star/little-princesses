@@ -15,6 +15,7 @@ function Inventory({ inventory = [], setInventory, purchases = [], orders = [], 
     isAddModalOpen: false, setIsAddModalOpen: () => {}, formData: {}, setFormData: () => {},
     handleQtyChange: () => {}, handleCostChange: () => {}, handleTotalChange: () => {}, handleAddItem: () => {},
     adjustingItem: null, setAdjustingItem: () => {}, adjustType: 'wastage', setAdjustType: () => {},
+    adjustWarehouseId: '', setAdjustWarehouseId: () => {},
     adjustQty: '', setAdjustQty: () => {}, adjustReason: '', setAdjustReason: () => {},
     isSubmittingAdjust: false, handleExecuteAdjust: () => {}, openAdjustModal: () => {},
     transferringItem: null, setTransferringItem: () => {}, transferFrom: '', setTransferFrom: () => {},
@@ -37,7 +38,12 @@ function Inventory({ inventory = [], setInventory, purchases = [], orders = [], 
   const ItemMovementModalComp = window.ItemMovementModal || null;
   const WarehouseAddModalComp = window.WarehouseAddModal || null;
   const WarehouseManageModalComp = window.WarehouseManageModal || null;
-  const [isManageWarehouseOpen, setIsManageWarehouseOpen] = (window.React || React).useState(false);
+  const AddReadyProductModalComp = window.AddReadyProductModal || null;
+  const HangtagModalComp = window.HangtagPrintModal || null;
+  const ReactRef = window.React || React;
+  const [isManageWarehouseOpen, setIsManageWarehouseOpen] = ReactRef.useState(false);
+  const [isAddReadyModalOpen, setIsAddReadyModalOpen] = ReactRef.useState(false);
+  const [hangtagTargetItem, setHangtagTargetItem] = ReactRef.useState(null);
 
   const data = useData({ inventory, setInventory, purchases, showToast, currency });
   const actions = useActions({
@@ -52,8 +58,9 @@ function Inventory({ inventory = [], setInventory, purchases = [], orders = [], 
         <HeaderComp
           stats={data.stats}
           onOpenAdd={() => actions.setIsAddModalOpen(true)}
+          onOpenAddReadyProduct={() => setIsAddReadyModalOpen(true)}
           onReconcile={actions.handleReconcileGovernance}
-          onOpenTransfer={() => actions.openTransferModal(inventory[0] || null)}
+          onOpenTransfer={() => actions.openTransferModal(null)}
           onOpenAddWarehouse={() => actions.setIsAddWarehouseOpen(true)}
           onOpenManageWarehouses={() => setIsManageWarehouseOpen(true)}
         />
@@ -94,6 +101,7 @@ function Inventory({ inventory = [], setInventory, purchases = [], orders = [], 
             onOpenAdjust={actions.openAdjustModal}
             onOpenTransfer={actions.openTransferModal}
             onOpenMovements={actions.setSelectedItemForMovements}
+            onOpenHangtag={(item) => setHangtagTargetItem(item)}
           />
         )}
 
@@ -125,6 +133,7 @@ function Inventory({ inventory = [], setInventory, purchases = [], orders = [], 
         <StockAdjustmentModalComp
           adjustingItem={actions.adjustingItem} setAdjustingItem={actions.setAdjustingItem}
           adjustType={actions.adjustType} setAdjustType={actions.setAdjustType}
+          adjustWarehouseId={actions.adjustWarehouseId} setAdjustWarehouseId={actions.setAdjustWarehouseId}
           adjustQty={actions.adjustQty} setAdjustQty={actions.setAdjustQty}
           adjustReason={actions.adjustReason} setAdjustReason={actions.setAdjustReason}
           isSubmittingAdjust={actions.isSubmittingAdjust} onSubmit={actions.handleExecuteAdjust}
@@ -134,7 +143,9 @@ function Inventory({ inventory = [], setInventory, purchases = [], orders = [], 
 
       {WarehouseTransferModalComp && (
         <WarehouseTransferModalComp
+          inventory={inventory}
           transferringItem={actions.transferringItem} setTransferringItem={actions.setTransferringItem}
+          onSelectTransferItem={actions.handleSelectTransferItem}
           transferFrom={actions.transferFrom} setTransferFrom={actions.setTransferFrom}
           transferTo={actions.transferTo} setTransferTo={actions.setTransferTo}
           transferQty={actions.transferQty} setTransferQty={actions.setTransferQty}
@@ -167,6 +178,24 @@ function Inventory({ inventory = [], setInventory, purchases = [], orders = [], 
           onClose={() => setIsManageWarehouseOpen(false)}
           showToast={showToast}
           onWarehouseChanged={() => data.refreshInventory?.(false)}
+        />
+      )}
+
+      {AddReadyProductModalComp && (
+        <AddReadyProductModalComp
+          isOpen={isAddReadyModalOpen}
+          onClose={() => setIsAddReadyModalOpen(false)}
+          showToast={showToast}
+          currency={currency}
+          onProductCreated={() => { data.refreshInventory?.(false); data.setActiveTab?.('ready_dresses'); }}
+        />
+      )}
+
+      {HangtagModalComp && hangtagTargetItem && (
+        <HangtagModalComp
+          isOpen={!!hangtagTargetItem}
+          product={hangtagTargetItem}
+          onClose={() => setHangtagTargetItem(null)}
         />
       )}
     </div>

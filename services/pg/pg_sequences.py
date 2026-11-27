@@ -54,9 +54,10 @@ def ensure_number_sequences_schema(cur):
         cur.execute("""
             INSERT INTO number_sequences (id, entity, sequence_key, prefix, current_number, padding, description)
             VALUES 
-                ('SEQ-PROD-KID', 'products', 'PROD-KID', 'LP-KID-', 1, 4, 'تسلسل موديلات الأطفال'),
-                ('SEQ-PROD-WMN', 'products', 'PROD-WMN', 'LP-WMN-', 0, 4, 'تسلسل موديلات الكبار والنسائي'),
-                ('SEQ-PROD-CST', 'products', 'PROD-CST', 'LP-CST-', 0, 4, 'تسلسل الموديلات الحرة والتفصيل'),
+                ('SEQ-PROD-KID', 'products', 'PROD-KID', 'PRD-GRL-', 1, 4, 'تسلسل موديلات الأطفال والبنات'),
+                ('SEQ-PROD-WMN', 'products', 'PROD-WMN', 'PRD-WMN-', 0, 4, 'تسلسل موديلات الكبار والنسائي'),
+                ('SEQ-PROD-UNI', 'products', 'PROD-UNI', 'PRD-UNI-', 0, 4, 'تسلسل موديلات الزي المدرسي'),
+                ('SEQ-PROD-CST', 'products', 'PROD-CST', 'PRD-GEN-', 0, 4, 'تسلسل الموديلات الحرة والتفصيل'),
                 ('SEQ-RV', 'payments', 'RV', 'RV-', 0, 6, 'تسلسل سندات القبض'),
                 ('SEQ-PV', 'payments', 'PV', 'PV-', 0, 6, 'تسلسل سندات الصرف'),
                 ('SEQ-EMP', 'employees', 'EMP', 'EMP-', 0, 6, 'تسلسل أرقام الموظفين')

@@ -6,6 +6,7 @@ function useJournalActions({ journal, setJournal, accounts, setAccounts, voucher
   const { buildEntryObject, buildUpdatedEntry } = window.JournalUtils || {};
 
   // ── Simple entry form state ──
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [formData, setFormData] = React.useState({
     entry_no: '', debit: '', credit: '', amount: '',
     currency: 'YER ﷼', exchange_rate: '', date: TODAY_STR_ISO, notes: '', ref_type: 'قيد يدوي'
@@ -74,6 +75,7 @@ function useJournalActions({ journal, setJournal, accounts, setAccounts, voucher
   // ── Simple entry submit ──
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
     if (!formData.debit || !formData.credit || !formData.amount)
       return showToast('الطرف المدين، الدائن، والمبلغ مطلوبة ⚠️', 'error');
     if (formData.debit === formData.credit)
@@ -81,21 +83,25 @@ function useJournalActions({ journal, setJournal, accounts, setAccounts, voucher
     const validation = window.AccountingEngine ? window.AccountingEngine.validateEntry({ ...formData, exchange_rate: parseFloat(formData.exchange_rate) || 1 }, accounts) : { valid: true };
     if (!validation.valid) return showToast(validation.error || 'خطأ في التحقق', 'error');
     const newJ = buildEntryObject(formData, currencyCode, accounts);
+    setIsSubmitting(true);
     try {
-      let officialJ = newJ;
       const res = await fetch('/api/journal/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newJ) });
       const apiData = await res.json().catch(() => ({}));
+      if (!res.ok || apiData?.success === false) {
+        throw new Error(res.extractedError || apiData?.error || apiData?.message || `فشل حفظ القيد (${res.status})`);
+      }
       const savedJ = (apiData && (apiData.data || apiData.entry)) || {};
       const officialNo = savedJ.entry_no || newJ.entry_no;
-      officialJ = { ...newJ, ...savedJ, entry_no: officialNo, id: savedJ.id || officialNo };
+      const officialJ = { ...newJ, ...savedJ, entry_no: officialNo, id: savedJ.id || officialNo };
       if (setJournal) setJournal(p => [officialJ, ...(p || []).filter(j => j.id !== newJ.id && j.entry_no !== newJ.entry_no && j.entry_no !== officialNo)]);
-      if (typeof callGAS === 'function') callGAS('addJournalEntry', officialJ).catch(() => {});
       showToast(`تم حفظ القيد المحاسبي (${officialNo}) بنجاح 📑`, 'success');
-    } catch {
-      if (setJournal) setJournal(p => [newJ, ...(p || [])]);
-      showToast('تم حفظ القيد محلياً ⚡');
+      setFormData({ entry_no: '', debit: '', credit: '', amount: '', currency: 'YER ﷼', exchange_rate: '1.0', date: TODAY_STR_ISO, notes: '', ref_type: 'قيد يدوي' });
+    } catch (err) {
+      const msg = window.formatApiError ? window.formatApiError(err) : (err?.message || 'تعذّر الاتصال بالخادم حالياً، بياناتك ما زالت محفوظة في النموذج — يرجى إعادة المحاولة');
+      showToast(msg, 'error');
+    } finally {
+      setIsSubmitting(false);
     }
-    setFormData({ entry_no: '', debit: '', credit: '', amount: '', currency: 'YER ﷼', exchange_rate: '1.0', date: TODAY_STR_ISO, notes: '', ref_type: 'قيد يدوي' });
   };
 
   // ── Edit handlers ──
@@ -166,19 +172,27 @@ function useJournalActions({ journal, setJournal, accounts, setAccounts, voucher
           generatedEntries.push({ id: Date.now() + Math.random(), transaction_id: txId, entry_no: entryNo, debit: dLabel, credit: cLabel, debit_account_id: dLabel, credit_account_id: cLabel, debit_code: d.account_code, credit_code: c.account_code, amount: portion, currency: compoundCurrCode, exchange_rate: cRate, base_amount: baseObj.base_amount, ref_type: compoundForm.ref_type || 'قيد مركب', ref_id: compoundForm.ref_id || '', date: compoundForm.date || new Date().toISOString().split('T')[0], notes: combinedNotes || 'قيد يومية مركب متعدد الأطراف', statement: combinedNotes || 'قيد يومية مركب متعدد الأطراف', status: 'posted' });
         });
       });
-      if (setJournal) setJournal(p => [...generatedEntries, ...(p || [])]);
+      const savedEntries = [];
       for (const entry of generatedEntries) {
-        fetch('/api/journal/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(entry) }).catch(() => {});
-        if (typeof window.callGAS === 'function') window.callGAS('addJournalEntry', entry).catch(() => {});
+        const res = await fetch('/api/journal/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(entry) });
+        const d = await res.json().catch(() => ({}));
+        if (!res.ok || d?.success === false) {
+          throw new Error(res.extractedError || d?.error || d?.message || 'فشل حفظ أحد سطور القيد المركب');
+        }
+        savedEntries.push({ ...entry, ...(d.data || d.entry || {}) });
       }
+      if (setJournal) setJournal(p => [...savedEntries, ...(p || [])]);
       showToast(`تم اعتماد القيد المركب (${entryNo}) بنجاح 📑✨`);
       setShowCompoundModal(false);
-    } catch (err) { showToast('حدث خطأ أثناء اعتماد القيد المركب', 'error'); }
+    } catch (err) {
+      const msg = window.formatApiError ? window.formatApiError(err) : (err?.message || 'حدث خطأ أثناء اعتماد القيد المركب');
+      showToast(msg, 'error');
+    }
     finally { setIsSubmittingCompound(false); }
   };
 
   return {
-    formData, setFormData, currencyCode, isBaseCurrency,
+    formData, setFormData, currencyCode, isBaseCurrency, isSubmitting,
     showCompoundModal, setShowCompoundModal, compoundForm, setCompoundForm,
     compoundLines, setCompoundLines, compoundTotals, compoundCurrCode,
     isSubmittingCompound,

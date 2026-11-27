@@ -8,8 +8,16 @@ import json
 import uuid
 import datetime
 from decimal import Decimal
+from psycopg2 import sql
 from .db_pool import get_db_cursor, logger
 from .pg_audit import log_audit_event
+
+
+def _get_secure_backup_dir() -> str:
+    env_dir = (os.environ.get('BACKUP_DIR') or '').strip()
+    if env_dir:
+        return env_dir
+    return os.path.join(os.path.expanduser('~'), 'ERP_Backups_Daily')
 
 
 def get_backup_status(params=None):
@@ -34,8 +42,7 @@ def get_backup_status(params=None):
         """)
         total_records = cur.fetchone()['total_cnt']
 
-    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    backups_dir = os.path.join(base_dir, "backups")
+    backups_dir = _get_secure_backup_dir()
     snapshots = []
     if os.path.exists(backups_dir):
         for fname in sorted(os.listdir(backups_dir), reverse=True):
@@ -65,10 +72,11 @@ def get_backup_status(params=None):
 
 def create_backup_snapshot(params=None):
     tables = [
-        "company_profile", "currencies", "chart_of_accounts", "journal_entries", "journal_entry_lines",
+        "company_profile", "currencies", "chart_of_accounts", "standard_size_matrices",
+        "journal_entries", "journal_entry_lines",
         "customers", "children", "measurements", "products", "inventory", "inventory_transactions",
         "suppliers", "purchases", "purchase_items", "orders", "order_items", "production_orders",
-        "payments", "expenses", "employees", "payroll", "users", "system_settings"
+        "customer_material_custody", "payments", "expenses", "employees", "payroll", "users", "system_settings"
     ]
     dump_data = {}
     with get_db_cursor() as cur:
@@ -88,8 +96,7 @@ def create_backup_snapshot(params=None):
 
     ts_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"snapshot_{ts_str}.json"
-    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    backups_dir = os.path.join(base_dir, "backups")
+    backups_dir = _get_secure_backup_dir()
     os.makedirs(backups_dir, exist_ok=True)
     full_path = os.path.join(backups_dir, filename)
 
@@ -117,29 +124,48 @@ def restore_backup_data(payload):
         raise ValueError("ملف النسخة الاحتياطية فارغ أو لا يحتوي على بنية الجداول المطلوبة.")
 
     restore_order = [
-        "company_profile", "currencies", "chart_of_accounts", "users", "customers", "children", "measurements",
+        "company_profile", "currencies", "chart_of_accounts", "standard_size_matrices", "users",
+        "customers", "children", "measurements",
         "products", "inventory", "suppliers", "purchases", "purchase_items", "orders", "order_items",
-        "production_orders", "payments", "expenses", "employees", "payroll", "journal_entries",
-        "journal_entry_lines", "inventory_transactions", "system_settings"
+        "production_orders", "customer_material_custody", "payments", "expenses", "employees", "payroll",
+        "journal_entries", "journal_entry_lines", "inventory_transactions", "system_settings"
     ]
     restored_summary = {}
     with get_db_cursor(commit=True) as cur:
         for tbl in restore_order:
             rows = tables_payload.get(tbl)
             if rows and isinstance(rows, list) and len(rows) > 0:
+                cur.execute(
+                    "SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = %s;",
+                    (tbl,)
+                )
+                allowed_cols = {r['column_name'] for r in cur.fetchall()}
+                if not allowed_cols:
+                    continue
                 count = 0
                 for r in rows:
-                    cols = list(r.keys())
+                    if not isinstance(r, dict):
+                        continue
+                    cols = [c for c in r.keys() if c in allowed_cols]
+                    if not cols:
+                        continue
                     vals = [r[c] for c in cols]
-                    placeholders = ", ".join(["%s"] * len(cols))
-                    col_names = ", ".join([f'"{c}"' for c in cols])
-                    update_clause = ", ".join([f'"{c}" = EXCLUDED."{c}"' for c in cols if c != 'id'])
-                    sql = (
-                        f'INSERT INTO "{tbl}" ({col_names}) VALUES ({placeholders}) ON CONFLICT (id) DO UPDATE SET {update_clause};'
-                        if ('id' in cols and update_clause) else
-                        f'INSERT INTO "{tbl}" ({col_names}) VALUES ({placeholders}) ON CONFLICT DO NOTHING;'
-                    )
-                    cur.execute(sql, vals)
+                    col_idents = sql.SQL(', ').join(sql.Identifier(c) for c in cols)
+                    placeholders = sql.SQL(', ').join(sql.Placeholder() for _ in cols)
+                    update_cols = [c for c in cols if c != 'id']
+                    if 'id' in cols and update_cols:
+                        set_clause = sql.SQL(', ').join(
+                            sql.SQL("{} = EXCLUDED.{}").format(sql.Identifier(c), sql.Identifier(c))
+                            for c in update_cols
+                        )
+                        stmt = sql.SQL("INSERT INTO {} ({}) VALUES ({}) ON CONFLICT (id) DO UPDATE SET {};").format(
+                            sql.Identifier(tbl), col_idents, placeholders, set_clause
+                        )
+                    else:
+                        stmt = sql.SQL("INSERT INTO {} ({}) VALUES ({}) ON CONFLICT DO NOTHING;").format(
+                            sql.Identifier(tbl), col_idents, placeholders
+                        )
+                    cur.execute(stmt, vals)
                     count += 1
                 restored_summary[tbl] = count
 

@@ -39,8 +39,8 @@ function JobOrderFormFields({
   handleOrderSelect, handleStageEmpChange, handleStageChange, handleProductChange,
   handleSizeChange, setModelPreviewData, fabricInventory = []
 }) {
-  const inputCls = 'w-full h-8 px-2.5 py-1 rounded-lg border border-slate-700/80 bg-slate-950/80 text-slate-100 text-xs font-medium focus:border-rose-500/60 focus:ring-1 focus:ring-rose-500/30 transition-all outline-none';
-  const labelCls = 'block text-[11px] font-semibold text-slate-200 mb-1', sizeChart = window.FactorySizeChart || {}, isReadyToWear = form.production_type === 'ready_to_wear', isOrderSelected = !isReadyToWear && Boolean(form.order_no);
+  const inputCls = 'w-full h-8 px-2.5 py-1 rounded-lg border border-[#CBD5E1] dark:border-slate-700/80 bg-white dark:bg-slate-950/80 text-[#0F172A] dark:text-slate-100 text-xs font-medium focus:border-rose-500/60 focus:ring-1 focus:ring-rose-500/30 transition-all outline-none';
+  const labelCls = 'block text-[11px] font-semibold text-[#0F172A] dark:text-slate-200 mb-1', sizeChart = window.FactorySizeChart || {}, isReadyToWear = form.production_type === 'ready_to_wear', isOrderSelected = !isReadyToWear && Boolean(form.order_no);
   const bespokeList = window.FactoryUtils?.getBespokeOrdersList ? window.FactoryUtils.getBespokeOrdersList(orders, customers, products) : (orders || []), selectedOrder = bespokeList.find(o => String(o.order_no || o.id) === String(form.order_no));
   React.useEffect(() => {
     if (/^\d{10,}$/.test(String(form.order_no || '')) || (form.order_no && !bespokeList.some(o => String(o.order_no || o.id) === String(form.order_no)))) {
@@ -118,65 +118,65 @@ function JobOrderFormFields({
         <label className={labelCls}>{isReadyToWear ? 'رقم دفعة الإنتاج الجاهز' : 'رقم الطلب والفاتورة'} <span className="text-rose-400 font-bold">*</span></label>
         {!isReadyToWear ? (
           <select className={inputCls} value={form.order_no || form.order_id || form.id || ''} onChange={onInternalOrderSelect}>
-            <option value="" className="bg-slate-900 text-slate-200">-- اختر الطلب المعمد --</option>
+            <option value="" className="bg-white dark:bg-slate-900 text-[#0F172A] dark:text-slate-200">-- اختر الطلب المعمد --</option>
             {Boolean(form.order_no && !bespokeList.some(o => String(o.order_no || o.id) === String(form.order_no))) && (
-              <option value={form.order_no} className="bg-slate-900 text-slate-200">[{form.order_no}]{(form.customer_name || form.customer) ? ` - ${form.customer_name || form.customer}` : ''}</option>
+              <option value={form.order_no} className="bg-white dark:bg-slate-900 text-[#0F172A] dark:text-slate-200">[{form.order_no}]{(form.customer_name || form.customer) ? ` - ${form.customer_name || form.customer}` : ''}</option>
             )}
-            {bespokeList.map(o => <option key={o.order_no || o.id} value={o.order_no || o.id} className="bg-slate-900 text-slate-200">[{o.display_code || o.order_no || o.id || 'ORD'}]{(o.customer_name || o.customer) ? ` - ${o.customer_name || o.customer}` : ''}{o.child_name ? ` (${o.child_name})` : ''}</option>)}
+            {bespokeList.map(o => <option key={o.order_no || o.id} value={o.order_no || o.id} className="bg-white dark:bg-slate-900 text-[#0F172A] dark:text-slate-200">[{o.display_code || o.order_no || o.id || 'ORD'}]{(o.customer_name || o.customer) ? ` - ${o.customer_name || o.customer}` : ''}{o.child_name ? ` (${o.child_name})` : ''}</option>)}
           </select>
-        ) : <input type="text" className={inputCls + ' font-mono font-bold text-cyan-400'} value={form.order_no || ''} onChange={e => setForm({ ...form, order_no: e.target.value })} />}
+        ) : <input type="text" className={inputCls + ' font-mono font-bold text-cyan-600 dark:text-cyan-400'} value={form.order_no || ''} onChange={e => setForm({ ...form, order_no: e.target.value })} />}
       </div>
 
       {!isReadyToWear ? (
         <React.Fragment>
-          <div className="lg:col-span-2"><div className="flex justify-between items-center mb-1"><label className={labelCls + ' mb-0'}>اسم العميل (الأم)</label>{isOrderSelected && <span className="text-[10px] text-rose-400 font-semibold">🔒 مقفل</span>}</div><input type="text" readOnly={isOrderSelected} className={inputCls + (isOrderSelected ? ' bg-slate-900/80 text-slate-400 cursor-not-allowed border-slate-800' : ' font-semibold')} value={form.customer || form.customer_name || ''} onChange={e => setForm({ ...form, customer: e.target.value, customer_name: e.target.value })} /></div>
-          <div className="lg:col-span-2"><div className="flex justify-between items-center mb-1"><label className={labelCls + ' mb-0 text-rose-400'}>اسم الطفلة (الأميرة)</label>{isOrderSelected && <span className="text-[10px] text-rose-400 font-semibold">🔒 مقفل</span>}</div><input type="text" readOnly={isOrderSelected} className={inputCls + ' bg-rose-500/10 font-semibold text-rose-300 border-rose-500/20' + (isOrderSelected ? ' cursor-not-allowed' : '')} value={form.child_name || ''} onChange={e => setForm({ ...form, child_name: e.target.value })} /></div>
+          <div className="lg:col-span-2"><div className="flex justify-between items-center mb-1"><label className={labelCls + ' mb-0'}>اسم العميل</label>{isOrderSelected && <span className="text-[10px] text-rose-500 dark:text-rose-400 font-semibold">🔒 مقفل</span>}</div><input type="text" readOnly={isOrderSelected} className={inputCls + (isOrderSelected ? ' bg-[#F8FAFC] dark:bg-slate-900/80 text-slate-500 dark:text-slate-400 cursor-not-allowed border-[#CBD5E1] dark:border-slate-800' : ' font-semibold')} value={form.customer || form.customer_name || ''} onChange={e => setForm({ ...form, customer: e.target.value, customer_name: e.target.value })} /></div>
+          <div className="lg:col-span-2"><div className="flex justify-between items-center mb-1"><label className={labelCls + ' mb-0 text-rose-600 dark:text-rose-400'}>اسم المستفيد</label>{isOrderSelected && <span className="text-[10px] text-rose-500 dark:text-rose-400 font-semibold">🔒 مقفل</span>}</div><input type="text" readOnly={isOrderSelected} className={inputCls + ' bg-rose-50 dark:bg-rose-500/10 font-semibold text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-500/20' + (isOrderSelected ? ' cursor-not-allowed' : '')} value={form.child_name || ''} onChange={e => setForm({ ...form, child_name: e.target.value })} /></div>
         </React.Fragment>
       ) : (
         <React.Fragment>
-          <div className="lg:col-span-2"><label className={labelCls}>الفئة المستهدفة</label><select className={inputCls + ' bg-slate-900 text-cyan-400 font-semibold'} value={form.target_segment || 'kids'} onChange={e => { const seg = e.target.value, defSize = seg === 'women_adults' ? 'M' : '6-9Y'; setForm(p => ({ ...p, target_segment: seg, size_code: defSize })); if (handleSizeChange) handleSizeChange(defSize); }}><option value="kids" className="bg-slate-900">👧 أطفال وأميرات</option><option value="women_adults" className="bg-slate-900">👩 نسائي / كبار</option></select></div>
-          <div className="lg:col-span-2"><label className={labelCls + ' text-cyan-400 font-semibold'}>المقاس القياسي الجاهز <span className="text-rose-400">*</span></label><select className={inputCls + ' bg-cyan-500/10 text-cyan-300 font-bold font-mono border-cyan-500/20'} value={form.size_code || '6-9Y'} onChange={e => handleSizeChange ? handleSizeChange(e.target.value) : setForm({ ...form, size_code: e.target.value })}>{availableSizes.map(sz => <option key={sz} value={sz} className="bg-slate-900">{sz}</option>)}</select>{stdSpecs && <span className="block text-[10px] font-mono text-cyan-400 mt-1 bg-cyan-500/10 px-2 py-0.5 rounded border border-cyan-500/20">طول: {stdSpecs.dress_len} سم | صدر: {stdSpecs.chest_circ} سم | خصر: {stdSpecs.waist_circ} سم</span>}</div>
+          <div className="lg:col-span-2"><label className={labelCls}>الفئة المستهدفة</label><select className={inputCls + ' bg-white dark:bg-slate-900 text-cyan-700 dark:text-cyan-400 font-semibold'} value={form.target_segment || 'kids'} onChange={e => { const seg = e.target.value, defSize = seg === 'women_adults' ? 'M' : '6-9Y'; setForm(p => ({ ...p, target_segment: seg, size_code: defSize })); if (handleSizeChange) handleSizeChange(defSize); }}><option value="kids" className="bg-white dark:bg-slate-900">👧 أطفال وفتيات</option><option value="women_adults" className="bg-white dark:bg-slate-900">👩 نسائي / كبار</option></select></div>
+          <div className="lg:col-span-2"><label className={labelCls + ' text-cyan-700 dark:text-cyan-400 font-semibold'}>المقاس القياسي الجاهز <span className="text-rose-500 dark:text-rose-400">*</span></label><select className={inputCls + ' bg-cyan-50 dark:bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 font-bold font-mono border-cyan-200 dark:border-cyan-500/20'} value={form.size_code || '6-9Y'} onChange={e => handleSizeChange ? handleSizeChange(e.target.value) : setForm({ ...form, size_code: e.target.value })}>{availableSizes.map(sz => <option key={sz} value={sz} className="bg-white dark:bg-slate-900">{sz}</option>)}</select>{stdSpecs && <span className="block text-[10px] font-mono text-cyan-700 dark:text-cyan-400 mt-1 bg-cyan-50 dark:bg-cyan-500/10 px-2 py-0.5 rounded border border-cyan-200 dark:border-cyan-500/20">طول: {stdSpecs.dress_len} سم | صدر: {stdSpecs.chest_circ} سم | خصر: {stdSpecs.waist_circ} سم</span>}</div>
         </React.Fragment>
       )}
 
       {!isReadyToWear && isOrderSelected && (totVal > 0 || paidVal > 0) && (
-        <div className="lg:col-span-6 p-2 rounded-lg bg-slate-900/90 border border-slate-800 flex items-center justify-between flex-wrap gap-2 text-xs">
+        <div className="lg:col-span-6 p-2 rounded-lg bg-[#F8FAFC] dark:bg-slate-900/90 border border-[#CBD5E1] dark:border-slate-800 flex items-center justify-between flex-wrap gap-2 text-xs">
           <div className="flex items-center gap-2">
-            <span className="text-pink-400 font-bold text-[11px]">💳 موقف سداد الفستان:</span>
-            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${isPaid ? 'bg-emerald-950/60 text-emerald-300 border-emerald-800' : (paidVal > 0 ? 'bg-amber-950/60 text-amber-300 border-amber-800' : 'bg-rose-950/60 text-rose-300 border-rose-800')}`}>
+            <span className="text-pink-600 dark:text-pink-400 font-bold text-[11px]">💳 موقف سداد الفستان:</span>
+            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${isPaid ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800' : (paidVal > 0 ? 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800' : 'bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800')}`}>
               {isPaid ? '✅ خالص ومسدد' : (paidVal > 0 ? '⏳ مسدد عربون' : '⚠️ غير مسدد')}
             </span>
           </div>
           <div className="flex items-center gap-3 font-mono text-[11px] flex-wrap">
-            <span className="text-slate-300">
-              الإجمالي: <strong className="text-white">{totVal.toLocaleString()} {form.currency || 'YER'}</strong>
+            <span className="text-slate-600 dark:text-slate-300">
+              الإجمالي: <strong className="text-[#0F172A] dark:text-white">{totVal.toLocaleString()} {form.currency || 'YER'}</strong>
               {((form.delivery_payment_mode || selectedOrder?.delivery_payment_mode) === 'PREPAID_VIA_ATELIER' && Number(form.delivery_fee || selectedOrder?.delivery_fee || 0) > 0) && (
-                <span className="text-[10px] text-cyan-400 font-sans mr-1">({(totVal - Number(form.delivery_fee || selectedOrder?.delivery_fee || 0)).toLocaleString()} فستان + {Number(form.delivery_fee || selectedOrder?.delivery_fee || 0).toLocaleString()} توصيل)</span>
+                <span className="text-[10px] text-cyan-600 dark:text-cyan-400 font-sans mr-1">({(totVal - Number(form.delivery_fee || selectedOrder?.delivery_fee || 0)).toLocaleString()} فستان + {Number(form.delivery_fee || selectedOrder?.delivery_fee || 0).toLocaleString()} توصيل)</span>
               )}
             </span>
-            <span className="text-cyan-400">العربون: <strong>{paidVal.toLocaleString()} {form.currency || 'YER'}</strong></span>
-            <span className={remVal > 0 ? "text-pink-400 font-bold" : "text-emerald-400 font-bold"}>المتبقي: <strong>{remVal.toLocaleString()} {form.currency || 'YER'}</strong></span>
+            <span className="text-cyan-700 dark:text-cyan-400">العربون: <strong>{paidVal.toLocaleString()} {form.currency || 'YER'}</strong></span>
+            <span className={remVal > 0 ? "text-pink-600 dark:text-pink-400 font-bold" : "text-emerald-600 dark:text-emerald-400 font-bold"}>المتبقي: <strong>{remVal.toLocaleString()} {form.currency || 'YER'}</strong></span>
           </div>
         </div>
       )}
 
       {!isReadyToWear && isOrderSelected && cutterAlert && (
-        <div className="lg:col-span-6 p-2 rounded-lg bg-amber-950/80 border border-amber-500/80 text-amber-200 text-xs flex items-start gap-2 shadow-sm animate-fadeIn">
+        <div className="lg:col-span-6 p-2 rounded-lg bg-amber-50 dark:bg-amber-950/80 border border-amber-300 dark:border-amber-500/80 text-amber-900 dark:text-amber-200 text-xs flex items-start gap-2 shadow-sm animate-fadeIn">
           <span className="text-sm shrink-0">⚠️</span>
           <div className="flex-1 min-w-0">
-            <strong className="text-amber-300 font-bold block text-[11px]">تنبيه فني للقصاص:</strong>
+            <strong className="text-amber-800 dark:text-amber-300 font-bold block text-[11px]">تنبيه فني للقصاص:</strong>
             <span className="text-[10.5px] font-sans leading-relaxed break-words">{cleanCutterText(cutterAlert)}</span>
           </div>
         </div>
       )}
 
       {!isReadyToWear && isOrderSelected && paidVal <= 0 && (
-        <div className="lg:col-span-6 p-2 rounded-lg bg-rose-950/80 border border-rose-600/80 flex items-center justify-between flex-wrap gap-2 text-xs animate-fadeIn shadow-md">
-          <div className="flex items-center gap-1.5 text-rose-200 font-bold">
+        <div className="lg:col-span-6 p-2 rounded-lg bg-rose-50 dark:bg-rose-950/80 border border-rose-300 dark:border-rose-600/80 flex items-center justify-between flex-wrap gap-2 text-xs animate-fadeIn shadow-md">
+          <div className="flex items-center gap-1.5 text-rose-800 dark:text-rose-200 font-bold">
             <span className="text-sm">⚠️</span>
             <span>قفل رقابي: الطلب غير مسدد (المدفوع = 0). يمنع اعتماد أمر التشغيل واقتطاع الخامات إلا باستثناء إداري.</span>
           </div>
-          <label className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-rose-900/60 hover:bg-rose-900 border border-rose-500/80 text-rose-200 text-[10.5px] font-bold cursor-pointer transition">
+          <label className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-rose-100 dark:bg-rose-900/60 hover:bg-rose-200 dark:hover:bg-rose-900 border border-rose-300 dark:border-rose-500/80 text-rose-800 dark:text-rose-200 text-[10.5px] font-bold cursor-pointer transition">
             <input type="checkbox" checked={Boolean(form.allow_unpaid_exception)} onChange={e => setForm(p => ({ ...p, allow_unpaid_exception: e.target.checked }))} className="accent-rose-500" />
             <span>تفعيل استثناء إداري للاعتماد والقص بدون عربون ✍️</span>
           </label>
@@ -186,29 +186,29 @@ function JobOrderFormFields({
       <div className="lg:col-span-3">
         <div className="flex justify-between items-center mb-1 flex-wrap gap-1">
           <div className="flex items-center gap-1.5 flex-wrap">
-            <label className={labelCls + ' mb-0'}>الموديل والتصميم <span className="text-rose-400 font-bold">*</span></label>
-            {isOrderSelected && (curProduct || form.product_name || form.product) && <span className="text-[10px] text-rose-400 font-semibold">🔒 معتمد</span>}
-            {sizeBadge && <span className="text-[9.5px] px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-300 font-medium border border-cyan-500/20">{sizeBadge}</span>}
-            {(form.selected_color || form.color) && <span className="text-[9.5px] px-2 py-0.5 rounded-full bg-pink-500/10 text-pink-300 font-bold border border-pink-500/20">🎨 {form.selected_color || form.color}</span>}
+            <label className={labelCls + ' mb-0'}>الموديل والتصميم <span className="text-rose-500 dark:text-rose-400 font-bold">*</span></label>
+            {isOrderSelected && (curProduct || form.product_name || form.product) && <span className="text-[10px] text-rose-500 dark:text-rose-400 font-semibold">🔒 معتمد</span>}
+            {sizeBadge && <span className="text-[9.5px] px-2 py-0.5 rounded-full bg-cyan-50 dark:bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 font-medium border border-cyan-200 dark:border-cyan-500/20">{sizeBadge}</span>}
+            {(form.selected_color || form.color) && <span className="text-[9.5px] px-2 py-0.5 rounded-full bg-pink-50 dark:bg-pink-500/10 text-pink-700 dark:text-pink-300 font-bold border border-pink-200 dark:border-pink-500/20">🎨 {form.selected_color || form.color}</span>}
           </div>
-          {(curProduct || prodImg) && <button type="button" onClick={() => setModelPreviewData && setModelPreviewData({ isOpen: true, product: curProduct, imageUrl: prodImg, modelName: curProduct?.model_name || curProduct?.name || form.product_name || form.product })} className="text-[10px] text-rose-400 hover:underline font-semibold flex items-center gap-1 cursor-pointer"><span>👁️ معاينة وتكبير</span></button>}
+          {(curProduct || prodImg) && <button type="button" onClick={() => setModelPreviewData && setModelPreviewData({ isOpen: true, product: curProduct, imageUrl: prodImg, modelName: curProduct?.model_name || curProduct?.name || form.product_name || form.product })} className="text-[10px] text-rose-600 dark:text-rose-400 hover:underline font-semibold flex items-center gap-1 cursor-pointer"><span>👁️ معاينة وتكبير</span></button>}
         </div>
         <div className="flex items-center gap-2">
-          <div onClick={() => { if (setModelPreviewData && (prodImg || curProduct)) setModelPreviewData({ isOpen: true, product: curProduct, imageUrl: prodImg, modelName: curProduct?.model_name || curProduct?.name || form.product_name || form.product }); }} className={`w-8 h-8 rounded-lg border flex items-center justify-center shrink-0 cursor-pointer overflow-hidden transition-all ${prodImg ? 'border-rose-500/40 hover:ring-2 hover:ring-rose-500 bg-slate-900' : 'border-slate-800 bg-slate-900'}`} title={prodImg ? 'انقر لتكبير صورة الموديل 🔍' : 'معاينة الموديل'}>{prodImg ? <img src={prodImg} alt={form.product || 'model'} className="w-full h-full object-cover" /> : <span className="text-sm">👗</span>}</div>
+          <div onClick={() => { if (setModelPreviewData && (prodImg || curProduct)) setModelPreviewData({ isOpen: true, product: curProduct, imageUrl: prodImg, modelName: curProduct?.model_name || curProduct?.name || form.product_name || form.product }); }} className={`w-8 h-8 rounded-lg border flex items-center justify-center shrink-0 cursor-pointer overflow-hidden transition-all ${prodImg ? 'border-rose-500/40 hover:ring-2 hover:ring-rose-500 bg-[#F8FAFC] dark:bg-slate-900' : 'border-[#CBD5E1] dark:border-slate-800 bg-[#F8FAFC] dark:bg-slate-900'}`} title={prodImg ? 'انقر لتكبير صورة الموديل 🔍' : 'معاينة الموديل'}>{prodImg ? <img src={prodImg} alt={form.product || 'model'} className="w-full h-full object-cover" /> : <span className="text-sm">👗</span>}</div>
           <select className={inputCls + ' font-semibold'} value={curProduct ? (curProduct.id || curProduct.product_id) : (form.product_id || form.product_name || form.product || '')} onChange={onModelSelectChange}>
-            <option value="" className="bg-slate-900">-- اختر الموديل من الكتالوج --</option>
-            {Boolean((form.product_name || form.product) && !curProduct) && <option value={form.product_id || form.product_name || form.product} className="bg-slate-900">{form.product_name || form.product} [معتمد بالطلب]</option>}
-            {products.map(p => <option key={p.id || p.product_id || p.sku} value={p.id || p.product_id} className="bg-slate-900">{p.model_name || p.name} {p.target_segment === 'women_adults' ? '[نسائي]' : '[أطفال]'}</option>)}
+            <option value="" className="bg-white dark:bg-slate-900">-- اختر الموديل من الكتالوج --</option>
+            {Boolean((form.product_name || form.product) && !curProduct) && <option value={form.product_id || form.product_name || form.product} className="bg-white dark:bg-slate-900">{form.product_name || form.product} [معتمد بالطلب]</option>}
+            {products.map(p => <option key={p.id || p.product_id || p.sku} value={p.id || p.product_id} className="bg-white dark:bg-slate-900">{p.model_name || p.name} {p.target_segment === 'women_adults' ? '[نسائي]' : '[أطفال]'}</option>)}
           </select>
         </div>
       </div>
 
-      <div className="lg:col-span-1"><div className="flex justify-between items-center mb-1"><label className={labelCls + ' mb-0'}>الكمية</label>{isOrderSelected && <span className="text-[10px] text-rose-400 font-semibold">🔒</span>}</div><input type="number" min="1" className={inputCls + ' font-bold text-cyan-400 font-mono text-center'} value={form.quantity !== undefined && form.quantity !== null && form.quantity !== '' ? form.quantity : ''} onChange={e => { const q = parseFloat(e.target.value) || ''; setForm(prev => { if (!curProduct) return { ...prev, quantity: q }; const sizeKey = sizeKeyForModel(curProduct, prev), price = getPriceFromMatrix(curProduct, sizeKey), numQ = Number(q) || 1, bom = buildBomItems(curProduct, sizeKey, numQ, fabricInventory, prev.measurements_spec), total = bom.reduce((sum, item) => sum + (parseFloat(item.meters || item.cut_meters) || 0), 0); return { ...prev, quantity: q, price, total_price: price * numQ, bom, materials: bom, bom_items: bom, cut_meters: bom[0]?.cut_meters || total.toFixed(2), standard_cut_meters: total.toFixed(2), cut_unit: bom[0]?.cut_unit || 'متر' }; }); }} /></div>
-      <div className="lg:col-span-2"><label className={labelCls}>المرحلة الحالية للتشغيل</label><select className={inputCls + ' bg-rose-500/10 text-rose-300 font-semibold border-rose-500/20'} value={form.stage} onChange={handleStageChange}>{stages.map(s => <option key={s} value={s} className="bg-slate-900">{s}</option>)}</select></div>
+      <div className="lg:col-span-1"><div className="flex justify-between items-center mb-1"><label className={labelCls + ' mb-0'}>الكمية</label>{isOrderSelected && <span className="text-[10px] text-rose-500 dark:text-rose-400 font-semibold">🔒</span>}</div><input type="number" min="1" className={inputCls + ' font-bold text-cyan-600 dark:text-cyan-400 font-mono text-center'} value={form.quantity !== undefined && form.quantity !== null && form.quantity !== '' ? form.quantity : ''} onChange={e => { const q = parseFloat(e.target.value) || ''; setForm(prev => { if (!curProduct) return { ...prev, quantity: q }; const sizeKey = sizeKeyForModel(curProduct, prev), price = getPriceFromMatrix(curProduct, sizeKey), numQ = Number(q) || 1, bom = buildBomItems(curProduct, sizeKey, numQ, fabricInventory, prev.measurements_spec), total = bom.reduce((sum, item) => sum + (parseFloat(item.meters || item.cut_meters) || 0), 0); return { ...prev, quantity: q, price, total_price: price * numQ, bom, materials: bom, bom_items: bom, cut_meters: bom[0]?.cut_meters || total.toFixed(2), standard_cut_meters: total.toFixed(2), cut_unit: bom[0]?.cut_unit || 'متر' }; }); }} /></div>
+      <div className="lg:col-span-2"><label className={labelCls}>المرحلة الحالية للتشغيل</label><select className={inputCls + ' bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-300 font-semibold border-rose-200 dark:border-rose-500/20'} value={form.stage} onChange={handleStageChange}>{stages.map(s => <option key={s} value={s} className="bg-white dark:bg-slate-900">{s}</option>)}</select></div>
       <div className="lg:col-span-3"><label className={labelCls}>تاريخ البدء في المشغل</label><input type="date" lang="en-GB" dir="ltr" style={{ direction: 'ltr', textAlign: 'left' }} className={inputCls + ' font-mono text-left'} value={form.start_date || ''} onChange={e => setForm({ ...form, start_date: e.target.value })} /></div>
       <div className="lg:col-span-3">
-        <div className="flex justify-between items-center mb-1"><label className={labelCls + ' mb-0'}>موعد التسليم المتوقع <span className="text-rose-400 font-bold">*</span></label>{Boolean(form.due_date && ((new Date(form.due_date) - new Date(form.start_date || new Date().toISOString().slice(0,10))) / 86400000 <= 2)) && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse">🔥 مستعجل</span>}</div>
-        <input type="date" lang="en-GB" dir="ltr" style={{ direction: 'ltr', textAlign: 'left' }} className={inputCls + ' font-mono font-bold text-rose-400 text-left cursor-pointer'} value={form.due_date || ''} onChange={e => { const newDue = e.target.value, autoM = window.FactoryUtils?.autoDistributeMilestones ? window.FactoryUtils.autoDistributeMilestones(form.start_date, newDue) : {}; setForm(prev => ({ ...prev, due_date: newDue, delivery_date: newDue, cutting_due_date: autoM.cutting || prev.cutting_due_date, sewing_due_date: autoM.sewing || prev.sewing_due_date, embroidery_due_date: autoM.embroidery || prev.embroidery_due_date, finishing_due_date: autoM.finishing || prev.finishing_due_date, packaging_due_date: autoM.packaging || newDue })); }} />
+        <div className="flex justify-between items-center mb-1"><label className={labelCls + ' mb-0'}>موعد التسليم المتوقع <span className="text-rose-500 dark:text-rose-400 font-bold">*</span></label>{Boolean(form.due_date && ((new Date(form.due_date) - new Date(form.start_date || new Date().toISOString().slice(0,10))) / 86400000 <= 2)) && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-500/40 animate-pulse">🔥 مستعجل</span>}</div>
+        <input type="date" lang="en-GB" dir="ltr" style={{ direction: 'ltr', textAlign: 'left' }} className={inputCls + ' font-mono font-bold text-rose-600 dark:text-rose-400 text-left cursor-pointer'} value={form.due_date || ''} onChange={e => { const newDue = e.target.value, autoM = window.FactoryUtils?.autoDistributeMilestones ? window.FactoryUtils.autoDistributeMilestones(form.start_date, newDue) : {}; setForm(prev => ({ ...prev, due_date: newDue, delivery_date: newDue, cutting_due_date: autoM.cutting || prev.cutting_due_date, sewing_due_date: autoM.sewing || prev.sewing_due_date, embroidery_due_date: autoM.embroidery || prev.embroidery_due_date, finishing_due_date: autoM.finishing || prev.finishing_due_date, packaging_due_date: autoM.packaging || newDue })); }} />
       </div>
     </div>
   );

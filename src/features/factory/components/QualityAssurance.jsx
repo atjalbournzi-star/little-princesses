@@ -19,6 +19,7 @@ const [selectedOrderCode, setSelectedOrderCode] = React.useState('');
   const [reworkActive, setReworkActive] = React.useState(false);
   const [defectReason, setDefectReason] = React.useState('');
   const [reworkAction, setReworkAction] = React.useState('');
+  const [submittingQc, setSubmittingQc] = React.useState(false);
 
   React.useEffect(() => {
     if (qcModalData || props.order) {
@@ -62,54 +63,68 @@ const [selectedOrderCode, setSelectedOrderCode] = React.useState('');
 
   if (!isVisible || (!data && !isExplicit)) return null;
 
-  const handleApprove = (e) => {
+  const resolveActiveInspector = () => {
+    try {
+      const u = window.currentUser || JSON.parse(localStorage.getItem('erp_active_user') || 'null');
+      return (u && (u.full_name || u.username)) ? String(u.full_name || u.username).trim() : '';
+    } catch (_e) { return ''; }
+  };
+
+  const handleApprove = async (e) => {
     if (e && typeof e.preventDefault === 'function') e.preventDefault();
-    setIsVisible(false);
-    closeHandler();
-    notify('تم اعتماد جودة الفستان بنجاح وتحويله للتسليم 📦', 'success');
+    if (submittingQc) return;
+    setSubmittingQc(true);
     const cleanOrderNo = String(selectedOrderCode || '').replace(/^#/, '').trim(), targetClean = cleanOrderNo.toLowerCase();
     const isMatch = (i) => i && [i.order_no, i.id, i.production_order_no].some(v => String(v || '').replace(/^#/, '').trim().toLowerCase() === targetClean);
     const readyState = { status: 'ready_for_delivery', stage: 'جاهز للتسليم 📦', production_status: 'ready', tailor_status: 'approved', wage_credited: true, quality_score: 5.0, quality_status: 'passed', progress: 100 };
-    if (typeof setFactory === 'function') {
-      setFactory(prev => {
-        let found = false;
-        const next = (prev || []).map(item => isMatch(item) ? (found = true, { ...item, ...readyState }) : item);
-        return found ? next : [{ id: selectedOrderCode || cleanOrderNo, order_no: cleanOrderNo, customer: data?.customer || data?.customer_name || '', child_name: data?.child_name || '', product: dressModel || data?.product || data?.product_name || '', tailor: tailorName || '', ...readyState }, ...next];
-      });
-    }
-    if (typeof setOrders === 'function') setOrders(prev => (prev || []).map(item => isMatch(item) ? { ...item, ...readyState } : item));
-    if (Array.isArray(window.factory)) window.factory = window.factory.map(item => isMatch(item) ? { ...item, ...readyState } : item);
-    if (Array.isArray(window.orders)) window.orders = window.orders.map(item => isMatch(item) ? { ...item, ...readyState } : item);
-
-    const payload = { order_no: cleanOrderNo, order_id: selectedOrderCode, quality_status: 'passed', production_status: 'ready', progress: 100, inspector_name: '', tailor_name: tailorName || '', quality_score: 5.0, quality_notes: 'معتمد ومطابق لمواصفات الكوتور الملكية بالكامل', approved_by: 'سارة مديرة الجودة', status: 'ready_for_delivery', stage: 'جاهز للتسليم 📦' };
-    (async () => {
-      try {
-        const service = window.FactoryService;
-        if (service && typeof service.approveQc === 'function') await service.approveQc(payload);
-        else await fetch('/api/factory/job-card/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-        [reloadOrders, fetchOrders, refreshOrders, onRefresh, window.fetchFactoryOrders, window.fetchOrders].forEach(fn => typeof fn === 'function' && fn());
-        ['order_qc_updated', 'orders-updated', 'erp:factoryChanged', 'erp:ordersChanged'].forEach(ev => window.dispatchEvent(new CustomEvent(ev, { detail: payload })));
-      } catch (err) { console.error('❌ [QualityCheckModal] Error:', err); }
-    })();
+    const activeInspector = resolveActiveInspector();
+    const payload = { order_no: cleanOrderNo, order_id: selectedOrderCode, quality_status: 'passed', production_status: 'ready', progress: 100, inspector_name: activeInspector, tailor_name: tailorName || '', quality_score: 5.0, quality_notes: 'معتمد ومطابق لمواصفات الكوتور الملكية بالكامل', approved_by: activeInspector, status: 'ready_for_delivery', stage: 'جاهز للتسليم 📦' };
+    try {
+      const s = window.FactoryService;
+      const resp = (s && typeof s.approveQc === 'function')
+        ? await s.approveQc(payload)
+        : await fetch('/api/factory/job-card/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).then(async r => { const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(r.extractedError || j?.error || 'فشل اعتماد الجودة'); return j; });
+      if (resp && resp.success === false) throw new Error(resp.error || 'فشل اعتماد الجودة');
+      if (typeof setFactory === 'function') {
+        setFactory(prev => {
+          let found = false;
+          const next = (prev || []).map(item => isMatch(item) ? (found = true, { ...item, ...readyState }) : item);
+          return found ? next : [{ id: selectedOrderCode || cleanOrderNo, order_no: cleanOrderNo, customer: data?.customer || data?.customer_name || '', child_name: data?.child_name || '', product: dressModel || data?.product || data?.product_name || '', tailor: tailorName || '', ...readyState }, ...next];
+        });
+      }
+      if (typeof setOrders === 'function') setOrders(prev => (prev || []).map(item => isMatch(item) ? { ...item, ...readyState } : item));
+      [reloadOrders, fetchOrders, refreshOrders, onRefresh, window.fetchFactoryOrders, window.fetchOrders].forEach(fn => typeof fn === 'function' && fn());
+      ['order_qc_updated', 'orders-updated', 'erp:factoryChanged', 'erp:ordersChanged'].forEach(ev => window.dispatchEvent(new CustomEvent(ev, { detail: payload })));
+      setIsVisible(false);
+      closeHandler();
+      notify('تم اعتماد جودة الفستان بنجاح وتحويله للتسليم 📦', 'success');
+    } catch (err) {
+      notify(window.formatApiError ? window.formatApiError(err) : (err?.message || 'تعذر اعتماد الجودة، يرجى المحاولة لاحقاً'), 'error');
+    } finally { setSubmittingQc(false); }
   };
 
-  const handleRework = (e) => {
+  const handleRework = async (e) => {
     if (e && typeof e.preventDefault === 'function') e.preventDefault();
-    setIsVisible(false);
-    closeHandler();
-    if (typeof onClose === 'function') onClose();
-    notify('⚠ تم رفض الفحص وإصدار تذكرة تعديل وبروفة للخياط بنجاح', 'warning');
-
-    if (typeof setFactory === 'function') {
-      setFactory(prev => (prev || []).map(item => (item.order_no === selectedOrderCode || item.id === selectedOrderCode) ? { ...item, tailor_status: 'rework', wage_credited: false, quality_score: 2.0, stage: 'تعديل وبروفة ✂️', notes: (item.notes || '') + ` | ⚠️ مطلوب تعديل: ${defectReason}` } : item));
-    }
-
-    (async () => {
-      try {
-        const s = window.FactoryService || {};
-        if (s.reworkQc) await s.reworkQc({ order_id: selectedOrderCode, order_no: String(selectedOrderCode || '').replace(/^#/, ''), defect_type: defectReason, severity: 'Medium', corrective_action: reworkAction, inspector_name: 'سارة مديرة الجودة' });
-      } catch (err) { console.error('❌ [QualityCheckModal] Rework error:', err); }
-    })();
+    if (submittingQc) return;
+    if (!reworkActive) { setReworkActive(true); return; }
+    setSubmittingQc(true);
+    try {
+      const s = window.FactoryService || {};
+      const payload = { order_id: selectedOrderCode, order_no: String(selectedOrderCode || '').replace(/^#/, ''), defect_type: defectReason, severity: 'Medium', corrective_action: reworkAction, inspector_name: resolveActiveInspector() };
+      const res = s.reworkQc
+        ? await s.reworkQc(payload)
+        : await fetch('/api/factory/job-card/rework', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).then(async r => { const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(r.extractedError || j?.error || 'فشل إرسال تذكرة التعديل'); return j; });
+      if (res && res.success === false) throw new Error(res.error || 'فشل إرسال تذكرة التعديل');
+      if (typeof setFactory === 'function') {
+        setFactory(prev => (prev || []).map(item => (item.order_no === selectedOrderCode || item.id === selectedOrderCode) ? { ...item, tailor_status: 'rework', wage_credited: false, quality_score: 2.0, stage: 'تعديل وبروفة ✂️', notes: (item.notes || '') + ` | ⚠️ مطلوب تعديل: ${defectReason}` } : item));
+      }
+      setIsVisible(false);
+      closeHandler();
+      if (typeof onClose === 'function') onClose();
+      notify('⚠ تم رفض الفحص وإصدار تذكرة تعديل وبروفة للخياط بنجاح', 'warning');
+    } catch (err) {
+      notify(window.formatApiError ? window.formatApiError(err) : (err?.message || 'تعذر إصدار تذكرة التعديل'), 'error');
+    } finally { setSubmittingQc(false); }
   };
 
   const setItem = (key, val) => { setChecklist(p => ({ ...p, [key]: val })); if (val === 'fail') setReworkActive(true); };
@@ -176,10 +191,10 @@ const [selectedOrderCode, setSelectedOrderCode] = React.useState('');
         )}
 
         <div className="pt-2 border-t border-slate-700/60 flex items-center gap-2">
-          <button type="button" onClick={handleApprove} className="flex-1 h-9 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer">
-            <span>✓</span><span>اعتماد ومطابق للمواصفات</span>
+          <button type="button" disabled={submittingQc} onClick={handleApprove} className="flex-1 h-9 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+            <span>{submittingQc ? '⏳' : '✓'}</span><span>{submittingQc ? 'جاري الاعتماد...' : 'اعتماد ومطابق للمواصفات'}</span>
           </button>
-          <button type="button" onClick={handleRework} className="flex-1 h-9 rounded-xl bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 hover:to-rose-600 text-white font-bold text-xs shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer">
+          <button type="button" disabled={submittingQc} onClick={handleRework} className="flex-1 h-9 rounded-xl bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 hover:to-rose-600 text-white font-bold text-xs shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
             <span>⚠</span><span>{reworkActive ? 'تأكيد تذكرة التعديل وإرجاع للخياط' : 'رفض / تذكرة تعديل للخياط'}</span>
           </button>
         </div>

@@ -73,6 +73,12 @@ def get_general_ledger_pg(params=None):
         where_clauses.append("j.entry_date::date <= %s::date")
         sql_params.append(end)
 
+    try: limit = min(max(int(params.get('limit') or (500 if is_all else 1000)), 1), 5000)
+    except Exception: limit = 500 if is_all else 1000
+    try: offset = max(int(params.get('offset') or 0), 0)
+    except Exception: offset = 0
+    sql_params.extend([limit, offset])
+
     query = f"""
         SELECT 
             l.id as line_id,
@@ -103,7 +109,8 @@ def get_general_ledger_pg(params=None):
             OR a.account_code = REPLACE(REPLACE(l.account_id, 'ACC-', ''), 'ACC_', '')
         )
         WHERE {' AND '.join(where_clauses)}
-        ORDER BY j.entry_date ASC, j.created_at ASC, j.id ASC, l.id ASC;
+        ORDER BY j.entry_date ASC, j.created_at ASC, j.id ASC, l.id ASC
+        LIMIT %s OFFSET %s;
     """
     rows = execute_query(query, params=tuple(sql_params), fetch_all=True) or []
 
@@ -186,5 +193,8 @@ def get_general_ledger_pg(params=None):
         'closing_balance': float(running_balance),
         'nature': acc_nature,
         'rows': ledger_rows,
-        'total_rows': len(ledger_rows)
+        'total_rows': len(ledger_rows),
+        'limit': limit,
+        'offset': offset,
+        'truncated': len(rows) == limit
     }

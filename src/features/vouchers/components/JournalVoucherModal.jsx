@@ -4,8 +4,6 @@ function JournalVoucherModal({
   isOpen, onClose, accounts = [], customers = [], purchases = [],
   employees = [], setJournal, setAccounts, showToast
 }) {
-  if (!isOpen) return null;
-
   const [form, setForm] = useState({
     entry_no: '',
     date: typeof TODAY_STR_ISO !== 'undefined' ? TODAY_STR_ISO : new Date().toISOString().slice(0, 10),
@@ -63,73 +61,64 @@ function JournalVoucherModal({
 
   const handleSubmit = async (e) => {
     e?.preventDefault();
-    if (!totals.isBalanced) return showToast?.('القيد غير متوازن! يجب أن يتساوى إجمالي المدين مع إجمالي الدائن ⚠️', 'error');
-    if (lines.some(l => !l.account_code && ((parseFloat(l.debit) || 0) > 0 || (parseFloat(l.credit) || 0) > 0))) {
-      return showToast?.('يرجى تحديد حساب لكل سطر مالي ⚠️', 'error');
+    const diffCheck = Math.abs(totals.totalDebit - totals.totalCredit);
+    if (totals.totalDebit <= 0 || diffCheck >= 0.0001) {
+      return showToast?.('القيد غير متوازن! يجب أن يتساوى مجموع المدين مع مجموع الدائن ويكون أكبر من الصفر ⚠️', 'error');
+    }
+    const activeLines = lines.filter(l => (parseFloat(l.debit) || 0) > 0 || (parseFloat(l.credit) || 0) > 0);
+    if (activeLines.length < 2) return showToast?.('يجب أن يحتوي القيد المركب على سطرين ماليين على الأقل ⚠️', 'error');
+    if (activeLines.some(l => !l.account_code || (parseFloat(l.debit) || 0) < 0 || (parseFloat(l.credit) || 0) < 0)) {
+      return showToast?.('يرجى تحديد حساب صالح ومبلغ موجب لكل سطر مالي ⚠️', 'error');
     }
 
     setIsSubmitting(true);
     try {
       const rate = parseFloat(form.exchange_rate) || 1.0;
-      let entryNo = form.entry_no;
-      if (!entryNo && window.getNextSequenceNumber) {
-        entryNo = await window.getNextSequenceNumber('JV');
-      }
-      const txId = `TX-${entryNo || 'JV'}`;
-      const debits = lines.filter(l => (parseFloat(l.debit) || 0) > 0);
-      const credits = lines.filter(l => (parseFloat(l.credit) || 0) > 0);
-      const primaryDebitLabel = debits.map(d => `${d.account_code}: ${(parseFloat(d.debit) || 0).toLocaleString('en-US')} ${currCode}`).join(' + ');
-      const primaryCreditLabel = credits.map(c => `${c.account_code}: ${(parseFloat(c.credit) || 0).toLocaleString('en-US')} ${currCode}`).join(' + ');
-
-      const generated = [];
-      lines.forEach((l, idx) => {
+      const payloadLines = activeLines.map(l => {
         const dAmt = parseFloat(l.debit) || 0, cAmt = parseFloat(l.credit) || 0;
-        const lineAmt = dAmt > 0 ? dAmt : cAmt;
-        if (lineAmt <= 0) return;
-        const isDebitLine = dAmt > 0;
-        const accObj = (accounts || []).find(a => String(a.code || a.acc_code) === String(l.account_code));
-        const accLabel = accObj ? `${accObj.code || accObj.acc_code} - ${accObj.name || accObj.account_name}` : l.account_code;
         const subPartyNote = (l.link_subparty && l.party_id) ? ` [الجهة: ${l.party_id}]` : '';
-
-        generated.push({
-          id: `${entryNo}-L${idx + 1}`, transaction_id: txId, entry_no: entryNo,
-          debit: isDebitLine ? accLabel : primaryDebitLabel, credit: !isDebitLine ? accLabel : primaryCreditLabel,
-          debit_code: isDebitLine ? l.account_code : '', credit_code: !isDebitLine ? l.account_code : '',
-          amount: lineAmt, currency: currCode, exchange_rate: rate, base_amount: lineAmt * rate,
-          ref_type: form.ref_type || 'قيد مركب', ref_id: entryNo, date: form.date,
-          notes: `${form.general_notes ? form.general_notes + ' | ' : ''}${l.notes || (isDebitLine ? 'طرف مدين' : 'طرف دائن')}${subPartyNote}`,
-          status: 'posted'
-        });
+        return {
+          account_id: l.account_code, account_code: l.account_code,
+          debit: dAmt, credit: cAmt, debit_base: dAmt * rate, credit_base: cAmt * rate,
+          line_description: `${form.general_notes ? form.general_notes + ' | ' : ''}${l.notes || (dAmt > 0 ? 'طرف مدين' : 'طرف دائن')}${subPartyNote}`
+        };
       });
+      const payload = {
+        date: form.date, currency: currCode, exchange_rate: rate,
+        ref_type: form.ref_type || 'قيد مركب',
+        description: form.general_notes || 'قيد يومية مركب متوازن',
+        notes: form.general_notes || '',
+        amount: totals.totalDebit, base_amount: totals.totalDebit * rate,
+        lines: payloadLines
+      };
 
-      if (setJournal) setJournal(prev => [...generated, ...(prev || [])]);
+      const res = await fetch('/api/journal/create', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+      });
+      const resData = await res.json().catch(() => ({}));
+      if (!res.ok || resData.success === false) {
+        showToast?.(resData.error || resData.message || res.extractedError || 'تعذر ترحيل القيد المركب', 'error');
+        return;
+      }
+
+      const savedEntry = resData.data || {};
+      const officialNo = savedEntry.entry_no || savedEntry.id || form.entry_no;
+      if (setJournal && savedEntry.id) {
+        setJournal(prev => [{ ...savedEntry, date: savedEntry.entry_date || form.date, lines: payloadLines }, ...(prev || []).filter(j => j.id !== savedEntry.id)]);
+      }
       if (typeof setAccounts === 'function') {
-        setAccounts(prev => (prev || []).map(acc => {
-          const c = String(acc.code || acc.acc_code || '');
-          let delta = 0;
-          lines.forEach(l => {
-            if (String(l.account_code) === c) {
-              const d = (parseFloat(l.debit) || 0) * rate, cr = (parseFloat(l.credit) || 0) * rate;
-              delta += (acc.type === 'أصول' || acc.type === 'مصروفات' || acc.nature === 'debit') ? (d - cr) : (cr - d);
-            }
-          });
-          return delta !== 0 ? { ...acc, current_balance: (parseFloat(acc.current_balance ?? acc.balance) || 0) + delta, balance: (parseFloat(acc.current_balance ?? acc.balance) || 0) + delta } : acc;
-        }));
+        fetch('/api/accounts/list').then(r => r.json()).then(d => { if (d?.success && Array.isArray(d.data)) setAccounts(d.data); }).catch(() => {});
       }
-
-      for (const j of generated) {
-        fetch('/api/journal/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(j) }).catch(() => {});
-        if (typeof window.callGAS === 'function') window.callGAS('addJournalEntry', j).catch(e => console.error(e));
-      }
-      showToast?.(`تم ترحيل واعتماد القيد المركب (${entryNo}) بنجاح 📑✨`);
+      showToast?.(`تم ترحيل واعتماد القيد المركب (${officialNo}) بنجاح 📑✨`);
       onClose();
     } catch (err) {
       console.error("Compound entry submit error:", err);
-      showToast?.('حدث خطأ أثناء اعتماد القيد المركب', 'error');
+      showToast?.(err?.message || 'حدث خطأ أثناء اعتماد القيد المركب', 'error');
     } finally { setIsSubmitting(false); }
   };
 
   const suppliers = useMemo(() => [...new Set((purchases || []).map(p => p.supplier || p.vendor_name).filter(Boolean))], [purchases]);
+  if (!isOpen) return null;
   const createPortal = (typeof ReactDOM !== 'undefined' && ReactDOM.createPortal) ? ReactDOM.createPortal : null;
   const content = (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-black/65 backdrop-blur-[4px] animate-fadeIn" dir="rtl" onClick={onClose}>

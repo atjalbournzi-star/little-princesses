@@ -29,13 +29,75 @@ button:not(:disabled):not(.no-lift):hover,
 }
 
 /* 4. Active/Hovered Icon Color Shift */
-.nav-item:hover svg,
-.nav-item:hover i,
-.group:hover .interactive-icon,
-button:hover svg {
-  color: #fde047 !important; /* Shifting to refined soft warm gold / amber */
+html.dark .nav-item:hover svg,
+html.dark .nav-item:hover i,
+html.dark .group:hover .interactive-icon,
+html.dark button:hover svg {
+  color: #fde047 !important;
   filter: drop-shadow(0 0 6px rgba(253, 224, 71, 0.35));
   transition: all 0.2s ease-in-out;
+}
+html:not(.dark) .nav-item:hover svg,
+html:not(.dark) .nav-item:hover i {
+  color: #E11D48 !important;
+  transition: all 0.2s ease-in-out;
+}
+
+/* 4b. True Cohesive Light Mode Safety Layer for Legacy Dark-Hardcoded Screens */
+html:not(.dark) body,
+html:not(.dark) #root {
+  background-color: #F8FAFC !important;
+  color: #0F172A !important;
+}
+html:not(.dark) .bg-\[\#111C38\],
+html:not(.dark) .bg-\[\#0F172A\],
+html:not(.dark) .bg-\[\#0f172a\],
+html:not(.dark) .bg-slate-900,
+html:not(.dark) .bg-slate-900\/90,
+html:not(.dark) .bg-slate-900\/80,
+html:not(.dark) .bg-slate-900\/70,
+html:not(.dark) .bg-slate-900\/60,
+html:not(.dark) .bg-slate-900\/50,
+html:not(.dark) .bg-slate-900\/30,
+html:not(.dark) .bg-slate-900\/20 {
+  background-color: #FFFFFF !important;
+  color: #0F172A !important;
+}
+html:not(.dark) .bg-\[\#0B132B\],
+html:not(.dark) .bg-\[\#0B132B\]\/80,
+html:not(.dark) .bg-\[\#0B132B\]\/95,
+html:not(.dark) .bg-slate-800,
+html:not(.dark) .bg-slate-800\/90,
+html:not(.dark) .bg-slate-700,
+html:not(.dark) .bg-\[\#1e293b\],
+html:not(.dark) .bg-\[\#334155\] {
+  background-color: #F8FAFC !important;
+  color: #0F172A !important;
+}
+html:not(.dark) input::placeholder,
+html:not(.dark) textarea::placeholder {
+  color: #64748B !important;
+}
+html:not(.dark) .border-slate-800,
+html:not(.dark) .border-slate-800\/80,
+html:not(.dark) .border-slate-700,
+html:not(.dark) .border-slate-700\/60,
+html:not(.dark) .border-slate-700\/80,
+html:not(.dark) .divide-slate-800\/60 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #CBD5E1 !important;
+}
+html:not(.dark) .text-white:not([class*="bg-[#E11D48]"]):not([class*="bg-pink-"]):not([class*="bg-rose-"]):not([class*="bg-emerald-"]):not([class*="bg-blue-"]):not([class*="bg-purple-"]):not([class*="bg-indigo-"]):not([class*="bg-teal-"]):not([class*="bg-amber-"]),
+html:not(.dark) .text-slate-100,
+html:not(.dark) .text-slate-200 {
+  color: #0F172A !important;
+}
+html:not(.dark) .text-slate-300,
+html:not(.dark) .text-slate-400 {
+  color: #475569 !important;
+}
+html.dark .border-slate-800,
+html.dark .border-slate-800\/80 {
+  border-color: #263248 !important;
 }
 
 /* 5. Tactile Press Feedback */
@@ -71,100 +133,43 @@ textarea:focus {
 
 /* 8. Production Floor Live Keyframe Animations */
 @keyframes scissor-snip {
-  0%, 100% {
-    transform: rotate(0deg) scale(1);
-  }
-  20% {
-    transform: rotate(-18deg) scale(1.12);
-  }
-  40% {
-    transform: rotate(0deg) scale(1);
-  }
-  60% {
-    transform: rotate(18deg) scale(1.12);
-  }
-  80% {
-    transform: rotate(0deg) scale(1);
-  }
+  0%, 100% { transform: rotate(0deg) scale(1); }
+  20% { transform: rotate(-18deg) scale(1.12); }
+  40% { transform: rotate(0deg) scale(1); }
+  60% { transform: rotate(18deg) scale(1.12); }
+  80% { transform: rotate(0deg) scale(1); }
 }
-.animate-scissor {
-  animation: scissor-snip 1.6s ease-in-out infinite !important;
-  transform-origin: center center;
-  display: inline-block;
-}
+.animate-scissor { animation: scissor-snip 1.6s ease-in-out infinite !important; transform-origin: center center; display: inline-block; }
 
 @keyframes sewing-glow {
-  0%, 100% {
-    transform: translateY(0) scale(1);
-    filter: drop-shadow(0 0 1px rgba(20, 184, 166, 0.4));
-  }
-  50% {
-    transform: translateY(-2px) scale(1.15);
-    filter: drop-shadow(0 0 6px rgba(20, 184, 166, 0.9));
-  }
+  0%, 100% { transform: translateY(0) scale(1); filter: drop-shadow(0 0 1px rgba(20, 184, 166, 0.4)); }
+  50% { transform: translateY(-2px) scale(1.15); filter: drop-shadow(0 0 6px rgba(20, 184, 166, 0.9)); }
 }
-.animate-sewing {
-  animation: sewing-glow 2s ease-in-out infinite !important;
-  display: inline-block;
-}
+.animate-sewing { animation: sewing-glow 2s ease-in-out infinite !important; display: inline-block; }
 
 @keyframes embroidery-sparkle {
-  0%, 100% {
-    transform: rotate(0deg) scale(1);
-    filter: drop-shadow(0 0 1px rgba(99, 102, 241, 0.4));
-  }
-  50% {
-    transform: rotate(45deg) scale(1.2);
-    filter: drop-shadow(0 0 8px rgba(129, 140, 248, 0.95));
-  }
+  0%, 100% { transform: rotate(0deg) scale(1); filter: drop-shadow(0 0 1px rgba(99, 102, 241, 0.4)); }
+  50% { transform: rotate(45deg) scale(1.2); filter: drop-shadow(0 0 8px rgba(129, 140, 248, 0.95)); }
 }
-.animate-embroidery {
-  animation: embroidery-sparkle 2.2s cubic-bezier(0.4, 0, 0.2, 1) infinite !important;
-  display: inline-block;
-}
+.animate-embroidery { animation: embroidery-sparkle 2.2s cubic-bezier(0.4, 0, 0.2, 1) infinite !important; display: inline-block; }
 
 @keyframes ready-bounce {
-  0%, 100% {
-    transform: translateY(0) scale(1);
-    filter: drop-shadow(0 0 2px rgba(16, 185, 129, 0.4));
-  }
-  50% {
-    transform: translateY(-3px) scale(1.18);
-    filter: drop-shadow(0 0 7px rgba(52, 211, 153, 0.95));
-  }
+  0%, 100% { transform: translateY(0) scale(1); filter: drop-shadow(0 0 2px rgba(16, 185, 129, 0.4)); }
+  50% { transform: translateY(-3px) scale(1.18); filter: drop-shadow(0 0 7px rgba(52, 211, 153, 0.95)); }
 }
-.animate-ready {
-  animation: ready-bounce 1.8s ease-in-out infinite !important;
-  display: inline-block;
-}
+.animate-ready { animation: ready-bounce 1.8s ease-in-out infinite !important; display: inline-block; }
 
 @keyframes finisher-pulse {
-  0%, 100% {
-    transform: scale(1);
-    filter: drop-shadow(0 0 1px rgba(14, 165, 233, 0.4));
-  }
-  50% {
-    transform: scale(1.18);
-    filter: drop-shadow(0 0 6px rgba(56, 189, 248, 0.9));
-  }
+  0%, 100% { transform: scale(1); filter: drop-shadow(0 0 1px rgba(14, 165, 233, 0.4)); }
+  50% { transform: scale(1.18); filter: drop-shadow(0 0 6px rgba(56, 189, 248, 0.9)); }
 }
-.animate-finisher {
-  animation: finisher-pulse 1.8s ease-in-out infinite !important;
-  display: inline-block;
-}
+.animate-finisher { animation: finisher-pulse 1.8s ease-in-out infinite !important; display: inline-block; }
 
 @keyframes shimmer-slide {
-  0% {
-    background-position: -200% 0;
-  }
-  100% {
-    background-position: 200% 0;
-  }
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
 }
-.shimmer-bar {
-  background-size: 200% 100% !important;
-  animation: shimmer-slide 2.5s linear infinite !important;
-}
+.shimmer-bar { background-size: 200% 100% !important; animation: shimmer-slide 2.5s linear infinite !important; }
 
 /* 9. Universal Viewport-Centered Fixed Modals & High-Z Overlays */
 .fixed.inset-0[class*="z-"] {

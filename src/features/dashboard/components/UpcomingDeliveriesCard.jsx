@@ -10,38 +10,38 @@ function UpcomingDeliveriesCard({
   const getStageBadge = (statusStr) => {
     const s = String(statusStr || '').toLowerCase();
     if (/cutting|قص|تجهيز/i.test(s)) {
-      return { label: 'تحضير ⚙️', color: 'bg-amber-500/10 text-amber-300 border-amber-500/30' };
+      return { label: 'تحضير ⚙️', color: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/30' };
     } else if (/sewing|خياطة|تجميع/i.test(s)) {
-      return { label: 'تجميع 🛠️', color: 'bg-pink-500/10 text-pink-300 border-pink-500/30' };
+      return { label: 'تجميع 🛠️', color: 'bg-pink-50 text-pink-700 border-pink-200 dark:bg-pink-500/10 dark:text-pink-300 dark:border-pink-500/30' };
     } else if (/embroidery|تطريز|شك/i.test(s)) {
-      return { label: 'تشطيب 💎', color: 'bg-purple-500/10 text-purple-300 border-purple-500/30' };
+      return { label: 'تشطيب 💎', color: 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-500/10 dark:text-purple-300 dark:border-purple-500/30' };
     } else if (/quality|جودة|فحص/i.test(s)) {
-      return { label: 'جودة 🔍', color: 'bg-cyan-500/10 text-cyan-300 border-cyan-500/30' };
+      return { label: 'جودة 🔍', color: 'bg-cyan-50 text-cyan-700 border-cyan-200 dark:bg-cyan-500/10 dark:text-cyan-300 dark:border-cyan-500/30' };
     } else if (/ready|جاهز/i.test(s)) {
-      return { label: 'جاهز 📦', color: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30' };
+      return { label: 'جاهز 📦', color: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/30' };
     }
-    return { label: 'تشغيل', color: 'bg-amber-500/10 text-amber-300 border-amber-500/30' };
+    return { label: 'تشغيل', color: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/30' };
   };
 
   const fittingsToday = watchdogData?.fittings_today || [];
 
   return (
-    <div className="bg-[#111C38] rounded-xl border border-slate-800 p-2.5 shadow-xs flex flex-col h-72 overflow-hidden transition-colors select-none">
+    <div className="bg-white dark:bg-[#111C38] rounded-xl border border-[#E2E8F0] dark:border-[#263248] p-2.5 shadow-xs flex flex-col h-72 overflow-hidden transition-colors select-none">
       {/* الترويسة المدمجة للرادار */}
-      <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800 shrink-0">
+      <div className="flex items-center justify-between pb-2 mb-2 border-b border-[#E2E8F0] dark:border-[#263248] shrink-0">
         <div className="flex items-center gap-2">
-          <span className="text-amber-400 text-sm">⏳</span>
-          <h3 className="font-bold text-white text-xs truncate">
+          <span className="text-amber-500 dark:text-amber-400 text-sm">⏳</span>
+          <h3 className="font-bold text-[#0F172A] dark:text-white text-xs truncate">
             مواعيد التسليم ورادار المشغل (خلال 72 ساعة)
           </h3>
         </div>
         <div className="flex items-center gap-1.5 font-mono text-[10.5px] shrink-0">
           {watchdogData?.urgent_count > 0 && (
-            <span className="text-rose-300 bg-rose-950/80 px-2 py-0.5 rounded border border-rose-800/60 font-bold">
+            <span className="text-rose-700 bg-rose-50 border-rose-200 dark:text-rose-300 dark:bg-rose-950/80 px-2 py-0.5 rounded border dark:border-rose-800/60 font-bold">
               {watchdogData.urgent_count} حرج ⚠️
             </span>
           )}
-          <span className="text-slate-300 bg-[#0B132B] px-2 py-0.5 rounded border border-slate-800 font-medium">
+          <span className="text-[#475569] bg-[#F8FAFC] border-[#E2E8F0] dark:text-slate-300 dark:bg-[#0B132B] px-2 py-0.5 rounded border dark:border-[#263248] font-medium">
             {urgentOrders.length} أوامر قادمة
           </span>
         </div>
@@ -49,11 +49,11 @@ function UpcomingDeliveriesCard({
 
       {/* شريط سريع لبروفات اليوم إن وجدت بدون أي سكرول أفقي */}
       {fittingsToday.length > 0 && (
-        <div className="flex items-center gap-1.5 pb-2 mb-1.5 border-b border-slate-800/80 overflow-hidden shrink-0 flex-wrap">
-          <span className="text-[10px] font-bold text-amber-300 shrink-0">👗 بروفات اليوم:</span>
+        <div className="flex items-center gap-1.5 pb-2 mb-1.5 border-b border-[#E2E8F0] dark:border-[#263248] overflow-hidden shrink-0 flex-wrap">
+          <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 shrink-0">👗 بروفات اليوم:</span>
           {fittingsToday.slice(0, 3).map((fit) => (
-            <div key={fit.id || fit.order_no} className="text-[10px] py-0.5 px-2 text-white bg-[#0B132B] border border-slate-700/60 rounded flex items-center gap-1 shrink-0 max-w-[170px] truncate">
-              <span className="font-mono text-amber-400 font-bold shrink-0">#{fit.order_no}</span>
+            <div key={fit.id || fit.order_no} className="text-[10px] py-0.5 px-2 text-[#0F172A] bg-[#F8FAFC] border-[#E2E8F0] dark:text-white dark:bg-[#0B132B] border dark:border-[#263248] rounded flex items-center gap-1 shrink-0 max-w-[170px] truncate">
+              <span className="font-mono text-amber-600 dark:text-amber-400 font-bold shrink-0">#{fit.order_no}</span>
               <span className="truncate">{fit.customer_name}</span>
               {fit.phone && (
                 <button
@@ -80,16 +80,16 @@ function UpcomingDeliveriesCard({
             <col className="w-[14%]" />
             <col className="w-[14%]" />
           </colgroup>
-          <thead className="sticky top-0 bg-[#111C38] z-10">
-            <tr className="border-b border-slate-800 h-6">
-              <th className="py-1 px-1.5 h-6 text-right truncate text-[10px] font-bold text-slate-400 dark:text-slate-400 uppercase tracking-tight">الأمر</th>
-              <th className="py-1 px-1.5 h-6 text-right truncate text-[10px] font-bold text-slate-400 dark:text-slate-400 uppercase tracking-tight">العميل</th>
-              <th className="py-1 px-1.5 h-6 text-right truncate text-[10px] font-bold text-slate-400 dark:text-slate-400 uppercase tracking-tight">البند / الموديل</th>
-              <th className="py-1 px-1.5 h-6 text-right truncate text-[10px] font-bold text-slate-400 dark:text-slate-400 uppercase tracking-tight">الاستحقاق</th>
-              <th className="py-1 px-1.5 h-6 text-right truncate text-[10px] font-bold text-slate-400 dark:text-slate-400 uppercase tracking-tight">المرحلة</th>
+          <thead className="sticky top-0 bg-[#F8FAFC] dark:bg-[#111C38] z-10">
+            <tr className="border-b border-[#E2E8F0] dark:border-[#263248] h-6">
+              <th className="py-1 px-1.5 h-6 text-right truncate text-[10px] font-bold text-[#475569] dark:text-slate-400 uppercase tracking-tight">الأمر</th>
+              <th className="py-1 px-1.5 h-6 text-right truncate text-[10px] font-bold text-[#475569] dark:text-slate-400 uppercase tracking-tight">العميل</th>
+              <th className="py-1 px-1.5 h-6 text-right truncate text-[10px] font-bold text-[#475569] dark:text-slate-400 uppercase tracking-tight">البند / الموديل</th>
+              <th className="py-1 px-1.5 h-6 text-right truncate text-[10px] font-bold text-[#475569] dark:text-slate-400 uppercase tracking-tight">الاستحقاق</th>
+              <th className="py-1 px-1.5 h-6 text-right truncate text-[10px] font-bold text-[#475569] dark:text-slate-400 uppercase tracking-tight">المرحلة</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-800/60">
+          <tbody className="divide-y divide-[#E2E8F0] dark:divide-slate-800/60">
             {urgentOrders.length > 0 ? (
               urgentOrders.map((o, i) => {
                 const prodSt = String(o.production_status || o.status || '').toLowerCase();
@@ -98,21 +98,21 @@ function UpcomingDeliveriesCard({
                   <tr
                     key={i}
                     onClick={() => setActiveTab('orders')}
-                    className="h-7 max-h-7 hover:bg-slate-800/40 transition-colors cursor-pointer group"
+                    className="h-7 max-h-7 hover:bg-[#F8FAFC] dark:hover:bg-slate-800/40 transition-colors cursor-pointer group"
                     title="انقر للانتقال إلى تفاصيل الأمر"
                   >
                     <td className="h-7 max-h-7 py-0.5 px-1.5 truncate">
-                      <span className="text-[10.5px] font-mono font-semibold text-slate-200 dark:text-white py-0.5 px-1 text-center bg-[#0B132B]/80 border border-slate-700/60 rounded inline-block truncate max-w-full">
+                      <span className="text-[10.5px] font-mono font-semibold text-[#0F172A] dark:text-white py-0.5 px-1 text-center bg-[#F8FAFC] dark:bg-[#0B132B]/80 border border-[#E2E8F0] dark:border-[#263248] rounded inline-block truncate max-w-full">
                         {o.order_no}
                       </span>
                     </td>
-                    <td className="h-7 max-h-7 py-0.5 px-1.5 text-[11px] font-medium text-slate-200 dark:text-white truncate max-w-[110px]" title={o.customer_name}>
+                    <td className="h-7 max-h-7 py-0.5 px-1.5 text-[11px] font-medium text-[#0F172A] dark:text-white truncate max-w-[110px]" title={o.customer_name}>
                       {o.customer_name}
                     </td>
-                    <td className="h-7 max-h-7 py-0.5 px-1.5 text-[11px] font-medium text-slate-200 dark:text-white truncate max-w-[110px]" title={o.product_name || o.item_name || 'بند تصنيع قياسي'}>
+                    <td className="h-7 max-h-7 py-0.5 px-1.5 text-[11px] font-medium text-[#475569] dark:text-white truncate max-w-[110px]" title={o.product_name || o.item_name || 'بند تصنيع قياسي'}>
                       {o.product_name || o.item_name || 'بند تصنيع قياسي'}
                     </td>
-                    <td className="h-7 max-h-7 py-0.5 px-1.5 text-[11px] font-medium font-mono text-slate-200 dark:text-white truncate">
+                    <td className="h-7 max-h-7 py-0.5 px-1.5 text-[11px] font-medium font-mono text-[#475569] dark:text-white truncate">
                       {o.delivery_date ? String(o.delivery_date).split('T')[0] : '—'}
                     </td>
                     <td className="h-7 max-h-7 py-0.5 px-1.5 truncate">
@@ -125,7 +125,7 @@ function UpcomingDeliveriesCard({
               })
             ) : (
               <tr>
-                <td colSpan="5" className="p-8 text-center text-slate-400 font-medium text-xs">
+                <td colSpan="5" className="p-8 text-center text-[#475569] dark:text-slate-400 font-medium text-xs">
                   جميع أوامر التشغيل مجدولة ومكتملة بنجاح ✨
                 </td>
               </tr>

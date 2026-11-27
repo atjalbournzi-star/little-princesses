@@ -1,21 +1,35 @@
 // PayoutVoucher.jsx - سند الصرف الملكي الرسمي المعتمد القابل للطباعة والتوقيع
 function PayoutVoucher({ activeVoucherForPrint, onClose }) {
-  if (!activeVoucherForPrint) return null;
-
   React.useEffect(() => {
+    if (!activeVoucherForPrint) return;
     const handleKeyDown = (e) => {
       if (e.key === "Escape") onClose();
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
+  }, [activeVoucherForPrint, onClose]);
+
+  if (!activeVoucherForPrint) return null;
 
   const p = activeVoucherForPrint;
   const netAmt = parseFloat(p.net_amount || 0).toLocaleString();
 
-  return (
+  const handlePrintVoucher = () => {
+    document.body.classList.add('printing-modal');
+    const cleanup = () => {
+      document.body.classList.remove('printing-modal');
+      window.removeEventListener('afterprint', cleanup);
+    };
+    window.addEventListener('afterprint', cleanup);
+    setTimeout(() => {
+      window.print();
+      setTimeout(cleanup, 1000);
+    }, 50);
+  };
+
+  const voucherNode = (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/80 backdrop-blur-sm select-none print:p-0 print:bg-white"
+      className="print-modal-root fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/80 backdrop-blur-sm select-none print:p-0 print:bg-white"
       dir="rtl"
       onClick={onClose}
     >
@@ -49,10 +63,10 @@ function PayoutVoucher({ activeVoucherForPrint, onClose }) {
           <div className="flex justify-between items-start border-b-2 border-[#8F2A87] pb-2">
             <div>
               <h2 className="text-base font-black text-[#8F2A87] tracking-tight">
-                معمل الأميرات الصغيرات للخياطة الراقية
+                {(window.BrandService && window.BrandService.getProfile().name) || 'نظام الإدارة المتكامل'}
               </h2>
               <p className="text-[10px] text-slate-500 font-medium">
-                {p.title || "Little Princesses Atelier • سند صرف نقدي رسمي (Payment Voucher)"}
+                {p.title || "سند صرف نقدي رسمي (Payment Voucher)"}
               </p>
             </div>
             <div className="text-left font-mono">
@@ -162,7 +176,7 @@ function PayoutVoucher({ activeVoucherForPrint, onClose }) {
           </button>
           <button
             type="button"
-            onClick={() => window.print()}
+            onClick={handlePrintVoucher}
             className="h-6 px-3.5 bg-[#8F2A87] hover:bg-[#73216C] text-white font-bold text-xs rounded-md shadow-xs transition flex items-center gap-1.5 cursor-pointer"
           >
             <svg className="w-3.5 h-3.5 text-white shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -174,6 +188,11 @@ function PayoutVoucher({ activeVoucherForPrint, onClose }) {
       </div>
     </div>
   );
+
+  if (typeof document !== 'undefined' && typeof ReactDOM !== 'undefined' && ReactDOM.createPortal) {
+    return ReactDOM.createPortal(voucherNode, document.body);
+  }
+  return voucherNode;
 }
 
 window.PayoutVoucher = PayoutVoucher;

@@ -105,8 +105,9 @@ def update_purchase(payload):
         cur.execute("DELETE FROM purchase_items WHERE purchase_id = %s;", (pur_id,))
 
         # 2. تحديث رأس الفاتورة في purchases (مع الحفاظ الكامل على invoice_no الأصلي)
-        pay_status = 'Unpaid' if pay_method == 'آجل' else 'Paid'
-        pay_acc_code = supp_acc if pay_method == 'آجل' else cash_acc
+        is_credit = ('آجل' in pay_method) or ('credit' in pay_method.lower())
+        pay_status = 'Unpaid' if is_credit else 'Paid'
+        pay_acc_code = supp_acc if is_credit else cash_acc
         cur.execute("""
             UPDATE purchases SET
                 supplier_id = %s, supplier_name = %s, supplier_phone = %s, invoice_date = %s,
@@ -171,7 +172,7 @@ def update_purchase(payload):
         # 5. تحديث سند الصرف وحفظ رقم السند الأصلي
         cur.execute("SELECT id, payment_no FROM payments WHERE invoice_id = %s OR id = %s LIMIT 1;", (pur_id, f"PAY-{pur_id}"))
         ex_pay = cur.fetchone()
-        if pay_method != 'آجل' and net_paid_orig > 0:
+        if not is_credit and net_paid_orig > 0:
             pay_id = ex_pay['id'] if ex_pay else f"PAY-{pur_id}"
             pay_no = ex_pay['payment_no'] if ex_pay else get_next_sequence_number(cur, 'PV', fallback_prefix='PV-')
             cur.execute("""

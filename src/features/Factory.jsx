@@ -12,6 +12,23 @@ function Factory(props) {
 
   const [localActiveTab, setLocalActiveTab] = React.useState('pipeline');
   const [showOrderForm, setShowOrderForm] = React.useState(false);
+  const [custodyList, setCustodyList] = React.useState([]);
+  const [tailoringModal, setTailoringModal] = React.useState(null);
+  const [cmtStickerModal, setCmtStickerModal] = React.useState(null);
+
+  React.useEffect(() => {
+    if (!window.TailoringAPI?.getMaterialCustody) return;
+    window.TailoringAPI.getMaterialCustody().then(r => { if (Array.isArray(r?.data)) setCustodyList(r.data); }).catch(() => {});
+  }, [factory?.length]);
+
+  const custodyMap = React.useMemo(() => {
+    const map = {};
+    (custodyList || []).forEach(c => {
+      if (c.production_order_id) map[c.production_order_id] = c;
+      if (c.order_id) map[c.order_id] = c;
+    });
+    return map;
+  }, [custodyList]);
 
   const useData = window.useFactoryData;
   const useActions = window.useFactoryActions;
@@ -21,32 +38,18 @@ function Factory(props) {
   const activeMainTab = data.activeMainTab || localActiveTab || props.subTab || 'pipeline';
   const setActiveMainTab = React.useCallback((newTab) => {
     setLocalActiveTab(newTab);
-    if (typeof data.setActiveMainTab === 'function') {
-      data.setActiveMainTab(newTab);
-    }
+    if (typeof data.setActiveMainTab === 'function') data.setActiveMainTab(newTab);
   }, [data.setActiveMainTab]);
-
   const handleOpenOrderForm = React.useCallback(() => {
     setActiveMainTab('pipeline');
     setShowOrderForm(true);
-    setTimeout(() => {
-      const el = document.getElementById('factory-order-form-container');
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 60);
+    setTimeout(() => { const el = document.getElementById('factory-order-form-container'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 60);
   }, [setActiveMainTab]);
-
   const handleToggleOrderForm = React.useCallback(() => {
-    if (activeMainTab !== 'pipeline') {
-      setActiveMainTab('pipeline');
-      setShowOrderForm(true);
-    } else {
-      setShowOrderForm(p => !p);
-    }
+    if (activeMainTab !== 'pipeline') { setActiveMainTab('pipeline'); setShowOrderForm(true); }
+    else setShowOrderForm(p => !p);
   }, [activeMainTab, setActiveMainTab]);
-
-  React.useEffect(() => {
-    if (targetJob) handleOpenOrderForm();
-  }, [targetJob, handleOpenOrderForm]);
+  React.useEffect(() => { if (targetJob) handleOpenOrderForm(); }, [targetJob, handleOpenOrderForm]);
 
   React.useEffect(() => {
     const onOpen = () => handleOpenOrderForm();
@@ -138,6 +141,9 @@ function Factory(props) {
                   handleOpenOrderForm();
                 }}
                 handleDeleteOrder={actions.handleDeleteOrder}
+                custodyMap={custodyMap}
+                onOpenTailoringAction={(action, job) => setTailoringModal({ action, job })}
+                onPrintCmtSticker={(custody, job) => setCmtStickerModal({ custody, job })}
               />
             )}
           </div>
@@ -188,6 +194,16 @@ function Factory(props) {
 
       {selectedJobCustomer && typeof JobCardModal !== 'undefined' && (
         <JobCardModal customer={selectedJobCustomer} onClose={() => setSelectedJobCustomer(null)} />
+      )}
+      {tailoringModal && window.FactoryTailoringModals && (
+        <window.FactoryTailoringModals
+          modalState={tailoringModal} onClose={() => setTailoringModal(null)}
+          accounts={accounts} inventory={inventory} showToast={showToast}
+          onCompleted={() => window.TailoringAPI?.getMaterialCustody().then(r => Array.isArray(r?.data) && setCustodyList(r.data)).catch(() => {})}
+        />
+      )}
+      {cmtStickerModal && window.CmtStickerPrintModal && (
+        <window.CmtStickerPrintModal isOpen={!!cmtStickerModal} custody={cmtStickerModal.custody} job={cmtStickerModal.job} onClose={() => setCmtStickerModal(null)} />
       )}
     </div>
   );

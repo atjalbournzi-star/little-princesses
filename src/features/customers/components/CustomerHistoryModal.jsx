@@ -107,8 +107,8 @@ function CustomerHistoryModal({
 
   const printActions = (
     <div className="flex items-center gap-1.5">
-      <button type="button" onClick={() => onPrintInvoice && onPrintInvoice(customer)} className="h-6 px-2 text-[10.5px] font-bold rounded-lg border border-slate-700 hover:bg-slate-800 text-slate-300 flex items-center gap-1 cursor-pointer"><span>🧾 فاتورة حرارية</span></button>
-      <button type="button" onClick={() => onPrintJobCard && onPrintJobCard(customer)} className="h-6 px-2 text-[10.5px] font-bold rounded-lg border border-purple-800/60 hover:bg-purple-950/40 text-purple-300 flex items-center gap-1 cursor-pointer"><span>✂️ كرت معمل</span></button>
+      <button type="button" onClick={() => onPrintInvoice && onPrintInvoice(customer)} className="h-6 px-2 text-[10.5px] font-bold rounded-lg border border-[#CBD5E1] dark:border-slate-700 bg-white dark:bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 text-[#334155] dark:text-slate-300 flex items-center gap-1 cursor-pointer"><span>🧾 فاتورة حرارية</span></button>
+      <button type="button" onClick={() => onPrintJobCard && onPrintJobCard(customer)} className="h-6 px-2 text-[10.5px] font-bold rounded-lg border border-purple-300 dark:border-purple-800/60 bg-purple-50 dark:bg-transparent hover:bg-purple-100 dark:hover:bg-purple-950/40 text-purple-700 dark:text-purple-300 flex items-center gap-1 cursor-pointer"><span>✂️ كرت معمل</span></button>
     </div>
   );
 
@@ -121,9 +121,9 @@ function CustomerHistoryModal({
 
   const footerRightButtons = (
     <div className="flex items-center gap-2">
-      <button type="button" onClick={onClose} className="h-7 px-3 text-xs text-slate-400 hover:text-white rounded-lg border border-slate-700 hover:bg-slate-800 transition-colors cursor-pointer">إلغاء</button>
+      <button type="button" onClick={onClose} className="h-7 px-3 text-xs text-[#334155] dark:text-slate-400 hover:text-[#0F172A] dark:hover:text-white rounded-lg border border-[#CBD5E1] dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer">إلغاء</button>
       {onSwitchStep && (
-        <button type="button" onClick={handleBackToStep2} className="h-7 px-3 text-xs text-slate-300 hover:text-white rounded-lg border border-slate-700 hover:bg-slate-800 transition-colors cursor-pointer flex items-center gap-1">
+        <button type="button" onClick={handleBackToStep2} className="h-7 px-3 text-xs text-[#334155] dark:text-slate-300 hover:text-[#0F172A] dark:hover:text-white rounded-lg border border-[#CBD5E1] dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer flex items-center gap-1">
           <span>السابق: المقاسات</span><span>➡️</span>
         </button>
       )}
@@ -140,10 +140,10 @@ function CustomerHistoryModal({
   ) : (
     <div className="flex items-center gap-2">
       {parseFloat(remaining) > 0 && (
-        <button type="button" onClick={() => {
+        <button type="button" disabled={isSaving || isSubmitting} onClick={() => {
           const ord = customerOrders[0], payAmt = window.prompt(`أدخل مبلغ الدفعة المراد قبضها لحساب الطلب [${ord?.order_no || ''}]:`, remaining);
           if (payAmt && parseFloat(payAmt) > 0) { setDeposit(String((parseFloat(deposit) || 0) + parseFloat(payAmt))); setTimeout(() => handleSave(false), 60); }
-        }} className={`h-8 px-3.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-sm transition flex items-center gap-1.5 cursor-pointer ${hasReadyOrder ? 'animate-pulse ring-2 ring-emerald-400/50 shadow-emerald-500/30' : ''}`}>
+        }} className={`h-8 px-3.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-sm transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${hasReadyOrder ? 'animate-pulse ring-2 ring-emerald-400/50 shadow-emerald-500/30' : ''}`}>
           <span>💵 تسجيل سند قبض</span>
         </button>
       )}
@@ -185,10 +185,10 @@ function CustomerHistoryModal({
         ) : null}
 
         {/* إرفاق السند المالي ومعاينة رقم السند */}
-        <div className="p-2 bg-[#0B132B] rounded-xl border border-slate-800 flex items-center justify-between flex-wrap gap-2 text-xs">
+        <div className="p-2 bg-[#F8FAFC] dark:bg-[#0B132B] rounded-xl border border-[#CBD5E1] dark:border-slate-800 flex items-center justify-between flex-wrap gap-2 text-xs">
           <div className="flex items-center gap-2">
-            <span className="text-[10.5px] font-bold text-slate-300">📎 إيصال السداد المالي:</span>
-            <label className="h-7 px-2.5 bg-[#0F172A] hover:bg-slate-800 text-cyan-300 border border-slate-700 hover:border-cyan-500/50 rounded-lg text-[10.5px] font-bold flex items-center gap-1.5 cursor-pointer transition">
+            <span className="text-[10.5px] font-bold text-[#334155] dark:text-slate-300">📎 إيصال السداد المالي:</span>
+            <label className="h-7 px-2.5 bg-white dark:bg-[#0F172A] hover:bg-slate-100 dark:hover:bg-slate-800 text-cyan-700 dark:text-cyan-300 border border-[#CBD5E1] dark:border-slate-700 hover:border-cyan-500/50 rounded-lg text-[10.5px] font-bold flex items-center gap-1.5 cursor-pointer transition">
               <span>{receiptPreview ? 'تغيير صورة الإيصال' : 'اختيار صورة الإيصال 📤'}</span>
               <input type="file" accept="image/*" onChange={handleReceiptUpload} className="hidden" />
             </label>

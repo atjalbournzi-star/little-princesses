@@ -17,14 +17,23 @@ function JobTicketPrintModal({ isOpen, onClose, job, product }) {
   const cutterAlert = job.measurement_notes || specs.notes || (job.notes && job.notes.includes('تنبيه') ? job.notes : '');
 
   const handlePrint = () => {
-    window.print();
+    document.body.classList.add('printing-modal');
+    const cleanup = () => {
+      document.body.classList.remove('printing-modal');
+      window.removeEventListener('afterprint', cleanup);
+    };
+    window.addEventListener('afterprint', cleanup);
+    setTimeout(() => {
+      window.print();
+      setTimeout(cleanup, 1000);
+    }, 50);
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs" onClick={onClose} dir="rtl">
-      <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-[#E8E5EA]" onClick={e => e.stopPropagation()}>
+  const modalNode = (
+    <div className="print-modal-root fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs print:p-0 print:bg-white" onClick={onClose} dir="rtl">
+      <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-[#E8E5EA] print:shadow-none print:border-none print:max-h-none print:rounded-none" onClick={e => e.stopPropagation()}>
         {/* Controls Header */}
-        <div className="px-6 py-4 border-b border-[#E8E5EA] flex items-center justify-between bg-gradient-to-r from-purple-50 via-white to-pink-50 sticky top-0 z-20">
+        <div className="print:hidden no-print px-6 py-4 border-b border-[#E8E5EA] flex items-center justify-between bg-gradient-to-r from-purple-50 via-white to-pink-50 sticky top-0 z-20">
           <div className="flex items-center gap-2">
             <span className="text-xl">🖨️</span>
             <div>
@@ -57,7 +66,7 @@ function JobTicketPrintModal({ isOpen, onClose, job, product }) {
             <div className="space-y-1">
               <div className="flex items-center gap-2">
                 <span className="text-2xl">👑</span>
-                <span className="text-base font-black text-[#8F2A87]">مؤسسة الأميرات الصغيرات للأزياء</span>
+                <span className="text-base font-black text-[#8F2A87]">{(window.BrandService && window.BrandService.getProfile().name) || 'نظام الإدارة المتكامل'}</span>
               </div>
               <p className="text-[11px] text-[#6F6B75] font-semibold">قسم خطوط التشغيل والتفصيل • بطاقة ورشة عمل</p>
               <div className="flex items-center gap-2 mt-2">
@@ -116,6 +125,7 @@ function JobTicketPrintModal({ isOpen, onClose, job, product }) {
               <p className="font-semibold text-[10.5px] leading-relaxed">{String(cutterAlert).replace(/^⚠️\s*/, '').replace(/^تنبيه فني للقصاص:\s*/, '').replace(/^⚠️\s*/, '').trim()}</p>
             </div>
           )}
+          {window.JobCardTailoringBlock && <window.JobCardTailoringBlock job={job} specs={specs} />}
 
           {/* Detailed Measurements Specifications (Blind: No customer info) */}
           <div className="p-3 rounded-2xl border border-[#E8E5EA] space-y-2">
@@ -195,6 +205,11 @@ function JobTicketPrintModal({ isOpen, onClose, job, product }) {
       </div>
     </div>
   );
+
+  if (typeof document !== 'undefined' && typeof ReactDOM !== 'undefined' && ReactDOM.createPortal) {
+    return ReactDOM.createPortal(modalNode, document.body);
+  }
+  return modalNode;
 }
 
 window.JobTicketPrintModal = JobTicketPrintModal;

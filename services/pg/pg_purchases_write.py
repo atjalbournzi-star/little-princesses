@@ -124,8 +124,9 @@ def add_purchase(payload):
             inv_no = get_next_sequence_number(cur, 'PUR', fallback_prefix='PUR-')
             pur_id = inv_no
 
-        pay_status = 'Unpaid' if pay_method == 'آجل' else 'Paid'
-        pay_acc_code = supp_acc if pay_method == 'آجل' else cash_acc
+        is_credit = ('آجل' in pay_method) or ('credit' in pay_method.lower())
+        pay_status = 'Unpaid' if is_credit else 'Paid'
+        pay_acc_code = supp_acc if is_credit else cash_acc
 
         cur.execute("""
             INSERT INTO purchases (
@@ -191,7 +192,7 @@ def add_purchase(payload):
 
         post_purchase_journal(cur, pur_id, inv_no, inv_date, supp_id, supp_name, net_paid_orig, net_paid_yer, curr, rate, inv_acc, supp_acc, resolved_user)
 
-        if pay_method != 'آجل':
+        if not is_credit:
             post_purchase_payment(cur, pur_id, inv_no, inv_date, supp_id, supp_name, net_paid_orig, net_paid_yer, curr, rate, pay_method, cash_acc, supp_acc, transfer_no, resolved_user)
         elif supp_id:
             cur.execute("UPDATE suppliers SET current_balance = current_balance + %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s;", (net_paid_orig, supp_id))

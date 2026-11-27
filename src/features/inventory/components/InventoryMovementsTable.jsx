@@ -38,12 +38,20 @@ function InventoryMovementsTable({ transactions = [] }) {
               const isPositive = tQty > 0;
               const dateStr = t.created_at ? t.created_at.split('T')[0] : '—';
               const uCost = parseFloat(t.unit_cost || 0);
-              const typeLabel = t.transaction_type === 'PURCHASE_RECEIPT' ? 'توريد مشتريات 📥' :
-                t.transaction_type === 'PRODUCTION_CONSUMPTION' ? 'صرف إنتاجي ✂️' :
-                t.transaction_type === 'SALE_OUT' ? 'صرف مبيعات 🛍️' :
-                t.transaction_type === 'TRANSFER' ? 'مناقلة مستودعية 🔄' :
-                t.transaction_type === 'WASTAGE' ? 'تالف وهدر ⚠️' :
-                (t.transaction_type || 'حركة مخزنية');
+              const typeLabels = {
+                PURCHASE_RECEIPT: 'توريد مشتريات 📥',
+                PURCHASE_IN: 'توريد مشتريات 📥',
+                PURCHASE_CANCEL: 'إلغاء توريد مشتريات ❌',
+                PURCHASE_ADJUST: 'تعديل مشتريات ✏️',
+                PRODUCTION_CONSUMPTION: 'صرف إنتاجي ✂️',
+                SALE_OUT: 'صرف مبيعات 🛍️',
+                TRANSFER: 'مناقلة مستودعية 🔄',
+                TRANSFER_IN: 'وارد مناقلة 🔄',
+                TRANSFER_OUT: 'صادر مناقلة 🔄',
+                WASTAGE: 'تالف وهدر ⚠️',
+                GAIN: 'فائض جردي ➕'
+              };
+              const typeLabel = typeLabels[t.transaction_type] || (t.transaction_type || 'حركة مخزنية');
               return (
                 <tr key={t.id || idx} className="hover:bg-[#FAFAFB]">
                   <td className="px-3 py-2 font-mono text-[#6F6B75] text-[11px]">{dateStr}</td>

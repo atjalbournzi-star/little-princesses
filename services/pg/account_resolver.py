@@ -19,14 +19,20 @@ def resolve_exchange_rate(cur, currency_code, provided_rate=1.0):
     curr = normalize_currency_code(currency_code)
     if curr == 'YER': return 1.0
     rate = clean_num(provided_rate or 0.0)
-    if rate > 1.0: return rate
+    allow_override = False
+    try:
+        from flask import request, has_request_context
+        if has_request_context():
+            u = getattr(request, 'active_user', None) or {}
+            allow_override = str(u.get('role') or '').lower() in ('admin', 'accountant')
+    except Exception: pass
+    if allow_override and rate > 1.0: return rate
     try:
         cur.execute("SELECT exchange_rate FROM currencies WHERE code = %s AND is_active = true LIMIT 1;", (curr,))
         row = cur.fetchone()
         if row and clean_num(row['exchange_rate']) > 0: return clean_num(row['exchange_rate'])
     except Exception: pass
     return 142.0 if curr == 'SAR' else (535.0 if curr == 'USD' else 1.0)
-
 
 def resolve_cash_account_by_currency(cur, currency_code=None, default_id=None):
     curr = normalize_currency_code(currency_code)
@@ -41,7 +47,6 @@ def resolve_cash_account_by_currency(cur, currency_code=None, default_id=None):
         except Exception: pass
     return default_id
 
-
 def resolve_bank_account_by_currency(cur, currency_code=None, default_id=None):
     curr = normalize_currency_code(currency_code)
     if cur:
@@ -54,7 +59,6 @@ def resolve_bank_account_by_currency(cur, currency_code=None, default_id=None):
             if row: return row['id']
         except Exception: pass
     return default_id
-
 
 def resolve_receiving_account(cur, payment_method, currency_code):
     p_meth = clean_str(payment_method).lower()
@@ -76,7 +80,6 @@ def resolve_customer_advance_account(cur, default_id=None):
         except Exception: pass
     return default_id
 
-
 def resolve_receivables_account(cur, default_id=None):
     if cur:
         try:
@@ -86,7 +89,6 @@ def resolve_receivables_account(cur, default_id=None):
         except Exception: pass
     return default_id or 'ACC-104'
 
-
 def resolve_payables_account(cur, default_id=None):
     if cur:
         try:
@@ -95,7 +97,6 @@ def resolve_payables_account(cur, default_id=None):
             if row: return row['id']
         except Exception: pass
     return default_id or 'ACC-201'
-
 
 def resolve_inventory_account(cur, warehouse_id=None, default_id=None):
     if cur:
@@ -113,6 +114,15 @@ def resolve_inventory_account(cur, warehouse_id=None, default_id=None):
         except Exception: pass
     return default_id
 
+def resolve_wip_account(cur, default_id='ACC-105-05'):
+    """جلب حساب إنتاج تحت التشغيل (105.05) ديناميكياً وفق معيار IAS 2"""
+    if cur:
+        try:
+            cur.execute("SELECT id FROM chart_of_accounts WHERE is_postable = TRUE AND (account_code = '105.05' OR account_name ILIKE '%تحت التشغيل%' OR account_category = 'WIP') ORDER BY level DESC, account_code ASC LIMIT 1;")
+            row = cur.fetchone()
+            if row and row.get('id'): return row['id']
+        except Exception: pass
+    return default_id
 
 def resolve_sales_revenue_account(cur, default_id=None):
     if cur:
@@ -123,7 +133,6 @@ def resolve_sales_revenue_account(cur, default_id=None):
         except Exception: pass
     return default_id
 
-
 def resolve_labor_expense_account(cur, default_id=None):
     if cur:
         try:
@@ -132,7 +141,6 @@ def resolve_labor_expense_account(cur, default_id=None):
             if row: return row['id']
         except Exception: pass
     return default_id or 'ACC-501'
-
 
 def resolve_labor_liability_account(cur, default_id=None):
     if cur:
@@ -195,23 +203,16 @@ def resolve_account_id(cur, acc_input, default_id=None, currency=None):
         if row: return resolve_leaf_account(cur, row['id'], currency)
 
     low = acc_str.lower()
-    keywords = []
-    if any(k in low for k in ['رواتب', 'راتب', 'أجور']): keywords.extend(['رواتب', 'أجور'])
-    elif any(k in low for k in ['إيجار', 'ايجار', 'ورشة']): keywords.extend(['إيجار', 'ايجار'])
-    elif any(k in low for k in ['كهرباء', 'ماء', 'مياه']): keywords.extend(['كهرباء', 'ماء'])
-    elif any(k in low for k in ['صيانة', 'نظافة', 'تسويق', 'إداري']): keywords.extend(['صيانة', 'تسويق'])
-    elif any(k in low for k in ['مورد', 'أقمشة']): keywords.extend(['مورد', 'أقمشة'])
-    elif any(k in low for k in ['عميل', 'ذمم']): keywords.extend(['عملاء', 'عميل'])
-    elif any(k in low for k in ['رأس مال', 'راس مال']): keywords.extend(['رأس مال'])
-
+    kw_groups = [
+        (['رواتب', 'راتب', 'أجور'], ['رواتب', 'أجور']), (['إيجار', 'ايجار', 'ورشة'], ['إيجار', 'ايجار']),
+        (['كهرباء', 'ماء', 'مياه'], ['كهرباء', 'ماء']), (['صيانة', 'نظافة', 'تسويق', 'إداري'], ['صيانة', 'تسويق']),
+        (['مورد', 'أقمشة'], ['مورد', 'أقمشة']), (['عميل', 'ذمم'], ['عملاء', 'عميل']), (['رأس مال', 'راس مال'], ['رأس مال'])
+    ]
+    keywords = next((targets for matchers, targets in kw_groups if any(k in low for k in matchers)), [])
     if keywords:
         likes = " OR ".join(["account_name ILIKE %s" for _ in keywords])
         cur.execute(f"SELECT id FROM chart_of_accounts WHERE is_postable = TRUE AND ({likes}) ORDER BY level DESC, account_code ASC LIMIT 1;", tuple(f"%{k}%" for k in keywords))
         row = cur.fetchone()
         if row: return resolve_leaf_account(cur, row['id'], currency)
 
-    if currency:
-        cash_acc = resolve_cash_account_by_currency(cur, currency)
-        if cash_acc: return cash_acc
-
-    return default_id
+    return resolve_cash_account_by_currency(cur, currency) if currency else default_id

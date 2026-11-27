@@ -6,6 +6,8 @@ function StockAdjustmentModal({
   setAdjustingItem,
   adjustType,
   setAdjustType,
+  adjustWarehouseId,
+  setAdjustWarehouseId,
   adjustQty,
   setAdjustQty,
   adjustReason,
@@ -14,17 +16,34 @@ function StockAdjustmentModal({
   onSubmit,
   currencyDisplay = 'YER ﷼'
 }) {
+  const u = window.inventoryUtils || {};
+  const [warehouses, setWarehouses] = React.useState(() => (Array.isArray(u.WAREHOUSES) ? [...u.WAREHOUSES] : []));
+
+  React.useEffect(() => {
+    if (!adjustingItem) return;
+    if (Array.isArray(u.WAREHOUSES) && u.WAREHOUSES.length > 0) {
+      setWarehouses([...u.WAREHOUSES]);
+    } else if (u.refreshWarehouses) {
+      u.refreshWarehouses().then(list => { if (Array.isArray(list)) setWarehouses([...list]); });
+    }
+  }, [adjustingItem]);
+
   if (!adjustingItem) return null;
 
-  const u = window.inventoryUtils || {};
   const getItemName = u.getItemName || (i => i?.item_name || i?.name || '');
   const getItemQty = u.getItemQty || (i => parseFloat(i?.qty || i?.quantity || 0) || 0);
   const getItemCost = u.getItemCost || (i => parseFloat(i?.unit_cost || i?.cost || 0) || 0);
   const getItemUnit = u.getItemUnit || (i => i?.unit || 'متر');
+  const getWhStock = u.getItemWarehouseStock || ((i, wid) => getItemQty(i));
 
   const curCost = getItemCost(adjustingItem);
   const vQty = parseFloat(adjustQty) || 0;
   const accountingVal = vQty * curCost;
+  const whQty = adjustWarehouseId ? getWhStock(adjustingItem, adjustWarehouseId) : getItemQty(adjustingItem);
+  const selectedWhObj = warehouses.find(w => (w.id || w.code) === adjustWarehouseId);
+  const selectedWhLabel = selectedWhObj ? `${selectedWhObj.name} (${selectedWhObj.code || selectedWhObj.id})` : (adjustWarehouseId || 'غير محدد');
+  const unit = getItemUnit(adjustingItem);
+  const exceedsWh = adjustType === 'wastage' && vQty > whQty;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md animate-fadeIn" dir="rtl">
@@ -56,13 +75,33 @@ function StockAdjustmentModal({
             <div>
               <span className="text-[11px] text-[#6F6B75] block">الصنف المستهدف:</span>
               <span className="font-bold text-[#25232A] text-sm">{getItemName(adjustingItem)}</span>
+              <span className="text-[10.5px] text-[#007F8C] font-semibold block mt-0.5">المستودع: {selectedWhLabel}</span>
             </div>
             <div className="text-left">
-              <span className="text-[11px] text-[#6F6B75] block">الرصيد المخزني الحالي:</span>
+              <span className="text-[11px] text-[#6F6B75] block">الرصيد المتاح بالمستودع:</span>
               <span className="font-mono font-extrabold text-[#007F8C] text-sm">
-                {getItemQty(adjustingItem)} {getItemUnit(adjustingItem)}
+                {whQty} {unit}
               </span>
+              <span className="text-[10px] text-[#6F6B75] font-mono block">الإجمالي: {getItemQty(adjustingItem)} {unit}</span>
             </div>
+          </div>
+
+          {/* المستودع المستهدف */}
+          <div>
+            <label className="block font-bold text-[#25232A] mb-1">المستودع المستهدف للتسوية *:</label>
+            <select
+              required
+              value={adjustWarehouseId || ''}
+              onChange={e => setAdjustWarehouseId && setAdjustWarehouseId(e.target.value)}
+              className="w-full h-10 px-3 rounded-xl border border-[#E8E5EA] bg-[#FAFAFB] text-xs font-semibold text-[#25232A] focus:bg-white focus:border-[#B0005A] outline-none"
+            >
+              <option value="">-- اختر المستودع --</option>
+              {warehouses.map(w => {
+                const wid = w.id || w.code;
+                const wStock = getWhStock(adjustingItem, wid);
+                return <option key={wid} value={wid}>{w.name} ({w.code || wid}) — المتاح: {wStock} {unit}</option>;
+              })}
+            </select>
           </div>
 
           {/* نوع التسوية */}
@@ -81,7 +120,7 @@ function StockAdjustmentModal({
                 <span>🗑️</span>
                 <div>
                   <div className="text-xs">إهلاك تالف / عجز جردي</div>
-                  <div className="text-[10px] font-normal opacity-80">مدين: 5113 تالف / دائن: 1151 مخزون</div>
+                  <div className="text-[10px] font-normal opacity-80">مدين: مصروف/تالف / دائن: مخزون المستودع</div>
                 </div>
               </button>
 
@@ -97,7 +136,7 @@ function StockAdjustmentModal({
                 <span>📈</span>
                 <div>
                   <div className="text-xs">تسوية فائض جردي</div>
-                  <div className="text-[10px] font-normal opacity-80">مدين: 1151 مخزون / دائن: 4119 تسويات</div>
+                  <div className="text-[10px] font-normal opacity-80">مدين: مخزون المستودع / دائن: إيرادات/تسوية</div>
                 </div>
               </button>
             </div>
@@ -105,16 +144,18 @@ function StockAdjustmentModal({
 
           {/* كمية التسوية */}
           <div>
-            <label className="block font-bold text-[#25232A] mb-1">الكمية المراد تسويتها ({getItemUnit(adjustingItem)}) *:</label>
+            <label className="block font-bold text-[#25232A] mb-1">الكمية المراد تسويتها ({unit}) *:</label>
             <input
               type="number"
               step="0.01"
               min="0.01"
+              max={adjustType === 'wastage' && whQty > 0 ? whQty : undefined}
               required
               value={adjustQty}
               onChange={e => setAdjustQty(e.target.value)}
               className="w-full h-11 px-3.5 rounded-xl border border-[#E8E5EA] bg-[#FAFAFB] text-xs font-mono font-bold focus:bg-white focus:border-[#B0005A] outline-none"
             />
+            {exceedsWh && <p className="mt-1 text-[11px] font-bold text-rose-600">الكمية المطلوبة ({vQty}) تتجاوز المتاح في المستودع ({whQty} {unit}).</p>}
           </div>
 
           {/* القيمة الإجمالية المقدرة للتسوية */}

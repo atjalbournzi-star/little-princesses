@@ -123,8 +123,8 @@ function VouchersTable({
                 </td>
 
                 {/* 4. المبلغ - أبيض واضح بدون تكرار رمز العملة الملون */}
-                <td className="w-[85px] py-1.5 px-2 text-left truncate overflow-hidden whitespace-nowrap dir-ltr" title={amtTooltip}>
-                  <span className={`font-mono font-bold text-xs tabular-nums block truncate ${isReversed ? 'line-through text-slate-400' : 'text-slate-900 dark:text-white'}`}>
+                <td className="w-[85px] py-1.5 px-2 text-left truncate overflow-hidden whitespace-nowrap" dir="ltr" title={amtTooltip}>
+                  <span dir="ltr" className={`inline-block font-mono font-bold text-xs tabular-nums truncate max-w-full ${isReversed ? 'line-through text-slate-400' : 'text-slate-900 dark:text-white'}`}>
                     {formattedAmt}
                   </span>
                 </td>

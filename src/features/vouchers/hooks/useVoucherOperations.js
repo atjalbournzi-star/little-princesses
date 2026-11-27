@@ -80,7 +80,7 @@ function useVoucherOperations({ setVouchers, setJournal, setAccounts, setExpense
     const foundCust = (customers || []).find(c => c.name === vParty);
     if (foundCust?.phone) targetPhone = foundCust.phone.replace(/[^0-9]/g, '');
 
-    const brandName = window.BrandService ? window.BrandService.getProfile().name : 'دار الأميرات الصغيرات للأزياء الملكية';
+    const brandName = (window.BrandService && window.BrandService.getProfile().name) || 'نظام الإدارة المتكامل';
     const hostOrigin = window.location?.origin || '';
     const voucherCardUrl = `${hostOrigin}/voucher.html?id=${encodeURIComponent(vNo)}`;
     const msg = `👑 *${brandName}*\n\n📄 *إشعار ${vType} رسمي معتمد:*\n━━━━━━━━━━━━━━━━━━\n🔹 *رقم السند:* ${vNo}\n🔹 *الطرف المستفيد:* ${vParty}\n🔹 *المبلغ المسدد:* ${vAmt} ${vCurr}\n🔹 *طريقة الدفع:* ${vMethod}\n🔹 *التاريخ:* ${vDate}\n🔹 *البيان:* ${vNotes}\n━━━━━━━━━━━━━━━━━━\n🖼️ *معاينة وتحميل بطاقة السند الرسمية المصممة (صورة/PDF):*\n${voucherCardUrl}\n\n✨ نشكركم لتعاملكم الراقي ونسعد بخدمتكم دائماً.`;
@@ -103,13 +103,17 @@ function useVoucherOperations({ setVouchers, setJournal, setAccounts, setExpense
           return isLinked ? { ...j, debit: updatedV.debit_account || j.debit, credit: updatedV.credit_account || j.credit, amount: updatedV.amount, currency: updatedV.currency, exchange_rate: updatedV.exchange_rate, base_amount: updatedV.base_amount, date: updatedV.date, notes: `قيد آلي: ${updatedV.notes || updatedV.v_type + ' - ' + updatedV.party}` } : j;
         }));
       }
-      fetch('/api/vouchers/update', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updatedV) }).catch(e => console.warn("Voucher update warning:", e));
-      if (typeof window.callGAS === 'function') window.callGAS('updateVoucher', updatedV).catch(e => console.warn("GAS update warning:", e));
+      const res = await fetch('/api/vouchers/update', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updatedV) });
+      const resJson = await res.json().catch(() => ({}));
+      if (!res.ok || resJson?.success === false) {
+        throw new Error(res.extractedError || resJson?.error || resJson?.message || `فشل تعديل السند (${res.status})`);
+      }
       showToast?.('✅ تم تعديل السند المالي ومزامنة القيود والأستاذ العام بنجاح ✏️');
       setEditingVoucher(null);
     } catch (err) {
       console.error("Save edit voucher error:", err);
-      showToast?.('حدث خطأ أثناء تعديل السند', 'error');
+      const msg = window.formatApiError ? window.formatApiError(err) : 'حدث خطأ أثناء تعديل السند';
+      showToast?.(msg, 'error');
     } finally {
       setIsSubmittingEdit(false);
     }
@@ -119,19 +123,15 @@ function useVoucherOperations({ setVouchers, setJournal, setAccounts, setExpense
     setIsSubmittingVoucher(true);
     try {
       let officialV = { ...newV };
-      try {
-        const res = await fetch('/api/vouchers/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newV) });
-        const apiData = await res.json().catch(() => ({}));
-        const savedV = (apiData && (apiData.data || apiData.voucher)) || {};
-        const officialNo = savedV.voucher_no || savedV.payment_no || savedV.v_no || newV.v_no;
-        const officialId = savedV.id || officialNo;
-        officialV = { ...newV, ...savedV, v_no: officialNo, voucher_no: officialNo, payment_no: officialNo, id: officialId };
-        if (!res.ok && typeof window.callGAS === 'function') window.callGAS('addVoucher', officialV).catch(e => console.error(e));
-      } catch (postErr) {
-        if (typeof window.callGAS === 'function') window.callGAS('addVoucher', newV).catch(e => console.error(e));
+      const res = await fetch('/api/vouchers/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newV) });
+      const apiData = await res.json().catch(() => ({}));
+      if (!res.ok || apiData?.success === false) {
+        throw new Error(res.extractedError || apiData?.error || apiData?.message || `فشل إصدار السند (${res.status})`);
       }
-
-      const officialNo = officialV.v_no || officialV.voucher_no;
+      const savedV = (apiData && (apiData.data || apiData.voucher)) || {};
+      const officialNo = savedV.voucher_no || savedV.payment_no || savedV.v_no || newV.v_no;
+      const officialId = savedV.id || officialNo;
+      officialV = { ...newV, ...savedV, v_no: officialNo, voucher_no: officialNo, payment_no: officialNo, id: officialId };
       if (setVouchers) setVouchers(prev => [officialV, ...(prev || []).filter(v => v.id !== newV.id && v.v_no !== newV.v_no && v.id !== officialV.id)]);
 
       const officialEntries = (generatedEntries || []).map(j => ({ ...j, ref_id: officialNo, entry_no: 'AUTO-VCH-' + officialNo }));
@@ -170,18 +170,14 @@ function useVoucherOperations({ setVouchers, setJournal, setAccounts, setExpense
             ...c, ledger: { ...c.ledger, total_paid: (c.ledger?.total_paid || 0) + amt, remaining: Math.max(0, ((c.ledger?.total_sales || 0) + (c.ledger?.delivery || 0)) - ((c.ledger?.total_paid || 0) + amt)) }
           } : c));
         }
-        fetch('/api/gas', {
-          method: 'POST', headers: { 'Content-Type': 'application/json; charset=utf-8' },
-          body: JSON.stringify({ action: 'addOrderPayment', customer_name: custName, order_no: ordNo, amount: amt, currency: officialV.currency, notes: officialV.notes })
-        }).catch(e => console.error(e));
       }
 
-      if (newExp && typeof window.callGAS === 'function') window.callGAS('addExpense', newExp).catch(e => console.error(e));
       showToast?.(`تم إصدار وتمرير ${isReceipt ? 'سند القبض' : 'سند الصرف'} (${officialNo}) بنجاح 🧾✨`);
       return officialV;
     } catch (err) {
       console.error("Voucher submit error:", err);
-      showToast?.('حدث خطأ أثناء إصدار السند', 'error');
+      const msg = window.formatApiError ? window.formatApiError(err) : 'تعذّر الاتصال بالخادم حالياً، بياناتك ما زالت محفوظة في النموذج — يرجى إعادة المحاولة';
+      showToast?.(msg, 'error');
       return false;
     } finally {
       setIsSubmittingVoucher(false);

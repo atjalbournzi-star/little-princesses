@@ -103,6 +103,7 @@ function PrintModal({ order, customer, measurements, product, products, isOpen, 
   const resolvedSewingNotes = m.sewing_notes || order.sewing_notes || order.notes || (typeof m.notes === 'string' && m.notes.trim()) || '';
 
   const handleExecutePrint = () => {
+    const esc = window.escapeHtml || ((v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'));
     const printContent = printAreaRef.current.innerHTML;
     const printWindow = window.open('', '_blank', 'width=800,height=900');
     printWindow.document.write(`
@@ -110,16 +111,19 @@ function PrintModal({ order, customer, measurements, product, products, isOpen, 
       <html dir="rtl" lang="ar-u-nu-latn">
         <head>
           <meta charset="utf-8">
-          <title>طباعة - ${orderNo}</title>
+          <title>طباعة - ${esc(orderNo)}</title>
+          <link rel="stylesheet" href="${window.location.origin}/static/vendor/fonts/fonts.css" />
+          <script src="${window.location.origin}/static/vendor/tailwindcss.js"></script>
           <style>
-            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Tajawal:wght@400;500;700;800;900&family=JetBrains+Mono:wght@500;700;800&display=swap');
-            * { box-sizing: border-box; margin: 0; padding: 0; font-feature-settings: "locl" 0, "lnum" 1, "tnum" 1 !important; font-variant-numeric: tabular-nums lining-nums; }
-            body { font-family: 'Inter', 'Tajawal', sans-serif; color: #25232A; background: #FFF; direction: rtl; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-            .font-mono { font-family: 'JetBrains Mono', monospace; }
+            * { box-sizing: border-box; font-feature-settings: "locl" 0, "lnum" 1, "tnum" 1 !important; font-variant-numeric: tabular-nums lining-nums; }
+            body { font-family: 'Inter', 'Cairo', 'Tajawal', sans-serif; color: #111827; background: #FFF; direction: rtl; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .font-mono { font-family: 'Inter', 'Cairo', monospace; }
             @media print {
-              @page { margin: 0; size: ${activeTemplate === 'thermal' ? '80mm auto' : (activeTemplate === 'hangtag' ? '70mm 125mm' : (activeTemplate === 'garment_bag' ? '105mm 155mm' : 'auto'))}; }
-              body { padding: ${activeTemplate === 'thermal' ? '8px' : '12px'}; }
+              @page { margin: ${activeTemplate === 'thermal' ? '2mm' : '8mm'}; size: ${activeTemplate === 'thermal' ? '80mm auto' : (activeTemplate === 'hangtag' ? '70mm 125mm' : (activeTemplate === 'garment_bag' ? '105mm 155mm' : 'A4 portrait'))}; }
+              body { padding: ${activeTemplate === 'thermal' ? '4px' : '6px'}; }
               .no-print { display: none !important; }
+              thead { display: table-header-group !important; }
+              tr { break-inside: avoid !important; page-break-inside: avoid !important; }
             }
             .thermal-container { width: 78mm; margin: 0 auto; padding: 10px 6px; font-size: 11.5px; line-height: 1.4; }
             .dashed-line { border-top: 1px dashed #444; margin: 8px 0; }
@@ -138,7 +142,7 @@ function PrintModal({ order, customer, measurements, product, products, isOpen, 
     `);
     printWindow.document.close();
     printWindow.focus();
-    setTimeout(() => printWindow.print(), 400);
+    setTimeout(() => printWindow.print(), 650);
   };
 
   const tabs = [

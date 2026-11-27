@@ -100,7 +100,7 @@ function PurchaseHeaderForm(props) {
             className={inputCls} value={headerData.pay_type}
             onChange={e => {
               const pt = e.target.value;
-              const autoBox = pt === 'آجل' ? '201 - ذمم الموردين ومحلات الأقمشة' : (
+              const autoBox = String(pt || '').includes('آجل') ? '201 - ذمم الموردين ومحلات الأقمشة' : (
                 headerData.currency && String(headerData.currency).includes('SAR') ? '101.2 - صندوق الريال السعودي (SAR)' : (
                   headerData.currency && String(headerData.currency).includes('USD') ? '101.3 - صندوق الدولار (USD)' : '101.1 - صندوق الريال اليمني (YER)'
                 )

@@ -116,7 +116,7 @@ function AccountsTable({
                   </td>
 
                   <td className="py-1.5 px-2.5 text-left font-mono tabular-nums whitespace-nowrap">
-                    <span className={`font-bold text-xs ${
+                    <span dir="ltr" className={`inline-block font-bold text-xs ${
                       balance > 0 ? 'text-slate-900 dark:text-white' : balance < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-500 dark:text-slate-400'
                     }`}>
                       {fmt(balance)}

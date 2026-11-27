@@ -28,33 +28,33 @@ function CustomerTable({
 
   if (!customers || customers.length === 0) {
     return (
-      <div className="rounded-xl border border-slate-800/80 bg-slate-900/30 p-8 text-center space-y-2 select-none">
-        <div className="w-10 h-10 rounded-xl bg-slate-800/80 text-gray-400 flex items-center justify-center text-xl mx-auto">
+      <div className="rounded-xl border border-[#E2E8F0] dark:border-[#263248] bg-white dark:bg-[#111C38] p-8 text-center space-y-2 select-none">
+        <div className="w-10 h-10 rounded-xl bg-[#F8FAFC] dark:bg-slate-800/80 text-[#475569] dark:text-gray-400 flex items-center justify-center text-xl mx-auto">
           👥
         </div>
-        <h3 className="text-xs font-bold text-white">لا يوجد عملاء يطابقون شروط البحث</h3>
-        <p className="text-[11px] text-slate-400">يمكنك تعديل معايير الفلترة أو إضافة عميل جديد للقائمة</p>
+        <h3 className="text-xs font-bold text-[#0F172A] dark:text-white">لا يوجد عملاء يطابقون شروط البحث</h3>
+        <p className="text-[11px] text-[#475569] dark:text-slate-400">يمكنك تعديل معايير الفلترة أو إضافة عميل جديد للقائمة</p>
       </div>
     );
   }
 
   return (
-    <div className="rounded-xl border border-slate-800 overflow-hidden select-none bg-[#111C38]">
+    <div className="rounded-xl border border-[#E2E8F0] dark:border-[#263248] overflow-hidden select-none bg-white dark:bg-[#111C38]">
       <div className="overflow-x-auto custom-scrollbar">
         <table className="w-full text-right table-fixed border-collapse" dir="rtl">
-          <thead className="sticky top-0 z-10 bg-[#0F172A] border-b border-slate-800 shadow-xs">
+          <thead className="sticky top-0 z-10 bg-[#F8FAFC] dark:bg-[#0F172A] border-b border-[#E2E8F0] dark:border-[#263248] shadow-xs">
             <tr className="h-7.5">
-              <th className="h-7.5 py-1.5 px-2 text-right w-[13%] text-[11px] font-bold text-slate-200 uppercase tracking-tight whitespace-nowrap overflow-hidden">الكود</th>
-              <th className="h-7.5 py-1.5 px-2 text-right w-[16%] text-[11px] font-bold text-slate-200 uppercase tracking-tight whitespace-nowrap overflow-hidden">اسم العميل</th>
-              <th className="h-7.5 py-1.5 px-2 text-right w-[18%] text-[11px] font-bold text-slate-200 uppercase tracking-tight whitespace-nowrap overflow-hidden">الهاتف والمنصة</th>
-              <th className="h-7.5 py-1.5 px-2 text-right w-[7%] text-[11px] font-bold text-slate-200 uppercase tracking-tight whitespace-nowrap overflow-hidden">المدينة</th>
-              <th className="h-7.5 py-1.5 px-2 text-right w-[6%] text-[11px] font-bold text-slate-200 uppercase tracking-tight whitespace-nowrap overflow-hidden">الفئة</th>
-              <th className="h-7.5 py-1.5 px-2 text-right w-[16%] text-[11px] font-bold text-slate-200 uppercase tracking-tight whitespace-nowrap overflow-hidden">أميرات العميل والمقاسات</th>
-              <th className="h-7.5 py-1.5 px-2 text-center w-[10%] text-[11px] font-bold text-slate-200 uppercase tracking-tight whitespace-nowrap overflow-hidden">الرصيد المتبقي</th>
-              <th className="h-7.5 py-1.5 px-2 text-center w-[14%] text-[11px] font-bold text-slate-200 uppercase tracking-tight whitespace-nowrap overflow-hidden">إجراءات</th>
+              <th className="h-7.5 py-1.5 px-2 text-right w-[13%] text-[11px] font-bold text-[#475569] dark:text-slate-200 uppercase tracking-tight whitespace-nowrap overflow-hidden">الكود</th>
+              <th className="h-7.5 py-1.5 px-2 text-right w-[16%] text-[11px] font-bold text-[#475569] dark:text-slate-200 uppercase tracking-tight whitespace-nowrap overflow-hidden">اسم العميل</th>
+              <th className="h-7.5 py-1.5 px-2 text-right w-[18%] text-[11px] font-bold text-[#475569] dark:text-slate-200 uppercase tracking-tight whitespace-nowrap overflow-hidden">الهاتف والمنصة</th>
+              <th className="h-7.5 py-1.5 px-2 text-right w-[7%] text-[11px] font-bold text-[#475569] dark:text-slate-200 uppercase tracking-tight whitespace-nowrap overflow-hidden">المدينة</th>
+              <th className="h-7.5 py-1.5 px-2 text-right w-[6%] text-[11px] font-bold text-[#475569] dark:text-slate-200 uppercase tracking-tight whitespace-nowrap overflow-hidden">الفئة</th>
+              <th className="h-7.5 py-1.5 px-2 text-right w-[16%] text-[11px] font-bold text-[#475569] dark:text-slate-200 uppercase tracking-tight whitespace-nowrap overflow-hidden">ملفات المقاسات والمستفيدون</th>
+              <th className="h-7.5 py-1.5 px-2 text-center w-[10%] text-[11px] font-bold text-[#475569] dark:text-slate-200 uppercase tracking-tight whitespace-nowrap overflow-hidden">الرصيد المتبقي</th>
+              <th className="h-7.5 py-1.5 px-2 text-center w-[14%] text-[11px] font-bold text-[#475569] dark:text-slate-200 uppercase tracking-tight whitespace-nowrap overflow-hidden">إجراءات</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-800/60 bg-slate-900/20">
+          <tbody className="divide-y divide-[#E2E8F0] dark:divide-slate-800/60 bg-white dark:bg-slate-900/20">
             {customers.map((c, idx) => {
               const custId = c.customer_id || c.id || `CUST-${idx + 1001}`;
               const cOrders = (orders || []).filter(o => (o.customer_id && (String(o.customer_id) === String(custId) || String(o.customer_id) === String(c.id))) || (o.customer_name && String(o.customer_name).trim() === String(c.name || c.customer_name).trim()));
@@ -78,17 +78,17 @@ function CustomerTable({
               const shouldPulseDebt = rem > 0 && hasReadyOrder;
 
               return (
-                <tr key={custId} className="h-8 border-b border-slate-800/60 hover:bg-slate-800/40 text-[11px] font-medium transition-colors">
+                <tr key={custId} className="h-8 border-b border-[#E2E8F0] dark:border-slate-800/60 hover:bg-[#F8FAFC] dark:hover:bg-slate-800/40 text-[11px] font-medium transition-colors">
                   {/* كود العميل */}
                   <td className="py-1.5 px-2 text-[11px] whitespace-nowrap overflow-hidden">
-                    <span className="font-mono bg-slate-800/90 text-sky-300 border border-slate-700/80 px-1.5 py-0.5 rounded text-[10px] font-bold tabular-nums shrink-0 shadow-xs inline-block truncate max-w-full">
+                    <span className="font-mono bg-[#F8FAFC] dark:bg-slate-800/90 text-sky-700 dark:text-sky-300 border border-[#E2E8F0] dark:border-slate-700/80 px-1.5 py-0.5 rounded text-[10px] font-bold tabular-nums shrink-0 shadow-xs inline-block truncate max-w-full">
                       {custId}
                     </span>
                   </td>
 
                   {/* اسم العميل */}
                   <td className="py-1.5 px-2 text-[11px] whitespace-nowrap truncate overflow-hidden" title={c.name || c.customer_name}>
-                    <button type="button" onClick={() => onEditCustomer && onEditCustomer(c)} className="text-right text-slate-100 hover:text-pink-400 hover:underline transition-colors font-semibold text-[11px] cursor-pointer truncate max-w-full block">
+                    <button type="button" onClick={() => onEditCustomer && onEditCustomer(c)} className="text-right text-[#0F172A] dark:text-slate-100 hover:text-[#E11D48] dark:hover:text-pink-400 hover:underline transition-colors font-semibold text-[11px] cursor-pointer truncate max-w-full block">
                       {c.name || c.customer_name || 'بدون اسم'}
                     </button>
                   </td>
@@ -96,9 +96,9 @@ function CustomerTable({
                   {/* الهاتف والمنصة */}
                   <td className="py-1.5 px-2 text-[11px] whitespace-nowrap overflow-hidden">
                     <div className="flex items-center gap-1.5 whitespace-nowrap">
-                      <span className="font-mono text-[11px] font-bold text-slate-100 tracking-wide" dir="ltr">{c.phone || '—'}</span>
+                      <span className="font-mono text-[11px] font-bold text-[#0F172A] dark:text-slate-100 tracking-wide" dir="ltr">{c.phone || '—'}</span>
                       {c.platform && (
-                        <span className="text-[9.5px] px-1.5 py-0.2 rounded font-medium bg-slate-800/90 text-slate-300 border border-slate-700/80 shrink-0 font-sans">
+                        <span className="text-[9.5px] px-1.5 py-0.2 rounded font-medium bg-[#F8FAFC] dark:bg-slate-800/90 text-[#475569] dark:text-slate-300 border border-[#E2E8F0] dark:border-slate-700/80 shrink-0 font-sans">
                           {c.platform}
                         </span>
                       )}
@@ -107,7 +107,7 @@ function CustomerTable({
 
                   {/* المدينة */}
                   <td className="py-1.5 px-2 text-[11px] whitespace-nowrap truncate overflow-hidden" title={cleanCity(c.city)} dir="rtl">
-                    <span className="font-medium text-[11px] text-slate-200 truncate block">{cleanCity(c.city)}</span>
+                    <span className="font-medium text-[11px] text-[#475569] dark:text-slate-200 truncate block">{cleanCity(c.city)}</span>
                   </td>
 
                   {/* فئة العميل */}
@@ -166,19 +166,19 @@ function CustomerTable({
                   {/* أزرار الإجراءات المؤطرة الخمسة المدمجة w-5.5 h-5.5 بأيقونات دلالية ملونة */}
                   <td className="py-1.5 px-2 text-center whitespace-nowrap overflow-hidden">
                     <div className="flex items-center gap-1 justify-center">
-                      <button type="button" onClick={() => onEditCustomer && onEditCustomer(c)} className="w-5.5 h-5.5 rounded border border-slate-700/80 bg-slate-900 text-sky-400 hover:bg-sky-500/15 hover:border-sky-500/50 flex items-center justify-center transition-all cursor-pointer shadow-xs shrink-0" title="تعديل بيانات العميل (الخطوة 1)">
+                      <button type="button" onClick={() => onEditCustomer && onEditCustomer(c)} className="w-5.5 h-5.5 rounded border border-[#E2E8F0] dark:border-slate-700/80 bg-[#F8FAFC] dark:bg-slate-900 text-sky-600 dark:text-sky-400 hover:bg-sky-500/15 hover:border-sky-500/50 flex items-center justify-center transition-all cursor-pointer shadow-xs shrink-0" title="تعديل بيانات العميل (الخطوة 1)">
                         <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                       </button>
-                      <button type="button" onClick={() => onOpenMeasurements && onOpenMeasurements(c)} className="w-5.5 h-5.5 rounded border border-slate-700/80 bg-slate-900 text-fuchsia-400 hover:bg-fuchsia-500/15 hover:border-fuchsia-500/50 flex items-center justify-center transition-all cursor-pointer shadow-xs shrink-0" title="فتح سجل المقاسات والتفصيل (الخطوة 2)">
+                      <button type="button" onClick={() => onOpenMeasurements && onOpenMeasurements(c)} className="w-5.5 h-5.5 rounded border border-[#E2E8F0] dark:border-slate-700/80 bg-[#F8FAFC] dark:bg-slate-900 text-fuchsia-600 dark:text-fuchsia-400 hover:bg-fuchsia-500/15 hover:border-fuchsia-500/50 flex items-center justify-center transition-all cursor-pointer shadow-xs shrink-0" title="فتح سجل المقاسات والتفصيل (الخطوة 2)">
                         <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879a3 3 0 11-4.242-4.242L10.757 7.757m3.364 6.364l-6.364-6.364" /></svg>
                       </button>
-                      <button type="button" onClick={() => onOpenHistory && onOpenHistory(c)} className={`w-5.5 h-5.5 rounded border bg-slate-900 flex items-center justify-center transition-all cursor-pointer shadow-xs shrink-0 ${shouldPulseDebt ? 'border-amber-500/80 bg-amber-500/20 text-amber-300 animate-pulse' : 'border-slate-700/80 text-emerald-400 hover:bg-emerald-500/15 hover:border-emerald-500/50'}`} title="الحساب المالي والعربون (الخطوة 3)">
+                      <button type="button" onClick={() => onOpenHistory && onOpenHistory(c)} className={`w-5.5 h-5.5 rounded border bg-[#F8FAFC] dark:bg-slate-900 flex items-center justify-center transition-all cursor-pointer shadow-xs shrink-0 ${shouldPulseDebt ? 'border-amber-500/80 bg-amber-50 dark:bg-amber-500/20 text-amber-600 dark:text-amber-300 animate-pulse' : 'border-[#E2E8F0] dark:border-slate-700/80 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/15 hover:border-emerald-500/50'}`} title="الحساب المالي والعربون (الخطوة 3)">
                         <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
                       </button>
-                      <button type="button" onClick={() => onPrintUnified ? onPrintUnified(c) : (onPrintInvoice && onPrintInvoice(c))} className="w-5.5 h-5.5 rounded border border-slate-700/80 bg-slate-900 text-slate-300 hover:bg-slate-700/50 hover:border-slate-600 flex items-center justify-center transition-all cursor-pointer shadow-xs shrink-0" title="مركز الطباعة">
+                      <button type="button" onClick={() => onPrintUnified ? onPrintUnified(c) : (onPrintInvoice && onPrintInvoice(c))} className="w-5.5 h-5.5 rounded border border-[#E2E8F0] dark:border-slate-700/80 bg-[#F8FAFC] dark:bg-slate-900 text-[#475569] dark:text-slate-300 hover:bg-slate-200/60 dark:hover:bg-slate-700/50 hover:border-slate-400 dark:hover:border-slate-600 flex items-center justify-center transition-all cursor-pointer shadow-xs shrink-0" title="مركز الطباعة">
                         <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
                       </button>
-                      <button type="button" onClick={() => onDeleteCustomer && onDeleteCustomer(c)} className="w-5.5 h-5.5 rounded border border-slate-700/80 bg-slate-900 text-rose-400 hover:bg-rose-500/15 hover:border-rose-500/50 flex items-center justify-center transition-all cursor-pointer shadow-xs shrink-0" title="حذف العميل">
+                      <button type="button" onClick={() => onDeleteCustomer && onDeleteCustomer(c)} className="w-5.5 h-5.5 rounded border border-[#E2E8F0] dark:border-slate-700/80 bg-[#F8FAFC] dark:bg-slate-900 text-rose-600 dark:text-rose-400 hover:bg-rose-500/15 hover:border-rose-500/50 flex items-center justify-center transition-all cursor-pointer shadow-xs shrink-0" title="حذف العميل">
                         <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                       </button>
                     </div>

@@ -9,7 +9,8 @@ function ExpensesTable({
   currencyDisplay = "YER ﷼",
   onDeleteExpense,
   onPrintExpense,
-  onApproveExpense
+  onApproveExpense,
+  approvingId = null
 }) {
   const PrinterIcon = (window.Icons && window.Icons.Printer) || (({ className = "w-3 h-3" }) => (
     <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2">
@@ -99,12 +100,13 @@ function ExpensesTable({
                       {isDraft && onApproveExpense && (
                         <button
                           type="button"
+                          disabled={approvingId === (e.id || e.expense_no)}
                           onClick={() => onApproveExpense(e)}
                           title="اعتماد المصروف وترحيله لدفتر الأستاذ وسندات الصرف"
-                          className="h-5 px-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[10px] font-bold inline-flex items-center gap-0.5 transition shadow-xs cursor-pointer"
+                          className="h-5 px-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[10px] font-bold inline-flex items-center gap-0.5 transition shadow-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          <span>⚡</span>
-                          <span>اعتماد</span>
+                          <span>{approvingId === (e.id || e.expense_no) ? '⏳' : '⚡'}</span>
+                          <span>{approvingId === (e.id || e.expense_no) ? 'جاري...' : 'اعتماد'}</span>
                         </button>
                       )}
 

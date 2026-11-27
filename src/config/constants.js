@@ -81,8 +81,6 @@ function formatDateArabic(dateStr, withDayName = false) {
   return withDayName ? `${dayName}، ${day} ${month} ${year}` : `${day} ${month} ${year}`;
 }
 
-const GAS_WEB_APP_URL = "http://127.0.0.1:5000/api/gas";
-
 const ORG_NAME = (typeof window !== 'undefined' && window.BrandService) 
   ? window.BrandService.getProfile().name 
   : "نظام الإدارة المتكامل الذكي | ERP Master";
@@ -195,7 +193,7 @@ window.YEAR_STR = YEAR_STR;
 Object.assign(window, {
   TODAY_STR_ISO, TODAY_STR, TODAY_STR_DISPLAY, formatDateDisplay, formatDateArabic,
   ARABIC_MONTHS, ARABIC_DAYS, toStandardDigits, formatNumber, formatCurrency, formatPercent,
-  GAS_WEB_APP_URL, ORG_NAME, ORG_SHORT_TITLE, PLATFORMS, CURRENCIES, FABRIC_CATEGORIES,
+  ORG_NAME, ORG_SHORT_TITLE, PLATFORMS, CURRENCIES, FABRIC_CATEGORIES,
   PRODUCT_CATEGORIES, FACTORY_STAGES, TAILORING_STAGES, STAGE_LABELS, ORDER_STATUSES,
   EXPENSE_CATEGORIES, ACCOUNT_TYPES, PAY_METHODS, INITIAL_ACCOUNTS
 });

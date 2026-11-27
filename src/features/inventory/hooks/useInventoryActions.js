@@ -16,6 +16,7 @@ function useInventoryActions({ inventory = [], setInventory, showToast, refreshI
 
   const [adjustingItem, setAdjustingItem] = useState(null);
   const [adjustType, setAdjustType] = useState('wastage');
+  const [adjustWarehouseId, setAdjustWarehouseId] = useState('');
   const [adjustQty, setAdjustQty] = useState('');
   const [adjustReason, setAdjustReason] = useState('');
   const [isSubmittingAdjust, setIsSubmittingAdjust] = useState(false);
@@ -51,22 +52,46 @@ function useInventoryActions({ inventory = [], setInventory, showToast, refreshI
     setFormData(prev => ({ ...prev, total_value: t, cost: c }));
   };
 
-  const openAdjustModal = (item, type = 'wastage') => {
-    setAdjustingItem(item);
-    setAdjustType(type);
-    setAdjustQty('');
-    setAdjustReason('');
+  const openAdjustModal = async (item, type = 'wastage') => {
+    let whs = Array.isArray(u.WAREHOUSES) ? u.WAREHOUSES : [];
+    if (whs.length === 0 && u.refreshWarehouses) whs = await u.refreshWarehouses();
+    const defWh = item?.warehouse_details?.[0]?.warehouse_id || item?.warehouse_id || whs[0]?.id || whs[0]?.code || '';
+    setAdjustingItem(item); setAdjustType(type); setAdjustWarehouseId(defWh); setAdjustQty(''); setAdjustReason('');
   };
 
-  const openTransferModal = (item) => {
-    setTransferringItem(item);
-    const whs = Array.isArray(u.WAREHOUSES) ? u.WAREHOUSES : [];
-    const fromId = item.warehouse_id || (item.warehouse_details && item.warehouse_details[0]?.warehouse_id) || (whs[0]?.id || '');
-    const toWh = whs.find(w => (w.id || w.code) !== fromId);
-    setTransferFrom(fromId);
-    setTransferTo(toWh ? (toWh.id || toWh.code) : '');
+  const applyTransferSelection = (targetItem, whList) => {
+    const res = u.resolveTransferDefaults
+      ? u.resolveTransferDefaults(targetItem, inventory, whList)
+      : { item: targetItem || (inventory || [])[0] || null, fromId: whList[0]?.id || '', toId: whList[1]?.id || '' };
+    if (!res.item) return false;
+    setTransferringItem(res.item);
+    setTransferFrom(res.fromId);
+    setTransferTo(res.toId);
     setTransferQty('');
+    return true;
+  };
+
+  const openTransferModal = async (item = null) => {
+    let whs = Array.isArray(u.WAREHOUSES) ? u.WAREHOUSES : [];
+    if (whs.length === 0 && u.refreshWarehouses) whs = await u.refreshWarehouses();
+    if (!applyTransferSelection(item, whs)) {
+      return showToast?.('لا توجد أصناف مسجلة في المخزون للمناقلة ⚠️', 'error');
+    }
     setTransferNotes('');
+  };
+
+  const handleSelectTransferItem = (itemId) => {
+    const found = (inventory || []).find(i => String(i.id) === String(itemId));
+    if (found) applyTransferSelection(found, Array.isArray(u.WAREHOUSES) ? u.WAREHOUSES : []);
+  };
+
+  const handleTransferFromChange = (newFromId) => {
+    setTransferFrom(newFromId);
+    if (newFromId === transferTo) {
+      const whs = Array.isArray(u.WAREHOUSES) ? u.WAREHOUSES : [];
+      const alt = whs.find(w => (w.id || w.code) !== newFromId);
+      setTransferTo(alt ? (alt.id || alt.code) : '');
+    }
   };
 
   const handleAddItem = async (e) => {
@@ -76,15 +101,11 @@ function useInventoryActions({ inventory = [], setInventory, showToast, refreshI
     const costVal = parseFloat(formData.cost) || 0;
     const qtyVal = parseFloat(formData.qty) || 0;
     const newItem = {
-      id: Date.now(),
-      ...formData,
-      item_code: `MAT-${Math.floor(100 + Math.random() * 900)}`,
+      id: Date.now(), ...formData, item_code: `MAT-${Math.floor(100 + Math.random() * 900)}`,
       cost_per_unit: costVal, unit_cost: costVal, cost_per_meter: costVal,
       total_value: parseFloat(formData.total_value) || (costVal * qtyVal),
-      location: formData.location || '',
-      warehouse_id: formData.warehouse_id || '',
-      available_qty: qtyVal, quantity_meters: qtyVal, quantity: qtyVal, qty: qtyVal,
-      reorder_level: parseFloat(formData.reorder_level) || 5
+      location: formData.location || '', warehouse_id: formData.warehouse_id || '',
+      available_qty: qtyVal, quantity_meters: qtyVal, quantity: qtyVal, qty: qtyVal, reorder_level: parseFloat(formData.reorder_level) || 5
     };
 
     try {
@@ -112,102 +133,84 @@ function useInventoryActions({ inventory = [], setInventory, showToast, refreshI
   const handleExecuteAdjust = async (e) => {
     e.preventDefault();
     if (!adjustingItem) return;
+    if (!adjustWarehouseId) return showToast?.('يجب تحديد المستودع المستهدف للتسوية ⚠️', 'error');
     const vQty = parseFloat(adjustQty);
     if (!vQty || vQty <= 0) return showToast?.('الكمية المراد تسويتها يجب أن تكون أكبر من الصفر ⚠️', 'error');
-
+    const whAvail = u.getItemWarehouseStock ? u.getItemWarehouseStock(adjustingItem, adjustWarehouseId) : getItemQty(adjustingItem);
+    if (adjustType === 'wastage' && vQty > whAvail) return showToast?.(`الكمية المطلوبة (${vQty}) تتجاوز المتاح في المستودع (${whAvail}) ⚠️`, 'error');
     setIsSubmittingAdjust(true);
     try {
       if (window.inventoryAPI?.adjustInventory) {
-        const payload = {
-          item_id: adjustingItem.id,
-          item_name: getItemName(adjustingItem),
-          adj_type: adjustType,
-          variance_qty: vQty,
+        const res = await window.inventoryAPI.adjustInventory({
+          item_id: adjustingItem.id, item_name: getItemName(adjustingItem), warehouse_id: adjustWarehouseId,
+          adj_type: adjustType, variance_qty: vQty,
           reason: adjustReason || (adjustType === 'wastage' ? 'إهلاك تالف وهالك أقمشة' : 'تسوية فائض جردي')
-        };
-        const res = await window.inventoryAPI.adjustInventory(payload);
+        });
+        const payloadRes = res?.data || res;
         if (res?.success) {
-          showToast?.(res.message || 'تم ترحيل قيد التسوية الجردية بنجاح ⚖️');
-          setInventory?.(prev => (prev || []).map(i => i.id === adjustingItem.id ? { ...i, qty: res.new_qty, quantity: res.new_qty } : i));
-          setAdjustingItem(null);
-          setAdjustQty('');
-          setAdjustReason('');
+          showToast?.(payloadRes?.message || res.message || 'تم ترحيل قيد التسوية الجردية بنجاح ⚖️');
+          await refreshInventory?.(false);
           fetchTransactions?.();
-        } else showToast?.(res?.message || 'فشلت عملية التسوية', 'error');
+          setAdjustingItem(null); setAdjustWarehouseId(''); setAdjustQty(''); setAdjustReason('');
+        } else showToast?.(res?.error || res?.message || 'فشلت عملية التسوية', 'error');
       }
-    } catch (err) {
-      showToast?.(err.message || 'خطأ أثناء تنفيذ التسوية', 'error');
-    } finally {
-      setIsSubmittingAdjust(false);
-    }
+    } catch (err) { showToast?.(err.message || 'خطأ أثناء تنفيذ التسوية', 'error'); }
+    finally { setIsSubmittingAdjust(false); }
   };
 
   const handleExecuteTransfer = async (e) => {
     e.preventDefault();
     if (!transferringItem) return;
-    const tQty = parseFloat(transferQty);
-    if (!tQty || tQty <= 0) return showToast?.('الكمية يجب أن تكون أكبر من الصفر ⚠️', 'error');
-    if (tQty > getItemQty(transferringItem)) return showToast?.('الكمية تتجاوز الرصيد المتوفر ⚠️', 'error');
+    if (!transferFrom || !transferTo) return showToast?.('يجب تحديد مستودع المصدر ومستودع الوجهة ⚠️', 'error');
     if (transferFrom === transferTo) return showToast?.('لا يمكن التحويل لنفس المستودع ⚠️', 'error');
+    const tQty = parseFloat(transferQty);
+    const srcAvail = u.getItemWarehouseStock ? u.getItemWarehouseStock(transferringItem, transferFrom) : getItemQty(transferringItem);
+    if (!tQty || tQty <= 0) return showToast?.('الكمية يجب أن تكون أكبر من الصفر ⚠️', 'error');
+    if (tQty > srcAvail) return showToast?.(`الكمية تتجاوز الرصيد المتاح في مستودع المصدر (${srcAvail}) ⚠️`, 'error');
 
     setIsSubmittingTransfer(true);
     try {
+      const fromName = u.getWarehouseName ? u.getWarehouseName(transferFrom) : transferFrom;
+      const toName = u.getWarehouseName ? u.getWarehouseName(transferTo) : transferTo;
       const res = await fetch('/api/inventory/transfer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          item_id: transferringItem.id,
-          item_name: getItemName(transferringItem),
-          quantity: tQty,
-          from_warehouse: transferFrom,
-          to_warehouse: transferTo,
-          notes: transferNotes || `مناقلة من ${transferFrom} إلى ${transferTo}`
+          inventory_id: transferringItem.id, item_id: transferringItem.id,
+          item_name: getItemName(transferringItem), quantity: tQty,
+          from_warehouse_id: transferFrom, to_warehouse_id: transferTo,
+          from_warehouse: transferFrom, to_warehouse: transferTo,
+          notes: transferNotes || `مناقلة من ${fromName} إلى ${toName}`
         })
       }).then(r => r.json());
-
       if (res?.success) {
         const trfNum = res.transfer_ref ? ` (${res.transfer_ref})` : '';
         const jvNum = res.journal_entry_no ? ` [قيد: ${res.journal_entry_no}]` : '';
         showToast?.(res.message || `تمت مناقلة ${tQty} بنجاح 🔄${trfNum}${jvNum}`);
         await refreshInventory?.(false);
         fetchTransactions?.();
-        setTransferringItem(null);
-        setTransferQty('');
-        setTransferNotes('');
-      } else {
-        showToast?.(res?.error || res?.message || 'فشلت عملية المناقلة', 'error');
-      }
+        setTransferringItem(null); setTransferQty(''); setTransferNotes('');
+      } else showToast?.(res?.error || res?.message || 'فشلت عملية المناقلة', 'error');
     } catch (err) {
       showToast?.(err.message || 'خطأ أثناء تنفيذ المناقلة', 'error');
-    } finally {
-      setIsSubmittingTransfer(false);
-    }
+    } finally { setIsSubmittingTransfer(false); }
   };
 
   const handleReconcileGovernance = async () => {
     try {
       const res = await fetch('/api/inventory/reconcile', { method: 'POST' }).then(r => r.json());
-      if (res?.success) {
-        await refreshInventory?.(false);
-        fetchTransactions?.();
-        showToast?.(res.message || 'تمت تسوية ومطابقة أرصدة المخزون ⚖️✨');
-      } else showToast?.(res?.error || 'فشلت تسوية المخزون', 'error');
-    } catch (e) {
-      showToast?.('خطأ أثناء مطابقة المخزون ⚠️', 'error');
-    }
+      if (res?.success) { await refreshInventory?.(false); fetchTransactions?.(); showToast?.(res.message || 'تمت تسوية ومطابقة أرصدة المخزون ⚖️✨'); }
+      else showToast?.(res?.error || 'فشلت تسوية المخزون', 'error');
+    } catch (e) { showToast?.('خطأ أثناء مطابقة المخزون ⚠️', 'error'); }
   };
 
   return {
-    isAddModalOpen, setIsAddModalOpen,
-    formData, setFormData,
-    handleQtyChange, handleCostChange, handleTotalChange, handleAddItem,
-    adjustingItem, setAdjustingItem, adjustType, setAdjustType, adjustQty, setAdjustQty,
+    isAddModalOpen, setIsAddModalOpen, formData, setFormData, handleQtyChange, handleCostChange, handleTotalChange, handleAddItem,
+    adjustingItem, setAdjustingItem, adjustType, setAdjustType, adjustWarehouseId, setAdjustWarehouseId, adjustQty, setAdjustQty,
     adjustReason, setAdjustReason, isSubmittingAdjust, handleExecuteAdjust, openAdjustModal,
-    transferringItem, setTransferringItem, transferFrom, setTransferFrom, transferTo, setTransferTo,
-    transferQty, setTransferQty, transferNotes, setTransferNotes, isSubmittingTransfer,
-    handleExecuteTransfer, openTransferModal,
-    selectedItemForMovements, setSelectedItemForMovements,
-    isAddWarehouseOpen, setIsAddWarehouseOpen,
+    transferringItem, setTransferringItem, transferFrom, setTransferFrom: handleTransferFromChange, transferTo, setTransferTo,
+    transferQty, setTransferQty, transferNotes, setTransferNotes, isSubmittingTransfer, handleExecuteTransfer, openTransferModal,
+    handleSelectTransferItem, selectedItemForMovements, setSelectedItemForMovements, isAddWarehouseOpen, setIsAddWarehouseOpen,
     handleReconcileGovernance
   };
 }

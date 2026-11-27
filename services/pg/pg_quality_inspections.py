@@ -9,7 +9,11 @@ logger = logging.getLogger("LittlePrincesses_PG_QualityInspections")
 
 
 def get_quality_inspections(params=None):
-    query = "SELECT * FROM quality_inspections ORDER BY created_at DESC;"
+    query = """SELECT id, inspection_date, product_id, product_name, sku, model_id, color, size,
+               production_order_id, production_stage, batch_id, quantity_checked, quantity_passed,
+               quantity_failed, inspection_result, inspector_id, inspector_name, notes,
+               CASE WHEN attachment_url LIKE 'data:%%' OR LENGTH(COALESCE(attachment_url, '')) > 500 THEN '' ELSE attachment_url END AS attachment_url,
+               created_at, updated_at FROM quality_inspections ORDER BY created_at DESC;"""
     rows = execute_query(query, fetch_all=True)
     for r in rows:
         for k in ('created_at', 'updated_at', 'inspection_date'):

@@ -21,7 +21,7 @@ def refresh_chart_balances_atomic(cur):
             FROM chart_of_accounts c
             LEFT JOIN (
                 journal_entry_lines l 
-                JOIN journal_entries j ON l.entry_id = j.id AND j.status = 'Posted'
+                JOIN journal_entries j ON (l.entry_id = j.id OR l.entry_id = j.entry_no) AND j.status IN ('Posted', 'Reversed')
             ) ON (
                 l.account_id = c.id 
                 OR l.account_id = c.account_code
@@ -39,9 +39,11 @@ def refresh_chart_balances_atomic(cur):
 
 
 def get_accounts(params=None):
-    """استرجاع شجرة دليل الحسابات مع الأرصدة المحلية والأجنبية مع مزامنة الأرصدة ديناميكياً"""
-    with get_db_cursor(commit=True) as cur:
-        refresh_chart_balances_atomic(cur)
+    """استرجاع شجرة دليل الحسابات مع الأرصدة المحلية والأجنبية (قراءة بحتة دون قفل كتابة إلا بطلب صريح)"""
+    params = params or {}
+    if str(params.get('recalculate') or '').strip().lower() in ('1', 'true', 'yes'):
+        with get_db_cursor(commit=True) as cur:
+            refresh_chart_balances_atomic(cur)
     query = """
         SELECT c.id, c.account_code, c.account_name, c.account_name_en, c.account_type,
                c.account_category, c.parent_account_id, c.parent_account_code, c.level,
@@ -64,6 +66,7 @@ def get_accounts(params=None):
                      )
                      FROM journal_entries 
                      WHERE (credit_account_id IN (c.id, c.account_code) OR debit_account_id IN (c.id, c.account_code))
+                       AND status IN ('Posted', 'Reversed')
                    ), 0.0)
                  ELSE
                    COALESCE((
@@ -77,6 +80,7 @@ def get_accounts(params=None):
                      )
                      FROM journal_entries 
                      WHERE (debit_account_id IN (c.id, c.account_code) OR credit_account_id IN (c.id, c.account_code))
+                       AND status IN ('Posted', 'Reversed')
                    ), 0.0)
                END as foreign_balance
         FROM chart_of_accounts c
@@ -190,15 +194,18 @@ def reset_clean_chart_of_accounts(payload=None):
 
 def get_currencies(params=None):
     """استرجاع قائمة العملات المعرفة وأسعار الصرف الحية"""
-    query = "SELECT code, name, symbol, exchange_rate, is_base, is_active, last_updated FROM currencies ORDER BY is_base DESC, code ASC;"
-    rows = execute_query(query, fetch_all=True) or []
-    for r in rows:
-        if r.get('last_updated'): r['last_updated'] = str(r['last_updated'])
-    return rows
+    from .ref_cache import get_cached_ref
+    def _load():
+        rows = execute_query("SELECT code, name, symbol, exchange_rate, is_base, is_active, last_updated FROM currencies ORDER BY is_base DESC, code ASC;", fetch_all=True) or []
+        for r in rows:
+            if r.get('last_updated'): r['last_updated'] = str(r['last_updated'])
+        return rows
+    return get_cached_ref('currencies', _load, ttl=180)
 
 
 def update_exchange_rate(payload):
     """تحديث سعر الصرف لعملة محددة"""
+    from .ref_cache import invalidate_ref
     data = payload.get('data') or payload
     code = clean_str(data.get('code') or data.get('currency')).upper()
     rate = clean_num(data.get('rate') or data.get('exchange_rate'))
@@ -206,4 +213,5 @@ def update_exchange_rate(payload):
     with get_db_cursor(commit=True) as cur:
         cur.execute("UPDATE currencies SET exchange_rate = %s, last_updated = CURRENT_TIMESTAMP WHERE code = %s RETURNING *;", (rate, code))
         row = cur.fetchone()
-        return dict(row) if row else {"status": "not_found"}
+    invalidate_ref('currencies', 'system_settings')
+    return dict(row) if row else {"status": "not_found"}

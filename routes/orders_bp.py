@@ -3,6 +3,14 @@
 
 from flask import Blueprint, request, jsonify
 import pg_service
+from services.security import (
+    idempotent_op,
+    require_roles,
+    ROLE_ADMIN,
+    ROLE_ACCOUNTANT,
+    ROLE_DATA_ENTRY,
+    translate_shield_error
+)
 
 orders_bp = Blueprint('orders_bp', __name__)
 
@@ -19,32 +27,39 @@ def list_orders():
 
 
 @orders_bp.route('/api/orders', methods=['POST'])
+@orders_bp.route('/api/orders/save', methods=['POST'])
 @orders_bp.route('/api/sales/orders', methods=['POST'])
+@orders_bp.route('/api/pos/orders', methods=['POST'])
 @orders_bp.route('/api/orders/create', methods=['POST'])
 @orders_bp.route('/api/sales/orders/create', methods=['POST'])
+@idempotent_op('create_order')
 def create_order():
     try:
         data = request.get_json(silent=True) or {}
         res = pg_service.add_order(data)
         return jsonify({'success': True, 'data': res, 'order': res}), 200
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        code, msg = translate_shield_error(e)
+        return jsonify({'success': False, 'error': msg, 'message': msg}), code
 
 
 @orders_bp.route('/api/orders/update', methods=['POST'])
 @orders_bp.route('/api/sales/orders/update', methods=['POST'])
+@idempotent_op('order_update')
 def update_order():
     try:
         data = request.get_json(silent=True) or {}
         res = pg_service.update_order(data)
         return jsonify({'success': True, 'data': res}), 200
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        code, msg = translate_shield_error(e)
+        return jsonify({'success': False, 'error': msg, 'message': msg}), code
 
 
 @orders_bp.route('/api/orders/delete', methods=['POST'])
 @orders_bp.route('/api/sales/orders/delete', methods=['POST'])
 @orders_bp.route('/api/sales/orders/<order_id>', methods=['DELETE'])
+@require_roles(ROLE_ADMIN)
 def delete_order(order_id=None):
     try:
         if not order_id:
@@ -55,7 +70,8 @@ def delete_order(order_id=None):
         res = pg_service.delete_order({'order_id': order_id})
         return jsonify({'success': True, 'data': res}), 200
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        code, msg = translate_shield_error(e)
+        return jsonify({'success': False, 'error': msg, 'message': msg}), code
 
 
 @orders_bp.route('/api/pricing/quick-quote', methods=['GET'])
@@ -91,34 +107,46 @@ def dress_card():
         res = get_dress_card_payload(order_id)
         return jsonify(res), (200 if res.get('success') else 404)
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        code, msg = translate_shield_error(e)
+        return jsonify({'success': False, 'error': msg, 'message': msg}), code
 
 
 @orders_bp.route('/api/sales/orders/deliver-and-settle', methods=['POST'])
-def deliver_and_settle():
+@orders_bp.route('/api/orders/deliver', methods=['POST'])
+@orders_bp.route('/api/orders/<order_id>/deliver', methods=['POST'])
+@idempotent_op('order_deliver')
+def deliver_and_settle(order_id=None):
     try:
         data = request.get_json(silent=True) or {}
+        if order_id and not data.get('order_id'):
+            data['order_id'] = order_id
         res = pg_service.deliver_and_settle_order(data)
         return jsonify(res), (200 if res.get('success') else 400)
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        code, msg = translate_shield_error(e)
+        return jsonify({'success': False, 'error': msg, 'message': msg}), code
 
 
 @orders_bp.route('/api/sales/orders/reverse-delivery', methods=['POST'])
+@require_roles(ROLE_ADMIN, ROLE_ACCOUNTANT)
+@idempotent_op('order_reverse_delivery')
 def reverse_delivery():
     try:
         data = request.get_json(silent=True) or {}
         res = pg_service.reverse_order_delivery(data)
         return jsonify(res), (200 if res.get('success') else 400)
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        code, msg = translate_shield_error(e)
+        return jsonify({'success': False, 'error': msg, 'message': msg}), code
 
 
 @orders_bp.route('/api/sales/scan-to-deliver', methods=['POST'])
+@idempotent_op('order_scan_deliver')
 def scan_to_deliver():
     try:
         data = request.get_json(silent=True) or {}
         res = pg_service.scan_to_deliver_order(data)
         return jsonify(res), (200 if res.get('success') else 400)
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        code, msg = translate_shield_error(e)
+        return jsonify({'success': False, 'error': msg, 'message': msg}), code

@@ -58,7 +58,7 @@ function WorkerAssignModal({
           </div>
 
           {!isReadyToWear && (
-            <button type="button" onClick={() => { setShowOrderForm(true); if (selectLatestCustomer) selectLatestCustomer(); }} className="h-5 px-1.5 rounded bg-purple-950/40 hover:bg-purple-900/60 text-purple-300 font-medium text-[10px] border border-purple-700/40 transition flex items-center gap-1 cursor-pointer">
+            <button type="button" onClick={() => { setShowOrderForm(true); if (selectLatestCustomer) selectLatestCustomer(); }} className="h-5 px-1.5 rounded bg-purple-50 dark:bg-purple-950/40 hover:bg-purple-100 dark:hover:bg-purple-900/60 text-purple-700 dark:text-purple-300 font-medium text-[10px] border border-purple-200 dark:border-purple-700/40 transition flex items-center gap-1 cursor-pointer">
               <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
               <span>آخر زبون</span>
             </button>
@@ -67,7 +67,7 @@ function WorkerAssignModal({
       </div>
 
       {showOrderForm && (
-        <form onSubmit={e => { if (e && e.preventDefault) e.preventDefault(); if (typeof handleSubmit === 'function') handleSubmit(e); }} className="p-2.5 space-y-2 border-t border-slate-800/80">
+        <form onSubmit={e => { if (e && e.preventDefault) e.preventDefault(); if (typeof handleSubmit === 'function') handleSubmit(e); }} className="p-2.5 space-y-2 border-t border-[#CBD5E1] dark:border-slate-800/80 erp-slide-down">
           {/* Form Fields Component (Includes Unified Financial Strip) */}
           {FormFieldsComponent && (
             <FormFieldsComponent
@@ -114,8 +114,8 @@ function WorkerAssignModal({
                 if (isSubmitting) return;
                 setIsSubmitting(true);
                 try {
-                  if (typeof handleSubmit === 'function') await handleSubmit(e);
-                  setShowOrderForm(false);
+                  const ok = (typeof handleSubmit === 'function') ? await handleSubmit(e) : true;
+                  if (ok !== false) setShowOrderForm(false);
                 } finally {
                   setIsSubmitting(false);
                 }

@@ -49,22 +49,12 @@
     }
   ];
 
+  try {
+    localStorage.removeItem(STORAGE_KEY_RATES);
+  } catch(e) {}
+
   function loadStoredRates() {
-    var rates = { YER: 1.0, SAR: 142.0, USD: 535.0 };
-    try {
-      var saved = localStorage.getItem(STORAGE_KEY_RATES);
-      if (saved) {
-        var parsed = JSON.parse(saved);
-        if (parsed && typeof parsed === 'object') {
-          if (parsed.YER) rates.YER = 1.0;
-          if (parsed.SAR && Number(parsed.SAR) > 0) rates.SAR = Number(parsed.SAR);
-          if (parsed.USD && Number(parsed.USD) > 0) rates.USD = Number(parsed.USD);
-        }
-      }
-    } catch (e) {
-      console.warn('[CurrencyRates] Error loading stored rates:', e);
-    }
-    return rates;
+    return { YER: 1.0, SAR: 142.0, USD: 535.0 };
   }
 
   var currentRates = loadStoredRates();
@@ -72,8 +62,9 @@
   function saveStoredRates(rates) {
     try {
       rates.YER = 1.0;
-      localStorage.setItem(STORAGE_KEY_RATES, JSON.stringify(rates));
-      window.dispatchEvent(new CustomEvent(EVENT_RATES_CHANGED, { detail: { rates: rates } }));
+      if (rates.SAR) currentRates.SAR = Number(rates.SAR);
+      if (rates.USD) currentRates.USD = Number(rates.USD);
+      window.dispatchEvent(new CustomEvent(EVENT_RATES_CHANGED, { detail: { rates: currentRates } }));
       if (window.fetch) {
         fetch('/api/exchange-rates', {
           method: 'POST',
@@ -86,7 +77,7 @@
     }
   }
 
-  // Auto-sync rates with server on startup
+  // Auto-sync rates dynamically with server on startup (No stale local cache)
   if (typeof window !== 'undefined' && window.fetch) {
     fetch('/api/exchange-rates')
       .then(function(res) { return res.json(); })
@@ -95,9 +86,6 @@
           if (json.rates.SAR && Number(json.rates.SAR) > 0) currentRates.SAR = Number(json.rates.SAR);
           if (json.rates.USD && Number(json.rates.USD) > 0) currentRates.USD = Number(json.rates.USD);
           currentRates.YER = 1.0;
-          try {
-            localStorage.setItem(STORAGE_KEY_RATES, JSON.stringify(currentRates));
-          } catch(e) {}
           window.dispatchEvent(new CustomEvent(EVENT_RATES_CHANGED, { detail: { rates: currentRates } }));
         }
       })

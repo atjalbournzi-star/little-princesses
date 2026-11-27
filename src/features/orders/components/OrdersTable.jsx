@@ -11,7 +11,9 @@ function OrdersTable({
   onOpenCustomerMessage,
   onOpenPrintModal,
   onOpenAlterationModal,
-  onViewOrderDetail
+  onViewOrderDetail,
+  onReturnPosOrder,
+  returningOrderId = null
 }) {
   const getCustName = window.getCustomerName || ((c) => c?.name || '');
   const statuses = window.ORDER_STATUSES || [];
@@ -37,7 +39,11 @@ function OrdersTable({
               const dispChild = (o.child_name && String(o.child_name).trim()) ? o.child_name : (cust?.measurements?.[0]?.child_name || "—");
               const dispDate = o.delivery_date ? String(o.delivery_date).split('T')[0] : (cust?.measurements?.[0]?.event_date ? String(cust.measurements[0].event_date).split('T')[0] : '—');
               const rem = Math.max(0, (parseFloat(o.total ?? o.total_amount) || 0) - (parseFloat(o.paid ?? o.paid_amount) || 0));
-              const isPos = o.order_no?.startsWith('POS-') || o.status === 'جاهز للتسليم 🛍️';
+              const isPosOrder = String(o.order_no || o.id || '').toUpperCase().startsWith('POS-');
+              const isPos = isPosOrder || o.status === 'جاهز للتسليم 🛍️';
+              const stLow = String(o.status || '').toLowerCase(), pstLow = String(o.production_status || '').toLowerCase();
+              const isReturned = pstLow === 'returned' || stLow === 'returned' || stLow.includes('مرتجع');
+              const isReturning = returningOrderId && returningOrderId === (o.order_no || o.id);
 
               return (
                 <tr key={o.id} className="hover:bg-[#FAFAFB] dark:hover:bg-slate-800/60 transition-colors">
@@ -67,8 +73,9 @@ function OrdersTable({
                   <td className="px-3.5 py-3 whitespace-nowrap">
                     <select
                       value={o.status || "قيد الخياطة 🪡"}
+                      disabled={isReturned}
                       onChange={e => handleUpdateStatus && handleUpdateStatus(o.id, e.target.value)}
-                      className="bg-[#FAFAFB] dark:bg-slate-800 border border-[#E8E5EA] dark:border-slate-700 text-[#25232A] dark:text-slate-100 px-2 py-1 rounded-lg font-bold outline-none cursor-pointer text-[11px]"
+                      className={`bg-[#FAFAFB] dark:bg-slate-800 border border-[#E8E5EA] dark:border-slate-700 text-[#25232A] dark:text-slate-100 px-2 py-1 rounded-lg font-bold outline-none text-[11px] ${isReturned ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}
                     >
                       {statuses.map(st => (
                         <option key={st} value={st}>{st}</option>
@@ -81,13 +88,27 @@ function OrdersTable({
                   <td className="px-3.5 py-3 whitespace-nowrap">
                     <div className="flex items-center gap-1 justify-center">
                       {/* تسليم الفستان والتحصيل الخزني */}
-                      {(o.status === 'جاهز للتسليم 🛍️' || o.status === 'جاهز للتسليم 📦' || o.status === 'جاهز للتسليم 🎁' || o.status === 'READY' || rem > 0) && onOpenDeliveryModal && (
+                      {!isReturned && (o.status === 'جاهز للتسليم 🛍️' || o.status === 'جاهز للتسليم 📦' || o.status === 'جاهز للتسليم 🎁' || o.status === 'READY' || rem > 0) && onOpenDeliveryModal && (
                         <button
                           onClick={() => onOpenDeliveryModal(o)}
                           title="تسليم الفستان وتحصيل المتبقي وقيد الخزينة 🛍️"
                           className="w-7 h-7 rounded-lg bg-gradient-to-r from-[#B0005A] to-[#8F2A87] hover:opacity-95 text-white flex items-center justify-center cursor-pointer text-xs font-bold shadow-2xs"
                         >
                           🛍️
+                        </button>
+                      )}
+
+                      {/* مرتجع مبيعات POS */}
+                      {isPosOrder && !isReturned && onReturnPosOrder && (
+                        <button
+                          type="button"
+                          disabled={!!isReturning}
+                          onClick={() => onReturnPosOrder(o)}
+                          title="مرتجع مبيعات POS (إرجاع المخزون وعكس القيد)"
+                          className="h-7 px-2 rounded-lg bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-600 text-rose-700 dark:text-rose-300 hover:text-white border border-rose-200 dark:border-rose-800 transition-all flex items-center justify-center gap-1 cursor-pointer text-[10.5px] font-bold whitespace-nowrap disabled:opacity-50"
+                        >
+                          <span>↩️</span>
+                          <span>{isReturning ? 'جاري...' : 'مرتجع مبيعات'}</span>
                         </button>
                       )}
 

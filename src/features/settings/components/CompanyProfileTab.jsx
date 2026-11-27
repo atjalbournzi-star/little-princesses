@@ -54,7 +54,7 @@ function CompanyProfileTab({
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2">
             <div>
               <label className={labelCls}>اسم المنشأة الرسمي *</label>
-              <input type="text" required className={inputCls} value={formData.companyName} onChange={e => setFormData({...formData, companyName: e.target.value})} placeholder="دار الأميرات الصغيرات" />
+              <input type="text" required className={inputCls} value={formData.companyName} onChange={e => setFormData({...formData, companyName: e.target.value})} placeholder="اسم المنشأة الرسمي" />
             </div>
             <div>
               <label className={labelCls}>الاسم المختصر للنظام *</label>

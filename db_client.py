@@ -53,7 +53,7 @@ def init_pool(minconn=None, maxconn=None, mode=None):
     with _pool_lock:
         if _db_pool is not None and not _db_pool.closed:
             return _db_pool
-        if time.time() - _last_fail_time < 3 and _last_fail_err:
+        if time.time() - _last_fail_time < 0.8 and _last_fail_err:
             raise _last_fail_err
         min_c = minconn or DB_POOL_MIN
         max_c = maxconn or DB_POOL_MAX
@@ -66,7 +66,7 @@ def init_pool(minconn=None, maxconn=None, mode=None):
                 _db_pool = pool.ThreadedConnectionPool(
                     minconn=min_c, maxconn=max_c, dsn=db_url,
                     connect_timeout=min(DB_TIMEOUT, 15),
-                    keepalives=1, keepalives_idle=30, keepalives_interval=10, keepalives_count=5
+                    keepalives=1, keepalives_idle=20, keepalives_interval=5, keepalives_count=4
                 )
                 _pool_semaphore = threading.BoundedSemaphore(max_c)
                 logger.info("✅ PostgreSQL connection pool created successfully.")
@@ -88,67 +88,42 @@ def get_pool(mode=None):
     return _db_pool
 
 
-def close_pool():
-    global _db_pool, _pool_semaphore
+def reset_pool():
+    global _db_pool, _pool_semaphore, _last_fail_time, _last_fail_err
     with _pool_lock:
         if _db_pool is not None and not _db_pool.closed:
-            _db_pool.closeall()
-            _db_pool = None
-            _pool_semaphore = None
-            logger.info("✅ Connection pool closed.")
+            try: _db_pool.closeall()
+            except Exception: pass
+        _db_pool, _pool_semaphore, _last_fail_time, _last_fail_err = None, None, 0.0, None
+        logger.warning("🔄 Connection pool reset for automatic network recovery.")
+
+
+def close_pool():
+    reset_pool()
+    logger.info("✅ Connection pool closed.")
 
 
 @contextmanager
 def get_db_connection(mode=None):
-    p = get_pool(mode=mode)
+    from services.pg.pool_resilience import acquire_healthy_connection, release_connection, TRANSIENT_DB_ERRORS
+    get_pool(mode=mode)
     sem = _pool_semaphore
-    acquired = False
-    if sem:
-        acquired = sem.acquire(timeout=DB_TIMEOUT)
-        if not acquired:
-            raise psycopg2.pool.PoolError(f"Connection wait timeout exceeded ({DB_TIMEOUT}s)")
-    conn, is_bad = None, False
+    acquired = sem.acquire(timeout=DB_TIMEOUT) if sem else False
+    if sem and not acquired:
+        raise psycopg2.pool.PoolError(f"Connection wait timeout exceeded ({DB_TIMEOUT}s)")
+    conn, conn_pool, is_bad = None, None, False
     try:
-        import time
-        for attempt in range(2):
-            is_bad = False
-            try: conn = p.getconn()
-            except Exception:
-                if attempt == 0: time.sleep(0.3); continue
-                raise
-            try:
-                if not conn or conn.closed != 0: is_bad = True
-                else:
-                    if conn.autocommit: conn.autocommit = False
-                    if conn.status != psycopg2.extensions.STATUS_READY: conn.rollback()
-                    with conn.cursor() as probe: probe.execute("SELECT 1;")
-                    if conn.status != psycopg2.extensions.STATUS_READY: conn.rollback()
-            except Exception: is_bad = True
-            if is_bad:
-                if conn:
-                    try: p.putconn(conn, close=True)
-                    except Exception: pass
-                    conn = None
-                if attempt == 0: time.sleep(0.3); continue
-            break
-        if not conn or is_bad:
-            raise psycopg2.OperationalError("Unable to acquire a healthy database connection")
+        conn, conn_pool = acquire_healthy_connection(get_pool, reset_pool, mode=mode)
         yield conn
     except Exception as e:
-        if isinstance(e, (psycopg2.OperationalError, psycopg2.InterfaceError)): is_bad = True
+        if isinstance(e, TRANSIENT_DB_ERRORS):
+            is_bad = True
         if conn and not conn.closed:
             try: conn.rollback()
             except Exception: pass
         raise e
     finally:
-        if conn and not p.closed:
-            try:
-                if is_bad or conn.closed != 0: p.putconn(conn, close=True)
-                else:
-                    if conn.autocommit: conn.autocommit = False
-                    if conn.status != psycopg2.extensions.STATUS_READY: conn.rollback()
-                    p.putconn(conn)
-            except Exception: pass
+        release_connection(conn, conn_pool, is_bad=is_bad)
         if acquired and sem:
             try: sem.release()
             except Exception: pass
@@ -177,15 +152,24 @@ def get_db_cursor(commit=True, dict_cursor=True, mode=None):
 
 
 def execute_query(query, params=None, fetch_one=False, fetch_all=False, commit=False, dict_cursor=True, mode=None):
-    with get_db_cursor(commit=commit, dict_cursor=dict_cursor, mode=mode) as cur:
-        cur.execute(query, params)
-        if fetch_one:
-            res = cur.fetchone()
-            return dict(res) if (dict_cursor and res is not None) else res
-        if fetch_all:
-            res = cur.fetchall()
-            return [dict(r) if dict_cursor else r for r in res]
-        return cur.rowcount
+    q_head = (query or '').lstrip().upper()
+    is_read_only = (not commit) and (q_head.startswith('SELECT') or q_head.startswith('WITH'))
+    attempts = 2 if is_read_only else 1
+    for attempt in range(attempts):
+        try:
+            with get_db_cursor(commit=commit, dict_cursor=dict_cursor, mode=mode) as cur:
+                cur.execute(query, params)
+                if fetch_one:
+                    res = cur.fetchone()
+                    return dict(res) if (dict_cursor and res is not None) else res
+                if fetch_all:
+                    res = cur.fetchall()
+                    return [dict(r) if dict_cursor else r for r in res]
+                return cur.rowcount
+        except (psycopg2.OperationalError, psycopg2.InterfaceError):
+            if attempt >= attempts - 1:
+                raise
+            reset_pool()
 
 
 def execute_batch(query, param_list, commit=True, mode=None):

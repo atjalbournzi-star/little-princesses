@@ -17,6 +17,8 @@ def get_inventory(params=None):
     if wh_filter:
         query = """
             SELECT i.id, i.item_code, i.name, i.name as item_name, i.type, i.category, i.unit,
+                   COALESCE(i.item_type, 'raw_material') as item_type, i.image_url, COALESCE(i.selling_price, 0.0) as selling_price,
+                   i.style_code, i.season_collection, i.care_notes,
                    COALESCE(ws.quantity, 0.0) as quantity, COALESCE(ws.quantity, 0.0) as qty, COALESCE(ws.quantity, 0.0) as current_balance,
                    COALESCE(ws.reserved_qty, 0.0) as reserved_qty, COALESCE(ws.available_qty, ws.quantity - COALESCE(ws.reserved_qty, 0), 0.0) as available_qty,
                    COALESCE(i.min_limit, 5.0) as min_limit, i.min_limit as reorder_level, COALESCE(i.unit_cost, 0.0) as unit_cost, i.unit_cost as avg_cost,
@@ -33,6 +35,8 @@ def get_inventory(params=None):
     else:
         query = """
             SELECT i.id, i.item_code, i.name, i.name as item_name, i.type, i.category, i.unit,
+                   COALESCE(i.item_type, 'raw_material') as item_type, i.image_url, COALESCE(i.selling_price, 0.0) as selling_price,
+                   i.style_code, i.season_collection, i.care_notes,
                    i.quantity, i.quantity as qty, i.quantity as quantity_meters, i.quantity as current_balance,
                    COALESCE(i.reserved_qty, 0) as reserved_qty, COALESCE(i.available_qty, i.quantity - COALESCE(i.reserved_qty, 0), i.quantity) as available_qty,
                    COALESCE(i.min_limit, 5.0) as min_limit, i.min_limit as reorder_level, COALESCE(i.unit_cost, 0.0) as unit_cost, i.unit_cost as avg_cost,
@@ -97,7 +101,8 @@ def get_inventory(params=None):
         r['total_value'] = round(q_val * c_val, 4)
         u_norm = normalize_uom(r.get('unit') or 'متر')
         r['quantity_meters'] = round(convert_uom(q_val, u_norm, 'متر'), 4) if u_norm in ('متر', 'وار', 'إنش', 'سم', 'رول') else 0.0
-    return rows
+    from .pg_ready_queries import attach_variants_to_inventory
+    return attach_variants_to_inventory(rows)
 
 
 def add_or_update_inventory(payload):

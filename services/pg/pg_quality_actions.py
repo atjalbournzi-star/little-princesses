@@ -103,17 +103,20 @@ def ensure_quality_seed_data():
 
 
 def get_quality_checkpoints(params=None):
-    query = "SELECT * FROM quality_checkpoints ORDER BY id ASC;"
-    rows = execute_query(query, fetch_all=True)
-    if not rows:
-        ensure_quality_seed_data()
+    from .ref_cache import get_cached_ref
+    def _load():
+        query = "SELECT * FROM quality_checkpoints ORDER BY id ASC;"
         rows = execute_query(query, fetch_all=True)
-    for r in rows:
-        if r.get('created_at'):
-            r['created_at'] = str(r['created_at'])
-        if r.get('tolerance') is not None:
-            r['tolerance'] = float(r['tolerance'])
-    return rows
+        if not rows:
+            ensure_quality_seed_data()
+            rows = execute_query(query, fetch_all=True)
+        for r in rows:
+            if r.get('created_at'):
+                r['created_at'] = str(r['created_at'])
+            if r.get('tolerance') is not None:
+                r['tolerance'] = float(r['tolerance'])
+        return rows
+    return get_cached_ref('quality_checkpoints', _load, ttl=300)
 
 
 def save_quality_checkpoint(payload):
@@ -146,22 +149,27 @@ def save_quality_checkpoint(payload):
             row['created_at'] = str(row['created_at'])
         if row.get('tolerance') is not None:
             row['tolerance'] = float(row['tolerance'])
-        return row
+    from .ref_cache import invalidate_ref
+    invalidate_ref('quality_checkpoints')
+    return row
 
 
 def get_quality_settings(params=None):
-    query = "SELECT * FROM quality_settings ORDER BY id ASC;"
-    rows = execute_query(query, fetch_all=True)
-    if not rows:
-        ensure_quality_seed_data()
+    from .ref_cache import get_cached_ref
+    def _load():
+        query = "SELECT * FROM quality_settings ORDER BY id ASC;"
         rows = execute_query(query, fetch_all=True)
-    for r in rows:
-        if r.get('created_at'):
-            r['created_at'] = str(r['created_at'])
-        for k in ('target', 'warning_threshold', 'critical_threshold', 'weight'):
-            if r.get(k) is not None:
-                r[k] = float(r[k])
-    return rows
+        if not rows:
+            ensure_quality_seed_data()
+            rows = execute_query(query, fetch_all=True)
+        for r in rows:
+            if r.get('created_at'):
+                r['created_at'] = str(r['created_at'])
+            for k in ('target', 'warning_threshold', 'critical_threshold', 'weight'):
+                if r.get(k) is not None:
+                    r[k] = float(r[k])
+        return rows
+    return get_cached_ref('quality_settings', _load, ttl=300)
 
 
 def save_quality_settings(payload):
@@ -196,4 +204,6 @@ def save_quality_settings(payload):
         for k in ('target', 'warning_threshold', 'critical_threshold', 'weight'):
             if row.get(k) is not None:
                 row[k] = float(row[k])
-        return row
+    from .ref_cache import invalidate_ref
+    invalidate_ref('quality_settings')
+    return row

@@ -65,96 +65,47 @@ function AppTopbar({
     hr: 'الموارد البشرية والرواتب', feedback: 'إدارة الجودة الشاملة (QA)', settings: 'إعدادات النظام والحوكمة'
   };
 
+  const role = currentUser?.role || 'admin';
+  const canCreateOrder = ['admin', 'data_entry', 'sales_rep', 'cashier'].includes(role);
+
   return (
-    <header className="h-11 min-h-[44px] px-3 bg-[#0B132B]/95 backdrop-blur border-b border-slate-800/80 flex items-center justify-between shrink-0 z-30 select-none">
-      {/* Right / Start: Sidebar Toggle & Active Tenant / Branch Pill */}
+    <header className="h-11 min-h-[44px] px-3 bg-white dark:bg-[#0B132B]/95 backdrop-blur border-b border-[#E2E8F0] dark:border-[#263248] flex items-center justify-between shrink-0 z-30 select-none">
       <div className="flex items-center gap-2 shrink-0">
         <button
           type="button"
           onClick={toggleSidebar}
-          className="w-[30px] h-[30px] flex items-center justify-center rounded-lg bg-slate-900 border border-slate-700/80 text-slate-300 hover:text-white transition cursor-pointer text-xs"
-          title={isCollapsed ? "توسيع القائمة الجانبية" : "طي القائمة الجانبية"}
+          className="w-[30px] h-[30px] flex items-center justify-center rounded-lg bg-[#F8FAFC] dark:bg-slate-900 border border-[#E2E8F0] dark:border-[#263248] text-[#475569] dark:text-slate-300 hover:text-[#0F172A] dark:hover:text-white transition cursor-pointer text-sm font-bold"
+          title={isCollapsed ? "توسيع القائمة" : "طي القائمة"}
         >
-          <span className="text-sm">{isCollapsed ? "☰" : "⇤"}</span>
+          <span>{isCollapsed ? "←" : "→"}</span>
         </button>
-
-        <div className="relative">
-          <div className="flex items-center gap-1.5 bg-slate-900/90 border border-slate-700/80 rounded-lg px-2.5 h-[30px] shadow-sm select-none">
-            {/* Tenant / Organization Name */}
-            <div className="flex items-center gap-1 text-[11px] font-bold text-pink-400">
-              <span className="w-2 h-2 rounded-full bg-pink-500 animate-pulse"></span>
-              <span>مؤسسة الأميرات الصغيرات</span>
-            </div>
-            <span className="text-slate-600 text-xs">/</span>
-            {/* Active Branch Selector */}
-            <button
-              type="button"
-              onClick={() => setBranchDropdown(!branchDropdown)}
-              className="flex items-center gap-1 text-[11px] font-semibold text-slate-200 hover:text-white transition cursor-pointer"
-            >
-              <span className="text-xs">🏢</span>
-              <span>مشغل الأميرات (المركز الرئيسي)</span>
-              <span className="text-[9px] text-slate-400">▼</span>
-            </button>
-          </div>
-
-          {branchDropdown && (
-            <div className="absolute right-0 mt-1 w-56 bg-slate-900 border border-slate-800 rounded-xl shadow-xl p-1 z-50 text-xs space-y-1">
-              <div className="px-2 py-1 text-[10px] text-slate-400 font-bold border-b border-slate-800">الفروع المتاحة</div>
-              <button
-                type="button"
-                onClick={() => setBranchDropdown(false)}
-                className="w-full text-right px-2 py-1.5 rounded-lg text-xs font-semibold text-pink-400 bg-slate-800/80 flex items-center justify-between cursor-pointer"
-              >
-                <span>مشغل الأميرات (المركز الرئيسي)</span>
-                <span className="text-[10px]">✓</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setBranchDropdown(false)}
-                className="w-full text-right px-2 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:bg-slate-800 hover:text-slate-200 flex items-center justify-between cursor-pointer"
-              >
-                <span>فرع الصالة والمعرض التجاري</span>
-                <span className="text-[9px] text-slate-500">نشط</span>
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Center: Global Search */}
-      <div className="hidden md:flex items-center relative flex-1 max-w-md mx-2.5">
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full h-[30px] text-xs text-white placeholder-slate-400 bg-slate-900/90 border border-slate-700 rounded-lg pr-7 pl-2.5 outline-none font-medium focus:border-pink-500 transition-colors"
-        />
-        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-xs">🔍</span>
       </div>
 
       {/* Left / End: Actions, Theme, Currency, Bell */}
       <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={() => setActiveTab && setActiveTab('orders')}
-          className="h-7.5 px-3 text-xs font-semibold bg-pink-600 hover:bg-pink-700 text-white rounded-lg shadow-sm flex items-center gap-1.5 transition-all cursor-pointer"
-        >
-          <span>+</span>
-          <span>أمر جديد</span>
-        </button>
+        {canCreateOrder && (
+          <button
+            type="button"
+            onClick={() => setActiveTab && setActiveTab('orders')}
+            className="h-7.5 px-3 text-xs font-semibold bg-[#E11D48] hover:bg-[#BE123C] text-white rounded-lg shadow-sm flex items-center gap-1.5 transition-all cursor-pointer"
+            title="إنشاء طلب مبيعات جديد"
+          >
+            <span>+</span>
+            <span>طلب بيع</span>
+          </button>
+        )}
 
-        <button type="button" onClick={toggleTheme} className="w-[30px] h-[30px] rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-300 hover:text-white transition cursor-pointer text-xs" title="تبديل المظهر">🌓</button>
+        <button type="button" onClick={toggleTheme} className="w-[30px] h-[30px] rounded-lg bg-[#F8FAFC] dark:bg-slate-900 border border-[#E2E8F0] dark:border-[#263248] flex items-center justify-center text-[#475569] dark:text-slate-300 hover:text-[#0F172A] dark:hover:text-white transition cursor-pointer text-xs" title="تبديل المظهر">🌓</button>
 
         <div className="relative">
-          <button type="button" onClick={() => setCurrencyDropdown(!currencyDropdown)} className="h-7 px-2 text-[10.5px] font-mono font-bold text-slate-300 bg-slate-900 border border-slate-700 rounded-lg flex items-center gap-1 cursor-pointer transition">
+          <button type="button" onClick={() => setCurrencyDropdown(!currencyDropdown)} className="h-7 px-2 text-[10.5px] font-mono font-bold text-[#0F172A] dark:text-slate-300 bg-[#F8FAFC] dark:bg-slate-900 border border-[#E2E8F0] dark:border-[#263248] rounded-lg flex items-center gap-1 cursor-pointer transition">
             <span>{currentCurr.display || currentCurr.code}</span>
-            <span className="text-[9px] text-slate-400">▼</span>
+            <span className="text-[9px] text-[#475569] dark:text-slate-400">▼</span>
           </button>
           {currencyDropdown && (
-            <div className="absolute left-0 mt-1 w-36 bg-slate-900 border border-slate-800 rounded-xl shadow-xl p-1 z-50 text-xs space-y-1">
+            <div className="absolute left-0 mt-1 w-36 bg-white dark:bg-slate-900 border border-[#E2E8F0] dark:border-[#263248] rounded-xl shadow-xl p-1 z-50 text-xs space-y-1">
               {currencyOpts.map(c => (
-                <button key={c.code} type="button" onClick={() => handleSelectCurrency(c)} className={`w-full text-right px-2.5 py-1.5 rounded-lg cursor-pointer flex items-center justify-between ${currentCurr.code === c.code ? 'text-pink-400 font-bold bg-slate-800' : 'text-slate-300 hover:bg-slate-800'}`}>
+                <button key={c.code} type="button" onClick={() => handleSelectCurrency(c)} className={`w-full text-right px-2.5 py-1.5 rounded-lg cursor-pointer flex items-center justify-between ${currentCurr.code === c.code ? 'text-[#E11D48] dark:text-pink-400 font-bold bg-rose-50 dark:bg-slate-800' : 'text-[#475569] dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
                   <span>{c.label}</span>
                   <span className="font-mono text-[10px] opacity-70">{c.code}</span>
                 </button>
@@ -163,7 +114,7 @@ function AppTopbar({
           )}
         </div>
 
-        <button type="button" onClick={() => setActiveTab && setActiveTab('factory')} className="w-[30px] h-[30px] rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-300 hover:text-white transition cursor-pointer text-xs" title="التنبيهات">🔔</button>
+        <button type="button" onClick={() => setActiveTab && setActiveTab('factory')} className="w-[30px] h-[30px] rounded-lg bg-[#F8FAFC] dark:bg-slate-900 border border-[#E2E8F0] dark:border-[#263248] flex items-center justify-center text-[#475569] dark:text-slate-300 hover:text-[#0F172A] dark:hover:text-white transition cursor-pointer text-xs" title="التنبيهات">🔔</button>
       </div>
     </header>
   );

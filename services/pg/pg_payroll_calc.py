@@ -23,37 +23,39 @@ def get_payroll(params=None):
                 rows = cur.fetchall() or []
         except Exception as e:
             logger.warning(f"Auto-sync payroll warning: {e}")
-        for r in rows:
-            if r.get('created_at'):
-                r['created_at'] = str(r['created_at'])
-            if r.get('payment_date'):
-                r['payment_date'] = str(r['payment_date'])
-            e_name = r.get('employee_name') or ''
-            r['empName'] = e_name
-            r['employee_name'] = e_name
-            r['name'] = e_name
-            e_id = r.get('employee_id') or ''
-            r['empId'] = e_id
-            r['employee_id'] = e_id
-            r['type'] = r.get('type') or 'راتب شهري'
-            base_val = float(r.get('basic_salary') or 0.0)
-            r['baseValue'] = base_val
-            r['baseSalary'] = base_val
-            r['basic_salary'] = base_val
-            r['piecesCount'] = int(r.get('pieces_count') or 0)
-            r['totalDue'] = base_val
-            r['pieceWages'] = base_val
-            bon = float(r.get('allowances') or 0.0)
-            r['bonus'] = bon
-            r['allowances'] = bon
-            ded = float(r.get('deductions') or 0.0)
-            r['deductions'] = ded
-            r['deduction'] = ded
-            net = float(r.get('net_salary') if r.get('net_salary') is not None else (base_val + bon - ded))
-            r['netSalary'] = net
-            r['net_salary'] = net
-            r['status'] = r.get('status') or 'معلق'
-        return rows
+
+    rows = rows or []
+    for r in rows:
+        if r.get('created_at'):
+            r['created_at'] = str(r['created_at'])
+        if r.get('payment_date'):
+            r['payment_date'] = str(r['payment_date'])
+        e_name = r.get('employee_name') or ''
+        r['empName'] = e_name
+        r['employee_name'] = e_name
+        r['name'] = e_name
+        e_id = r.get('employee_id') or ''
+        r['empId'] = e_id
+        r['employee_id'] = e_id
+        r['type'] = r.get('type') or 'راتب شهري'
+        base_val = float(r.get('basic_salary') or 0.0)
+        r['baseValue'] = base_val
+        r['baseSalary'] = base_val
+        r['basic_salary'] = base_val
+        r['piecesCount'] = int(r.get('pieces_count') or 0)
+        r['totalDue'] = base_val
+        r['pieceWages'] = base_val
+        bon = float(r.get('allowances') or 0.0)
+        r['bonus'] = bon
+        r['allowances'] = bon
+        ded = float(r.get('deductions') or 0.0)
+        r['deductions'] = ded
+        r['deduction'] = ded
+        net = float(r.get('net_salary') if r.get('net_salary') is not None else (base_val + bon - ded))
+        r['netSalary'] = net
+        r['net_salary'] = net
+        r['status'] = r.get('status') or 'معلق'
+    return rows
 
 
 def update_payroll_record(payload):

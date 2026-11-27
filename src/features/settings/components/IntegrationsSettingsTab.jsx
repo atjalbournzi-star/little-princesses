@@ -9,7 +9,7 @@ function IntegrationsSettingsTab({
   showToast
 }) {
   const [templates, setTemplates] = useState(messageTemplates || {
-    newOrder: 'مرحباً {customer_name}، تم تسجيل طلبكم رقم {order_no} بنجاح لدى دار الأميرات الصغيرات. يسعدنا خدمتكم!',
+    newOrder: 'مرحباً {customer_name}، تم تسجيل طلبكم رقم {order_no} بنجاح. يسعدنا خدمتكم!',
     readyForDelivery: 'عميلنا العزيز {customer_name}، نود إبلاغكم بأن فستانكم للطلب رقم {order_no} أصبح جاهزاً للاستلام 🎀',
     paymentReceived: 'تم استلام دفعة بقيمة {amount} {currency} للطلب رقم {order_no}. شاكرين ثقتكم الغالية 💐',
     tailoringUpdate: 'مرحباً {customer_name}، فستانكم في مرحلة {stage} الآن بأيدي أمهر خياطينا ✨'

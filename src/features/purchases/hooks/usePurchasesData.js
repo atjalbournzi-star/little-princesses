@@ -69,9 +69,11 @@ function usePurchasesData({ purchases, setPurchases, headerData, setHeaderData }
     return null;
   }, [suppliers, headerData.supplier_id, headerData.supplier]);
 
-  // ── جلب سجل المشتريات تلقائياً من السيرفر المحلي ──
+  // ── جلب سجل المشتريات مرة واحدة تلقائياً من السيرفر المحلي ──
+  const didFetchPurchasesRef = useRef(false);
   useEffect(() => {
-    if ((!purchases || purchases.length === 0) && typeof setPurchases === 'function') {
+    if (!didFetchPurchasesRef.current && (!purchases || purchases.length === 0) && typeof setPurchases === 'function') {
+      didFetchPurchasesRef.current = true;
       fetch('/api/purchases')
         .then(r => r.json())
         .then(d => {
@@ -101,7 +103,7 @@ function usePurchasesData({ purchases, setPurchases, headerData, setHeaderData }
       const tot = parseFloat(p.grand_total_yer || p.total_amount_yer || p.total || 0) || 0;
       const amountYER = tot > 0 ? (tot <= 1000 && isForeign ? tot * rate : tot) : 0;
       totalYER += amountYER;
-      if (p.pay_type === 'آجل') {
+      if (String(p.pay_type || '').includes('آجل')) {
         creditYER += amountYER;
       } else {
         cashYER += amountYER;

@@ -60,6 +60,14 @@ function JobTicketTemplate({
         </div>
       </div>
 
+      {(order?.model_image || order?.image_url) && (
+        <div className="flex items-center gap-3 p-2 rounded-xl bg-[#FAFAFB] border border-gray-200">
+          <img src={order.model_image || order.image_url} alt={prodName} className="w-16 h-16 rounded-lg object-cover border border-gray-300" />
+          <div className="text-xs font-bold text-gray-700">الصورة المرجعية للتصميم المعتمد</div>
+        </div>
+      )}
+      {window.JobCardTailoringBlock && <window.JobCardTailoringBlock job={order} specs={order?.measurements_spec || m} />}
+
       {/* Detailed Body Measurements Matrix - Compact 2-Row Table */}
       <div>
         <h3 className="text-xs font-bold text-black mb-1.5 flex items-center gap-1.5">

@@ -6,7 +6,7 @@ function ReportsAuditFooter({ brandProfile }) {
       <div className="bg-white rounded-2xl border border-[#E8E5EA] p-6 shadow-2xs">
         <div className="text-center mb-6">
           <h4 className="text-xs font-bold text-[#25232A]">صندوق الاعتماد والتدقيق المالي الرسمي 🏛️</h4>
-          <p className="text-[11px] text-[#6F6B75]">{brandProfile?.name || 'مؤسسة الأميرات الصغيرات'} — {brandProfile?.tagline || brandProfile?.shortName}</p>
+          <p className="text-[11px] text-[#6F6B75]">{brandProfile?.name || 'نظام الإدارة المتكامل'} — {brandProfile?.tagline || brandProfile?.shortName}</p>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center text-xs">

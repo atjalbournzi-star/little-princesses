@@ -45,6 +45,10 @@ from .pg_factory import (
     get_tailor_unpaid_pieces, get_tailor_payout_vouchers,
     post_tailor_payout_voucher
 )
+from .pg_wip_accounting import (
+    resolve_wip_account, record_material_wip_issue,
+    record_labor_wip_accrual, clear_wip_to_cogs
+)
 from .pg_payroll import (
     get_employees, add_employee, delete_employee,
     add_advance, get_advances, get_payroll,

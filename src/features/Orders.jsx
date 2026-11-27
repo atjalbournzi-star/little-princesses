@@ -47,6 +47,7 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
     handleSaveAlteration, submittingAlteration,
     isSubmittingPOS, setIsSubmittingPOS
   } = useActions({ orders, setOrders, showToast, currencyDisplay, openCustomerMessageModal });
+  const { handleReturnPosOrder, returningOrderId } = (window.usePosReturnAction || (() => ({})))({ setOrders, showToast });
 
   const handleEdit = (ord) => {
     setEditingOrder(ord);
@@ -88,18 +89,32 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
     try {
       const ordCurr = window.CurrencyService ? window.CurrencyService.normalizeCode(currencyDisplay) : 'YER';
       const ordRate = window.CurrencyService ? window.CurrencyService.getRate(ordCurr) : 1.0;
-      let actualPaid = posParams.posPaymentMethod === 'آجل / جزئي' ? (posParams.posCashReceived !== '' ? Math.min(posParams.posReceivedNum, posParams.posNetTotal) : 0) : posParams.posNetTotal;
-      const selCust = (customers || []).find(c => (window.getCustomerName ? window.getCustomerName(c) : c.name) === posParams.posCustomerName);
+      const rawPaid = posParams.posCashReceived !== '' ? Math.max(0, Math.min(parseFloat(posParams.posCashReceived) || 0, posParams.posNetTotal)) : 0;
+      let actualPaid = posParams.posPaymentMethod === 'آجل / جزئي' ? rawPaid : posParams.posNetTotal;
+      const selCust = (customers || []).find(c => (c.customer_id || c.id) === posParams.posCustomerId || (window.getCustomerName ? window.getCustomerName(c) : c.name) === posParams.posCustomerName);
+      const resolvedCustId = posParams.posCustomerId || selCust?.customer_id || selCust?.id || 'CUST-GENERAL';
+      if (posParams.posPaymentMethod === 'آجل / جزئي' && (!resolvedCustId || resolvedCustId === 'CUST-GENERAL')) {
+        showToast && showToast('يرجى اختيار عميل مسجل (غير عميل عام) لإتمام البيع الآجل أو الجزئي ⚠️', 'error');
+        return;
+      }
       const selChld = selCust?.measurements?.find(m => m.child_name === posParams.posChildName);
       const posPayload = {
-        id: '', order_no: '', customer_id: selCust?.customer_id || selCust?.id || 'CUST-GENERAL',
+        id: '', order_no: '', customer_id: resolvedCustId,
         customer_name: posParams.posCustomerName, child_id: selChld?.child_id || selChld?.id || null, child_name: posParams.posChildName || 'الأميرة',
         product_name: posParams.cart.length === 1 ? posParams.cart[0].product_name : `سلة كاشير (${posParams.cart.length} أصناف)`,
         qty: posParams.cart.reduce((s, i) => s + (i.qty || 1), 0), subtotal: posParams.posSubtotal, discount: posParams.posDiscountNum,
+        gift_wrap: !!posParams.posGiftWrap, gift_wrap_fee: posParams.posGiftWrapFee || 0,
+        split_payment_details: posParams.splitDetails || null,
         total_amount: posParams.posNetTotal, total: posParams.posNetTotal, paid_amount: actualPaid, paid: actualPaid,
         remaining: Math.max(0, posParams.posNetTotal - actualPaid), payment_method: posParams.posPaymentMethod, currency: ordCurr, exchange_rate: ordRate,
-        order_date: TODAY_STR_ISO, delivery_date: TODAY_STR_ISO, status: 'جاهز للتسليم 🛍️', production_status: 'جاهز للتسليم 🛍️',
-        items: posParams.cart.map(i => ({ product_id: i.product_id, product_name: i.product_name, quantity: i.qty, unit_price: i.unit_price, total_price: i.total_price, selected_color: i.selected_color || i.color || '' }))
+        order_type: 'pos', is_pos: true, order_date: TODAY_STR_ISO, delivery_date: TODAY_STR_ISO, status: 'جاهز للتسليم 🛍️', production_status: 'جاهز للتسليم 🛍️',
+        items: posParams.cart.map(i => ({
+          product_id: i.product_id, variant_id: i.variant_id || null,
+          product_name: i.product_name, age_size: i.age_size || '', color_name: i.color_name || '',
+          sku: i.sku || '', barcode: i.barcode || '',
+          quantity: i.qty, unit_price: i.unit_price, total_price: i.total_price,
+          selected_color: i.color_name || i.selected_color || i.color || ''
+        }))
       };
       let res = null;
       if (window.salesAPI?.createOrder) res = await window.salesAPI.createOrder(posPayload);
@@ -107,10 +122,12 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
         const fetchRes = await fetch('/api/sales/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(posPayload) });
         res = await fetchRes.json().catch(() => ({}));
       }
+      if (res && res.error) throw new Error(res.error);
       const savedOrd = (res && (res.data || res.order)) || {};
       const officialOrd = { ...posPayload, ...savedOrd, order_no: savedOrd.order_no || posPayload.order_no, id: savedOrd.id || posPayload.id };
       setOrders && setOrders(prev => [officialOrd, ...(prev || []).filter(o => o.id !== posPayload.id && o.order_no !== posPayload.order_no)]);
       showToast && showToast(`تم إتمام عملية البيع وإصدار الفاتورة (${officialOrd.order_no}) سحابياً ⚡🧾`);
+      window.dispatchEvent(new CustomEvent('erp:inventoryChanged'));
       openCustomerMessageModal(officialOrd);
       posParams.clearCart();
     } catch (err) { showToast && showToast(err.message || 'خطأ في البيع', 'error'); }
@@ -121,42 +138,25 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
     <div className={`animate-fadeIn text-right ${activeMode === 'pos' ? 'h-full flex flex-col overflow-hidden' : 'h-full flex flex-col p-4 space-y-4 overflow-y-auto custom-scrollbar'}`} dir="rtl">
       {activeMode === 'pos' && PosStudioComp && (
         <PosStudioComp
-          products={products}
-          customers={customers}
-          currencyDisplay={currencyDisplay}
-          cart={cart}
-          setCart={setCart}
-          onCheckout={handlePOSCheckout}
-          isSubmittingPOS={isSubmittingPOS}
-          showToast={showToast}
-          activeMode={activeMode}
-          setActiveMode={setActiveMode}
-          ordersCount={orders.length}
-          onOpenScanDeliver={() => setScanDeliverModalOpen(true)}
-          stats={stats}
+          products={products} orders={orders} customers={customers} currencyDisplay={currencyDisplay}
+          cart={cart} setCart={setCart} onCheckout={handlePOSCheckout} isSubmittingPOS={isSubmittingPOS}
+          showToast={showToast} activeMode={activeMode} setActiveMode={setActiveMode}
+          ordersCount={orders.length} onOpenScanDeliver={() => setScanDeliverModalOpen(true)} stats={stats}
+          onOpenNewOrder={() => { handleCancelEdit(); setShowFormModal(true); }}
         />
       )}
 
       {activeMode === 'ready' && (
         <div className="h-full flex flex-col space-y-1.5 overflow-hidden">
           {window.POSHeader && React.createElement(window.POSHeader, {
-            activeMode,
-            setActiveMode,
-            cartCount: cart.reduce((s, i) => s + (i.qty || 1), 0),
-            ordersCount: orders.length,
-            onOpenScanDeliver: () => setScanDeliverModalOpen(true),
-            stats,
-            currencyDisplay
+            activeMode, setActiveMode, cartCount: cart.reduce((s, i) => s + (i.qty || 1), 0),
+            ordersCount: orders.length, onOpenScanDeliver: () => setScanDeliverModalOpen(true), stats, currencyDisplay
           })}
           {ReadyOrdersComp && (
             <ReadyOrdersComp
-              orders={orders}
-              customers={customers}
-              currencyDisplay={currencyDisplay}
-              onOpenDeliveryModal={setDeliveryModalOrder}
-              onOpenCustomerMessage={openCustomerMessageModal}
-              onOpenPrintModal={openPrintModal}
-              setActiveMode={setActiveMode}
+              orders={orders} customers={customers} currencyDisplay={currencyDisplay}
+              onOpenDeliveryModal={setDeliveryModalOrder} onOpenCustomerMessage={openCustomerMessageModal}
+              onOpenPrintModal={openPrintModal} setActiveMode={setActiveMode}
             />
           )}
         </div>
@@ -177,18 +177,22 @@ function Orders({ orders = [], setOrders, customers = [], products = [], campaig
               stats={stats}
             />
           )}
-          {(showFormModal || isEditing) && FormModalComp && (
-            <FormModalComp isOpen={showFormModal || isEditing} onClose={handleCancelEdit} isEditing={isEditing} editingOrderId={editingOrderId} editingOrder={editingOrder} customers={customers} products={products} campaigns={campaigns} currencyDisplay={currencyDisplay} onSaveInvoice={handleSaveInvoice} onOpenQuote={handleOpenQuote} />
-          )}
           <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-[#E8E5EA] dark:border-slate-800 p-6 space-y-4 shadow-2xs">
             {FilterBarComp && <FilterBarComp search={search} setSearch={setSearch} statusFilter={statusFilter} setStatusFilter={setStatusFilter} deliveryDateFilter={deliveryDateFilter} setDeliveryDateFilter={setDeliveryDateFilter} count={filteredOrders.length} />}
-            {TableComp && <TableComp orders={filteredOrders} customers={customers} currencyDisplay={currencyDisplay} handleUpdateStatus={handleUpdateStatus} handleEdit={handleEdit} handleDelete={handleDelete} onOpenDeliveryModal={setDeliveryModalOrder} onOpenCustomerMessage={openCustomerMessageModal} onOpenPrintModal={openPrintModal} onOpenAlterationModal={setAlterationModalOrder} onViewOrderDetail={setSelectedOrderDetail} />}
+            {TableComp && <TableComp orders={filteredOrders} customers={customers} currencyDisplay={currencyDisplay} handleUpdateStatus={handleUpdateStatus} handleEdit={handleEdit} handleDelete={handleDelete} onOpenDeliveryModal={setDeliveryModalOrder} onOpenCustomerMessage={openCustomerMessageModal} onOpenPrintModal={openPrintModal} onOpenAlterationModal={setAlterationModalOrder} onViewOrderDetail={setSelectedOrderDetail} onReturnPosOrder={handleReturnPosOrder} returningOrderId={returningOrderId} />}
           </div>
         </div>
       )}
 
       {/* Modals */}
-      {DetailModalComp && selectedOrderDetail && <DetailModalComp order={selectedOrderDetail} onClose={() => setSelectedOrderDetail(null)} customers={customers} currencyDisplay={currencyDisplay} onOpenDelivery={setDeliveryModalOrder} onOpenCustomerMessage={openCustomerMessageModal} onOpenPrint={openPrintModal} onOpenAlteration={setAlterationModalOrder} />}
+      {(showFormModal || isEditing) && FormModalComp && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-start justify-center p-4 overflow-y-auto erp-modal-backdrop" onClick={handleCancelEdit}>
+          <div className="w-full max-w-4xl my-auto erp-modal-enter" onClick={e => e.stopPropagation()}>
+            <FormModalComp isOpen={showFormModal || isEditing} onClose={handleCancelEdit} isEditing={isEditing} editingOrderId={editingOrderId} editingOrder={editingOrder} customers={customers} products={products} campaigns={campaigns} currencyDisplay={currencyDisplay} onSaveInvoice={handleSaveInvoice} onOpenQuote={handleOpenQuote} />
+          </div>
+        </div>
+      )}
+      {DetailModalComp && selectedOrderDetail && <DetailModalComp order={selectedOrderDetail} onClose={() => setSelectedOrderDetail(null)} customers={customers} currencyDisplay={currencyDisplay} onOpenDelivery={setDeliveryModalOrder} onOpenCustomerMessage={openCustomerMessageModal} onOpenPrint={openPrintModal} onOpenAlteration={setAlterationModalOrder} onReturnPosOrder={handleReturnPosOrder} />}
       {DeliveryModalComp && deliveryModalOrder && <DeliveryModalComp order={deliveryModalOrder} onClose={() => setDeliveryModalOrder(null)} customers={customers} currencyDisplay={currencyDisplay} onConfirmDelivery={handleConfirmDelivery} submittingDelivery={submittingDelivery} />}
       {ScanDeliverModalComp && scanDeliverModalOpen && <ScanDeliverModalComp isOpen={scanDeliverModalOpen} onClose={() => setScanDeliverModalOpen(false)} orders={orders} currencyDisplay={currencyDisplay} onConfirmScanDelivery={handleConfirmScanDelivery} scanDeliveryLoading={scanDeliveryLoading} showToast={showToast} />}
       {AlterationModalComp && alterationModalOrder && <AlterationModalComp order={alterationModalOrder} onClose={() => setAlterationModalOrder(null)} onSaveAlteration={handleSaveAlteration} submittingAlteration={submittingAlteration} />}

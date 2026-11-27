@@ -8,7 +8,8 @@ function useOrderActions({ orders, setOrders, showToast, currencyDisplay, openCu
   // ── حفظ أو تعديل الفاتورة ──
   const handleSaveInvoice = async ({ isEditing, editingOrderId, payload, resetForm }) => {
     if (!payload.customer_name) return showToast("يرجى اختيار العميل أولاً ⚠️", "error");
-    if (!payload.product_name) return showToast("يرجى اختيار الموديل أولاً ⚠️", "error");
+    if (!payload.product_name && payload.item_mode !== "CUSTOM_BESPOKE") return showToast("يرجى اختيار الموديل أولاً ⚠️", "error");
+    if (payload.item_mode === "CUSTOM_BESPOKE" && !payload.custom_design_title && !payload.product_name) return showToast("يرجى إدخال عنوان التصميم الخاص ⚠️", "error");
 
     const tot = Math.max(0, parseFloat(payload.total) || 0);
     const pd = Math.max(0, parseFloat(payload.paid) || 0);
@@ -48,12 +49,11 @@ function useOrderActions({ orders, setOrders, showToast, currencyDisplay, openCu
         delivery_fee: parseFloat(payload.delivery_fee) || 0, delivery_payment_mode: payload.delivery_payment_mode || 'DIRECT_TO_COURIER',
         currency: ordCurrCode, exchange_rate: ordRate, base_total: baseTot.base_amount, base_paid: basePd.base_amount,
         campaign_id: payload.campaign_id, status: "قيد الخياطة 🪡",
-        items: [{
-          product_id: payload.product_id, model_id: payload.model_id, measurement_id: payload.measurement_id,
-          product_name: payload.product_name, selected_color: payload.selected_color || payload.color || '',
-          quantity: parseInt(payload.qty || 1), unit_price: tot / Math.max(1, parseInt(payload.qty || 1)),
-          total_price: tot, fabrics_data: payload.fabrics_data || []
-        }]
+        item_mode: payload.item_mode || "CATALOG_MTO", material_source: payload.material_source || "WORKSHOP_STOCK",
+        sizing_mode: payload.sizing_mode || "CUSTOM", custom_design_title: payload.custom_design_title || "",
+        size_matrix_id: payload.size_matrix_id || "", size_adjustments_json: payload.size_adjustments_json || {},
+        standard_size_disclaimer: Boolean(payload.standard_size_disclaimer), custody: payload.custody || null,
+        items: [{ product_id: payload.product_id, model_id: payload.model_id, measurement_id: payload.measurement_id, product_name: payload.product_name, selected_color: payload.selected_color || payload.color || '', quantity: parseInt(payload.qty || 1), unit_price: tot / Math.max(1, parseInt(payload.qty || 1)), total_price: tot, fabrics_data: payload.fabrics_data || [], item_mode: payload.item_mode || "CATALOG_MTO", material_source: payload.material_source || "WORKSHOP_STOCK", sizing_mode: payload.sizing_mode || "CUSTOM", custom_design_title: payload.custom_design_title || "", size_matrix_id: payload.size_matrix_id || "", size_adjustments_json: payload.size_adjustments_json || {}, standard_size_disclaimer: Boolean(payload.standard_size_disclaimer), custody: payload.custody || null }]
       };
 
       let officialOrd = newOrd;
@@ -61,17 +61,19 @@ function useOrderActions({ orders, setOrders, showToast, currencyDisplay, openCu
         let res = null;
         if (window.salesAPI?.createOrder) res = await window.salesAPI.createOrder(newOrd);
         else if (typeof callGAS === 'function') res = await callGAS("addOrder", newOrd);
+        if (!res || res.success === false || res.error) {
+          throw new Error(res?.error || res?.message || 'تعذر حفظ الفاتورة على الخادم');
+        }
         const savedOrd = (res && (res.data || res.order)) || {};
         officialOrd = { ...newOrd, ...savedOrd, order_no: savedOrd.order_no || newOrd.order_no, id: savedOrd.id || newOrd.id };
         setOrders && setOrders(prev => [officialOrd, ...(prev || []).filter(o => o.id !== newOrd.id && o.order_no !== newOrd.order_no)]);
         showToast(res?.message || `تم إصدار وحفظ الفاتورة (${officialOrd.order_no}) سحابياً ☁️📄`);
         openCustomerMessageModal && openCustomerMessageModal(officialOrd);
+        resetForm && resetForm();
       } catch (err) {
-        setOrders && setOrders(prev => [newOrd, ...(prev || [])]);
-        showToast(err.message || "تم الحفظ محلياً 📄");
-        openCustomerMessageModal && openCustomerMessageModal(newOrd);
+        const msg = window.formatApiError ? window.formatApiError(err) : (err?.message || 'تعذّر الاتصال بالخادم حالياً، بياناتك ما زالت محفوظة في النموذج — يرجى إعادة المحاولة');
+        showToast(msg, 'error');
       }
-      resetForm && resetForm();
     }
   };
 

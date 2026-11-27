@@ -72,26 +72,31 @@ def ensure_warehouses_schema():
 
 def get_warehouses(payload=None):
     """استرجاع قائمة المستودعات النشطة أو الكل مع إحصائيات الأصناف والحسابات المرتبطة"""
+    from .ref_cache import get_cached_ref
     ensure_warehouses_schema()
     inc_inactive = bool(payload and (payload.get('all') or payload.get('include_inactive')))
-    where_clause = "" if inc_inactive else "WHERE w.is_active = TRUE"
-    query = f"""
-        SELECT w.id, w.code, w.name, w.location, w.is_active, w.account_id,
-               coa.account_code, coa.account_name,
-               COALESCE(COUNT(ws.inventory_id), 0) as items_count,
-               COALESCE(SUM(ws.quantity), 0) as total_units
-        FROM warehouses w
-        LEFT JOIN chart_of_accounts coa ON w.account_id = coa.id
-        LEFT JOIN warehouse_stock ws ON w.id = ws.warehouse_id AND ws.quantity > 0
-        {where_clause}
-        GROUP BY w.id, w.code, w.name, w.location, w.is_active, w.account_id, coa.account_code, coa.account_name
-        ORDER BY CASE w.id WHEN 'WH-MAIN' THEN 1 WHEN 'WH-WORKSHOP' THEN 2 WHEN 'WH-SHOWROOM' THEN 3 ELSE 4 END;
-    """
-    rows = execute_query(query, fetch_all=True) or []
-    for r in rows:
-        r["total_units"] = float(r["total_units"] or 0)
-        r["items_count"] = int(r["items_count"] or 0)
-    return rows
+    cache_key = f"warehouses:{'all' if inc_inactive else 'active'}"
+
+    def _load():
+        where_clause = "" if inc_inactive else "WHERE w.is_active = TRUE"
+        query = f"""
+            SELECT w.id, w.code, w.name, w.location, w.is_active, w.account_id,
+                   coa.account_code, coa.account_name,
+                   COALESCE(COUNT(ws.inventory_id), 0) as items_count,
+                   COALESCE(SUM(ws.quantity), 0) as total_units
+            FROM warehouses w
+            LEFT JOIN chart_of_accounts coa ON w.account_id = coa.id
+            LEFT JOIN warehouse_stock ws ON w.id = ws.warehouse_id AND ws.quantity > 0
+            {where_clause}
+            GROUP BY w.id, w.code, w.name, w.location, w.is_active, w.account_id, coa.account_code, coa.account_name
+            ORDER BY CASE w.id WHEN 'WH-MAIN' THEN 1 WHEN 'WH-WORKSHOP' THEN 2 WHEN 'WH-SHOWROOM' THEN 3 ELSE 4 END;
+        """
+        rows = execute_query(query, fetch_all=True) or []
+        for r in rows:
+            r["total_units"] = float(r["total_units"] or 0)
+            r["items_count"] = int(r["items_count"] or 0)
+        return rows
+    return get_cached_ref(cache_key, _load, ttl=180)
 
 
 def get_item_stock_by_warehouse(inventory_id):
@@ -123,10 +128,14 @@ def transfer_warehouse_stock(payload):
     """تنفيذ مناقلة مخزنية ذرية بين مستودعين مع حركتي TRANSFER_OUT / TRANSFER_IN برقم مرجعي موحد"""
     ensure_warehouses_schema()
     data = payload.get("data") or payload
-    item_id = clean_str(data.get("item_id") or data.get("id"))
+    item_id = clean_str(data.get("inventory_id") or data.get("item_id") or data.get("id"))
     item_name = clean_str(data.get("item_name") or data.get("name"))
-    from_wh = normalize_warehouse_id(data.get("from_warehouse") or data.get("from_location") or "WH-MAIN")
-    to_wh = normalize_warehouse_id(data.get("to_warehouse") or data.get("to_location") or "WH-WORKSHOP")
+    raw_from = clean_str(data.get("from_warehouse_id") or data.get("from_warehouse") or data.get("from_location") or "WH-MAIN")
+    raw_to = clean_str(data.get("to_warehouse_id") or data.get("to_warehouse") or data.get("to_location") or "WH-WORKSHOP")
+    from_wh = normalize_warehouse_id(raw_from, default="")
+    to_wh = normalize_warehouse_id(raw_to, default="")
+    if not from_wh or not to_wh:
+        raise ValueError("مستودع المصدر أو الوجهة غير صالح أو غير موجود")
     qty = clean_num(data.get("quantity") or data.get("qty") or 0.0)
     notes = clean_str(data.get("notes") or "")
 
@@ -170,18 +179,14 @@ def transfer_warehouse_stock(payload):
         # 1. خصم من مستودع المصدر دون المساس برصيد inventory الإجمالي
         cur.execute("UPDATE warehouse_stock SET quantity = quantity - %s, updated_at = CURRENT_TIMESTAMP WHERE warehouse_id = %s AND inventory_id = %s;", (qty, from_wh, inv_id))
 
-        # 2. قيد حركة الصرف (TRANSFER_OUT)
+        # 2. قيد حركة الصرف (TRANSFER_OUT) - يُسجل مباشرة في inventory_transactions (ومنظور stock_movements يعكسه تلقائياً)
+        from .pg_audit import resolve_active_user_id
+        active_user = resolve_active_user_id(cur, data.get("user_id"))
         itxn_out = get_next_sequence_number(cur, 'INV-TXN', fallback_prefix='ITXN-')
         cur.execute("""
-            INSERT INTO inventory_transactions (id, inventory_id, warehouse_id, transaction_type, quantity, unit_cost, reference_type, reference_id, notes, created_at)
-            VALUES (%s, %s, %s, 'TRANSFER_OUT', %s, %s, 'TRANSFER', %s, %s, CURRENT_TIMESTAMP);
-        """, (itxn_out, inv_id, from_wh, -abs(qty), u_cost, transfer_ref, f"مناقلة مخزنية صادرة إلى [{to_name}] | {notes}".strip(" |")))
-
-        sm_out = get_next_sequence_number(cur, 'SM', fallback_prefix='SM-')
-        cur.execute("""
-            INSERT INTO stock_movements (id, item_id, warehouse_id, movement_type, quantity, unit_cost, total_cost, reference_type, reference_id, notes, created_at)
-            VALUES (%s, %s, %s, 'TRANSFER_OUT', %s, %s, %s, 'TRANSFER', %s, %s, CURRENT_TIMESTAMP);
-        """, (sm_out, inv_id, from_wh, -abs(qty), u_cost, round(qty * u_cost, 4), transfer_ref, f"مناقلة صادرة إلى [{to_name}] | {notes}".strip(" |")))
+            INSERT INTO inventory_transactions (id, inventory_id, warehouse_id, transaction_type, quantity, unit_cost, reference_type, reference_id, notes, created_by, created_at)
+            VALUES (%s, %s, %s, 'TRANSFER_OUT', %s, %s, 'TRANSFER', %s, %s, %s, CURRENT_TIMESTAMP);
+        """, (itxn_out, inv_id, from_wh, -abs(qty), u_cost, transfer_ref, f"مناقلة مخزنية صادرة إلى [{to_name}] | {notes}".strip(" |"), active_user))
 
         # 3. إضافة إلى مستودع الوجهة دون المساس برصيد inventory الإجمالي
         cur.execute("""
@@ -193,20 +198,16 @@ def transfer_warehouse_stock(payload):
         # 4. قيد حركة الإيداع (TRANSFER_IN) بنفس الرقم المرجعي الموحد
         itxn_in = get_next_sequence_number(cur, 'INV-TXN', fallback_prefix='ITXN-')
         cur.execute("""
-            INSERT INTO inventory_transactions (id, inventory_id, warehouse_id, transaction_type, quantity, unit_cost, reference_type, reference_id, notes, created_at)
-            VALUES (%s, %s, %s, 'TRANSFER_IN', %s, %s, 'TRANSFER', %s, %s, CURRENT_TIMESTAMP);
-        """, (itxn_in, inv_id, to_wh, abs(qty), u_cost, transfer_ref, f"مناقلة مخزنية واردة من [{from_name}] | {notes}".strip(" |")))
-
-        sm_in = get_next_sequence_number(cur, 'SM', fallback_prefix='SM-')
-        cur.execute("""
-            INSERT INTO stock_movements (id, item_id, warehouse_id, movement_type, quantity, unit_cost, total_cost, reference_type, reference_id, notes, created_at)
-            VALUES (%s, %s, %s, 'TRANSFER_IN', %s, %s, %s, 'TRANSFER', %s, %s, CURRENT_TIMESTAMP);
-        """, (sm_in, inv_id, to_wh, abs(qty), u_cost, round(qty * u_cost, 4), transfer_ref, f"مناقلة واردة من [{from_name}] | {notes}".strip(" |")))
+            INSERT INTO inventory_transactions (id, inventory_id, warehouse_id, transaction_type, quantity, unit_cost, reference_type, reference_id, notes, created_by, created_at)
+            VALUES (%s, %s, %s, 'TRANSFER_IN', %s, %s, 'TRANSFER', %s, %s, %s, CURRENT_TIMESTAMP);
+        """, (itxn_in, inv_id, to_wh, abs(qty), u_cost, transfer_ref, f"مناقلة مخزنية واردة من [{from_name}] | {notes}".strip(" |"), active_user))
 
         # 5. ترحيل القيد المحاسبي المزدوج بين الحسابين الفرعيين للمستودعين
         from .pg_warehouse_transfer_post import post_warehouse_transfer_journal
         jv_no = post_warehouse_transfer_journal(cur, transfer_ref, from_name, to_name, from_acc, to_acc, qty, u_cost, notes, data.get("user_id"))
 
+        from .ref_cache import invalidate_ref
+        invalidate_ref('warehouses:')
         return {
             "success": True, "status": "success", "transfer_ref": transfer_ref, "journal_entry_no": jv_no,
             "item_id": inv_id, "item_name": actual_name, "from_warehouse": from_wh, "from_warehouse_name": from_name,

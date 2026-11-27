@@ -108,20 +108,20 @@ function useFactoryOrderActions(props) {
     const isRtw = form.production_type === 'ready_to_wear' || form.production_type === 'stock';
     let ordKey = String(form.order_no || form.order_id || '').trim();
     if (!isRtw) {
-      if (!ordKey) return showToast('في وضع التفصيل الخاص، يجب ربط أمر التشغيل بطلب رسمي معتمد من جدول الطلبات ⚠️', 'error');
+      if (!ordKey) { showToast('في وضع التفصيل الخاص، يجب ربط أمر التشغيل بطلب رسمي معتمد من جدول الطلبات ⚠️', 'error'); return false; }
       let validOrd = (orders || []).find(o => String(o.order_no || o.id) === ordKey || String(o.id) === ordKey);
       if (!validOrd && (/^\d{10,}$/.test(ordKey) || form.customer || form.customer_id)) {
         validOrd = (orders || []).find(o => (form.customer_id && String(o.customer_id) === String(form.customer_id)) || (form.customer && o.customer_name && o.customer_name.trim() === form.customer.trim()));
         if (validOrd) { ordKey = validOrd.order_no || validOrd.id; form.order_no = ordKey; form.order_id = ordKey; }
       }
-      if (!validOrd) return showToast(`رقم الطلب (${ordKey}) غير مربوط بطلب رسمي معتمد في جدول الطلبات ⚠️`, 'error');
+      if (!validOrd) { showToast(`رقم الطلب (${ordKey}) غير مربوط بطلب رسمي معتمد في جدول الطلبات ⚠️`, 'error'); return false; }
     } else if (!ordKey) {
-      return showToast('يرجى إدخال رقم دفعة الإنتاج الجاهز ⚠️', 'error');
+      showToast('يرجى إدخال رقم دفعة الإنتاج الجاهز ⚠️', 'error'); return false;
     }
-    if (!form.tailor) return showToast('يرجى تحديد الفني المسند إليه ⚠️', 'error');
+    if (!form.tailor) { showToast('يرجى تحديد الفني المسند إليه ⚠️', 'error'); return false; }
     const subTot = parseFloat(form.total_amount ?? form.total_price ?? form.total ?? 0), subPd = parseFloat(form.paid_amount ?? form.advance_paid ?? form.paid ?? form.deposit ?? 0), subRem = Math.max(0, subTot - subPd);
     if (!isRtw && subPd <= 0 && !form.allow_unpaid_exception) {
-      return showToast('⚠️ قفل رقابي: لا يمكن اعتماد أمر التشغيل واقتطاع الخامات لطلب غير مسدد (العربون = 0) إلا بتفعيل خيار الاستثناء الإداري الصريح.', 'error');
+      showToast('⚠️ قفل رقابي: لا يمكن اعتماد أمر التشغيل واقتطاع الخامات لطلب غير مسدد (العربون = 0) إلا بتفعيل خيار الاستثناء الإداري الصريح.', 'error'); return false;
     }
 
     const rawBom = (Array.isArray(form.bom_items) && form.bom_items.length > 0) ? form.bom_items : [{ fabric_name: form.fabric_name || '', cut_meters: form.cut_meters || '', cut_unit: form.cut_unit || 'متر' }];
@@ -130,7 +130,7 @@ function useFactoryOrderActions(props) {
       if (fi && form.deduct_inventory !== false) {
         const stk = parseFloat(fi.quantity || fi.qty || 0), req = parseFloat(b.cut_meters || 0);
         const ded = window.UnitConversionService?.calculateDeduction ? window.UnitConversionService.calculateDeduction(req, b.cut_unit || 'متر', fi.unit || 'متر').deductAmount : req;
-        if (stk - ded < 0 && !form.allow_insufficient_stock) return showToast(`⚠️ رصيد الخامة (${fi.name}) غير كافٍ للقص (${stk} ${fi.unit})`, 'error');
+        if (stk - ded < 0 && !form.allow_insufficient_stock) { showToast(`⚠️ رصيد الخامة (${fi.name}) غير كافٍ للقص (${stk} ${fi.unit})`, 'error'); return false; }
       }
     }
     const first = rawBom[0] || {}, existing = (factory || []).find(f => f.order_no === form.order_no || f.id === form.order_no), clr = form.dress_color || form.selected_color || form.color || '';
@@ -151,8 +151,10 @@ function useFactoryOrderActions(props) {
       window.dispatchEvent(new CustomEvent('erp:factoryChanged', { detail: { orderNo: form.order_no, status: 'updated' } }));
       window.dispatchEvent(new CustomEvent('erp:ordersChanged', { detail: { orderNo: form.order_no } }));
       window.dispatchEvent(new CustomEvent('erp:inventoryChanged', { detail: { orderNo: form.order_no } }));
+      return true;
     } catch (err) {
-      showToast(`فشل الحفظ في قاعدة البيانات ❌: ${err.message || 'خطأ في الاتصال بالخادم'}`, 'error');
+      showToast(`فشل الحفظ في قاعدة البيانات ❌: ${window.formatApiError ? window.formatApiError(err) : (err.message || 'خطأ في الاتصال بالخادم')}`, 'error');
+      return false;
     }
   };
 

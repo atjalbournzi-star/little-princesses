@@ -44,7 +44,7 @@ function Expenses({
   } = useData({ expenses, setExpenses, accounts, vouchers, currency });
 
   const {
-    formData, setFormData, isSubmitting, showQuickAddCat, setShowQuickAddCat,
+    formData, setFormData, isSubmitting, approvingId, showQuickAddCat, setShowQuickAddCat,
     newCatName, setNewCatName, newCatCode, setNewCatCode,
     handleQuickAddCategory, handleSubmit, handleDeleteExpense, handleApproveExpense,
     printVoucher, setPrintVoucher, handlePrintExpense
@@ -57,9 +57,10 @@ function Expenses({
   const PrintVoucherModal = typeof window.PrintModal !== 'undefined' ? window.PrintModal : (typeof PrintModal !== 'undefined' ? PrintModal : null);
 
   const handleFormSubmit = async (e, targetStatus) => {
-    await handleSubmit(e, targetStatus);
-    setIsAddModalOpen(false);
-    if (typeof fetchFreshExpenses === 'function') fetchFreshExpenses();
+    const ok = await handleSubmit(e, targetStatus);
+    if (ok) {
+      setIsAddModalOpen(false);
+    }
   };
 
   const handleExportExcel = () => {
@@ -141,6 +142,7 @@ function Expenses({
             onDeleteExpense={handleDeleteExpense}
             onPrintExpense={handlePrintExpense}
             onApproveExpense={handleApproveExpense}
+            approvingId={approvingId}
           />
         )}
       </div>

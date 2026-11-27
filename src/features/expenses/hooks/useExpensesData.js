@@ -17,7 +17,7 @@ function useExpensesData({ expenses = [], setExpenses, accounts = [], vouchers =
       if (window.expenseAPI && typeof window.expenseAPI.getExpenses === 'function') {
         data = await window.expenseAPI.getExpenses();
       } else {
-        const res = await fetch('/api/finance/expenses').then(r => r.json());
+        const res = await fetch('/api/expenses').then(r => r.json());
         if (res && res.success && Array.isArray(res.data)) data = res.data;
       }
 

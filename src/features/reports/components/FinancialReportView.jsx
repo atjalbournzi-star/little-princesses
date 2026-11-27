@@ -63,20 +63,20 @@ function FinancialReportView({
             <div className="py-1 px-2.5 rounded-lg bg-white dark:bg-[#111C38] border border-slate-200 dark:border-slate-800 flex items-center justify-between whitespace-nowrap">
               <div className="flex items-center gap-1.5">
                 <span className="text-[11px] font-medium text-slate-600 dark:text-slate-300">مجمل الربح</span>
-                <span className="text-[9.5px] bg-pink-500/10 dark:bg-pink-950/60 text-pink-600 dark:text-pink-300 border border-pink-200 dark:border-pink-800 px-1 py-0.2 rounded font-mono font-bold">{pnlData.grossMarginPct.toFixed(1)}%</span>
+                <span dir="ltr" className="inline-block text-[9.5px] bg-pink-500/10 dark:bg-pink-950/60 text-pink-600 dark:text-pink-300 border border-pink-200 dark:border-pink-800 px-1 py-0.2 rounded font-mono font-bold tabular-nums">{Number(pnlData.grossMarginPct || 0).toFixed(1)}%</span>
               </div>
               <span className="text-[11px] font-bold text-slate-900 dark:text-slate-100 font-mono tracking-tight tabular-nums">
-                {fmtMoney(pnlData.grossProfit)} <span className="text-[10px] text-slate-400 font-sans">{reportCurrency}</span>
+                <span dir="ltr" className="inline-block">{fmtMoney(pnlData.grossProfit)}</span> <span className="text-[10px] text-slate-400 font-sans">{reportCurrency}</span>
               </span>
             </div>
 
             <div className="py-1 px-2.5 rounded-lg bg-white dark:bg-[#111C38] border border-slate-200 dark:border-slate-800 flex items-center justify-between whitespace-nowrap">
               <div className="flex items-center gap-1.5">
                 <span className="text-[11px] font-medium text-slate-600 dark:text-slate-300">صافي الربح</span>
-                <span className="text-[9.5px] bg-emerald-500/10 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 px-1 py-0.2 rounded font-mono font-bold">{pnlData.netMarginPct.toFixed(1)}%</span>
+                <span dir="ltr" className="inline-block text-[9.5px] bg-emerald-500/10 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 px-1 py-0.2 rounded font-mono font-bold tabular-nums">{Number(pnlData.netMarginPct || 0).toFixed(1)}%</span>
               </div>
               <span className={`text-[11px] font-bold font-mono tracking-tight tabular-nums ${pnlData.netProfit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
-                {fmtMoney(pnlData.netProfit)} <span className="text-[10px] text-slate-400 font-sans">{reportCurrency}</span>
+                <span dir="ltr" className="inline-block">{fmtMoney(pnlData.netProfit)}</span> <span className="text-[10px] text-slate-400 font-sans">{reportCurrency}</span>
               </span>
             </div>
           </div>
@@ -91,7 +91,7 @@ function FinancialReportView({
             </div>
 
             <div className="p-2 space-y-2">
-              <div className="border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
+              <div className="border border-slate-200 dark:border-slate-800 rounded-lg overflow-x-auto">
                 <div className="bg-slate-100 dark:bg-slate-900/90 px-3 py-1.5 font-bold text-[11px] text-slate-800 dark:text-slate-200 border-b border-slate-200 dark:border-slate-800 flex justify-between">
                   <span>1. الإيرادات التشغيلية (Revenues)</span>
                   <span className="font-mono text-slate-900 dark:text-white tabular-nums">{fmtMoney(pnlData.totalRevenue)}</span>
@@ -109,7 +109,7 @@ function FinancialReportView({
                 </table>
               </div>
 
-              <div className="border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
+              <div className="border border-slate-200 dark:border-slate-800 rounded-lg overflow-x-auto">
                 <div className="bg-slate-100 dark:bg-slate-900/90 px-3 py-1.5 font-bold text-[11px] text-slate-800 dark:text-slate-200 border-b border-slate-200 dark:border-slate-800 flex justify-between">
                   <span>2. تكلفة المبيعات المباشرة (Cost of Goods Sold - COGS)</span>
                   <span className="font-mono text-slate-900 dark:text-white tabular-nums">({fmtMoney(pnlData.totalCOGS)})</span>
@@ -135,7 +135,7 @@ function FinancialReportView({
                 <span className="font-mono text-xs font-bold text-slate-900 dark:text-white tabular-nums">{fmtMoney(pnlData.grossProfit)} {reportCurrency}</span>
               </div>
 
-              <div className="border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
+              <div className="border border-slate-200 dark:border-slate-800 rounded-lg overflow-x-auto">
                 <div className="bg-slate-100 dark:bg-slate-900/90 px-3 py-1.5 font-bold text-[11px] text-slate-800 dark:text-slate-200 border-b border-slate-200 dark:border-slate-800 flex justify-between">
                   <span>3. المصروفات التشغيلية والإدارية والعمومية (Operating Expenses - OPEX)</span>
                   <span className="font-mono text-slate-900 dark:text-white tabular-nums">({fmtMoney(pnlData.totalOPEX)})</span>
@@ -156,9 +156,9 @@ function FinancialReportView({
               <div className="px-3 py-2 rounded-lg border border-pink-200 dark:border-pink-700/50 bg-pink-50/40 dark:bg-[#0F172A] flex items-center justify-between font-bold text-xs text-slate-800 dark:text-white">
                 <div className="flex items-center gap-2">
                   <span>صافي الربح الفعلي للفترة (Net Profit / Loss)</span>
-                  <span className="text-[10px] bg-emerald-500/10 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-600 dark:text-emerald-300 px-2 py-0.2 rounded font-mono font-bold">هامش الصافي: {pnlData.netMarginPct.toFixed(1)}%</span>
+                  <span dir="ltr" className="inline-block text-[10px] bg-emerald-500/10 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-600 dark:text-emerald-300 px-2 py-0.2 rounded font-mono font-bold tabular-nums">هامش: {Number(pnlData.netMarginPct || 0).toFixed(1)}%</span>
                 </div>
-                <span className="font-mono text-xs font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">{fmtMoney(pnlData.netProfit)} {reportCurrency}</span>
+                <span className={`font-mono text-xs font-bold tabular-nums ${pnlData.netProfit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}><span dir="ltr" className="inline-block">{fmtMoney(pnlData.netProfit)}</span> {reportCurrency}</span>
               </div>
             </div>
           </div>

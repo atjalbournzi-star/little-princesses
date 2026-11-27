@@ -160,7 +160,11 @@
     ctx.textAlign = 'center';
     ctx.font = 'bold 12px Cairo, Tahoma';
     ctx.fillStyle = '#64748b';
-    ctx.fillText('وثيقة رسمية صادرة وموثقة عبر دار الأميرات الصغيرات للأزياء الفاخرة 👑', 600, 735);
+    const dynamicBrandName = d.brand?.name
+      || (typeof window !== 'undefined' && window.BrandService && window.BrandService.getProfile().name)
+      || (() => { try { return JSON.parse(localStorage.getItem('erp_company_profile_v1') || '{}').name; } catch (e) { return ''; } })()
+      || 'نظام الإدارة المتكامل';
+    ctx.fillText(`وثيقة رسمية صادرة وموثقة عبر ${dynamicBrandName} 👑`, 600, 735);
 
     return c;
   }

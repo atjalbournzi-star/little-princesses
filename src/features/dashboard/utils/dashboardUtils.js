@@ -176,12 +176,22 @@ const calculateAtelierStages = (orders = [], factory = [], timeHorizon = 'all') 
   });
 
   const totalActive = cutting + tailoring + embroidery + qualityCheck;
-  const completionRate = sourceList.length > 0 ? ((readyToDeliver + delivered) / sourceList.length) * 100 : 100;
+  const completionRate = sourceList.length > 0 ? ((readyToDeliver + delivered) / sourceList.length) * 100 : 0;
+  const nowTs = Date.now();
+  const overdueCount = sourceList.filter(it => {
+    const d = it.delivery_date || it.due_date;
+    if (!d) return false;
+    const st = String(it.production_status || it.status || '').toLowerCase();
+    if (/ready|جاهز|deliver|تسليم|مكتمل|completed/i.test(st)) return false;
+    const ts = new Date(d).getTime();
+    return !isNaN(ts) && ts < nowTs;
+  }).length;
+  const onTimeRate = sourceList.length > 0 ? Math.max(0, Math.round(((sourceList.length - overdueCount) / sourceList.length) * 1000) / 10) : 0;
   return {
     cutting, tailoring, embroidery, qualityCheck, readyToDeliver, delivered,
     totalActive,
     completionRate: Math.min(100, Math.round(completionRate)),
-    onTimeRate: 98.5
+    onTimeRate
   };
 };
 

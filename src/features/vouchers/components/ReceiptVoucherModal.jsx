@@ -6,8 +6,6 @@ function ReceiptVoucherModal({
   getCleanPartnerName, findPartnerAccount, onSaveVoucher,
   isSubmitting = false, showToast
 }) {
-  if (!isOpen) return null;
-
   const [party, setParty] = useState(editData?.party || '');
   const [phone, setPhone] = useState(editData?.phone || '');
   const [currency, setCurrency] = useState(editData?.currency || 'YER ﷼');
@@ -58,6 +56,7 @@ function ReceiptVoucherModal({
   }, [currency, currCode, isEdit, defaultCash, defCashCode, defCashName]);
 
   const totalAmount = useMemo(() => payments.reduce((sum, r) => sum + (parseFloat(r.amount) || 0), 0), [payments]);
+  if (!isOpen) return null;
   const handleAddPayment = () => setPayments(prev => [...prev, { id: nextPayId.current++, method: defCashName, acc_code: defCashCode, amount: '' }]);
   const handleRemovePayment = (idx) => (payments.length <= 1 ? showToast?.('يجب أن يحتوي السند على طريقة دفع واحدة على الأقل ⚠️', 'warning') : setPayments(prev => prev.filter((_, i) => i !== idx)));
   const handlePaymentChange = (idx, field, val) => setPayments(prev => prev.map((p, i) => i === idx ? { ...p, [field]: val } : p));

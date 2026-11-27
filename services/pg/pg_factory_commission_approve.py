@@ -1,12 +1,9 @@
-import datetime
 import logging
 from .db_pool import get_db_cursor, clean_num, clean_str, generate_id
-from .account_resolver import (
-    resolve_account_id, resolve_receiving_account, resolve_labor_expense_account, resolve_labor_liability_account, resolve_leaf_account
-)
 from .pg_accounts import refresh_chart_balances_atomic
-from .pg_sequences import get_next_sequence_number
-from .pg_audit import log_audit_event
+from .pg_audit import get_active_user_context, resolve_active_user_id
+from .pg_factory_qc import resolve_inspector_name
+from .pg_wip_accounting import record_labor_wip_accrual
 from .stage_normalizer import normalize_canonical_stage, CANONICAL_STAGE_NAMES
 
 logger = logging.getLogger("LittlePrincesses_PG_FactoryCommissionApprove")
@@ -34,7 +31,7 @@ def approve_tailor_commission_and_qc(payload):
     order_no = clean_str(data.get('order_no') or data.get('order_id') or po_id)
     quality_score = clean_num(data.get('quality_score') or 5.0)
     quality_notes = clean_str(data.get('quality_notes') or 'مطابق لمواصفات ومقاسات الأميرة بجودة ممتازة ⭐')
-    approved_by = clean_str(data.get('approved_by') or data.get('inspector_name') or 'سارة مديرة الجودة')
+    approved_by = resolve_inspector_name(data, prefer_approved_by=True)
     custom_wage = data.get('wage_amount') or data.get('approved_wage')
     advance_stage = bool(data.get('advance_stage', True))
 
@@ -52,12 +49,12 @@ def approve_tailor_commission_and_qc(payload):
         if not po:
             cur.execute("SELECT * FROM orders WHERE id = %s OR order_no = %s OR order_no ILIKE %s LIMIT 1 FOR UPDATE;", (po_id, order_no, f"%{order_no}%"))
             ord_row = cur.fetchone()
-            insp_id = generate_id("INSP")
+            insp_id, insp_uid = generate_id("INSP"), resolve_active_user_id(cur, get_active_user_context() or approved_by)
             if ord_row:
                 cur.execute("UPDATE orders SET production_status = 'Ready', updated_at = CURRENT_TIMESTAMP WHERE id = %s;", (ord_row['id'],))
-                cur.execute("INSERT INTO quality_inspections (id, inspection_date, product_id, product_name, sku, model_id, color, size, production_stage, quantity_checked, quantity_passed, quantity_failed, inspection_result, inspector_id, inspector_name, notes, created_at, updated_at) VALUES (%s, CURRENT_DATE, %s, %s, %s, %s, %s, '', 'جاهز للتسليم 📦', 1, 1, 0, 'PASS', 'admin', %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);", (insp_id, ord_row.get('product_id'), 'فستان مفصل', ord_row.get('order_no'), ord_row.get('model_id') or ord_row.get('product_id'), ord_row.get('dress_color') or ord_row.get('selected_color') or '', approved_by, f"تقييم: {quality_score}⭐ | {quality_notes}"))
+                cur.execute("INSERT INTO quality_inspections (id, inspection_date, product_id, product_name, sku, model_id, color, size, production_stage, quantity_checked, quantity_passed, quantity_failed, inspection_result, inspector_id, inspector_name, notes, created_at, updated_at) VALUES (%s, CURRENT_DATE, %s, %s, %s, %s, %s, '', 'جاهز للتسليم 📦', 1, 1, 0, 'PASS', %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);", (insp_id, ord_row.get('product_id'), 'فستان مفصل', ord_row.get('order_no'), ord_row.get('model_id') or ord_row.get('product_id'), ord_row.get('dress_color') or ord_row.get('selected_color') or '', insp_uid, approved_by, f"تقييم: {quality_score}⭐ | {quality_notes}"))
                 return {'success': True, 'order_id': ord_row['id'], 'order_no': ord_row['order_no'], 'production_status': 'Ready', 'quality_status': 'passed', 'message': 'تم اعتماد جودة الفستان بنجاح وتحويله للتسليم'}
-            cur.execute("INSERT INTO quality_inspections (id, inspection_date, product_name, sku, production_stage, quantity_checked, quantity_passed, quantity_failed, inspection_result, inspector_id, inspector_name, notes, created_at, updated_at) VALUES (%s, CURRENT_DATE, %s, %s, 'جاهز للتسليم 📦', 1, 1, 0, 'PASS', 'admin', %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);", (insp_id, f"فستان طلب {order_no}", order_no, approved_by, f"تقييم: {quality_score}⭐ | {quality_notes}"))
+            cur.execute("INSERT INTO quality_inspections (id, inspection_date, product_name, sku, production_stage, quantity_checked, quantity_passed, quantity_failed, inspection_result, inspector_id, inspector_name, notes, created_at, updated_at) VALUES (%s, CURRENT_DATE, %s, %s, 'جاهز للتسليم 📦', 1, 1, 0, 'PASS', %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);", (insp_id, f"فستان طلب {order_no}", order_no, insp_uid, approved_by, f"تقييم: {quality_score}⭐ | {quality_notes}"))
             return {'success': True, 'order_id': po_id, 'order_no': order_no, 'production_status': 'Ready', 'quality_status': 'passed', 'message': 'تم اعتماد جودة الفستان بنجاح وتحويله للتسليم'}
 
         cur_stage = po.get('stage') or 'القص والتحضير ✂️'
@@ -75,6 +72,7 @@ def approve_tailor_commission_and_qc(payload):
         is_stock = bool(not raw_child or raw_child in ('الأميرة', 'إنتاج مخزني', 'مخزن') or po.get('production_type') == 'stock')
         display_child = 'إنتاج مخزني 🏭' if is_stock else (raw_child or 'الأميرة')
 
+        clean_cur = cur_stage.replace('✂️','').replace('🪡','').replace('✨','').replace('🔍','').replace('📦','').replace('🛍️','').replace('✅','').strip()
         c_cur_stage = normalize_canonical_stage(cur_stage)
         comm_id = None
         if c_cur_stage:
@@ -96,7 +94,6 @@ def approve_tailor_commission_and_qc(payload):
 
         next_stage, next_prog = NEXT_STAGE_MAP.get(cur_stage, ('جاهز للتسليم', 100))
         clean_next = next_stage.replace('✂️','').replace('🪡','').replace('✨','').replace('🔍','').replace('📦','').replace('🛍️','').replace('✅','').strip()
-        clean_cur = cur_stage.replace('✂️','').replace('🪡','').replace('✨','').replace('🔍','').replace('📦','').replace('🛍️','').replace('✅','').strip()
         if not advance_stage: clean_next, next_prog = clean_cur, po.get('progress') or 20
         new_status = 'Completed' if next_prog >= 100 else 'In Progress'
 
@@ -117,9 +114,9 @@ def approve_tailor_commission_and_qc(payload):
         if prod_id:
             cur.execute("SELECT id FROM products WHERE id = %s LIMIT 1;", (prod_id,))
             if not cur.fetchone(): prod_id = None
-        cur.execute("SELECT id FROM users WHERE username = %s OR name = %s LIMIT 1;", (approved_by, approved_by))
+        cur.execute("SELECT id FROM users WHERE username = %s OR full_name = %s LIMIT 1;", (approved_by, approved_by))
         u_row = cur.fetchone()
-        insp_uid, po_clr = (u_row['id'] if u_row else 'admin'), (po.get('dress_color') or po.get('selected_color') or po.get('color') or '')
+        insp_uid, po_clr = (u_row['id'] if u_row else resolve_active_user_id(cur, get_active_user_context() or approved_by)), (po.get('dress_color') or po.get('selected_color') or po.get('color') or '')
         po_sz, po_sku, po_model = (po.get('size_code') or ''), (po.get('production_order_no') or po['id']), (po.get('model_id') or prod_id or '')
         cur.execute("INSERT INTO quality_inspections (id, inspection_date, product_id, product_name, sku, model_id, color, size, production_order_id, production_stage, quantity_checked, quantity_passed, quantity_failed, inspection_result, inspector_id, inspector_name, notes, created_at, updated_at) VALUES (%s, CURRENT_DATE, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 0, 'PASS', %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);", (insp_id, prod_id, prod_name, po_sku, po_model, po_clr, po_sz, po['id'], cur_stage, pieces_count, pieces_count, insp_uid, approved_by, f"تقييم: {quality_score}⭐ | {quality_notes}"))
 
@@ -135,16 +132,16 @@ def approve_tailor_commission_and_qc(payload):
         return res
 
 
-def auto_credit_all_stages_commissions(cur, po_id, order_no=None, child_name=None, quality_score=5.0, approved_by='سارة مديرة الجودة'):
-    """ترحيل استحقاق أجور القطعة لكافة الفنيين والمراحل بقيد محاسبي مركب متزن (مدين: 501 / دائن: 203)"""
-    cur.execute("SELECT * FROM production_orders WHERE id = %s OR production_order_no = %s OR order_id = %s LIMIT 1;", (po_id, po_id, po_id))
+def auto_credit_all_stages_commissions(cur, po_id, order_no=None, child_name=None, quality_score=5.0, approved_by=None):
+    """ترحيل استحقاق أجور القطعة لكافة الفنيين والمراحل بقيد محاسبي مركب متزن (مدين: 105.05 WIP / دائن: 203 وفق IAS 2)"""
+    cur.execute("SELECT * FROM production_orders WHERE id = %s OR production_order_no = %s OR order_id = %s LIMIT 1 FOR UPDATE;", (po_id, po_id, po_id))
     po = cur.fetchone()
     if not po: return
     real_po_id, p_no = po['id'], po.get('production_order_no') or order_no or po['id']
     ord_id = po.get('order_id') or real_po_id
     c_name = child_name or po.get('child_name') or 'الأميرة'
     q_score = clean_num(quality_score or 5.0)
-    appr_by = clean_str(approved_by or 'سارة مديرة الجودة')
+    appr_by = clean_str(approved_by or get_active_user_context() or 'admin')
 
     workers_map = {}
     stg_defs = [
@@ -167,16 +164,17 @@ def auto_credit_all_stages_commissions(cur, po_id, order_no=None, child_name=Non
 
     if not workers_map: return
 
-    cur.execute("SELECT id FROM journal_entries WHERE ref_type = 'ProductionWageAccrual' AND (ref_id = %s OR ref_id = %s OR notes LIKE %s) LIMIT 1;", (real_po_id, ord_id, f"%{p_no}%"))
+    cur.execute("SELECT id FROM journal_entries WHERE ref_type = 'ProductionWageAccrual' AND status = 'Posted' AND (ref_id = %s OR ref_id = %s OR notes LIKE %s) LIMIT 1;", (real_po_id, ord_id, f"%{p_no}%"))
     exist_jv = cur.fetchone()
 
-    cur.execute("SELECT id, worker_id, worker_name, stage_id FROM piece_rate_logs WHERE production_order_id = %s OR production_order_id = %s;", (real_po_id, p_no))
+    cur.execute("SELECT id, worker_id, worker_name, stage_id, piece_rate_amount, pieces_count, payment_status, qa_status, paid_at FROM piece_rate_logs WHERE production_order_id IN (%s, %s, %s) FOR UPDATE;", (real_po_id, p_no, ord_id))
     prl_existing = {normalize_canonical_stage(r['stage_id']): r for r in cur.fetchall() if normalize_canonical_stage(r['stage_id'])}
 
     cur.execute("SELECT id, employee_id, employee_name, stage FROM tailor_commissions WHERE production_order_id = %s OR order_no = %s;", (real_po_id, p_no))
     comm_existing = {normalize_canonical_stage(r['stage']): r for r in cur.fetchall() if normalize_canonical_stage(r['stage'])}
 
     stg_lines, new_accruals_sum = [], 0.0
+    p_cnt_def = max(1, int(clean_num(po.get('pieces_count') or 1)))
     for c_k, w in workers_map.items():
         cur.execute("SELECT id FROM employees WHERE name = %s OR name ILIKE %s LIMIT 1;", (w['name'], f"%{w['name']}%"))
         e_row = cur.fetchone()
@@ -185,11 +183,22 @@ def auto_credit_all_stages_commissions(cur, po_id, order_no=None, child_name=Non
 
         exist_prl = prl_existing.get(c_k)
         if exist_prl:
-            cur.execute("UPDATE piece_rate_logs SET qa_status = 'Passed', payment_status = CASE WHEN payment_status = 'paid' THEN 'paid' ELSE 'Accrued' END, completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP) WHERE id = %s;", (exist_prl['id'],))
+            p_stat = clean_str(exist_prl.get('payment_status')).lower()
+            if not (bool(exist_prl.get('paid_at')) or p_stat in ('accrued', 'paid')):
+                prl_amt = clean_num(exist_prl.get('piece_rate_amount') or 0.0)
+                eff_wage = round(prl_amt * max(1, int(clean_num(exist_prl.get('pieces_count') or 1))), 2) if prl_amt > 0 else round(w_wage * p_cnt_def, 2)
+                cur.execute("UPDATE piece_rate_logs SET qa_status = 'Passed', payment_status = 'Accrued', piece_rate_amount = CASE WHEN COALESCE(piece_rate_amount, 0) <= 0 THEN %s ELSE piece_rate_amount END, completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP) WHERE id = %s;", (w_wage, exist_prl['id']))
+                if eff_wage > 0:
+                    new_accruals_sum += eff_wage
+                    stg_lines.append((exist_prl.get('worker_id') or emp_id, exist_prl.get('worker_name') or w['name'], eff_wage, w['stage']))
+            elif p_stat != 'paid' and not exist_prl.get('paid_at') and clean_str(exist_prl.get('qa_status')).lower() not in ('passed', 'approved'):
+                cur.execute("UPDATE piece_rate_logs SET qa_status = 'Passed', completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP) WHERE id = %s;", (exist_prl['id'],))
         else:
-            cur.execute("INSERT INTO piece_rate_logs (id, worker_id, worker_name, production_order_id, stage_id, piece_rate_amount, pieces_count, payment_status, qa_status, completed_at, created_at) VALUES (%s, %s, %s, %s, %s, %s, 1, 'Accrued', 'Passed', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);", (generate_id("PRL"), emp_id, w['name'], real_po_id, w['stage'], w_wage))
-            new_accruals_sum += w_wage
-            stg_lines.append((emp_id, w['name'], w_wage, w['stage']))
+            eff_wage = round(w_wage * p_cnt_def, 2)
+            cur.execute("INSERT INTO piece_rate_logs (id, worker_id, worker_name, production_order_id, stage_id, piece_rate_amount, pieces_count, payment_status, qa_status, completed_at, created_at) VALUES (%s, %s, %s, %s, %s, %s, %s, 'Accrued', 'Passed', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);", (generate_id("PRL"), emp_id, w['name'], real_po_id, w['stage'], w_wage, p_cnt_def))
+            if eff_wage > 0:
+                new_accruals_sum += eff_wage
+                stg_lines.append((emp_id, w['name'], eff_wage, w['stage']))
 
         exist_comm = comm_existing.get(c_k)
         if exist_comm:
@@ -204,16 +213,6 @@ def auto_credit_all_stages_commissions(cur, po_id, order_no=None, child_name=Non
         logger.info(f"Wage accrual guard for {p_no}: exist_jv={bool(exist_jv)}, new_sum={new_accruals_sum}")
         return
 
-    exp_acc = resolve_leaf_account(cur, resolve_labor_expense_account(cur, 'ACC-501'))
-    liab_acc = resolve_leaf_account(cur, resolve_labor_liability_account(cur, 'ACC-203'))
-    if exp_acc == liab_acc or not exp_acc.startswith('ACC-5'): exp_acc = 'ACC-501'
-    if liab_acc == exp_acc or not liab_acc.startswith('ACC-2'): liab_acc = 'ACC-203'
-
-    jv_id, jv_no = generate_id("JV"), get_next_sequence_number(cur, 'JV')
-    desc = f"استحقاق أجور تفصيل وتشغيل طلب {p_no} ({c_name}) لكافة الفنيين"
-    cur.execute("INSERT INTO journal_entries (id, entry_no, entry_date, description, debit_account_id, credit_account_id, amount, total_amount, base_amount, ref_type, ref_id, currency, exchange_rate, status, notes) VALUES (%s, %s, CURRENT_DATE, %s, %s, %s, %s, %s, %s, 'ProductionWageAccrual', %s, 'YER', 1.0, 'Posted', %s);", (jv_id, jv_no, desc, exp_acc, liab_acc, new_accruals_sum, new_accruals_sum, new_accruals_sum, real_po_id, f"استحقاق أجور {p_no}"))
-    cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, %s, %s, %s, 0.0, %s, 0.0);", (generate_id("JVL"), jv_id, exp_acc, f"مدين - تكلفة أجور تشغيل وتفصيل طلب {p_no}", new_accruals_sum, new_accruals_sum))
-    for emp_id, emp_name, w_wage, stg_name in stg_lines:
-        cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, %s, %s, 0.0, %s, 0.0, %s);", (generate_id("JVL"), jv_id, liab_acc, f"دائن - مستحقات الفني {emp_name} ({stg_name})", w_wage, w_wage))
-    logger.info(f"Accrued new wages {new_accruals_sum} YER across {len(stg_lines)} stage logs for order {p_no} via {jv_id}")
-
+    wip_res = record_labor_wip_accrual(cur, p_no, real_po_id, stg_lines, new_accruals_sum, f"استحقاق ورسملة أجور تشغيل طلب {p_no} ({c_name}) لكافة الفنيين")
+    if wip_res:
+        logger.info(f"Accrued and capitalized new wages {new_accruals_sum} YER across {len(stg_lines)} stage logs for order {p_no} via {wip_res['entry_no']}")

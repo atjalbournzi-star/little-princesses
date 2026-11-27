@@ -49,6 +49,8 @@ def add_warehouse(payload):
         acc_name = acc_row.get("account_name")
 
     logger.info(f"New warehouse created: {code} | Account: {acc_code}")
+    from .ref_cache import invalidate_ref
+    invalidate_ref('warehouses:')
     wh_clean = {k: str(v) if not isinstance(v, (str, int, float, bool, type(None))) else v for k, v in wh.items()}
     return {
         "success": True, "status": "created",
@@ -95,6 +97,8 @@ def update_warehouse(payload):
             """, (name, f"Inventory - {code}", acc_id))
 
     logger.info(f"Warehouse updated: {code} | Name: {name}")
+    from .ref_cache import invalidate_ref
+    invalidate_ref('warehouses:')
     wh_clean = {k: str(v) if not isinstance(v, (str, int, float, bool, type(None))) else v for k, v in updated_wh.items()}
     return {
         "success": True,
@@ -128,6 +132,8 @@ def toggle_warehouse_status(payload):
 
     status_txt = "تنشيط" if new_status else "تعطيل"
     logger.info(f"Warehouse status toggled: {wh['code']} -> {new_status}")
+    from .ref_cache import invalidate_ref
+    invalidate_ref('warehouses:')
     wh_clean = {k: str(v) if not isinstance(v, (str, int, float, bool, type(None))) else v for k, v in updated_wh.items()}
     return {
         "success": True,
@@ -179,6 +185,8 @@ def delete_warehouse_if_empty(payload):
             cur.execute("DELETE FROM chart_of_accounts WHERE id = %s;", (acc_id,))
 
     logger.info(f"Empty warehouse safely deleted: {code} | {name}")
+    from .ref_cache import invalidate_ref
+    invalidate_ref('warehouses:')
     return {
         "success": True,
         "message": f"تم حذف المستودع الخالي [{name}] وحسابه المرتبط نهائياً بنجاح 🗑️✅"

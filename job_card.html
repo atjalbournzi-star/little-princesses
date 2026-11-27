@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>👑 ليتل برنسيس | بطاقة التشغيل والإنتاج الذكية</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <script src="/static/vendor/tailwindcss.js"></script>
+  <link href="/static/vendor/fonts/fonts.css" rel="stylesheet">
   <style>
     body {
       font-family: 'Cairo', sans-serif;
@@ -531,7 +531,13 @@
           btn.textContent = 'أتممت هذه المرحلة بالكامل (رفع للفحص)';
         }
       } catch (err) {
-        alert('حدث خطأ في الاتصال: ' + err.message);
+        alert('تعذّر الاتصال بالخادم حالياً، بياناتك ما زالت محفوظة — يرجى إعادة المحاولة: ' + err.message);
+      } finally {
+        const btn = document.getElementById('completeBtn');
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = 'أتممت هذه المرحلة بالكامل (رفع للفحص)';
+        }
       }
     }
 

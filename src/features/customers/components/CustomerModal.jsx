@@ -112,15 +112,15 @@ function CustomerModal({
 
   if (!isOpen) return null;
   const Layout = window.UnifiedCustomerModalLayout, busy = isSaving || isSubmitting;
-  const inputCls = "w-full h-8 px-2.5 rounded-lg border border-slate-700 bg-slate-900/80 text-white font-bold text-xs focus:border-pink-500 outline-none transition-all";
-  const labelCls = "block text-[10.5px] font-semibold text-slate-300 mb-0.5";
+  const inputCls = "w-full h-8 px-2.5 rounded-lg border border-[#CBD5E1] dark:border-slate-700 bg-white dark:bg-slate-900/80 text-[#0F172A] dark:text-white placeholder-[#64748B] font-bold text-xs focus:border-pink-500 outline-none transition-all";
+  const labelCls = "block text-[10.5px] font-semibold text-[#334155] dark:text-slate-300 mb-0.5";
   const isExisting = Boolean(customer && (customer.id || customer.customer_id));
   const modalTitle = isExisting ? `إدارة ملف العميل • ${customer.name || customer.customer_name || ''}` : 'إضافة عميل جديد للنظام';
 
   const footerRightButtons = (
     <div className="flex items-center gap-2">
-      <button type="button" onClick={onClose} className="h-7 px-3 text-xs text-slate-400 hover:text-white rounded-lg border border-slate-700 hover:bg-slate-800 transition-colors cursor-pointer">إلغاء</button>
-      {isExisting && onDeleteCustomer && <button type="button" onClick={() => onDeleteCustomer(customer)} className="h-7 px-2.5 text-[11px] font-bold text-red-400 hover:text-white hover:bg-red-600/80 border border-red-500/40 rounded-lg transition-colors flex items-center gap-1 cursor-pointer" title="حذف العميل"><span>🗑️ حذف العميل</span></button>}
+      <button type="button" onClick={onClose} className="h-7 px-3 text-xs text-[#334155] dark:text-slate-400 hover:text-[#0F172A] dark:hover:text-white rounded-lg border border-[#CBD5E1] dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer">إلغاء</button>
+      {isExisting && onDeleteCustomer && <button type="button" onClick={() => onDeleteCustomer(customer)} className="h-7 px-2.5 text-[11px] font-bold text-red-600 dark:text-red-400 hover:text-white hover:bg-red-600/80 border border-red-300 dark:border-red-500/40 rounded-lg transition-colors flex items-center gap-1 cursor-pointer" title="حذف العميل"><span>🗑️ حذف العميل</span></button>}
     </div>
   );
 
@@ -138,18 +138,18 @@ function CustomerModal({
     >
       <form onSubmit={e => handleSubmit(e, false)} className="space-y-2.5">
         {errorBanner && (
-          <div className="p-2.5 rounded-lg bg-rose-950/90 border border-rose-600/80 text-rose-200 text-xs flex items-center justify-between animate-fadeIn shadow-lg">
+          <div className="p-2.5 rounded-lg bg-rose-50 dark:bg-rose-950/90 border border-rose-300 dark:border-rose-600/80 text-rose-800 dark:text-rose-200 text-xs flex items-center justify-between animate-fadeIn shadow-lg">
             <div className="flex items-center gap-2 font-bold"><span className="text-sm">⚠️</span><span>{errorBanner}</span></div>
-            <button type="button" onClick={() => setErrorBanner('')} className="text-rose-300 hover:text-white text-xs px-1 cursor-pointer">✕</button>
+            <button type="button" onClick={() => setErrorBanner('')} className="text-rose-600 dark:text-rose-300 hover:text-rose-900 dark:hover:text-white text-xs px-1 cursor-pointer">✕</button>
           </div>
         )}
         {importedMeasurements.length > 0 && (
-          <div className="p-2 rounded-lg bg-purple-950/40 border border-purple-800/60 flex items-center justify-between text-xs animate-fadeIn">
-            <div className="flex items-center gap-1.5 text-purple-300 text-[11px] font-medium">
+          <div className="p-2 rounded-lg bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/60 flex items-center justify-between text-xs animate-fadeIn">
+            <div className="flex items-center gap-1.5 text-purple-800 dark:text-purple-300 text-[11px] font-medium">
               <span>📏</span>
               <span>تم استيراد المقاسات ({importedMeasurements.length} مقاس: {importedMeasurements.map(m => m.child_name || '').filter(Boolean).join('، ')})</span>
             </div>
-            <span className="text-[9.5px] font-bold text-purple-300 bg-[#0F172A] px-2 py-0.5 rounded border border-purple-800/40">معتمد للطلب الجديد ✨</span>
+            <span className="text-[9.5px] font-bold text-purple-700 dark:text-purple-300 bg-white dark:bg-[#0F172A] px-2 py-0.5 rounded border border-purple-200 dark:border-purple-800/40">معتمد للطلب الجديد ✨</span>
           </div>
         )}
 
@@ -158,31 +158,31 @@ function CustomerModal({
             <div className="flex items-center justify-between mb-0.5">
               <label className={labelCls}>اسم العميل / المنشأة <span className="text-rose-500">*</span></label>
               {!customer && (
-                <button type="button" onClick={() => setShowDropdown(p => !p)} className="text-[9.5px] font-bold text-purple-300 hover:text-pink-300 bg-purple-950/50 px-1.5 py-0.2 rounded border border-purple-800/50 transition cursor-pointer" title="استيراد عميل مسجل">🔍 استيراد</button>
+                <button type="button" onClick={() => setShowDropdown(p => !p)} className="text-[9.5px] font-bold text-purple-700 dark:text-purple-300 hover:text-pink-700 dark:hover:text-pink-300 bg-purple-50 dark:bg-purple-950/50 px-1.5 py-0.2 rounded border border-purple-200 dark:border-purple-800/50 transition cursor-pointer" title="استيراد عميل مسجل">🔍 استيراد</button>
               )}
             </div>
             <div className="relative">
               <input required value={name} onChange={e => { setName(e.target.value); if (!customer) setShowDropdown(true); }} onFocus={() => { if (!customer) setShowDropdown(true); }} className={inputCls} autoComplete="off" />
-              {name && !customer && <button type="button" onClick={() => { setName(''); setShowDropdown(true); }} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-[10px] cursor-pointer">✕</button>}
+              {name && !customer && <button type="button" onClick={() => { setName(''); setShowDropdown(true); }} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-[#0F172A] dark:hover:text-white text-[10px] cursor-pointer">✕</button>}
             </div>
             {showDropdown && !customer && (
-              <div className="absolute z-50 right-0 left-0 mt-1 bg-[#0F172A] border border-slate-700 rounded-xl shadow-2xl max-h-48 overflow-y-auto divide-y divide-slate-800 animate-fadeIn">
-                <div className="p-1.5 text-[10px] font-bold text-slate-400 bg-slate-900 flex justify-between items-center">
+              <div className="absolute z-50 right-0 left-0 mt-1 bg-white dark:bg-[#0F172A] border border-[#CBD5E1] dark:border-slate-700 rounded-xl shadow-2xl max-h-48 overflow-y-auto divide-y divide-slate-200 dark:divide-slate-800 animate-fadeIn">
+                <div className="p-1.5 text-[10px] font-bold text-[#334155] dark:text-slate-400 bg-[#F1F5F9] dark:bg-slate-900 flex justify-between items-center">
                   <span>{name.trim() ? `نتائج (${name.trim()}):` : 'عملاء سابقون:'}</span>
                   <span className="text-[9.5px] font-mono text-slate-500">{filteredMatches.length}</span>
                 </div>
                 {filteredMatches.length > 0 ? filteredMatches.map(c => {
                   const mCount = Array.isArray(c.measurements) ? c.measurements.length : 0;
                   return (
-                    <div key={c.id || c.customer_id} onClick={() => selectExistingCustomer(c)} className="p-2 hover:bg-slate-800 cursor-pointer flex justify-between items-center text-xs transition">
+                    <div key={c.id || c.customer_id} onClick={() => selectExistingCustomer(c)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer flex justify-between items-center text-xs transition">
                       <div>
-                        <div className="flex items-center gap-1.5"><span className="font-bold text-white text-[11px]">{c.name || c.customer_name}</span><span className="text-[9px] px-1 rounded bg-purple-950 text-purple-300">{c.category || 'جديد'}</span></div>
-                        <div className="flex items-center gap-2 text-[10px] text-slate-400 font-mono"><span>📞 {c.phone || '—'}</span>{mCount > 0 && <span className="text-purple-300 font-sans">📏 {mCount}</span>}</div>
+                        <div className="flex items-center gap-1.5"><span className="font-bold text-[#0F172A] dark:text-white text-[11px]">{c.name || c.customer_name}</span><span className="text-[9px] px-1 rounded bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300">{c.category || 'جديد'}</span></div>
+                        <div className="flex items-center gap-2 text-[10px] text-slate-500 dark:text-slate-400 font-mono"><span>📞 {c.phone || '—'}</span>{mCount > 0 && <span className="text-purple-700 dark:text-purple-300 font-sans">📏 {mCount}</span>}</div>
                       </div>
-                      <span className="text-[9.5px] text-pink-300 font-bold bg-pink-950/60 px-1.5 py-0.5 rounded border border-pink-800/60">استيراد ↵</span>
+                      <span className="text-[9.5px] text-pink-700 dark:text-pink-300 font-bold bg-pink-50 dark:bg-pink-950/60 px-1.5 py-0.5 rounded border border-pink-200 dark:border-pink-800/60">استيراد ↵</span>
                     </div>
                   );
-                }) : <div className="p-2.5 text-center text-[10.5px] text-slate-400">لا يوجد عميل مطابق ⚠️</div>}
+                }) : <div className="p-2.5 text-center text-[10.5px] text-slate-500 dark:text-slate-400">لا يوجد عميل مطابق ⚠️</div>}
               </div>
             )}
           </div>
@@ -190,7 +190,7 @@ function CustomerModal({
           <div>
             <div className="flex justify-between items-center mb-0.5">
               <label className={labelCls}>الهاتف (واتساب) <span className="text-rose-500">*</span></label>
-              {phone && <a href={`https://wa.me/${String(phone).replace(/^0+/, '967').replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="text-[10px] text-cyan-400 hover:underline font-bold">💬 واتساب</a>}
+              {phone && <a href={`https://wa.me/${String(phone).replace(/^0+/, '967').replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="text-[10px] text-cyan-700 dark:text-cyan-400 hover:underline font-bold">💬 واتساب</a>}
             </div>
             <input required value={phone} onChange={e => setPhone(e.target.value)} className={inputCls + " font-mono text-left"} type="tel" dir="ltr" />
           </div>

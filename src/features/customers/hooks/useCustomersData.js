@@ -1,21 +1,22 @@
 // src/features/customers/hooks/useCustomersData.js
-const { useState, useEffect, useMemo, useCallback } = React;
+const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
 function useCustomersData({ customers = [], setCustomers, orders = [] }) {
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [sortBy, setSortBy] = useState('recent');
   const [liveOrders, setLiveOrders] = useState([]);
+  const didFetchCustomersRef = useRef(false);
 
   const refreshOrders = useCallback(() => {
-    fetch('/api/orders').then(r => r.json()).then(d => {
+    fetch('/api/sales/orders').then(r => r.json()).then(d => {
       const l = Array.isArray(d?.data) ? d.data : (Array.isArray(d) ? d : []);
       if (l.length) setLiveOrders(l);
     }).catch(() => {});
   }, []);
 
   useEffect(() => {
-    refreshOrders();
+    if (!orders || orders.length === 0) refreshOrders();
     const onOrdersChanged = () => refreshOrders();
     window.addEventListener('erp:ordersChanged', onOrdersChanged);
     window.addEventListener('orders-updated', onOrdersChanged);
@@ -26,10 +27,11 @@ function useCustomersData({ customers = [], setCustomers, orders = [] }) {
   }, [refreshOrders]);
   const effectiveOrders = (liveOrders && liveOrders.length > 0) ? liveOrders : (orders || []);
 
-  // جلب العملاء تلقائياً من الخادم إذا كانت القائمة فارغة
+  // جلب العملاء مرة واحدة تلقائياً من الخادم فقط إذا لم يتم الجلب مسبقاً وكانت القائمة فارغة
   useEffect(() => {
-    if ((!customers || customers.length === 0) && typeof setCustomers === 'function') {
-      fetch('/api/crm/customers')
+    if (!didFetchCustomersRef.current && (!customers || customers.length === 0) && typeof setCustomers === 'function') {
+      didFetchCustomersRef.current = true;
+      fetch('/api/customers')
         .then(r => r.json())
         .then(d => {
           const list = (d && Array.isArray(d.data)) ? d.data : (Array.isArray(d) ? d : (d?.customers || []));

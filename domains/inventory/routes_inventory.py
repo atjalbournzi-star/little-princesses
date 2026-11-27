@@ -79,11 +79,19 @@ def handle_get(handler, path, parsed_url) -> bool:
         return True
 
     if path in ('/api/inventory/transactions', '/api/inventory-transactions'):
-        conn = get_db()
-        c = conn.cursor()
-        c.execute("SELECT * FROM inventory_transactions ORDER BY created_at DESC")
-        txns = [dict(r) for r in c.fetchall()]
-        conn.close()
+        try:
+            txns = pg_service.execute_query("""
+                SELECT t.*, i.name AS item_name, i.item_code, w.name AS warehouse_name,
+                       COALESCE(u.full_name, t.created_by, 'النظام') AS user_name
+                FROM inventory_transactions t
+                LEFT JOIN inventory i ON t.inventory_id = i.id
+                LEFT JOIN warehouses w ON t.warehouse_id = w.id
+                LEFT JOIN users u ON t.created_by = u.id OR t.created_by = u.username
+                ORDER BY t.created_at DESC
+                LIMIT 500;
+            """, fetch_all=True) or []
+        except Exception:
+            txns = []
         _send_json(handler, {'success': True, 'data': txns, 'count': len(txns)})
         return True
 

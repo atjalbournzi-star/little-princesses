@@ -7,7 +7,19 @@ function AccountModal({
   accountsWithRollupBalances,
   handleParentChange, handleSaveAccount
 }) {
+  const [submitting, setSubmitting] = React.useState(false);
   if (!showModal) return null;
+
+  const onFormSubmit = async (e) => {
+    e.preventDefault();
+    if (submitting || typeof handleSaveAccount !== 'function') return;
+    setSubmitting(true);
+    try {
+      await handleSaveAccount(e);
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const accountTypesList = typeof ACCOUNT_TYPES !== 'undefined'
     ? ACCOUNT_TYPES
@@ -24,7 +36,7 @@ function AccountModal({
           <button onClick={() => setShowModal(false)} className="text-[#6F6B75] hover:text-[#25232A] text-lg font-bold">✕</button>
         </div>
 
-        <form onSubmit={handleSaveAccount} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+        <form onSubmit={onFormSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
           {/* الحساب الأب */}
           <div>
             <label className="block text-xs font-bold text-[#25232A] mb-1.5">الحساب الأب (Parent Account)</label>
@@ -144,9 +156,9 @@ function AccountModal({
               className="px-5 py-2.5 bg-[#FAFAFB] hover:bg-[#E8E5EA] text-[#25232A] rounded-xl font-bold text-xs border border-[#E8E5EA]">
               إلغاء
             </button>
-            <button type="submit"
-              className="px-6 py-2.5 bg-[#8F2A87] hover:bg-[#73216C] text-white rounded-xl font-bold text-xs shadow-xs">
-              {editingAccount ? 'حفظ التعديلات' : 'إضافة الحساب'}
+            <button type="submit" disabled={submitting}
+              className="px-6 py-2.5 bg-[#8F2A87] hover:bg-[#73216C] text-white rounded-xl font-bold text-xs shadow-xs disabled:opacity-50 disabled:cursor-not-allowed">
+              {submitting ? 'جاري الحفظ...' : (editingAccount ? 'حفظ التعديلات' : 'إضافة الحساب')}
             </button>
           </div>
         </form>

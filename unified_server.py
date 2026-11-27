@@ -104,7 +104,7 @@ POST_ROUTERS = [
     routes_orders.handle_post, routes_delivery.handle_post, routes_factory_actions.handle_post,
     routes_measurement.handle_post, routes_inventory.handle_post, routes_warehouses.handle_post,
     routes_purchases.handle_post, routes_purchases_manage.handle_post, routes_vouchers.handle_post,
-    routes_expenses.handle_post, routes_journal.handle_post, routes_accounts.handle_post,
+    routes_expenses.handle_post, routes_journal.handle_post, routes_accounts.handle_post, routes_reports.handle_post,
     quality_actions.handle_post, routes_feedback.handle_post, routes_core.handle_post,
     routes_webhooks.handle_post, routes_ai_actions.handle_post, hr_routes.handle_post,
     routes_backup.handle_post, system_routes.handle_post, routes_sync.handle_post,

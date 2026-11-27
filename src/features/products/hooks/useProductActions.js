@@ -6,7 +6,7 @@ function useProductActions({ products = [], setProducts, inventory = [], showToa
   const getCurrencyLabel = u.getCurrencyLabel || ((c) => getCurrencyCode(c));
 
   const [modalOpen, setModalOpen] = useState(false), [activeTab, setActiveTab] = useState("basic"), [editId, setEditId] = useState(null), [isSaving, setIsSaving] = useState(false);
-  const [modelName, setModelName] = useState(""), [smartCode, setSmartCode] = useState(""), [targetSegment, setTargetSegment] = useState("kids"), [category, setCategory] = useState(""), [subcategory, setSubcategory] = useState(""), [collection, setCollection] = useState(""), [imageUrl, setImageUrl] = useState(""), [description, setDescription] = useState(""), [status, setStatus] = useState("Active");
+  const [modelName, setModelName] = useState(""), [smartCode, setSmartCode] = useState(""), [targetSegment, setTargetSegment] = useState("kids"), [fulfillmentMode, setFulfillmentMode] = useState("CATALOG_MTO"), [category, setCategory] = useState(""), [subcategory, setSubcategory] = useState(""), [collection, setCollection] = useState(""), [imageUrl, setImageUrl] = useState(""), [description, setDescription] = useState(""), [status, setStatus] = useState("Active");
   const [formCurrency, setFormCurrency] = useState(() => getCurrencyCode(currency) || "YER"), [calcDate, setCalcDate] = useState(() => (typeof TODAY_STR_ISO !== 'undefined' ? TODAY_STR_ISO : new Date().toISOString().split('T')[0])), [selectedSizes, setSelectedSizes] = useState(() => ['1-2Y', '3-5Y', '6-9Y', '10-13Y']), [selectedColors, setSelectedColors] = useState(() => []);
   const [fabricsList, setFabricsList] = useState([u.createDefaultFabricRow ? u.createDefaultFabricRow("YER", "kids") : { id: 1, inventory_id: "", name: "", unit: "متر", currency: "YER", brackets: { '1-2Y': "", '3-5Y': "", '6-9Y': "", '10-13Y': "" }, cost: 0 }]);
   const [cutterWage, setCutterWage] = useState(""), [tailorWage, setTailorWage] = useState(""), [embroidWage, setEmbroidWage] = useState(""), [finisherWage, setFinisherWage] = useState(""), [packagingCost, setPackagingCost] = useState(""), [stageWages, setStageWages] = useState({}), [pricesMatrix, setPricesMatrix] = useState({ '1-2Y': "", '3-5Y': "", '6-9Y': "", '10-13Y': "" });
@@ -51,7 +51,7 @@ function useProductActions({ products = [], setProducts, inventory = [], showToa
       fetchNextSkuPreview(newSeg, category).then(s => { if (s) setSmartCode(s); });
       const segSizes = u.getSegmentSizes ? u.getSegmentSizes(newSeg) : ['1-2Y', '3-5Y', '6-9Y', '10-13Y'];
       setSelectedSizes(segSizes);
-      setFabricsList([u.createDefaultFabricRow ? u.createDefaultFabricRow(activeModelCurrency, "kids", 1) : { id: 1, inventory_id: "", name: "", unit: "متر", currency: activeModelCurrency, brackets: { "1-2Y": "", "3-5Y": "", "6-9Y": "", "10-13Y": "" }, cost: 0 }]);
+      setFabricsList([u.createDefaultFabricRow ? u.createDefaultFabricRow(activeModelCurrency, newSeg, 1) : { id: 1, inventory_id: "", name: "", unit: "متر", currency: activeModelCurrency, brackets: { "1-2Y": "", "3-5Y": "", "6-9Y": "", "10-13Y": "" }, cost: 0 }]);
       const newPrices = {}; segSizes.forEach(s => { newPrices[s] = ""; }); setPricesMatrix(newPrices);
     }
   };
@@ -98,7 +98,7 @@ function useProductActions({ products = [], setProducts, inventory = [], showToa
     setEditId(null); setModelName("");
     setSmartCode(u.generateSmartModelCode ? u.generateSmartModelCode('kids') : '');
     fetchNextSkuPreview('kids', '').then(s => { if (s) setSmartCode(s); });
-    setTargetSegment("kids"); setCategory(""); setSubcategory(""); setCollection(""); setImageUrl(""); setDescription(""); setStatus("Active");
+    setTargetSegment("kids"); setFulfillmentMode("CATALOG_MTO"); setCategory(""); setSubcategory(""); setCollection(""); setImageUrl(""); setDescription(""); setStatus("Active");
     setCutterWage(""); setTailorWage(""); setEmbroidWage(""); setFinisherWage(""); setPackagingCost(""); setStageWages({});
     setPricesMatrix({ '1-2Y': "", '3-5Y': "", '6-9Y': "", '10-13Y': "" }); setSelectedSizes(['1-2Y', '3-5Y', '6-9Y', '10-13Y']); setSelectedColors([]);
     setFabricsList([u.createDefaultFabricRow ? u.createDefaultFabricRow(activeModelCurrency, 'kids', 1) : { id: 1, inventory_id: "", name: "", unit: "متر", currency: activeModelCurrency, brackets: {}, cost: 0 }]);
@@ -114,8 +114,8 @@ function useProductActions({ products = [], setProducts, inventory = [], showToa
         try { const res = await fetch(`/api/products/get?id=${encodeURIComponent(p.id)}`).then(r => r.json()); if (res?.data) p = { ...p, ...res.data }; } catch (e) {}
       }
       const seg = p.target_segment || 'kids', targetRef = (u.SEGMENTS?.[seg] || u.SEGMENTS?.kids)?.referenceSize || '6-9Y';
-      setEditId(p.id || null); setModelName(p.name || p.model_name || ""); setSmartCode(p.sku || p.barcode || p.model_no || (p.id ? `LP-${p.id}` : ''));
-      setTargetSegment(seg); setCategory(p.category || ""); setSubcategory(p.subcategory || ""); setCollection(p.collection || "");
+      setEditId(p.id || null); setModelName(p.name || p.model_name || ""); setSmartCode(p.sku || p.barcode || p.model_no || (p.id ? `PRD-${p.id}` : ''));
+      setTargetSegment(seg); setFulfillmentMode(p.fulfillment_mode || "CATALOG_MTO"); setCategory(p.category || ""); setSubcategory(p.subcategory || ""); setCollection(p.collection || "");
       setImageUrl(p.image_url || p.image || p.image_data || ""); setDescription(p.description || ""); setStatus(p.status || "Active");
 
       let rawBom = p.bom; if (typeof rawBom === 'string') { try { rawBom = JSON.parse(rawBom); } catch (e) { rawBom = {}; } }
@@ -163,7 +163,7 @@ function useProductActions({ products = [], setProducts, inventory = [], showToa
     if (!modelName.trim()) return showToast ? showToast("اسم الموديل مطلوب ⚠️", "error") : null;
     setIsSaving(true);
     const resolvedChart = targetSegment === 'women_adults' ? womenSizeChart : ageChart;
-    const payloadArgs = { editId, smartCode, modelName, targetSegment, category, subcategory, collection, imageUrl, description, status, fabricsList, refSize, computedFabricTotal, cutterWage, tailorWage, embroidWage, finisherWage, stageWages, computedTotalLabor, packagingCost, computedTotalCost, pricesMatrix, activeModelCurrencyLabel, computedProfit, calcDate, selectedSizes, selectedColors, ageChart: resolvedChart };
+    const payloadArgs = { editId, smartCode, modelName, targetSegment, fulfillmentMode, category, subcategory, collection, imageUrl, description, status, fabricsList, refSize, computedFabricTotal, cutterWage, tailorWage, embroidWage, finisherWage, stageWages, computedTotalLabor, packagingCost, computedTotalCost, pricesMatrix, activeModelCurrencyLabel, computedProfit, calcDate, selectedSizes, selectedColors, ageChart: resolvedChart };
     const newP = u.buildProductPayload ? u.buildProductPayload(payloadArgs) : { id: editId || undefined, name: modelName };
     try {
       let savedProduct = newP;
@@ -188,7 +188,7 @@ function useProductActions({ products = [], setProducts, inventory = [], showToa
 
   return {
     modalOpen, setModalOpen, activeTab, setActiveTab, editId, isSaving, modelName, setModelName, smartCode, setSmartCode,
-    generateNewSmartCode, targetSegment, setTargetSegment: handleTargetSegmentChange, category, setCategory, subcategory, setSubcategory,
+    generateNewSmartCode, targetSegment, setTargetSegment: handleTargetSegmentChange, fulfillmentMode, setFulfillmentMode, category, setCategory, subcategory, setSubcategory,
     collection, setCollection, imageUrl, setImageUrl, description, setDescription, status, setStatus, formCurrency, setFormCurrency,
     calcDate, setCalcDate, selectedSizes, setSelectedSizes, toggleSize, selectedColors, setSelectedColors, toggleColor, fabricsList,
     setFabricsList, handleFabricChange, handleFabricBracketChange, addFabricRow, removeFabricRow, cutterWage, setCutterWage,

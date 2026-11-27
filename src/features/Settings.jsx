@@ -38,6 +38,7 @@ function Settings({ showToast, currency }) {
   const TemplatesTab = window.PrintTemplatesTab;
   const IntegrationsTab = window.IntegrationsSettingsTab;
   const BackupTab = window.BackupDatabaseTab;
+  const RadarTab = window.IntegrityRadarTab;
   const AuditModal = window.AuditLogsModal;
 
   return (
@@ -104,6 +105,16 @@ function Settings({ showToast, currency }) {
           isRestoring={isRestoring} isWiping={isWiping} fetchBackupStatus={fetchBackupStatus}
           onOpenAuditLogs={() => setIsAuditModalOpen(true)} showToast={showToast}
         />
+      )}
+
+      {/* 7. تبويب رادار السلامة والمطابقة وقفل الفترات */}
+      {activeTab === 'radar' && RadarTab && (
+        <RadarTab showToast={showToast} />
+      )}
+
+      {/* 8. تبويب مصفوفة المقاسات القياسية */}
+      {activeTab === 'size_matrices' && window.SizeMatricesTab && (
+        <window.SizeMatricesTab showToast={showToast} />
       )}
 
       {/* نافذة سجلات التدقيق المنبثقة */}

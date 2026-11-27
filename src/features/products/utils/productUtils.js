@@ -1,10 +1,15 @@
 // src/features/products/utils/productUtils.js
 // أدوات مساعدة ومعادلات تسعير واستيراد الأقمشة لكتالوج المنتجات والموديلات
 
+const GIRLS_SEG = { id: 'GIRLS_DRESS', label: 'فساتين بنات', icon: '👧', sizes: ['1-2Y', '3-5Y', '6-9Y', '10-13Y'], sizeLabels: { '1-2Y': '1-2 سنة', '3-5Y': '3-5 سنوات', '6-9Y': '6-9 سنوات', '10-13Y': '10-13 سنة' }, defaultMeters: { '1-2Y': '', '3-5Y': '', '6-9Y': '', '10-13Y': '' }, referenceSize: '6-9Y' };
+const WOMEN_SEG = { id: 'WOMEN_APPAREL', label: 'ملابس نسائية', icon: '👗', sizes: ['XS', 'S', 'M', 'L', 'XL', 'XXL'], sizeLabels: { 'XS': 'XS (34)', 'S': 'S (36)', 'M': 'M (38)', 'L': 'L (40)', 'XL': 'XL (42)', 'XXL': 'XXL (44)' }, defaultMeters: { 'XS': '', 'S': '', 'M': '', 'L': '', 'XL': '', 'XXL': '' }, referenceSize: 'M' };
+const UNIFORM_SEG = { id: 'SCHOOL_UNIFORM', label: 'زي مدرسي', icon: '🎒', sizes: ['5-6Y', '7-8Y', '9-10Y', '11-12Y', '13-14Y', '15-16Y', '17-18Y'], sizeLabels: { '5-6Y': '5-6Y', '7-8Y': '7-8Y', '9-10Y': '9-10Y', '11-12Y': '11-12Y', '13-14Y': '13-14Y', '15-16Y': '15-16Y', '17-18Y': '17-18Y' }, defaultMeters: { '5-6Y': '', '7-8Y': '', '9-10Y': '', '11-12Y': '', '13-14Y': '', '15-16Y': '', '17-18Y': '' }, referenceSize: '9-10Y' };
+const GENERAL_SEG = { id: 'GENERAL', label: 'عام', icon: '✨', sizes: ['S', 'M', 'L', 'XL', 'مقاس حر'], sizeLabels: { 'S': 'S', 'M': 'M', 'L': 'L', 'XL': 'XL', 'مقاس حر': 'مقاس حر' }, defaultMeters: { 'S': '', 'M': '', 'L': '', 'XL': '', 'مقاس حر': '' }, referenceSize: 'M' };
 const SEGMENTS = {
-  kids: { id: 'kids', label: 'أطفال (Kids)', icon: '👧', sizes: ['1-2Y', '3-5Y', '6-9Y', '10-13Y'], sizeLabels: { '1-2Y': '1-2 سنة', '3-5Y': '3-5 سنوات', '6-9Y': '6-9 سنوات', '10-13Y': '10-13 سنة' }, defaultMeters: { '1-2Y': '', '3-5Y': '', '6-9Y': '', '10-13Y': '' }, referenceSize: '6-9Y' },
-  women_adults: { id: 'women_adults', label: 'نسائي وكبار (Adults)', icon: '👗', sizes: ['XS', 'S', 'M', 'L', 'XL', 'XXL'], sizeLabels: { 'XS': 'XS (34)', 'S': 'S (36)', 'M': 'M (38)', 'L': 'L (40)', 'XL': 'XL (42)', 'XXL': 'XXL (44)' }, defaultMeters: { 'XS': '', 'S': '', 'M': '', 'L': '', 'XL': '', 'XXL': '' }, referenceSize: 'M' },
-  custom_free: { id: 'custom_free', label: 'تفصيل ومقاس حر (Custom)', icon: '✂️', sizes: ['تفصيل حر'], sizeLabels: { 'تفصيل حر': 'مقاس حر / تفصيل حر' }, defaultMeters: { 'تفصيل حر': '' }, referenceSize: 'تفصيل حر' }
+  GIRLS_DRESS: GIRLS_SEG, kids: GIRLS_SEG,
+  WOMEN_APPAREL: WOMEN_SEG, women_adults: WOMEN_SEG,
+  SCHOOL_UNIFORM: UNIFORM_SEG,
+  GENERAL: GENERAL_SEG, general: GENERAL_SEG, custom_free: GENERAL_SEG
 };
 
 const DEFAULT_AGE_CHART = [
@@ -26,13 +31,14 @@ const DEFAULT_BRACKETS = ['1-2Y', '3-5Y', '6-9Y', '10-13Y'];
 const DEFAULT_SIZES = ['1-2 سنة', '3-5 سنوات', '6-9 سنوات', '10-13 سنة', 'XS', 'S', 'M', 'L', 'XL', 'XXL'];
 const DEFAULT_COLORS = [];
 
-const generateSmartModelCode = (segment = 'kids', seq = null) => {
-  const pfx = segment === 'women_adults' ? 'WMN' : (segment === 'custom_free' ? 'CST' : 'KID');
+const generateSmartModelCode = (segment = 'GIRLS_DRESS', seq = null) => {
+  const s = String(segment || '').toUpperCase();
+  const pfx = (s === 'WOMEN_APPAREL' || s === 'WOMEN_ADULTS') ? 'WMN' : (s === 'SCHOOL_UNIFORM' ? 'UNI' : (s === 'GENERAL' || s === 'CUSTOM_FREE' ? 'GEN' : 'GRL'));
   if (seq) {
     const sStr = String(seq);
-    return sStr.includes('LP-') ? sStr : `LP-${pfx}-${sStr.padStart(4, '0')}`;
+    return sStr.includes('PRD-') ? sStr : `PRD-${pfx}-${sStr.padStart(4, '0')}`;
   }
-  return `LP-${pfx}-0001`;
+  return `PRD-${pfx}-0001`;
 };
 
 const getCurrencyCode = (c) => {
@@ -165,6 +171,7 @@ const buildProductPayload = (d) => {
   return {
     id: d.editId || undefined, sku: smartVal || undefined, model_no: smartVal || undefined, design_code: smartVal || undefined, barcode: smartVal || undefined,
     name: pName, model_name: pName, target_segment: d.targetSegment || 'kids',
+    fulfillment_mode: d.fulfillmentMode || 'CATALOG_MTO',
     category: d.category || '', subcategory: subcat, collection: coll,
     image_url: d.imageUrl || '', image: null, image_data: null, description: desc, min_stock: 2, status: d.status || 'Active',
     fabric_name: fabricNames, yards_used: totalMeters, fabric_cost: parseFloat(d.computedFabricTotal || 0),

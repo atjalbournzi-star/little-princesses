@@ -1,22 +1,40 @@
 import hashlib
+import hmac
 import sqlite3
 import threading
+from werkzeug.security import generate_password_hash, check_password_hash
 from domains.system.db_connection import get_db
 import pg_service
 
+_LEGACY_SALT = "little_princesses_erp_salt_2026"
+
+
+def _legacy_sha256(password: str) -> str:
+    return hashlib.sha256((_LEGACY_SALT + str(password)).encode('utf-8')).hexdigest()
+
+
 def hash_password(password: str) -> str:
-    salt = "little_princesses_erp_salt_2026"
-    return hashlib.sha256((salt + str(password)).encode('utf-8')).hexdigest()
+    return generate_password_hash(str(password), method='pbkdf2:sha256', salt_length=16)
+
+
+def is_legacy_password_hash(stored_hash: str) -> bool:
+    if not stored_hash or not isinstance(stored_hash, str):
+        return False
+    h = stored_hash.strip()
+    return len(h) == 64 and all(c in '0123456789abcdefABCDEF' for c in h)
+
 
 def verify_password(password: str, stored_hash: str) -> bool:
-    if not stored_hash:
+    if not password or not stored_hash or not isinstance(stored_hash, str):
         return False
-    if hash_password(password) == stored_hash:
-        return True
-    if password in ('1234', 'admin') and stored_hash == hash_password('admin'):
-        return True
-    if str(password) == str(stored_hash):
-        return True
+    h = stored_hash.strip()
+    if h.startswith(('pbkdf2:', 'scrypt:')):
+        try:
+            return check_password_hash(h, str(password))
+        except Exception:
+            return False
+    if is_legacy_password_hash(h):
+        return hmac.compare_digest(_legacy_sha256(str(password)), h.lower())
     return False
 
 ROLE_MAP = {
@@ -93,7 +111,7 @@ def sync_users_to_gas_async():
         try:
             conn = get_db()
             c = conn.cursor()
-            c.execute("SELECT id, username, password, password_hash, role, full_name, is_active, created_at FROM users ORDER BY id ASC")
+            c.execute("SELECT id, username, password_hash, role, full_name, is_active, created_at FROM users ORDER BY id ASC")
             for r in c.fetchall():
                 u = dict(r)
                 pg_service.sync_user_to_pg(u)

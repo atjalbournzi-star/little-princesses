@@ -23,8 +23,9 @@ function CustomerMeasurementsModal({
         const chName = cName || (m.target_mode === 'women_adults' ? custNameStr : (i === 0 && derivedChild !== custNameStr ? derivedChild : ''));
         const comfort = Array.isArray(m.comfort_profile) ? m.comfort_profile : (typeof m.comfort_profile === 'string' && m.comfort_profile ? m.comfort_profile.replace(/[\[\]']/g, '').split(',').map(s => s.trim()).filter(Boolean) : []);
         const rawU = String(m.unit || '').trim(), u = /^(inch|in|إنش|انش)$/i.test(rawU) ? 'إنش' : 'سم', dL = cN(m.dress_length ?? m.dress_len), tH = cN(m.total_height ?? m.total_len), mod = m.selected_model || m.model_name || '';
-        const o = { id: m.id || (Date.now() + i), child_id: m.child_id || customer?.children?.[i]?.id || '', child_name: chName, target_mode: m.target_mode || (raw.some(x => x.target_mode === 'women_adults') ? 'women_adults' : 'kids'), unit: u, selected_model: mod, dress_color: m.dress_color || '', meas_date: m.meas_date || m.measurement_date || (typeof TODAY_STR_ISO !== 'undefined' ? TODAY_STR_ISO : ''), event_date: m.event_date || m.date || '', model_image: m.model_image || m.model_img || '', total_height: tH, dress_length: dL, fabric_type: m.fabric_type || '', fabric_meters: cN(m.fabric_meters), adjusted_price: cN(m.adjusted_price), comfort_profile: comfort, sewing_notes: m.sewing_notes || m.notes || '', estimated_age: m.estimated_age || calcAge(dL || tH, mod, u, activeProds), fabrics_breakdown: m.fabrics_breakdown || [] };
-        ['total_height','dress_length','chest_length','skirt_length','sleeve_length','chest_circ','waist_circ','shoulder_width','armhole_circ','neck_circ','hips_circ','arm_circ','bust_drop'].forEach(f => { o[f] = cN(m[f]); });
+        const o = { id: m.id || (Date.now() + i), child_id: m.child_id || customer?.children?.[i]?.id || '', child_name: chName, wearer_type: m.wearer_type || (m.target_mode === 'women_adults' ? 'SELF' : 'DEPENDENT'), target_segment: m.target_segment || (m.target_mode === 'women_adults' ? 'WOMEN_APPAREL' : 'GIRLS_DRESS'), target_mode: m.target_mode || (raw.some(x => x.target_mode === 'women_adults') ? 'women_adults' : 'kids'), unit: u, selected_model: mod, dress_color: m.dress_color || '', meas_date: m.meas_date || m.measurement_date || (typeof TODAY_STR_ISO !== 'undefined' ? TODAY_STR_ISO : ''), event_date: m.event_date || m.date || '', model_image: m.model_image || m.model_img || '', total_height: tH, dress_length: dL, fabric_type: m.fabric_type || '', fabric_meters: cN(m.fabric_meters), adjusted_price: cN(m.adjusted_price), comfort_profile: comfort, sewing_notes: m.sewing_notes || m.notes || '', estimated_age: m.estimated_age || calcAge(dL || tH, mod, u, activeProds), fabrics_breakdown: m.fabrics_breakdown || [] };
+        ['total_height','dress_length','chest_length','skirt_length','sleeve_length','chest_circ','waist_circ','shoulder_width','armhole_circ','neck_circ','hips_circ','hip_circ','arm_circ','bust_drop'].forEach(f => { o[f] = cN(m[f]); });
+        if (!o.hips_circ && o.hip_circ) o.hips_circ = o.hip_circ;
         return o;
       }));
       setActiveChildIdx(0);
@@ -39,7 +40,9 @@ function CustomerMeasurementsModal({
     }
   }, [customer, isOpen]);
 
-  const currM = measurements[activeChildIdx] || measurements[0] || getEmpty(targetMode, 0), activeFields = (targetMode === 'women_adults' ? ADULT_MEASUREMENT_FIELDS : KIDS_MEASUREMENT_FIELDS) || [];
+  const currM = measurements[activeChildIdx] || measurements[0] || getEmpty(targetMode, 0);
+  const effectiveIsAdult = String(currM?.wearer_type || '').toUpperCase() === 'SELF' || String(currM?.target_segment || '').toUpperCase() === 'WOMEN_APPAREL' || currM?.target_mode === 'women_adults' || targetMode === 'women_adults';
+  const effectiveMode = effectiveIsAdult ? 'women_adults' : 'kids', activeFields = (effectiveIsAdult ? ADULT_MEASUREMENT_FIELDS : KIDS_MEASUREMENT_FIELDS) || [];
   const knownPrincesses = useMemo(() => typeof getKnownPrincesses === 'function' ? getKnownPrincesses(customer) : [], [customer, getKnownPrincesses]);
   const dLen = parseFloat(currM?.dress_length || currM?.dress_len), cCirc = parseFloat(currM?.chest_circ || currM?.chest_circumference), hasBasicMeasurements = !isNaN(dLen) && dLen > 0 && !isNaN(cCirc) && cCirc > 0;
   const selectedProduct = useMemo(() => activeProds.find(x => safeStr(x.name || x.model_name).trim() === safeStr(currM?.selected_model).trim()) || null, [activeProds, currM?.selected_model]);
@@ -67,9 +70,13 @@ function CustomerMeasurementsModal({
     return Array.from(s).filter(Boolean);
   }, [activeProds, measurements, currM?.selected_model]);
 
-  const updateMeasurement = (idx, field, value) => {
-    setMeasurements(prev => prev.map((m, i) => (i !== idx ? m : { ...m, [field]: value, estimated_age: ['dress_length', 'total_height', 'selected_model', 'unit'].includes(field) ? calcAge(field === 'dress_length' ? value : (m.dress_length || m.total_height), m.selected_model, m.unit, activeProds) : m.estimated_age })));
-  };
+  const updateMeasurement = (idx, field, value) => setMeasurements(prev => prev.map((m, i) => {
+    if (i !== idx) return m;
+    const next = (field && typeof field === 'object') ? { ...m, ...field } : { ...m, [field]: value };
+    if (next.target_mode && next.target_mode !== targetMode) setTargetMode(next.target_mode);
+    if ((field && typeof field === 'object') || ['dress_length', 'total_height', 'selected_model', 'unit'].includes(field)) next.estimated_age = calcAge(next.dress_length || next.total_height, next.selected_model, next.unit, activeProds);
+    return next;
+  }));
 
   const handleSelectModel = (modelName) => {
     const p = activeProds.find(x => safeStr(x.name || x.model_name).trim() === safeStr(modelName).trim()), img = p?.image_url || p?.image || p?.image_data || '', pId = p?.id || p?.product_id || '';
@@ -110,7 +117,7 @@ function CustomerMeasurementsModal({
       upd.estimated_age = calcAge(upd.dress_length || upd.total_height, upd.selected_model, upd.unit, activeProds);
       return upd;
     }));
-    showToast && showToast(`✨ تم ربط مقاسات الأميرة (${safeStr(p.child_name)}) بنجاح`);
+    showToast && showToast(`✨ تم ربط مقاسات (${safeStr(p.child_name)}) بنجاح`);
   };
 
   const buildEnriched = () => {
@@ -125,9 +132,14 @@ function CustomerMeasurementsModal({
       const mImg = m.model_image || m.model_img || p?.image_url || p?.image || '', mId = m.model_id || m.product_id || p?.id || '', col = m.selected_color || m.dress_color || m.color || '';
       const fbList = bData?.calculatedBomItems || m.fabrics_breakdown || m.bom_items || [];
       const vAlert = bData?.varianceAlert || '', oNotes = m.sewing_notes || m.notes || '', fNotes = vAlert && !oNotes.includes('تنبيه فني') ? (oNotes ? `${oNotes} | ${vAlert}` : vAlert) : oNotes;
+      const wType = String(m.wearer_type || (isAd ? 'SELF' : 'DEPENDENT')).toUpperCase();
+      const tSeg = String(m.target_segment || (wType === 'SELF' ? 'WOMEN_APPAREL' : 'GIRLS_DRESS')).toUpperCase();
+      const chNameVal = safeStr(m.child_name).trim() || (wType === 'SELF' || isAd ? (custNameStr || 'العميلة نفسها') : '');
       return {
         ...m, id: m.id || m.measurement_id || (Date.now() + idx), measurement_id: m.id || m.measurement_id || (Date.now() + idx),
-        child_id: m.child_id || customer?.children?.[idx]?.id || '', target_mode: targetMode, child_name: safeStr(m.child_name).trim() || (isAd ? (custNameStr || '') : ''),
+        child_id: wType === 'SELF' ? '' : (m.child_id || customer?.children?.[idx]?.id || ''), wearer_type: wType, target_segment: tSeg,
+        hip_circ: m.hips_circ || m.hip_circ || '', arm_circ: m.arm_circ || '', armpit_circ: m.armhole_circ || m.armpit_circ || '',
+        target_mode: targetMode, child_name: chNameVal,
         model_id: mId, product_id: mId, model_image: mImg, model_img: mImg, image_url: mImg, dress_color: col, color: col, selected_color: col,
         age_tier: bData?.ageTier || (isAd ? 'M' : '6-9Y'), size_code: bData?.ageTier || (isAd ? 'M' : '6-9Y'), estimated_age: isAd ? 'مقاس كبار / نسائي' : (m.estimated_age || bData?.ageTier || '6-9Y'),
         adjusted_price: bData?.calculatedPrice || parseFloat(m.adjusted_price || 0), price: bData?.calculatedPrice || parseFloat(m.adjusted_price || 0), total_amount: bData?.calculatedPrice || parseFloat(m.adjusted_price || 0), bom_items: fbList, fabrics_data: fbList, fabrics_breakdown: fbList, fabric_summary: bData?.bomSummary || '', sewing_notes: fNotes, notes: fNotes
@@ -138,77 +150,64 @@ function CustomerMeasurementsModal({
   const handleSave = async (andProceed = false) => {
     const enriched = buildEnriched();
     if (!enriched) return;
-    const isDraft = !customer?.id || customer?.isDraftOrder || customer?.isNew;
-    if (andProceed && isDraft) {
+    if (andProceed && (!customer?.id || customer?.isDraftOrder || customer?.isNew)) {
       if (onProceedToFinance) onProceedToFinance(enriched, { ...customer, measurements: enriched });
       return;
     }
     if (!onSaveMeasurements) return andProceed && onProceedToFinance ? onProceedToFinance(enriched) : (onClose && onClose());
     try {
       const saved = await onSaveMeasurements(customer, enriched);
-      if (saved) {
-        if (saved.measurements?.length) setMeasurements(saved.measurements);
-        if (andProceed && onProceedToFinance) onProceedToFinance(saved.measurements || enriched, saved);
-        else onClose && onClose();
-      }
-    } catch (err) {
-      console.error('Measurements save error:', err);
-      showToast && showToast(err?.message || 'فشل حفظ المقاسات بالسيرفر ⚠️', 'error');
-    }
+      if (saved) { if (saved.measurements?.length) setMeasurements(saved.measurements); if (andProceed && onProceedToFinance) onProceedToFinance(saved.measurements || enriched, saved); else onClose && onClose(); }
+    } catch (err) { showToast && showToast(err?.message || 'فشل حفظ المقاسات بالسيرفر ⚠️', 'error'); }
   };
-
   if (!isOpen || !customer) return null;
-  const Layout = window.UnifiedCustomerModalLayout, isAdult = targetMode === 'women_adults', Form = window.CustomerMeasurementsForm, modalTitle = customer ? `سجل المقاسات والتفصيل • ${safeStr(customer.name)}` : 'سجل المقاسات والتفصيل';
-  const handleBackToStep1 = () => {
-    const enriched = (measurements.some(m => safeStr(m.child_name).trim()) ? buildEnriched() : null) || measurements;
-    if (onProceedToFinance) onProceedToFinance(enriched, { ...customer, measurements: enriched });
-    if (onSwitchStep) onSwitchStep(1);
-  };
+  const Layout = window.UnifiedCustomerModalLayout, isAdult = effectiveIsAdult, Form = window.CustomerMeasurementsForm, modalTitle = customer ? `سجل المقاسات والتفصيل • ${safeStr(customer.name)}` : 'سجل المقاسات والتفصيل';
+  const handleBackToStep1 = () => { const enriched = (measurements.some(m => safeStr(m.child_name).trim()) ? buildEnriched() : null) || measurements; if (onProceedToFinance) onProceedToFinance(enriched, { ...customer, measurements: enriched }); if (onSwitchStep) onSwitchStep(1); };
   return (
-    <Layout
-      isOpen={isOpen} onClose={onClose} step={2} onSwitchStep={onSwitchStep} title={modalTitle} customerCode={customer?.customer_id || customer?.id}
-      extraHeaderLeft={<div className="flex items-center bg-[#0F172A] p-0.5 rounded-lg border border-slate-700"><button type="button" onClick={() => { setTargetMode('kids'); if (!measurements.length) setMeasurements([getEmpty('kids')]); }} className={`px-2 py-0.5 rounded text-[10.5px] font-bold transition cursor-pointer ${!isAdult ? 'bg-pink-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'}`}>👧 أطفال</button><button type="button" onClick={() => { setTargetMode('women_adults'); if (!measurements.length) setMeasurements([getEmpty('women_adults')]); }} className={`px-2 py-0.5 rounded text-[10.5px] font-bold transition cursor-pointer ${isAdult ? 'bg-pink-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'}`}>👗 نسائي/كبار</button></div>}
-      footerRight={<div className="flex items-center gap-2"><button type="button" onClick={onClose} className="h-7 px-3 text-xs text-slate-400 hover:text-white rounded-lg border border-slate-700 hover:bg-slate-800 transition-colors cursor-pointer">إلغاء</button>{onSwitchStep && <button type="button" onClick={handleBackToStep1} className="h-7 px-3 text-xs text-slate-300 hover:text-white rounded-lg border border-slate-700 hover:bg-slate-800 transition-colors cursor-pointer flex items-center gap-1"><span>السابق: بيانات العميل</span><span>➡️</span></button>}</div>}
-      footerLeft={<div className="flex items-center gap-2"><button type="button" onClick={() => handleSave(false)} disabled={isSaving} className="h-8 px-3.5 border border-pink-700/60 text-pink-300 hover:bg-pink-950/40 text-xs font-bold rounded-lg transition cursor-pointer disabled:opacity-60">{isSaving ? 'جاري الحفظ...' : 'حفظ المقاسات فقط 💾'}</button><button type="button" onClick={() => handleSave(true)} disabled={isSaving} className="h-8 px-4 text-xs font-bold bg-pink-600 hover:bg-pink-700 text-white rounded-lg shadow-md transition flex items-center gap-1.5 cursor-pointer disabled:opacity-60"><span>التالي: الحساب المالي ⬅️</span></button></div>}
-    >
+    <Layout isOpen={isOpen} onClose={onClose} step={2} onSwitchStep={onSwitchStep} title={modalTitle} customerCode={customer?.customer_id || customer?.id}
+      footerRight={<div className="flex items-center gap-2"><button type="button" onClick={onClose} className="h-7 px-3 text-xs text-[#334155] dark:text-slate-400 hover:text-[#0F172A] dark:hover:text-white rounded-lg border border-[#CBD5E1] dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer">إلغاء</button>{onSwitchStep && <button type="button" onClick={handleBackToStep1} className="h-7 px-3 text-xs text-[#334155] dark:text-slate-300 hover:text-[#0F172A] dark:hover:text-white rounded-lg border border-[#CBD5E1] dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer flex items-center gap-1"><span>السابق: بيانات العميل</span><span>➡️</span></button>}</div>}
+      footerLeft={<div className="flex items-center gap-2"><button type="button" onClick={() => handleSave(false)} disabled={isSaving} className="h-8 px-3.5 border border-pink-300 dark:border-pink-700/60 bg-pink-50 dark:bg-transparent text-pink-700 dark:text-pink-300 hover:bg-pink-100 dark:hover:bg-pink-950/40 text-xs font-bold rounded-lg transition cursor-pointer disabled:opacity-60">{isSaving ? 'جاري الحفظ...' : 'حفظ المقاسات فقط 💾'}</button><button type="button" onClick={() => handleSave(true)} disabled={isSaving} className="h-8 px-4 text-xs font-bold bg-pink-600 hover:bg-pink-700 text-white rounded-lg shadow-md transition flex items-center gap-1.5 cursor-pointer disabled:opacity-60"><span>التالي: الحساب المالي ⬅️</span></button></div>}>
       <div className="space-y-2">
         {/* Tabs for Profiles */}
-        <div className="flex items-center justify-between flex-wrap gap-1.5 pb-1 border-b border-slate-800">
+        <div className="flex items-center justify-between flex-wrap gap-1.5 pb-1 border-b border-[#CBD5E1] dark:border-slate-800">
           <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
-            {measurements.map((m, idx) => (
-              <button key={m.id || idx} type="button" onClick={() => setActiveChildIdx(idx)} className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border cursor-pointer transition ${activeChildIdx === idx ? 'bg-pink-600 text-white border-pink-500' : 'bg-[#0F172A] text-slate-300 border-slate-700 hover:border-slate-600'}`}>{safeStr(m.child_name, isAdult ? `العميل (${idx + 1})` : `الأميرة (${idx + 1})`)}</button>
-            ))}
-            <button type="button" onClick={() => { setMeasurements(p => [...p, getEmpty(targetMode)]); setActiveChildIdx(measurements.length); }} className="px-2 py-1 rounded-lg text-[10.5px] font-bold bg-pink-950/40 text-pink-300 border border-pink-800/60 hover:bg-pink-900/60 cursor-pointer">➕ {isAdult ? 'مقاس كبار آخر' : 'طفلة أخرى'}</button>
+            {measurements.map((m, idx) => {
+              const isSelfTab = String(m.wearer_type || '').toUpperCase() === 'SELF';
+              return (
+                <button key={m.id || idx} type="button" onClick={() => setActiveChildIdx(idx)} className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border cursor-pointer transition ${activeChildIdx === idx ? 'bg-pink-600 text-white border-pink-500' : 'bg-white dark:bg-[#0F172A] text-[#334155] dark:text-slate-300 border-[#CBD5E1] dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-600'}`}>{safeStr(m.child_name, isSelfTab ? `العميلة (${idx + 1})` : `مستفيد (${idx + 1})`)}</button>
+              );
+            })}
+            <button type="button" onClick={() => { setMeasurements(p => [...p, getEmpty(effectiveMode)]); setActiveChildIdx(measurements.length); }} className="px-2 py-1 rounded-lg text-[10.5px] font-bold bg-pink-50 dark:bg-pink-950/40 text-pink-700 dark:text-pink-300 border border-pink-300 dark:border-pink-800/60 hover:bg-pink-100 dark:hover:bg-pink-900/60 cursor-pointer">+ مستفيد آخر</button>
           </div>
           <div className="flex items-center gap-1">
-            <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-slate-800 text-pink-300 border border-slate-700">الوحدة: <b className="text-white font-mono">{isCurrInch ? 'إنش' : 'سم'}</b></span>
-            <button type="button" onClick={() => toggleUnit(activeChildIdx)} className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-cyan-950/40 text-cyan-300 border border-cyan-800/50 hover:bg-cyan-900/50 cursor-pointer">تحويل إلى ({isCurrInch ? 'سم' : 'إنش'}) 🔄</button>
-            {measurements.length > 1 && <button type="button" onClick={() => { setMeasurements(p => p.filter((_, i) => i !== activeChildIdx)); setActiveChildIdx(0); }} className="px-1.5 py-0.5 text-[10px] font-bold text-rose-400 hover:bg-rose-950/40 rounded cursor-pointer">حذف 🗑️</button>}
+            <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-[#F1F5F9] dark:bg-slate-800 text-pink-700 dark:text-pink-300 border border-[#CBD5E1] dark:border-slate-700">الوحدة: <b className="text-[#0F172A] dark:text-white font-mono">{isCurrInch ? 'إنش' : 'سم'}</b></span>
+            <button type="button" onClick={() => toggleUnit(activeChildIdx)} className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-cyan-50 dark:bg-cyan-950/40 text-cyan-800 dark:text-cyan-300 border border-cyan-300 dark:border-cyan-800/50 hover:bg-cyan-100 dark:hover:bg-cyan-900/50 cursor-pointer">تحويل إلى ({isCurrInch ? 'سم' : 'إنش'}) 🔄</button>
+            {measurements.length > 1 && <button type="button" onClick={() => { setMeasurements(p => p.filter((_, i) => i !== activeChildIdx)); setActiveChildIdx(0); }} className="px-1.5 py-0.5 text-[10px] font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded cursor-pointer">حذف 🗑️</button>}
           </div>
         </div>
 
         {!isAdult && knownPrincesses.length > 0 && (
-          <div className="flex items-center gap-1.5 flex-wrap p-1.5 bg-[#0B132B] rounded-lg border border-slate-800">
-            <span className="text-[10px] font-bold text-slate-400">👑 مقاسات محفوظة:</span>
-            {knownPrincesses.map((p, idx) => (<button key={idx} type="button" onClick={() => handleSelectKnownPrincess(p)} className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-950/50 text-purple-300 border border-purple-800/50 hover:bg-purple-800 hover:text-white transition cursor-pointer">{safeStr(p.child_name)}{formatSavedLength(p) ? ` (${formatSavedLength(p)})` : ''} ↵</button>))}
+          <div className="flex items-center gap-1.5 flex-wrap p-1.5 bg-[#F8FAFC] dark:bg-[#0B132B] rounded-lg border border-[#CBD5E1] dark:border-slate-800">
+            <span className="text-[10px] font-bold text-[#334155] dark:text-slate-400">👑 مقاسات محفوظة:</span>
+            {knownPrincesses.map((p, idx) => (<button key={idx} type="button" onClick={() => handleSelectKnownPrincess(p)} className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/50 hover:bg-purple-700 hover:text-white transition cursor-pointer">{safeStr(p.child_name)}{formatSavedLength(p) ? ` (${formatSavedLength(p)})` : ''} ↵</button>))}
           </div>
         )}
 
-        {Form && <Form currM={currM} activeChildIdx={activeChildIdx} targetMode={targetMode} uniqueModels={uniqueModels} activeFields={activeFields} onUpdate={updateMeasurement} onSelectModel={handleSelectModel} selectedProduct={selectedProduct} />}
-        {outOfRangeViolations.length > 0 && <div className="p-1 px-2 rounded-md bg-amber-950/60 border border-amber-700/60 text-amber-300 text-[10px] font-bold">⚠️ تنبيه: قيمة ({outOfRangeViolations.join('، ')}) خارج النطاق المعتاد، يرجى التحقق من الرقم المدخل.</div>}
+        {Form && <Form currM={currM} activeChildIdx={activeChildIdx} targetMode={effectiveMode} customerName={custNameStr} uniqueModels={uniqueModels} activeFields={activeFields} onUpdate={updateMeasurement} onSelectModel={handleSelectModel} selectedProduct={selectedProduct} />}
+        {outOfRangeViolations.length > 0 && <div className="p-1 px-2 rounded-md bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-700/60 text-amber-800 dark:text-amber-300 text-[10px] font-bold">⚠️ تنبيه: قيمة ({outOfRangeViolations.join('، ')}) خارج النطاق المعتاد، يرجى التحقق من الرقم المدخل.</div>}
 
         {/* Persistent Real-Time Summary Bar */}
         {hasBasicMeasurements ? (
-          <div className="flex flex-wrap items-center justify-between p-2 rounded-lg bg-[#0B132B] border border-slate-800 text-[11px] mt-1.5 font-bold">
+          <div className="flex flex-wrap items-center justify-between p-2 rounded-lg bg-[#F8FAFC] dark:bg-[#0B132B] border border-[#CBD5E1] dark:border-slate-800 text-[11px] mt-1.5 font-bold">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-cyan-400">👗 الموديل: {safeStr(selectedProduct?.name || selectedProduct?.model_name || currM.selected_model, '---')}</span>
-              <span className={`px-1.5 py-0.2 rounded border text-[10px] font-mono ${bespokeBOM?.isExceeded ? 'bg-amber-950/80 text-amber-300 border-amber-600/80' : 'bg-pink-950/60 text-pink-300 border-pink-700/60'}`}>{bespokeBOM?.isExceeded ? `⚠️ الفئة: ${calculatedAgeTier}` : `🏷️ الفئة: ${calculatedAgeTier}`}</span>
-              {calculatedBomItems?.map((item, idx) => (<span key={idx} className="bg-[#0F172A] text-white px-1.5 py-0.5 rounded border border-slate-700 text-[10.5px]">🧵 {safeStr(item?.name || item, 'خامة')}: {Number(item?.qty || 0).toFixed(2)} {safeStr(item?.unit, 'متر')}</span>))}
+              <span className="text-cyan-700 dark:text-cyan-400">👗 الموديل: {safeStr(selectedProduct?.name || selectedProduct?.model_name || currM.selected_model, '---')}</span>
+              <span className={`px-1.5 py-0.2 rounded border text-[10px] font-mono ${bespokeBOM?.isExceeded ? 'bg-amber-50 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-600/80' : 'bg-pink-50 dark:bg-pink-950/60 text-pink-700 dark:text-pink-300 border-pink-200 dark:border-pink-700/60'}`}>{bespokeBOM?.isExceeded ? `⚠️ الفئة: ${calculatedAgeTier}` : `🏷️ الفئة: ${calculatedAgeTier}`}</span>
+              {calculatedBomItems?.map((item, idx) => (<span key={idx} className="bg-white dark:bg-[#0F172A] text-[#0F172A] dark:text-white px-1.5 py-0.5 rounded border border-[#CBD5E1] dark:border-slate-700 text-[10.5px]">🧵 {safeStr(item?.name || item, 'خامة')}: {Number(item?.qty || 0).toFixed(2)} {safeStr(item?.unit, 'متر')}</span>))}
             </div>
-            <div className="text-emerald-400 font-black whitespace-nowrap text-xs">💰 الإجمالي: {Number(calculatedPrice || 0).toLocaleString('en-US')} {safeStr(currency?.symbol || currency?.code || 'YER')}</div>
+            <div className="text-emerald-700 dark:text-emerald-400 font-black whitespace-nowrap text-xs">💰 الإجمالي: {Number(calculatedPrice || 0).toLocaleString('en-US')} {safeStr(currency?.symbol || currency?.code || 'YER')}</div>
           </div>
         ) : (
-          <div className="flex items-center justify-center p-2 rounded-lg bg-[#0B132B]/80 border border-dashed border-slate-700 text-slate-400 text-[11px] font-semibold mt-1.5 text-center">✨ أدخل المقاسات لحساب استهلاك الأقمشة والتكلفة تلقائياً</div>
+          <div className="flex items-center justify-center p-2 rounded-lg bg-[#F8FAFC] dark:bg-[#0B132B]/80 border border-dashed border-[#CBD5E1] dark:border-slate-700 text-[#64748B] dark:text-slate-400 text-[11px] font-semibold mt-1.5 text-center">✨ أدخل المقاسات لحساب استهلاك الأقمشة والتكلفة تلقائياً</div>
         )}
       </div>
     </Layout>

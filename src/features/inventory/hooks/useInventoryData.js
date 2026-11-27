@@ -31,11 +31,12 @@ function useInventoryData({ inventory = [], setInventory, purchases = [], showTo
   const currencyDisplay = activeCurrDef.display;
   const isBaseCurrency = activeTargetCurr === 'YER';
 
-  // مزامنة المخزون السحابي فورياً
+  // مزامنة المخزون السحابي فورياً (مع منع الطلبات المكررة عند الفتح الأول)
   const refreshInventory = useCallback(async (notify = false) => {
     setIsRefreshing(true);
     try {
-      const res = await fetch(`/api/inventory?_t=${Date.now()}`, { cache: 'no-store' });
+      const url = notify ? `/api/inventory?_t=${Date.now()}` : '/api/inventory';
+      const res = await fetch(url, notify ? { cache: 'no-store', skipDedup: true } : {});
       const data = await res.json();
       const list = (data && Array.isArray(data.data)) ? data.data : (Array.isArray(data) ? data : []);
       if (typeof setInventory === 'function') {
@@ -53,7 +54,7 @@ function useInventoryData({ inventory = [], setInventory, purchases = [], showTo
   const fetchTransactions = useCallback(async () => {
     setIsLoadingTxns(true);
     try {
-      const res = await fetch(`/api/inventory/transactions?_t=${Date.now()}`, { cache: 'no-store' });
+      const res = await fetch('/api/inventory/transactions');
       const data = await res.json();
       const list = (data && Array.isArray(data.data)) ? data.data : (Array.isArray(data) ? data : []);
       setTransactions(list);

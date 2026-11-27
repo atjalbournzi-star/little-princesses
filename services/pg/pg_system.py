@@ -3,11 +3,12 @@ Little Princesses ERP - System Settings & Transactional Clear Services
 """
 
 from .db_pool import get_db_cursor, clean_str, clean_num, logger
+from .ref_cache import get_cached_ref, invalidate_ref, clear_all_ref_cache
 from .pg_audit import log_audit_event
 from .pg_backup import get_backup_status, create_backup_snapshot, restore_backup_data
 
 
-def get_system_settings(params=None):
+def _fetch_system_settings_uncached():
     with get_db_cursor() as cur:
         cur.execute("SELECT * FROM company_profile WHERE id = 1 LIMIT 1;")
         cp = cur.fetchone()
@@ -57,6 +58,10 @@ def get_system_settings(params=None):
         }
 
 
+def get_system_settings(params=None):
+    return get_cached_ref('system_settings', _fetch_system_settings_uncached, ttl=180)
+
+
 def save_system_settings(payload):
     data = payload.get('data') or payload
     c_name = clean_str(data.get('company_name') or data.get('companyName') or '')
@@ -92,6 +97,7 @@ def save_system_settings(payload):
                 if r_val > 0:
                     cur.execute("UPDATE currencies SET exchange_rate = %s, last_updated = CURRENT_TIMESTAMP WHERE code = %s;", (r_val, code))
 
+    invalidate_ref('system_settings', 'currencies')
     log_audit_event('SETTINGS', 'SYSTEM', 'UPDATE',
                     old_values=old_settings.get('company'),
                     new_values={"company_name": c_name, "phone": phone, "email": email, "rates": rates})
@@ -99,17 +105,25 @@ def save_system_settings(payload):
 
 
 def clear_all_transactional_data(payload=None):
+    data = payload if isinstance(payload, dict) else {}
+    raw_keep = data.get('keep_core_employees', False)
+    keep_core_employees = raw_keep if isinstance(raw_keep, bool) else str(raw_keep).strip().lower() in ('1', 'true', 'yes', 'on')
+
     tables_to_truncate = [
         "quality_actions", "quality_returns", "quality_complaints", "quality_feedback", "quality_defects", "quality_inspections",
-        "fitting_alterations", "tailor_commissions", "production_orders", "order_stages", "order_items", "orders",
+        "fitting_alterations", "tailor_commissions", "customer_material_custody", "production_orders", "order_stages", "order_items", "orders",
         "attribution_records", "ai_comment_nlp", "ai_conversation_intent", "comments", "content_metrics", "content",
         "messages", "conversations", "customer_platform_mappings", "campaigns", "raw_platform_events",
         "ai_daily_briefs", "ai_recommendations", "purchase_items", "purchase_order_items", "purchase_orders", "purchases",
-        "warehouse_stock", "inventory_transactions", "inventory", "products", "materials", "bom",
-        "payroll", "employees", "payments", "expenses", "journal_entry_lines", "journal_entries",
+        "warehouse_stock", "inventory_transactions", "product_variants", "ready_products", "inventory", "products", "materials", "bom",
+        "piece_rate_logs", "employee_advances", "payroll_items", "payroll_runs", "payroll",
+        "vouchers", "payments", "expense_transactions", "expenses", "journal_entry_lines", "journal_entries",
         "garment_measurements_studio", "measurements", "customer_measurements", "children",
-        "audit_logs", "idempotency_keys"
+        "idempotency_keys"
     ]
+    if not keep_core_employees:
+        tables_to_truncate.append("employees")
+
     try:
         with get_db_cursor(commit=True) as cur:
             cur.execute("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE';")
@@ -126,9 +140,32 @@ def clear_all_transactional_data(payload=None):
             """)
             cur.execute("DELETE FROM suppliers;")
             cur.execute("UPDATE chart_of_accounts SET opening_balance = 0.0000, current_balance = 0.0000;")
+            if 'fiscal_periods' in existing_tables:
+                cur.execute("UPDATE fiscal_periods SET is_locked = FALSE, locked_by = NULL, locked_at = NULL, notes = NULL;")
             cur.execute("UPDATE number_sequences SET current_number = 0;")
+
+            remaining_emp = 0
+            if keep_core_employees and 'employees' in existing_tables:
+                cur.execute("""
+                    DELETE FROM employees
+                    WHERE COALESCE(name, '') ILIKE '%[UAT]%'
+                       OR COALESCE(full_name, '') ILIKE '%[UAT]%'
+                       OR COALESCE(notes, '') ILIKE '%[UAT]%'
+                       OR COALESCE(id, '') ILIKE '%UAT%';
+                """)
+                cur.execute("SELECT COUNT(*) AS cnt FROM employees;")
+                emp_row = cur.fetchone()
+                remaining_emp = int((emp_row['cnt'] if isinstance(emp_row, dict) else emp_row[0]) or 0)
+                cur.execute("UPDATE number_sequences SET current_number = %s WHERE sequence_key = 'EMP' OR id = 'SEQ-EMP';", (remaining_emp,))
+
+            log_audit_event(
+                'SYSTEM', 'CLEAR_ALL_DATA', 'CLEAR_ALL_DATA',
+                details=f'تصفير البيانات التشغيلية مع الاحتفاظ الكامل بسجل التدقيق (keep_core_employees={keep_core_employees}, remaining_emp={remaining_emp})',
+                cur=cur
+            )
     except Exception as e:
-        logger.warning(f"تنبيه أثناء تصفير قاعدة البيانات السحابية (PostgreSQL): {e}")
+        logger.error(f"❌ فشل تصفير قاعدة البيانات السحابية (PostgreSQL): {e}")
+        raise
 
     try:
         import clean_slate_reset
@@ -136,5 +173,6 @@ def clear_all_transactional_data(payload=None):
     except Exception as _sq_err:
         logger.warning(f"تنبيه أثناء تصفير قاعدة البيانات المحلية SQLite: {_sq_err}")
 
+    clear_all_ref_cache()
     logger.info("🧹 تم مسح وتصفير كافة البيانات التشغيلية والبدء بقاعدة بيانات نظيفة من الصفر بنجاح.")
-    return {"cleared": True, "success": True, "message": "تم تصفير كافة البيانات التشغيلية والبدء بقاعدة بيانات نظيفة 100% مع الحفاظ على الهيكل والبيانات الأساسية."}
+    return {"cleared": True, "success": True, "keep_core_employees": keep_core_employees, "message": "تم تصفير كافة البيانات التشغيلية والبدء بقاعدة بيانات نظيفة 100% مع الحفاظ على الهيكل والبيانات الأساسية."}

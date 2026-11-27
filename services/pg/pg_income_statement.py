@@ -31,7 +31,7 @@ def get_income_statement_pg(params=None):
             FROM chart_of_accounts a
             LEFT JOIN (
                 journal_entry_lines l
-                JOIN journal_entries j ON (l.entry_id = j.id OR l.entry_id = j.entry_no) AND j.status = 'Posted' {date_filter}
+                JOIN journal_entries j ON (l.entry_id = j.id OR l.entry_id = j.entry_no) AND j.status IN ('Posted', 'Reversed') {date_filter}
             ) ON (
                 a.id = l.account_id 
                 OR a.account_code = l.account_id

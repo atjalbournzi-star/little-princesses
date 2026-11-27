@@ -12,11 +12,11 @@ function CustomerFinancialLedgerBar({
   selectedAccount, setSelectedAccount,
   remaining, isReadOnly = false
 }) {
-  const metricInputCls = "w-full min-w-[125px] h-9 px-1.5 py-1 text-center font-mono font-bold text-xs text-white bg-slate-900 border border-slate-700 rounded-lg focus:border-pink-500 outline-none transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
-  const standardInputCls = "w-full h-9 px-2 py-1 text-center font-bold text-xs text-white bg-slate-900 border border-slate-700 rounded-lg focus:border-pink-500 outline-none transition-all cursor-pointer";
-  const accountSelectCls = "w-full h-9 px-2 py-1 text-center font-bold text-xs text-white bg-slate-900 border border-slate-700 rounded-lg focus:border-pink-500 outline-none transition-all cursor-pointer";
-  const readOnlyBoxCls = "w-full min-w-[125px] h-9 px-1.5 py-1 text-center font-mono font-bold text-xs text-slate-200 bg-slate-900/90 border border-slate-700 rounded-lg flex items-center justify-center whitespace-nowrap overflow-visible shadow-xs";
-  const barLabelCls = "block text-[10.5px] font-semibold text-slate-300 mb-1 text-center select-none truncate";
+  const metricInputCls = "w-full min-w-[125px] h-9 px-1.5 py-1 text-center font-mono font-bold text-xs text-[#0F172A] dark:text-white bg-white dark:bg-slate-900 border border-[#CBD5E1] dark:border-slate-700 rounded-lg focus:border-pink-500 outline-none transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
+  const standardInputCls = "w-full h-9 px-2 py-1 text-center font-bold text-xs text-[#0F172A] dark:text-white bg-white dark:bg-slate-900 border border-[#CBD5E1] dark:border-slate-700 rounded-lg focus:border-pink-500 outline-none transition-all cursor-pointer";
+  const accountSelectCls = "w-full h-9 px-2 py-1 text-center font-bold text-xs text-[#0F172A] dark:text-white bg-white dark:bg-slate-900 border border-[#CBD5E1] dark:border-slate-700 rounded-lg focus:border-pink-500 outline-none transition-all cursor-pointer";
+  const readOnlyBoxCls = "w-full min-w-[125px] h-9 px-1.5 py-1 text-center font-mono font-bold text-xs text-[#0F172A] dark:text-slate-200 bg-[#F8FAFC] dark:bg-slate-900/90 border border-[#CBD5E1] dark:border-slate-700 rounded-lg flex items-center justify-center whitespace-nowrap overflow-visible shadow-xs";
+  const barLabelCls = "block text-[10.5px] font-semibold text-[#334155] dark:text-slate-300 mb-1 text-center select-none truncate";
 
   const [dbAccounts, setDbAccounts] = React.useState([]);
   React.useEffect(() => {
@@ -47,7 +47,7 @@ function CustomerFinancialLedgerBar({
   const activeAccountObj = filteredAccounts.find(a => a.id === selectedAccount) || filteredAccounts[0];
 
   return (
-    <div className="p-2.5 bg-[#0B132B] rounded-xl border border-slate-800 space-y-2">
+    <div className="p-2.5 bg-[#F8FAFC] dark:bg-[#0B132B] rounded-xl border border-[#CBD5E1] dark:border-slate-800 space-y-2">
       {/* الصف 1: المؤشرات المالية الأساسية (مساحات مريحة متساوية ومستقلة) */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         <div className="flex flex-col items-center min-w-0">
@@ -76,7 +76,7 @@ function CustomerFinancialLedgerBar({
         </div>
         <div className="flex flex-col items-center min-w-0">
           <label className={barLabelCls}>المتبقي ⚖️</label>
-          <div className={`w-full min-w-[125px] h-9 px-1.5 py-1 rounded-lg border font-mono font-bold text-xs flex items-center justify-center whitespace-nowrap overflow-visible ${parseFloat(remaining) > 0 ? 'bg-amber-950/40 border-amber-700/60 text-amber-300' : 'bg-emerald-950/40 border-emerald-700/60 text-emerald-300'}`}>
+          <div className={`w-full min-w-[125px] h-9 px-1.5 py-1 rounded-lg border font-mono font-bold text-xs flex items-center justify-center whitespace-nowrap overflow-visible ${parseFloat(remaining) > 0 ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-700/60 text-amber-800 dark:text-amber-300' : 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700/60 text-emerald-800 dark:text-emerald-300'}`}>
             {Number(remaining || 0).toLocaleString('en-US')} {voucherCurr}
           </div>
         </div>

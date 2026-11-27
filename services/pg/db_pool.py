@@ -3,6 +3,7 @@ Little Princesses ERP - Database Pool & Common Utilities
 Provides cursor context managers, converters, ID generators, and system seed init.
 """
 
+import os
 import logging
 import time
 import uuid
@@ -91,12 +92,16 @@ def ensure_base_system_seed():
                 ('USD', 'دولار أمريكي', '$', 535.00, FALSE)
                 ON CONFLICT (code) DO NOTHING;
             """)
-            # 3. Default Admin User
-            cur.execute("""
-                INSERT INTO users (id, username, password_hash, full_name, role)
-                VALUES ('usr_admin_1', 'admin', 'admin123', 'المدير العام', 'المدير العام')
-                ON CONFLICT (username) DO NOTHING;
-            """)
+            # 3. Default Admin User (only if users table has no admin; never store plaintext password)
+            cur.execute("SELECT 1 FROM users WHERE username = 'admin' LIMIT 1;")
+            if not cur.fetchone():
+                from domains.auth.db_init import hash_password
+                init_pwd = os.environ.get('INITIAL_ADMIN_PASSWORD') or ''
+                if init_pwd:
+                    cur.execute(
+                        "INSERT INTO users (id, username, password_hash, full_name, role, is_active) VALUES ('USR-000001', 'admin', %s, 'المدير العام', 'admin', TRUE) ON CONFLICT (username) DO NOTHING;",
+                        (hash_password(init_pwd),)
+                    )
             # 4. System Settings
             cur.execute("""
                 INSERT INTO system_settings (key, value, category, description) VALUES
@@ -199,10 +204,12 @@ def ensure_base_system_seed():
             try:
                 from .pg_sequences import ensure_number_sequences_schema
                 from .pg_audit import ensure_audit_logs_schema
+                from .pg_ready_schema import ensure_ready_products_schema
                 ensure_number_sequences_schema(cur)
                 ensure_audit_logs_schema(cur)
+                ensure_ready_products_schema(cur)
             except Exception as e_seq:
-                logger.warning(f"⚠️ Sequences/Audit seed notice: {e_seq}")
+                logger.warning(f"⚠️ Sequences/Audit/ReadyProducts seed notice: {e_seq}")
         logger.info("✅ تم التحقق من البيانات التأسيسية للنظام (Seed Data Checked)")
     except Exception as e:
         logger.warning(f"⚠️ تنبيه أثناء غرس البيانات التأسيسية: {e}")

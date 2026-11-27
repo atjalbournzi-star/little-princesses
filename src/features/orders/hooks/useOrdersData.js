@@ -1,5 +1,5 @@
 // src/features/orders/hooks/useOrdersData.js
-const { useState, useEffect, useMemo } = React;
+const { useState, useEffect, useMemo, useRef } = React;
 
 function useOrdersData({ orders = [], setOrders, currency }) {
   const currencyDisplay = currency?.display || "YER ريال";
@@ -7,10 +7,12 @@ function useOrdersData({ orders = [], setOrders, currency }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("الكل");
   const [deliveryDateFilter, setDeliveryDateFilter] = useState("");
+  const didSyncOrdersRef = useRef(false);
 
-  // ── المزامنة التلقائية مع الباك اند السحابي عند فراغ القائمة ──
+  // ── المزامنة التلقائية مع الباك اند السحابي مرة واحدة عند فراغ القائمة ──
   useEffect(() => {
-    if ((!orders || orders.length === 0) && typeof setOrders === 'function') {
+    if (!didSyncOrdersRef.current && (!orders || orders.length === 0) && typeof setOrders === 'function') {
+      didSyncOrdersRef.current = true;
       fetch('/api/sales/orders')
         .then(r => r.json())
         .then(d => {
@@ -58,10 +60,14 @@ function useOrdersData({ orders = [], setOrders, currency }) {
       const tot = parseFloat(o.total ?? o.total_amount) || 0;
       const pd = parseFloat(o.paid ?? o.paid_amount) || 0;
       const rem = Math.max(0, tot - pd);
+      const stRaw = String(o.production_status || o.status || '').toLowerCase();
+      const isExcluded = stRaw.includes('return') || stRaw.includes('مرتجع') || stRaw.includes('cancel') || stRaw.includes('ملغي');
 
-      totalSales += tot;
-      totalPaid += pd;
-      pendingReceivables += rem;
+      if (!isExcluded) {
+        totalSales += tot;
+        totalPaid += pd;
+        pendingReceivables += rem;
+      }
 
       const ordDate = o.order_date ? String(o.order_date).split('T')[0] : '';
       if (ordDate === todayStr) {

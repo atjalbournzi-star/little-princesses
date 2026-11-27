@@ -39,32 +39,26 @@ def get_current_user_context():
 
 
 def get_active_user_context(default_user=None):
-    """استخراج معرّف أو اسم المستخدم النشط من سياق الطلب الحالي ديناميكياً دون قيم ثابتة"""
+    """استخراج معرّف المستخدم النشط حصراً من الجلسة الموثقة على الخادم (Zero-Trust Audit)"""
     ctx_user = get_current_user_context()
-    if ctx_user and str(ctx_user).strip(): return str(ctx_user).strip()
+    if ctx_user and str(ctx_user).strip():
+        return str(ctx_user).strip()
     try:
-        from flask import request, session, g, has_request_context
+        from flask import request, g, has_request_context
         if has_request_context():
-            g_user = getattr(g, 'user_id', None) or getattr(g, 'user', None)
-            if g_user and str(g_user).strip(): return str(g_user).strip()
-            if session:
-                for k in ['user_id', 'uid', 'username', 'user']:
-                    if session.get(k) and str(session.get(k)).strip(): return str(session.get(k)).strip()
-            for h in ['X-User-Id', 'X-Username', 'X-Current-User', 'X-User']:
-                if request.headers.get(h) and request.headers.get(h).strip(): return request.headers.get(h).strip()
-            auth = request.headers.get('Authorization', '')
-            if auth.startswith('Bearer '):
-                parts = auth.split(' ', 1)[1].split('_')
-                if len(parts) >= 3 and parts[2]: return parts[2]
-                elif len(parts) >= 2 and parts[1]: return parts[1]
-            if request.args.get('user_id'): return request.args.get('user_id').strip()
-            if request.is_json:
-                data = request.get_json(silent=True) or {}
-                nested = data.get('data') if isinstance(data.get('data'), dict) else {}
-                for k in ['created_by', 'reversed_by', 'user_id', 'username', 'user', 'uid']:
-                    val = data.get(k) or nested.get(k)
-                    if val and str(val).strip(): return str(val).strip()
-    except Exception: pass
+            active_u = getattr(request, 'active_user', None)
+            if isinstance(active_u, dict) and active_u.get('id'):
+                return str(active_u['id']).strip()
+            g_uid = getattr(g, 'user_id', None)
+            if g_uid and str(g_uid).strip():
+                return str(g_uid).strip()
+            g_u = getattr(g, 'user', None)
+            if isinstance(g_u, dict) and g_u.get('id'):
+                return str(g_u['id']).strip()
+            if g_u and isinstance(g_u, str) and g_u.strip():
+                return g_u.strip()
+    except Exception:
+        pass
     return default_user
 
 

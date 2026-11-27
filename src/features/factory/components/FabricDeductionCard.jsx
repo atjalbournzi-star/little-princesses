@@ -4,8 +4,8 @@
  */
 
 function FabricDeductionCard({ form = {}, setForm, fabricInventory = [], customers = [] }) {
-  const inputCls = "w-full h-8 px-2.5 py-1 rounded-lg border border-slate-700/80 bg-slate-950/80 text-slate-100 text-xs font-medium focus:border-rose-500/60 focus:ring-1 focus:ring-rose-500/30 transition-all outline-none";
-  const labelCls = "block text-[11px] font-semibold text-slate-200 mb-1";
+  const inputCls = "w-full h-8 px-2.5 py-1 rounded-lg border border-[#CBD5E1] dark:border-slate-700/80 bg-white dark:bg-slate-950/80 text-[#0F172A] dark:text-slate-100 text-xs font-medium focus:border-rose-500/60 focus:ring-1 focus:ring-rose-500/30 transition-all outline-none";
+  const labelCls = "block text-[11px] font-semibold text-[#0F172A] dark:text-slate-200 mb-1";
 
   const sizeChart = window.FactorySizeChart || {};
   const isReadyToWear = form.production_type === 'ready_to_wear';
@@ -44,17 +44,17 @@ function FabricDeductionCard({ form = {}, setForm, fabricInventory = [], custome
   });
 
   return (
-    <div className="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800/80 space-y-3 shadow-sm">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-800/80">
+    <div className="p-3.5 rounded-xl bg-[#F8FAFC] dark:bg-slate-900/90 border border-[#CBD5E1] dark:border-slate-800/80 space-y-3 shadow-sm">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-[#CBD5E1] dark:border-slate-800/80">
         <div className="flex items-center gap-2">
           <span className="text-sm">✂️</span>
-          <span className="text-xs font-semibold text-slate-100">خامات القماش واقتطاع الأمتار من المخزون (BOM Auto-Binding)</span>
+          <span className="text-xs font-semibold text-[#0F172A] dark:text-slate-100">خامات القماش واقتطاع الأمتار من المخزون (BOM Auto-Binding)</span>
         </div>
         <div className="flex items-center gap-2.5">
-          <button type="button" onClick={addBomItem} className="text-[10px] font-semibold text-rose-300 bg-rose-500/10 px-2.5 py-1 rounded-md border border-rose-500/20 hover:bg-rose-500/20 transition cursor-pointer active:scale-95">➕ إضافة خامة</button>
-          <label className="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer">
-            <input type="checkbox" checked={form.deduct_inventory} onChange={e => setForm({ ...form, deduct_inventory: e.target.checked })} className="rounded text-rose-500 focus:ring-rose-500 bg-slate-950 border-slate-700" />
-            <span className="font-semibold text-slate-100 text-[11px]">خصم آلي من المخزن</span>
+          <button type="button" onClick={addBomItem} className="text-[10px] font-semibold text-rose-600 dark:text-rose-300 bg-rose-50 dark:bg-rose-500/10 px-2.5 py-1 rounded-md border border-rose-200 dark:border-rose-500/20 hover:bg-rose-100 dark:hover:bg-rose-500/20 transition cursor-pointer active:scale-95">➕ إضافة خامة</button>
+          <label className="flex items-center gap-1.5 text-xs text-slate-700 dark:text-slate-300 cursor-pointer">
+            <input type="checkbox" checked={form.deduct_inventory} onChange={e => setForm({ ...form, deduct_inventory: e.target.checked })} className="rounded text-rose-500 focus:ring-rose-500 bg-white dark:bg-slate-950 border-[#CBD5E1] dark:border-slate-700" />
+            <span className="font-semibold text-[#0F172A] dark:text-slate-100 text-[11px]">خصم آلي من المخزن</span>
           </label>
         </div>
       </div>
@@ -80,19 +80,19 @@ function FabricDeductionCard({ form = {}, setForm, fabricInventory = [], custome
           };
 
           return (
-            <div key={idx} className="p-2.5 bg-slate-950/80 rounded-xl border border-slate-800/80 space-y-2">
-              <div className="flex items-center justify-between pb-1 border-b border-slate-800/60 text-[11px]">
+            <div key={idx} className="p-2.5 bg-white dark:bg-slate-950/80 rounded-xl border border-[#CBD5E1] dark:border-slate-800/80 space-y-2">
+              <div className="flex items-center justify-between pb-1 border-b border-[#CBD5E1] dark:border-slate-800/60 text-[11px]">
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="font-semibold text-rose-400">🧵 الخامة ({idx + 1}):</span>
-                  <span className="text-slate-100 font-bold">{curItem?.name || item.fabric_name || 'خامة جديدة'}</span>
+                  <span className="font-semibold text-rose-600 dark:text-rose-400">🧵 الخامة ({idx + 1}):</span>
+                  <span className="text-[#0F172A] dark:text-slate-100 font-bold">{curItem?.name || item.fabric_name || 'خامة جديدة'}</span>
                   {item.is_graded && (
-                    <span className="text-[9.5px] px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 font-mono">
-                      مقاس الطفلة: {item.cut_meters} {cutUnit} (معياري: {item.standard_cut_meters || item.single_meters} {cutUnit}{item.excess_pct > 0 ? ` +${item.excess_pct}% عرض` : ''})
+                    <span className="text-[9.5px] px-1.5 py-0.5 rounded bg-cyan-50 dark:bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-500/20 font-mono">
+                      مقاس المستفيد: {item.cut_meters} {cutUnit} (معياري: {item.standard_cut_meters || item.single_meters} {cutUnit}{item.excess_pct > 0 ? ` +${item.excess_pct}% عرض` : ''})
                     </span>
                   )}
                 </div>
                 {rawItems.length > 1 && (
-                  <button type="button" onClick={() => removeBomItem(idx)} className="text-rose-400 hover:text-rose-300 text-[10px] font-semibold px-2 py-0.5 rounded-md hover:bg-rose-500/10 cursor-pointer">✕ حذف</button>
+                  <button type="button" onClick={() => removeBomItem(idx)} className="text-rose-600 dark:text-rose-400 hover:text-rose-500 dark:hover:text-rose-300 text-[10px] font-semibold px-2 py-0.5 rounded-md hover:bg-rose-500/10 cursor-pointer">✕ حذف</button>
                 )}
               </div>
 
@@ -114,9 +114,9 @@ function FabricDeductionCard({ form = {}, setForm, fabricInventory = [], custome
                       });
                     }}
                   >
-                    <option value="" className="bg-slate-900">-- اختر خامة القماش --</option>
+                    <option value="" className="bg-white dark:bg-slate-900">-- اختر خامة القماش --</option>
                     {fabricInventory.map(fi => (
-                      <option key={fi.id || fi.name} value={fi.id || fi.name} className="bg-slate-900">
+                      <option key={fi.id || fi.name} value={fi.id || fi.name} className="bg-white dark:bg-slate-900">
                         {fi.name || fi.item_name} (المتوفر: {parseFloat(fi.quantity || fi.qty || fi.quantity_meters || 0)} {fi.unit || 'متر/وار'})
                       </option>
                     ))}
@@ -126,14 +126,14 @@ function FabricDeductionCard({ form = {}, setForm, fabricInventory = [], custome
                 <div>
                   <div className="flex justify-between items-center mb-1">
                     <label className={labelCls + " mb-0"}>كمية القص المطلوبة</label>
-                    <div className="flex items-center bg-slate-900 p-0.5 rounded-md border border-slate-700/80 text-[10px] font-semibold">
-                      <button type="button" onClick={() => toggleUnit('متر')} className={`px-2 py-0.5 rounded cursor-pointer transition ${!isWar ? 'bg-cyan-600 text-white font-bold' : 'text-slate-400'}`}>متر</button>
-                      <button type="button" onClick={() => toggleUnit('وار')} className={`px-2 py-0.5 rounded cursor-pointer transition ${isWar ? 'bg-rose-600 text-white font-bold' : 'text-slate-400'}`}>وار</button>
+                    <div className="flex items-center bg-[#F8FAFC] dark:bg-slate-900 p-0.5 rounded-md border border-[#CBD5E1] dark:border-slate-700/80 text-[10px] font-semibold">
+                      <button type="button" onClick={() => toggleUnit('متر')} className={`px-2 py-0.5 rounded cursor-pointer transition ${!isWar ? 'bg-cyan-600 text-white font-bold' : 'text-slate-600 dark:text-slate-400'}`}>متر</button>
+                      <button type="button" onClick={() => toggleUnit('وار')} className={`px-2 py-0.5 rounded cursor-pointer transition ${isWar ? 'bg-rose-600 text-white font-bold' : 'text-slate-600 dark:text-slate-400'}`}>وار</button>
                     </div>
                   </div>
                   <input
                     type="number" step="0.01" min="0"
-                    className={inputCls + " font-mono font-bold text-rose-400"}
+                    className={inputCls + " font-mono font-bold text-rose-600 dark:text-rose-400"}
                     value={item.cut_meters !== undefined && item.cut_meters !== null ? item.cut_meters : ''}
                     onChange={e => updateBomItem(idx, 'cut_meters', e.target.value)}
                   />
@@ -142,18 +142,18 @@ function FabricDeductionCard({ form = {}, setForm, fabricInventory = [], custome
                 <div>
                   <label className={labelCls}>رصيد المخزن والتحويل الذكي</label>
                   {curStock === null ? (
-                    <div className="h-8 px-2.5 rounded-lg border border-slate-800 bg-slate-950/60 flex items-center text-xs text-slate-500 font-mono">—</div>
+                    <div className="h-8 px-2.5 rounded-lg border border-[#CBD5E1] dark:border-slate-800 bg-[#F8FAFC] dark:bg-slate-950/60 flex items-center text-xs text-slate-500 font-mono">—</div>
                   ) : (
-                    <div className={`p-2 rounded-lg border text-[11px] flex flex-col gap-0.5 font-mono ${isLow ? 'bg-rose-500/10 border-rose-500/30 text-rose-300' : 'bg-slate-900 border-slate-800 text-slate-200'}`}>
+                    <div className={`p-2 rounded-lg border text-[11px] flex flex-col gap-0.5 font-mono ${isLow ? 'bg-rose-50 dark:bg-rose-500/10 border-rose-300 dark:border-rose-500/30 text-rose-700 dark:text-rose-300' : 'bg-[#F8FAFC] dark:bg-slate-900 border-[#CBD5E1] dark:border-slate-800 text-[#0F172A] dark:text-slate-200'}`}>
                       <div className="flex items-center justify-between">
-                        <span>المخزون: <strong className="text-slate-100 font-bold">{curStock}</strong> {stockUnit}</span>
-                        <span>المتبقي: <strong className={isLow ? 'text-rose-400 font-bold' : 'text-emerald-400 font-bold'}>{remaining.toFixed(2)}</strong></span>
+                        <span>المخزون: <strong className="text-[#0F172A] dark:text-slate-100 font-bold">{curStock}</strong> {stockUnit}</span>
+                        <span>المتبقي: <strong className={isLow ? 'text-rose-600 dark:text-rose-400 font-bold' : 'text-emerald-600 dark:text-emerald-400 font-bold'}>{remaining.toFixed(2)}</strong></span>
                       </div>
                       {deduction.isConverted && cutQty > 0 && (
-                        <div className="text-[10px] text-rose-400">🔄 {cutQty} {cutUnit} ≈ {deduction.deductAmount} {stockUnit}</div>
+                        <div className="text-[10px] text-rose-600 dark:text-rose-400">🔄 {cutQty} {cutUnit} ≈ {deduction.deductAmount} {stockUnit}</div>
                       )}
                       {isLow && (
-                        <div className="text-[9.5px] font-bold text-rose-400 mt-0.5">⚠️ عجز مخزني: يتجاوز الرصيد بمقدار {Math.abs(remaining).toFixed(2)} {stockUnit}</div>
+                        <div className="text-[9.5px] font-bold text-rose-600 dark:text-rose-400 mt-0.5">⚠️ عجز مخزني: يتجاوز الرصيد بمقدار {Math.abs(remaining).toFixed(2)} {stockUnit}</div>
                       )}
                     </div>
                   )}
@@ -165,23 +165,23 @@ function FabricDeductionCard({ form = {}, setForm, fabricInventory = [], custome
       </div>
 
       {cutterAlert && (
-        <div className="p-2 rounded-lg bg-amber-950/80 border border-amber-500/60 text-amber-200 text-xs flex items-center gap-2">
+        <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-950/80 border border-amber-300 dark:border-amber-500/60 text-amber-900 dark:text-amber-200 text-xs flex items-center gap-2">
           <span className="text-sm shrink-0">⚠️</span>
-          <span className="font-semibold text-[11px] leading-tight"><strong className="text-amber-300 ml-1">تنبيه القصاص:</strong>{String(cutterAlert).replace(/^⚠️\s*/, '').replace(/^تنبيه فني للقصاص:\s*/, '').replace(/^⚠️\s*/, '').trim()}</span>
+          <span className="font-semibold text-[11px] leading-tight"><strong className="text-amber-800 dark:text-amber-300 ml-1">تنبيه القصاص:</strong>{String(cutterAlert).replace(/^⚠️\s*/, '').replace(/^تنبيه فني للقصاص:\s*/, '').replace(/^⚠️\s*/, '').trim()}</span>
         </div>
       )}
 
       {specs && (specs.dress_len || specs.chest_circ) && (
-        <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between flex-wrap gap-2 text-[10px] text-slate-300">
+        <div className="pt-2 border-t border-[#CBD5E1] dark:border-slate-800/80 flex items-center justify-between flex-wrap gap-2 text-[10px] text-slate-700 dark:text-slate-300">
           <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="font-semibold text-rose-400">{isReadyToWear ? `🏷️ مقاس [${form.size_code || '6-9Y'}]:` : `📐 الباترون:`}</span>
-            {specs.dress_len && <span className="bg-slate-950 px-2 py-0.5 rounded-md border border-slate-800 text-slate-200">الطول: <strong className="text-slate-100">{specs.dress_len} {unitLabel}</strong></span>}
-            {specs.chest_circ && <span className="bg-slate-950 px-2 py-0.5 rounded-md border border-slate-800 text-slate-200">الصدر: <strong className="text-slate-100">{specs.chest_circ} {unitLabel}</strong></span>}
-            {specs.waist_circ && <span className="bg-slate-950 px-2 py-0.5 rounded-md border border-slate-800 text-slate-200">الخصر: <strong className="text-slate-100">{specs.waist_circ} {unitLabel}</strong></span>}
-            {specs.shoulder_w && <span className="bg-slate-950 px-2 py-0.5 rounded-md border border-slate-800 text-slate-200">الكتف: <strong className="text-slate-100">{specs.shoulder_w} {unitLabel}</strong></span>}
-            {specs.sleeve_len && <span className="bg-slate-950 px-2 py-0.5 rounded-md border border-slate-800 text-slate-200">الكم: <strong className="text-slate-100">{specs.sleeve_len} {unitLabel}</strong></span>}
+            <span className="font-semibold text-rose-600 dark:text-rose-400">{isReadyToWear ? `🏷️ مقاس [${form.size_code || '6-9Y'}]:` : `📐 الباترون:`}</span>
+            {specs.dress_len && <span className="bg-white dark:bg-slate-950 px-2 py-0.5 rounded-md border border-[#CBD5E1] dark:border-slate-800 text-slate-700 dark:text-slate-200">الطول: <strong className="text-[#0F172A] dark:text-slate-100">{specs.dress_len} {unitLabel}</strong></span>}
+            {specs.chest_circ && <span className="bg-white dark:bg-slate-950 px-2 py-0.5 rounded-md border border-[#CBD5E1] dark:border-slate-800 text-slate-700 dark:text-slate-200">الصدر: <strong className="text-[#0F172A] dark:text-slate-100">{specs.chest_circ} {unitLabel}</strong></span>}
+            {specs.waist_circ && <span className="bg-white dark:bg-slate-950 px-2 py-0.5 rounded-md border border-[#CBD5E1] dark:border-slate-800 text-slate-700 dark:text-slate-200">الخصر: <strong className="text-[#0F172A] dark:text-slate-100">{specs.waist_circ} {unitLabel}</strong></span>}
+            {specs.shoulder_w && <span className="bg-white dark:bg-slate-950 px-2 py-0.5 rounded-md border border-[#CBD5E1] dark:border-slate-800 text-slate-700 dark:text-slate-200">الكتف: <strong className="text-[#0F172A] dark:text-slate-100">{specs.shoulder_w} {unitLabel}</strong></span>}
+            {specs.sleeve_len && <span className="bg-white dark:bg-slate-950 px-2 py-0.5 rounded-md border border-[#CBD5E1] dark:border-slate-800 text-slate-700 dark:text-slate-200">الكم: <strong className="text-[#0F172A] dark:text-slate-100">{specs.sleeve_len} {unitLabel}</strong></span>}
           </div>
-          <span className="text-[10px] text-cyan-400 bg-cyan-500/10 border border-cyan-500/20 px-2 py-0.5 rounded-md font-semibold">🛡️ مشغل محمي</span>
+          <span className="text-[10px] text-cyan-700 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-500/10 border border-cyan-200 dark:border-cyan-500/20 px-2 py-0.5 rounded-md font-semibold">🛡️ مشغل محمي</span>
         </div>
       )}
     </div>

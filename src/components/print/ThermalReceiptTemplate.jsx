@@ -165,6 +165,12 @@ function ThermalReceiptTemplate({
         <p className="text-xs font-black font-mono mt-0.5 text-black">{deliveryDate}</p>
       </div>
 
+      {(order?.standard_size_disclaimer === true || (Array.isArray(order?.items) && order.items.some(i => i?.standard_size_disclaimer === true))) && (
+        <div className="bg-amber-50 border border-amber-400 text-amber-950 rounded-lg p-2 text-center my-2 text-[9.5px] font-bold">
+          تم اعتماد جدول المقاسات القياسي المحدد بناءً على طلب العميل دون أخذ مقاسات خاصة.
+        </div>
+      )}
+
       {/* Courier Delivery Notice */}
       {isDirectToCourier && (
         <div className="bg-amber-50 border border-amber-300 text-amber-900 rounded-lg p-2 text-center my-2 text-[10px] font-bold">

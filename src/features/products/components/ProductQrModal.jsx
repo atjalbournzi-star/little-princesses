@@ -62,10 +62,10 @@ function ProductQrModal({ product, isOpen, onClose }) {
           >
             <div className="border-b border-dashed border-slate-200 dark:border-slate-800 pb-2">
               <span className="text-[11px] font-bold text-[#8F2A87] dark:text-purple-300 block">
-                👑 مؤسسة الأميرات الصغيرات للأزياء
+                👑 {(window.BrandService && window.BrandService.getProfile().name) || 'نظام الإدارة المتكامل'}
               </span>
               <span className="text-[10px] text-[#6F6B75] dark:text-slate-400">
-                Little Princesses Fashion ERP
+                {(window.BrandService && window.BrandService.getProfile().shortName) || 'ERP Master'}
               </span>
             </div>
 

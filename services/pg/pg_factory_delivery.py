@@ -9,6 +9,9 @@ from .pg_factory_commission_approve import auto_credit_all_stages_commissions
 from .pg_delivery_cogs import record_delivery_cogs, reverse_delivery_cogs, cascade_account_balances
 from .pg_accounts import refresh_chart_balances_atomic
 from .pg_sequences import get_next_sequence_number
+from .journal_lines_helper import insert_sorted_journal_lines
+from .pg_tailoring_engine import close_cmt_custody_on_delivery
+from services.security import assert_period_open
 
 logger = logging.getLogger("LittlePrincesses_PG_FactoryDelivery")
 
@@ -21,12 +24,15 @@ def deliver_and_settle_order(payload):
 
     collected_amt = clean_num(data.get('amount_collected') if data.get('amount_collected') is not None else data.get('amount'))
     discount_amt = clean_num(data.get('discount') or 0.0)
+    if collected_amt < 0 or discount_amt < 0:
+        return {"success": False, "error": "لا يمكن أن تكون قيمة التحصيل أو الخصم سالبة"}
     account_id = clean_str(data.get('account_id') or 'ACC-101-1')
     payment_method = clean_str(data.get('payment_method') or 'نقد (كاش)')
     delivery_notes = clean_str(data.get('notes') or 'تسليم الفستان واستلام المتبقي')
 
     try:
         with get_db_cursor(commit=True) as cur:
+            assert_period_open(cur, None)
             # 1. Fetch & lock order
             cur.execute("SELECT * FROM orders WHERE id = %s OR order_no = %s OR id = 'ORD-' || %s LIMIT 1 FOR UPDATE;", (order_id, order_id, order_id))
             order = cur.fetchone()
@@ -73,6 +79,8 @@ def deliver_and_settle_order(payload):
             if collected_amt <= 0 and cur_remaining > 0 and 'amount_collected' not in data:
                 collected_amt = max(0.0, cur_remaining - discount_amt)
 
+            if discount_amt > tot_amount:
+                return {"success": False, "error": "قيمة الخصم لا يمكن أن تتجاوز إجمالي الطلب"}
             new_total = tot_amount - discount_amt if discount_amt > 0 else tot_amount
             new_paid = min(new_total, old_paid + collected_amt)
             new_remaining = max(0.0, new_total - new_paid)
@@ -128,20 +136,18 @@ def deliver_and_settle_order(payload):
                 act_jv_id = cur.fetchone()['id']
                 cur.execute("DELETE FROM journal_entry_lines WHERE entry_id = %s;", (act_jv_id,))
 
+                deliv_lines = []
                 if old_paid > 0:
-                    cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, %s, %s, %s, 0.0, %s, 0.0);",
-                                (generate_id("JVL"), act_jv_id, advance_acc, f"مدين - تسوية أمانات وعربون مسدد مسبقاً {order_no}", old_paid, old_paid))
+                    deliv_lines.append((advance_acc, f"مدين - تسوية أمانات وعربون مسدد مسبقاً {order_no}", old_paid, 0.0, old_paid, 0.0))
                 if collected_amt > 0:
-                    cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, %s, %s, %s, 0.0, %s, 0.0);",
-                                (generate_id("JVL"), act_jv_id, target_treasury_acc, f"مدين - نقد محصل عند تسليم طلب {order_no}", collected_amt, collected_amt))
+                    deliv_lines.append((target_treasury_acc, f"مدين - نقد محصل عند تسليم طلب {order_no}", collected_amt, 0.0, collected_amt, 0.0))
                 if new_remaining > 0:
-                    cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, %s, %s, %s, 0.0, %s, 0.0);",
-                                (generate_id("JVL"), act_jv_id, ar_acc, f"مدين - رصيد آجل متبقي على العميل {cust_name} ({order_no})", new_remaining, new_remaining))
+                    deliv_lines.append((ar_acc, f"مدين - رصيد آجل متبقي على العميل {cust_name} ({order_no})", new_remaining, 0.0, new_remaining, 0.0))
+                deliv_lines.append((revenue_acc, f"دائن - إيراد تفصيل فستان {order_no} ({cust_name})", 0.0, new_total, 0.0, new_total))
+                insert_sorted_journal_lines(cur, act_jv_id, deliv_lines)
 
-                cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, %s, %s, 0.0, %s, 0.0, %s);",
-                            (generate_id("JVL"), act_jv_id, revenue_acc, f"دائن - إيراد تفصيل فستان {order_no} ({cust_name})", new_total, new_total))
-
-            # 5. COGS Recognition & Rollup Cascade
+            # 5. COGS Recognition, CMT Custody Closure & Rollup Cascade
+            close_cmt_custody_on_delivery(cur, real_order_id, data.get('leftover_returned_qty'), cust_name)
             cogs_data = record_delivery_cogs(cur, real_order_id, order_no, cust_name, child_name)
             refresh_chart_balances_atomic(cur)
 

@@ -66,9 +66,9 @@ function ProductsTable({
                 className="h-8 border-b border-slate-200 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/40 text-[11px] font-medium transition-colors cursor-pointer"
               >
                 {/* 1. الكود / SKU */}
-                <td className="w-[105px] py-1.5 px-2 text-right truncate overflow-hidden whitespace-nowrap select-all" dir="ltr" title={p.sku || p.code || `LP-${p.id}`}>
+                <td className="w-[105px] py-1.5 px-2 text-right truncate overflow-hidden whitespace-nowrap select-all" dir="ltr" title={p.sku || p.code || `PRD-${p.id}`}>
                   <span className="font-mono text-slate-600 dark:text-slate-400 font-medium text-[11px] block truncate">
-                    {p.sku || p.code || `LP-${String(p.id).padStart(4, '0')}`}
+                    {p.sku || p.code || `PRD-${String(p.id).padStart(4, '0')}`}
                   </span>
                 </td>
 

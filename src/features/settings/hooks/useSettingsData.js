@@ -76,7 +76,7 @@ function useSettingsData({ showToast }) {
         paperSize: 'A4',
         showLogo: true,
         showQr: true,
-        footerText: 'شكراً لتعاملكم الراقي مع دار الأميرات الصغيرات',
+        footerText: 'شكراً لتعاملكم معنا',
         showTerms: true
       };
     } catch(e) {
@@ -123,12 +123,19 @@ function useSettingsData({ showToast }) {
               email: res.company.email || prev.email
             }));
             if (res.currency && res.currency.rates) {
-              if (res.currency.rates.SAR) setSarRate(res.currency.rates.SAR);
-              if (res.currency.rates.USD) setUsdRate(res.currency.rates.USD);
+              if (res.currency.rates.SAR) setSarRate(parseFloat(res.currency.rates.SAR));
+              if (res.currency.rates.USD) setUsdRate(parseFloat(res.currency.rates.USD));
             }
           }
         } catch(e) {}
       }
+      try {
+        const ratesRes = await fetch('/api/exchange-rates').then(r => r.json());
+        if (isMounted && ratesRes && ratesRes.success && ratesRes.rates) {
+          if (ratesRes.rates.SAR) setSarRate(parseFloat(ratesRes.rates.SAR));
+          if (ratesRes.rates.USD) setUsdRate(parseFloat(ratesRes.rates.USD));
+        }
+      } catch(e) {}
     };
     fetchSettings();
     return () => { isMounted = false; };

@@ -2,19 +2,23 @@
 # Warehouse stock transfers journal posting and historical lines reconciliation
 
 import logging
+from decimal import Decimal, ROUND_HALF_UP
 from .db_pool import clean_num
 from .pg_audit import log_audit_event, resolve_active_user_id
 from .pg_sequences import get_next_sequence_number
 from .pg_warehouse_accounts import sync_all_warehouses_accounts
+from .pg_delivery_cogs import refresh_chart_balances_atomic
+from services.security import assert_period_open
 
 logger = logging.getLogger("LittlePrincesses_PG_WarehouseTransferPost")
 
 
 def post_warehouse_transfer_journal(cur, transfer_ref, from_name, to_name, from_acc, to_acc, qty, u_cost, notes="", user_id=None):
     """ترحيل قيد محاسبي مزدوج ومتوازن لمناقلة مخزنية بين مستودعين"""
-    tot_amt = round(clean_num(qty) * clean_num(u_cost), 4)
+    tot_amt = float((Decimal(str(clean_num(qty))) * Decimal(str(clean_num(u_cost)))).quantize(Decimal('0.0001'), rounding=ROUND_HALF_UP))
     if tot_amt <= 0 or not from_acc or not to_acc or from_acc == to_acc:
         return None
+    assert_period_open(cur, None)
 
     active_user = resolve_active_user_id(cur, user_id)
     jv_no = get_next_sequence_number(cur, 'JV', fallback_prefix='JV-')
@@ -28,31 +32,25 @@ def post_warehouse_transfer_journal(cur, transfer_ref, from_name, to_name, from_
             exchange_rate, status, notes, created_by, created_at
         ) VALUES (
             %s, %s, CURRENT_DATE, %s, %s, %s, %s, %s, %s, 'Transfer', %s, 'YER', 1.0, 'Posted', %s, %s, CURRENT_TIMESTAMP
-        ) ON CONFLICT (entry_no) DO UPDATE SET
-            amount = EXCLUDED.amount, total_amount = EXCLUDED.total_amount, base_amount = EXCLUDED.base_amount,
-            created_by = COALESCE(journal_entries.created_by, EXCLUDED.created_by);
+        ) ON CONFLICT (entry_no) DO NOTHING;
     """, (jv_id, jv_no, desc, to_acc, from_acc, tot_amt, tot_amt, tot_amt, transfer_ref, notes, active_user))
 
     cur.execute("SELECT id FROM journal_entries WHERE entry_no = %s LIMIT 1;", (jv_no,))
     row = cur.fetchone()
     act_id = row['id'] if row else jv_id
-    cur.execute("DELETE FROM journal_entry_lines WHERE entry_id = %s;", (act_id,))
+    cur.execute("SELECT COUNT(*) AS cnt FROM journal_entry_lines WHERE entry_id = %s;", (act_id,))
+    if int((cur.fetchone() or {}).get('cnt') or 0) == 0:
+        cur.execute("""
+            INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base)
+            VALUES (%s, %s, %s, %s, %s, 0.0, %s, 0.0);
+        """, (f"JVL-{transfer_ref}-D", act_id, to_acc, f"مدين - استلام مناقلة في [{to_name}] من [{from_name}]", tot_amt, tot_amt))
+        cur.execute("""
+            INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base)
+            VALUES (%s, %s, %s, %s, 0.0, %s, 0.0, %s);
+        """, (f"JVL-{transfer_ref}-C", act_id, from_acc, f"دائن - صرف مناقلة من [{from_name}] إلى [{to_name}]", tot_amt, tot_amt))
 
-    cur.execute("""
-        INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base)
-        VALUES (%s, %s, %s, %s, %s, 0.0, %s, 0.0);
-    """, (f"JVL-{transfer_ref}-D", act_id, to_acc, f"مدين - استلام مناقلة في [{to_name}] من [{from_name}]", tot_amt, tot_amt))
-
-    cur.execute("""
-        INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base)
-        VALUES (%s, %s, %s, %s, 0.0, %s, 0.0, %s);
-    """, (f"JVL-{transfer_ref}-C", act_id, from_acc, f"دائن - صرف مناقلة من [{from_name}] إلى [{to_name}]", tot_amt, tot_amt))
-
-    for aid in (from_acc, to_acc):
-        cur.execute("SELECT COALESCE(SUM(debit_base - credit_base), 0.0) as net FROM journal_entry_lines WHERE account_id = %s;", (aid,))
-        net = cur.fetchone()['net'] or 0.0
-        cur.execute("UPDATE chart_of_accounts SET current_balance = %s WHERE id = %s;", (net, aid))
-
+    refresh_chart_balances_atomic(cur)
+    log_audit_event('inventory', transfer_ref, 'WAREHOUSE_TRANSFER', new_values={'from': from_name, 'to': to_name, 'qty': clean_num(qty), 'amount': tot_amt, 'entry_no': jv_no}, user_id=active_user, cur=cur)
     return jv_no
 
 

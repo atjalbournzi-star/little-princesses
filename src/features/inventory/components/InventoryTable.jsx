@@ -8,7 +8,8 @@ function InventoryTable({
   activeTargetCurr = 'YER',
   onOpenAdjust,
   onOpenTransfer,
-  onOpenMovements
+  onOpenMovements,
+  onOpenHangtag
 }) {
   const u = window.inventoryUtils || {};
   const getItemName = u.getItemName || (i => i?.item_name || i?.name || '');
@@ -32,15 +33,15 @@ function InventoryTable({
   const currCode = (activeCurrDef?.code || activeTargetCurr || 'YER').replace('﷼', '').trim();
 
   const columns = [
-    { key: 'code', label: 'الرمز', width: 'w-[75px]', align: 'text-right' },
-    { key: 'name', label: 'اسم الصنف / الخامة', width: 'w-[20%]', align: 'text-right' },
+    { key: 'code', label: 'الرمز', width: 'w-[85px]', align: 'text-right' },
+    { key: 'name', label: 'اسم الصنف / الموديل', width: 'w-[19%]', align: 'text-right' },
     { key: 'category', label: 'التصنيف', width: 'w-[100px]', align: 'text-right' },
-    { key: 'location', label: 'المستودع / الموقع', width: 'w-[135px]', align: 'text-right' },
+    { key: 'location', label: 'المستودع / التوزيع', width: 'w-[205px]', align: 'text-right' },
     { key: 'qty', label: 'الرصيد المتوفر', width: 'w-[95px]', align: 'text-left' },
     { key: 'cost', label: `متوسط التكلفة (${currCode})`, width: 'w-[110px]', align: 'text-left' },
     { key: 'total', label: `إجمالي القيمة (${currCode})`, width: 'w-[115px]', align: 'text-left' },
-    { key: 'supplier', label: 'المورد', width: 'w-[110px]', align: 'text-right' },
-    { key: 'actions', label: 'الإجراءات', width: 'w-[85px]', align: 'text-center sticky left-0 z-10 bg-slate-50 dark:bg-[#0F172A]' }
+    { key: 'supplier', label: 'المورد / الموسم', width: 'w-[105px]', align: 'text-right' },
+    { key: 'actions', label: 'الإجراءات', width: 'w-[105px]', align: 'text-center sticky left-0 z-10 bg-slate-50 dark:bg-[#0F172A]' }
   ];
 
   return (
@@ -81,14 +82,22 @@ function InventoryTable({
             return (
               <tr key={i.id || name || idx} className="h-8 border-b border-slate-200 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/40 text-[11px] font-medium transition-colors group">
                 {/* 1. رمز الصنف */}
-                <td className="w-[75px] py-1.5 px-2 text-right font-mono text-slate-500 dark:text-slate-400 text-[11px] truncate" title={String(code)}>
+                <td className="w-[85px] py-1.5 px-2 text-right font-mono text-slate-500 dark:text-slate-400 text-[11px] whitespace-nowrap" dir="ltr" title={String(code)}>
                   {code}
                 </td>
 
                 {/* 2. اسم الصنف وحالة التنبيه */}
-                <td className="w-[20%] py-1.5 px-2 text-right font-semibold text-slate-900 dark:text-white text-[11px] truncate" title={name}>
-                  <div className="flex items-center gap-1.5 truncate">
+                <td className="w-[19%] py-1.5 px-2 text-right font-semibold text-slate-900 dark:text-white text-[11px]" title={name}>
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    {i.image_url && (
+                      <img src={i.image_url} alt={name} className="w-6 h-6 rounded object-cover object-top border border-slate-200 dark:border-slate-700 shrink-0" />
+                    )}
                     <span className="truncate">{name}</span>
+                    {Array.isArray(i.variants) && i.variants.length > 0 && (
+                      <span className="text-[9px] bg-pink-50 dark:bg-pink-950/60 text-pink-700 dark:text-pink-300 border border-pink-200 dark:border-pink-800/60 px-1 rounded font-bold shrink-0">
+                        {i.variants.length} مقاس
+                      </span>
+                    )}
                     {outOfStock ? (
                       <span className="text-[9px] bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/60 px-1 py-0.2 rounded font-bold shrink-0">نفد</span>
                     ) : lowStock ? (
@@ -98,23 +107,22 @@ function InventoryTable({
                 </td>
 
                 {/* 3. التصنيف */}
-                <td className="w-[100px] py-1.5 px-2 text-right truncate">
-                  <span className="bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 px-1.5 py-0.2 rounded text-[10px] font-medium inline-block truncate max-w-full">
+                <td className="w-[100px] py-1.5 px-2 text-right">
+                  <span className="bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 px-1.5 py-0.2 rounded text-[10px] font-medium inline-block">
                     {i.category || 'أقمشة وخامات'}
                   </span>
                 </td>
 
-                {/* 4. الموقع / المستودع */}
-                <td className="w-[135px] py-1.5 px-2 text-right truncate" title={loc}>
-                  <div className="flex flex-col gap-0.5 truncate">
-                    <span className="font-semibold text-teal-700 dark:text-teal-400 text-[10.5px] truncate">{loc}</span>
+                {/* 4. الموقع / المستودع (منع قص اسم المستودع وتوزيعه) */}
+                <td className="w-[205px] py-1.5 px-2 text-right whitespace-normal leading-snug" title={loc}>
+                  <div className="flex flex-col gap-0.5">
+                    <span className="font-semibold text-teal-700 dark:text-teal-400 text-[10.5px] whitespace-normal break-words">{loc}</span>
                     {Array.isArray(i.warehouse_details) && i.warehouse_details.length > 0 && (
-                      <div className="text-[9px] text-slate-500 dark:text-slate-400 font-mono flex items-center gap-1 overflow-hidden truncate">
+                      <div className="text-[9.5px] text-slate-500 dark:text-slate-400 font-mono flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
                         {i.warehouse_details.map((wd, wIdx) => (
-                          <span key={wd.warehouse_id || wIdx} className="inline-flex items-center gap-0.5">
-                            <span>{wd.warehouse_name || wd.warehouse_code}:</span>
-                            <span className="font-bold text-slate-700 dark:text-slate-200">{wd.quantity}</span>
-                            {wIdx < i.warehouse_details.length - 1 && <span className="text-slate-400 mr-0.5">·</span>}
+                          <span key={wd.warehouse_id || wIdx} className="inline-flex items-center gap-1 whitespace-nowrap">
+                            <span>{wd.warehouse_name} ({wd.warehouse_code}):</span>
+                            <span dir="ltr" className="font-bold text-slate-700 dark:text-slate-200 tabular-nums">{wd.quantity}</span>
                           </span>
                         ))}
                       </div>
@@ -123,33 +131,43 @@ function InventoryTable({
                 </td>
 
                 {/* 5. الرصيد المتوفر */}
-                <td className="w-[95px] py-1.5 px-2 text-left truncate">
-                  <span className="font-bold font-mono text-slate-900 dark:text-white text-xs tabular-nums dir-ltr">
+                <td className="w-[95px] py-1.5 px-2 text-left whitespace-nowrap">
+                  <span dir="ltr" className="inline-block font-bold font-mono text-slate-900 dark:text-white text-xs tabular-nums">
                     {qty.toLocaleString('en-US', { minimumFractionDigits: unit === 'قطعة' ? 0 : 1, maximumFractionDigits: 1 })}
                   </span>
-                  <span className="text-[10px] font-normal text-slate-500 dark:text-slate-400 mr-0.5">
+                  <span className="text-[10px] font-normal text-slate-500 dark:text-slate-400 mr-1">
                     {unit}
                   </span>
                 </td>
 
                 {/* 6. متوسط التكلفة */}
-                <td className="w-[110px] py-1.5 px-2 text-left font-mono text-xs text-slate-800 dark:text-slate-200 tabular-nums dir-ltr truncate">
+                <td dir="ltr" className="w-[110px] py-1.5 px-2 text-left font-mono text-xs text-slate-800 dark:text-slate-200 tabular-nums whitespace-nowrap">
                   {displayCost > 0 ? displayCost.toLocaleString('en-US', { minimumFractionDigits: isBaseCurrency ? 0 : 2, maximumFractionDigits: 4 }) : '0.00'}
                 </td>
 
                 {/* 7. إجمالي القيمة */}
-                <td className="w-[115px] py-1.5 px-2 text-left font-bold font-mono text-xs text-slate-900 dark:text-white tabular-nums dir-ltr truncate">
+                <td dir="ltr" className="w-[115px] py-1.5 px-2 text-left font-bold font-mono text-xs text-slate-900 dark:text-white tabular-nums whitespace-nowrap">
                   {displayTotal > 0 ? displayTotal.toLocaleString('en-US', { minimumFractionDigits: isBaseCurrency ? 0 : 2, maximumFractionDigits: 2 }) : '0.00'}
                 </td>
 
-                {/* 8. المورد */}
-                <td className="w-[110px] py-1.5 px-2 text-right font-mono text-slate-500 dark:text-slate-400 text-[11px] truncate" title={supplier}>
-                  {supplier}
+                {/* 8. المورد / الموسم */}
+                <td className="w-[105px] py-1.5 px-2 text-right font-mono text-slate-500 dark:text-slate-400 text-[11px] truncate" title={i.season_collection || supplier}>
+                  {i.season_collection || supplier}
                 </td>
 
-                {/* 9. الإجراءات السريعة - 3 أيقونات مدمجة متطابقة مع السندات */}
-                <td className="w-[85px] py-1.5 px-2 text-center whitespace-nowrap sticky left-0 z-10 bg-white dark:bg-[#111C38] group-hover:bg-slate-50 dark:group-hover:bg-slate-800/60 border-r border-slate-200 dark:border-slate-800">
-                  <div className="flex items-center justify-center gap-1.5">
+                {/* 9. الإجراءات السريعة */}
+                <td className="w-[105px] py-1.5 px-2 text-center whitespace-nowrap sticky left-0 z-10 bg-white dark:bg-[#111C38] group-hover:bg-slate-50 dark:group-hover:bg-slate-800/60 border-r border-slate-200 dark:border-slate-800">
+                  <div className="flex items-center justify-center gap-1">
+                    {Array.isArray(i.variants) && i.variants.length > 0 && onOpenHangtag && (
+                      <button
+                        type="button"
+                        onClick={() => onOpenHangtag(i)}
+                        className="w-5.5 h-5.5 bg-pink-50 hover:bg-pink-100 dark:bg-pink-950/40 text-pink-600 dark:text-pink-400 border border-pink-200 dark:border-pink-800/60 rounded-md transition flex items-center justify-center shrink-0 cursor-pointer text-[10px]"
+                        title="طباعة ليبل الباركود والسعر (Hangtag 50×30mm)"
+                      >
+                        🏷️
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => onOpenMovements && onOpenMovements(i)}

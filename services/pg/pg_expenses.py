@@ -6,6 +6,7 @@ from .account_resolver import resolve_exchange_rate, resolve_account_id, resolve
 from .pg_sequences import get_next_sequence_number
 from .pg_audit import log_audit_event, get_active_user_context
 from .pg_expenses_post import post_expense_to_ledger
+from services.security import assert_period_open
 
 
 def get_expenses(params=None):
@@ -13,7 +14,10 @@ def get_expenses(params=None):
     query = """
         SELECT id, expense_no, category, amount, currency, exchange_rate, base_amount,
                date as expense_date, payment_method, recipient, beneficiary, cost_center,
-               cost_center_id, reference_no, attachment_url, branch_id, tenant_id, account_id,
+               cost_center_id, reference_no,
+               CASE WHEN attachment_url LIKE 'data:%%' OR LENGTH(COALESCE(attachment_url, '')) > 500 THEN '' ELSE attachment_url END AS attachment_url,
+               (LENGTH(COALESCE(attachment_url, '')) > 500 OR attachment_url LIKE 'data:%%') AS has_attachment,
+               branch_id, tenant_id, account_id,
                source_account_id, status, notes, subtotal_amount, tax_amount, discount_amount,
                net_amount, approved_by, approved_at, created_by, created_at
         FROM expenses ORDER BY created_at DESC;
@@ -46,12 +50,13 @@ def add_expense(payload):
     cat = clean_str(data.get('category') or data.get('exp_category') or 'مصروفات تشغيلية')
     subtotal = clean_num(data.get('subtotal_amount') or data.get('subtotal') or data.get('amount') or 0.0)
     discount, tax = clean_num(data.get('discount_amount') or 0.0), clean_num(data.get('tax_amount') or 0.0)
-    net_amt = clean_num(data.get('net_amount') or 0.0)
-    amt = net_amt if net_amt > 0 else subtotal
+    if subtotal < 0 or discount < 0 or tax < 0 or discount > subtotal:
+        raise ValueError("مبالغ المصروف غير صالحة (يجب ألا تكون سالبة ولا يتجاوز الخصم الإجمالي)")
+    net_amt = max(0.0, subtotal - discount + tax)
+    amt = net_amt
     c_raw = clean_str(data.get('currency') or 'YER').upper()
     curr = 'SAR' if 'SAR' in c_raw else ('USD' if 'USD' in c_raw else 'YER')
     rate = clean_num(data.get('exchange_rate') or 1.0)
-    base_amt = clean_num(data.get('base_amount') or (amt * rate))
     exp_date = clean_str(data.get('date') or data.get('expense_date')) or today_str()
     pay_method = clean_str(data.get('payment_method') or data.get('pay_method') or 'نقد (كاش)')
     beneficiary = clean_str(data.get('beneficiary') or data.get('recipient') or cat)
@@ -61,20 +66,27 @@ def add_expense(payload):
     ref_no = clean_str(data.get('reference_no') or data.get('invoice_no') or '')
     att_url = clean_str(data.get('attachment_url') or data.get('receipt_b64') or att_name)
     branch_id, tenant_id = clean_str(data.get('branch_id') or 'BR-01'), clean_str(data.get('tenant_id') or 'TENANT-01')
-    status = clean_str(data.get('status') or 'posted')
-    if status not in ('draft', 'posted', 'rejected'): status = 'posted'
+    status = clean_str(data.get('status') or 'draft')
+    if status not in ('draft', 'posted', 'rejected'): status = 'draft'
+    try:
+        from flask import request, has_request_context
+        if has_request_context():
+            u_role = str((getattr(request, 'active_user', None) or {}).get('role') or '').lower()
+            if u_role not in ('admin', 'accountant'): status = 'draft'
+    except Exception: pass
     raw_acc = data.get('account_id') or data.get('account') or data.get('exp_account') or cat
     source_acc_input = data.get('source_account_id') or data.get('payment_source') or data.get('source_acc')
     notes = clean_str(data.get('notes') or '')
     if att_name and att_name not in notes: notes = f"{notes} [المرفق: {att_name}]".strip()
 
     with get_db_cursor(commit=True) as cur:
+        assert_period_open(cur, exp_date)
         if resolved_user:
             cur.execute("SELECT id FROM users WHERE id = %s OR username = %s LIMIT 1;", (resolved_user, resolved_user))
             u_row = cur.fetchone()
             resolved_user = u_row['id'] if u_row else None
         rate = resolve_exchange_rate(cur, curr, rate)
-        if curr != 'YER' and (base_amt <= 0 or base_amt == amt): base_amt = amt * rate
+        base_amt = amt * rate
         acc_id = resolve_account_id(cur, raw_acc)
         if not acc_id:
             cur.execute("SELECT id FROM chart_of_accounts WHERE is_postable = TRUE AND (account_category ILIKE 'Expenses' OR account_code LIKE '5%') ORDER BY level DESC, account_code ASC LIMIT 1;")
@@ -172,14 +184,15 @@ def delete_expense(payload):
     if not target_id: return {"deleted": False, "error": "Missing id"}
 
     with get_db_cursor(commit=True) as cur:
-        cur.execute("SELECT id, expense_no FROM expenses WHERE id = %s OR expense_no = %s LIMIT 1;", (target_id, target_id))
+        cur.execute("SELECT id, expense_no, status, date FROM expenses WHERE id = %s OR expense_no = %s LIMIT 1 FOR UPDATE;", (target_id, target_id))
         row = cur.fetchone()
         if not row: return {"deleted": False, "status": "not_found"}
+        assert_period_open(cur, row.get('date'))
         actual_id, exp_no = row['id'], row['expense_no']
-        cur.execute("DELETE FROM expenses WHERE id = %s;", (actual_id,))
-        cur.execute("DELETE FROM expense_transactions WHERE id = %s OR expense_no = %s;", (actual_id, exp_no))
-        cur.execute("DELETE FROM payments WHERE id = %s OR reference_no = %s OR payment_no = %s;", (f"PAY-{actual_id}", actual_id, f"PV-{exp_no}"))
-        cur.execute("DELETE FROM journal_entries WHERE id = %s OR ref_id = %s OR entry_no = %s;", (f"JV-{actual_id}", actual_id, f"JV-{exp_no}"))
-        log_audit_event('expenses', actual_id, 'DELETE', user_id=u_id, document_no=exp_no, details=f"حذف مصروف {exp_no}", cur=cur)
+        if str(row.get('status') or '').lower() in ('posted', 'paid'):
+            raise ValueError("مخالفة معايير المحاسبة (IFRS): لا يمكن حذف مصروف مرحّل نهائياً؛ يرجى إجراء قيد عكسي.")
+        cur.execute("UPDATE expenses SET status = 'cancelled' WHERE id = %s;", (actual_id,))
+        cur.execute("UPDATE expense_transactions SET status = 'cancelled' WHERE id = %s OR expense_no = %s;", (actual_id, exp_no))
+        log_audit_event('expenses', actual_id, 'CANCEL', user_id=u_id, document_no=exp_no, details=f"إلغاء مسودة مصروف {exp_no}", cur=cur)
 
-    return {"deleted": True, "id": actual_id, "success": True}
+    return {"deleted": True, "cancelled": True, "id": actual_id, "success": True}

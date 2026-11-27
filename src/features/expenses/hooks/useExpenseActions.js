@@ -11,6 +11,7 @@ function derivePaymentMethod(acc) {
 
 function useExpenseActions({ accounts = [], setAccounts, setExpenses, setVouchers, setJournal, showToast, onExpenseSaved }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [approvingId, setApprovingId] = useState(null);
   const [showQuickAddCat, setShowQuickAddCat] = useState(false);
   const [newCatName, setNewCatName] = useState('');
   const [newCatCode, setNewCatCode] = useState('');
@@ -44,12 +45,13 @@ function useExpenseActions({ accounts = [], setAccounts, setExpenses, setVoucher
 
   const handleSubmit = async (e, forcedStatus = null) => {
     if (e && e.preventDefault) e.preventDefault();
+    if (isSubmitting) return false;
     const subtotal = parseFloat(formData.subtotal_amount || formData.amount || 0);
     const discount = parseFloat(formData.discount_amount || 0);
     const tax = parseFloat(formData.tax_amount || 0);
     const net = Math.max(0, subtotal - discount + tax);
     const finalAmount = net > 0 ? net : subtotal;
-    if (finalAmount <= 0) return showToast('يرجى إدخال مبلغ صحيح أكبر من الصفر ⚠️', 'error');
+    if (finalAmount <= 0) { showToast('يرجى إدخال مبلغ صحيح أكبر من الصفر ⚠️', 'error'); return false; }
 
     const targetStatus = forcedStatus || formData.status || 'posted';
     setIsSubmitting(true);
@@ -67,6 +69,10 @@ function useExpenseActions({ accounts = [], setAccounts, setExpenses, setVoucher
       } else {
         const res = await fetch('/api/finance/expenses', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(subData) });
         resData = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(res.extractedError || resData?.error || resData?.message || `خطأ (${res.status})`);
+      }
+      if (resData && resData.success === false) {
+        throw new Error(resData.error || resData.message || 'تعذر حفظ المصروف');
       }
       const savedExp = (resData && (resData.data || resData.expense)) || {};
       const officialExpNo = savedExp.expense_no || newE.expense_no;
@@ -80,45 +86,55 @@ function useExpenseActions({ accounts = [], setAccounts, setExpenses, setVoucher
         }
       }
       showToast(targetStatus === 'draft' ? `تم حفظ المصروف (${officialExpNo}) كمسودة بنجاح 📝` : `تم حفظ المصروف (${officialExpNo}) وترحيل السند المالي والقيد اليومي بنجاح 💸`, 'success');
+      setFormData(prev => ({ ...prev, amount: '', subtotal_amount: '', discount_amount: '', tax_amount: '', net_amount: '', beneficiary: '', reference_no: '', notes: '', attachment_url: '', attachment_name: '', date: typeof TODAY_STR_ISO !== 'undefined' ? TODAY_STR_ISO : new Date().toISOString().slice(0, 10) }));
       if (typeof onExpenseSaved === 'function') onExpenseSaved();
+      return true;
     } catch (err) {
-      showToast('تعذر حفظ المصروف في قاعدة البيانات، يرجى التحقق من الاتصال بالخادم ⚠️', 'error');
+      const msg = window.formatApiError ? window.formatApiError(err) : 'تعذّر الاتصال بالخادم حالياً، بياناتك ما زالت محفوظة في النموذج — يرجى إعادة المحاولة';
+      showToast(msg, 'error');
+      return false;
     } finally {
       setIsSubmitting(false);
-      setFormData(prev => ({ ...prev, amount: '', subtotal_amount: '', discount_amount: '', tax_amount: '', net_amount: '', beneficiary: '', reference_no: '', notes: '', attachment_url: '', attachment_name: '', date: typeof TODAY_STR_ISO !== 'undefined' ? TODAY_STR_ISO : new Date().toISOString().slice(0, 10) }));
     }
   };
 
   const handleApproveExpense = async (eItem) => {
     const targetId = eItem.id || eItem.expense_no;
+    if (approvingId) return;
+    setApprovingId(targetId);
     const utils = window.expenseAccountUtils;
     const built = utils && utils.buildVoucherAndJournalFromExistingExpense ? utils.buildVoucherAndJournalFromExistingExpense(eItem, accounts) : null;
-    let sRes = null;
-
     try {
+      let sRes = null;
       if (window.expenseAPI && window.expenseAPI.approveExpense) {
         sRes = await window.expenseAPI.approveExpense({ id: targetId, ...eItem });
       } else {
         const res = await fetch('/api/finance/expenses/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: targetId, ...eItem }) });
-        sRes = await res.json();
+        sRes = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(res.extractedError || sRes?.error || sRes?.message || `خطأ (${res.status})`);
       }
+      if (sRes && sRes.success === false) {
+        throw new Error(sRes.error || sRes.message || 'تعذر اعتماد المصروف');
+      }
+      const finalV = (sRes && sRes.voucher) ? sRes.voucher : (built ? built.voucher : null);
+      const finalJ = (sRes && sRes.journal_entry) ? sRes.journal_entry : (built ? built.journal : null);
+
+      if (setExpenses) setExpenses(prev => (prev || []).map(e => (e.id === targetId || e.expense_no === targetId) ? { ...e, status: 'posted', approved_at: new Date().toISOString() } : e));
+      if (setVouchers && finalV) setVouchers(prev => [finalV, ...(prev || []).filter(v => v.v_no !== finalV.v_no && v.id !== finalV.id)]);
+      if (setJournal && finalJ) setJournal(prev => [finalJ, ...(prev || []).filter(j => j.entry_no !== finalJ.entry_no && j.id !== finalJ.id)]);
+      if (typeof setAccounts === 'function' && utils && built) {
+        setAccounts(prev => utils.updateAccountsForExpense(prev, built.sourceCode, built.expCode, built.baseAmount));
+      }
+      if (typeof window.loadAccounts === 'function') window.loadAccounts();
+
+      showToast('تم اعتماد المصروف وترحيله إلى السندات وشجرة الحسابات والدفاتر بنجاح 💸', 'success');
+      if (typeof onExpenseSaved === 'function') onExpenseSaved();
     } catch (err) {
-      console.warn('Backend approval fetch fallback:', err);
+      const msg = window.formatApiError ? window.formatApiError(err) : 'تعذّر اعتماد المصروف، يرجى إعادة المحاولة';
+      showToast(msg, 'error');
+    } finally {
+      setApprovingId(null);
     }
-
-    const finalV = (sRes && sRes.voucher) ? sRes.voucher : (built ? built.voucher : null);
-    const finalJ = (sRes && sRes.journal_entry) ? sRes.journal_entry : (built ? built.journal : null);
-
-    if (setExpenses) setExpenses(prev => (prev || []).map(e => (e.id === targetId || e.expense_no === targetId) ? { ...e, status: 'posted', approved_at: new Date().toISOString() } : e));
-    if (setVouchers && finalV) setVouchers(prev => [finalV, ...(prev || []).filter(v => v.v_no !== finalV.v_no && v.id !== finalV.id)]);
-    if (setJournal && finalJ) setJournal(prev => [finalJ, ...(prev || []).filter(j => j.entry_no !== finalJ.entry_no && j.id !== finalJ.id)]);
-    if (typeof setAccounts === 'function' && utils && built) {
-      setAccounts(prev => utils.updateAccountsForExpense(prev, built.sourceCode, built.expCode, built.baseAmount));
-    }
-    if (typeof window.loadAccounts === 'function') window.loadAccounts();
-
-    showToast('تم اعتماد المصروف وترحيله إلى السندات وشجرة الحسابات والدفاتر بنجاح 💸', 'success');
-    if (typeof onExpenseSaved === 'function') onExpenseSaved();
   };
 
   const handleDeleteExpense = async (eItem) => {
@@ -156,7 +172,7 @@ function useExpenseActions({ accounts = [], setAccounts, setExpenses, setVoucher
   }, []);
 
   return {
-    formData, setFormData, isSubmitting, showQuickAddCat, setShowQuickAddCat,
+    formData, setFormData, isSubmitting, approvingId, showQuickAddCat, setShowQuickAddCat,
     newCatName, setNewCatName, newCatCode, setNewCatCode, handleQuickAddCategory,
     handleSubmit, handleApproveExpense, handleDeleteExpense, printVoucher,
     setPrintVoucher, handlePrintExpense, derivePaymentMethod

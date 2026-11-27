@@ -119,23 +119,8 @@ def deduct_fabric(cur, fabric_id, fabric_name, cut_qty, cut_unit, order_label, c
         cur.execute("SELECT account_id FROM warehouses WHERE id = %s LIMIT 1;", (op_wh_id,))
         wh_acc_row = cur.fetchone()
         cr_acc = (wh_acc_row.get('account_id') if wh_acc_row else None) or 'ACC-105-02'
-        jv_ref = f"FAB-CUT-{order_label}-{inv_row['id']}"
-        cur.execute("SELECT id FROM journal_entries WHERE ref_id = %s LIMIT 1;", (jv_ref,))
-        if not cur.fetchone():
-            from .pg_delivery_cogs import cascade_account_balances
-            jv_no = get_next_sequence_number(cur, 'JV', fallback_prefix='JV-')
-            jv_id = f"JV-{jv_ref}"
-            cur.execute("""
-                INSERT INTO journal_entries (id, entry_no, entry_date, description, debit_account_id, credit_account_id,
-                    amount, total_amount, base_amount, ref_type, ref_id, currency, exchange_rate, status, notes, created_by)
-                VALUES (%s, %s, CURRENT_DATE, %s, 'ACC-504', %s, %s, %s, %s, 'FabricConsumption', %s, 'YER', 1.0, 'Posted', %s, %s)
-                ON CONFLICT (id) DO NOTHING;
-            """, (jv_id, jv_no, tx_notes, cr_acc, tot_cost, tot_cost, tot_cost, jv_ref, tx_notes, creator))
-            cur.execute("DELETE FROM journal_entry_lines WHERE entry_id = %s;", (jv_id,))
-            cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, 'ACC-504', %s, %s, 0.0, %s, 0.0);", (generate_id("JVL"), jv_id, tx_notes, tot_cost, tot_cost))
-            cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, %s, %s, 0.0, %s, 0.0, %s);", (generate_id("JVL"), jv_id, cr_acc, tx_notes, tot_cost, tot_cost))
-            if not skip_cascade:
-                cascade_account_balances(cur)
+        from .pg_wip_accounting import record_material_wip_issue
+        record_material_wip_issue(cur, order_label, inv_row['id'], inv_row['name'], cr_acc, tot_cost, tx_notes=tx_notes, created_by=creator, skip_cascade=skip_cascade)
 
     return f"تم اقتطاع {uom_desc} من قماش ({inv_row['name']}) من [{op_wh_name}]"
 
@@ -146,7 +131,14 @@ def deduct_fabrics_batch(cur, fabrics_list, order_label, customer_name, child_na
         return []
     deductions_info = []
     has_deduction = False
-    for item in fabrics_list:
+    sorted_fabrics = sorted(
+        fabrics_list,
+        key=lambda x: (
+            clean_str(x.get('fabric_id') or x.get('id') or x.get('inventory_id') or x.get('material_id') or ''),
+            clean_str(x.get('fabric_name') or x.get('name') or x.get('material_name') or ''),
+        ),
+    )
+    for item in sorted_fabrics:
         fid = item.get('fabric_id') or item.get('id') or item.get('inventory_id') or item.get('material_id') or ''
         fname = item.get('fabric_name') or item.get('name') or item.get('material_name') or ''
         qty = clean_num(item.get('cut_meters') or item.get('quantity') or item.get('qty') or item.get('cut_qty') or item.get('cut_quantity') or item.get('meters') or 0.0)

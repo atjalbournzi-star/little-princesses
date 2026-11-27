@@ -8,7 +8,8 @@ function OrderDetailModal({
   onOpenDelivery,
   onOpenCustomerMessage,
   onOpenPrint,
-  onOpenAlteration
+  onOpenAlteration,
+  onReturnPosOrder
 }) {
   if (!order) return null;
   const getCustName = window.getCustomerName || ((c) => c?.name || '');
@@ -21,6 +22,9 @@ function OrderDetailModal({
   const dispChild = (order.child_name && String(order.child_name).trim()) ? order.child_name : (childMeas?.child_name || "الأميرة");
   const delFee = parseFloat(order.delivery_fee || order.delivery || 0);
   const delMode = order.delivery_payment_mode || 'DIRECT_TO_COURIER';
+  const isPosOrder = String(order.order_no || order.id || '').toUpperCase().startsWith('POS-');
+  const stLow = String(order.status || '').toLowerCase(), pstLow = String(order.production_status || '').toLowerCase();
+  const isReturned = pstLow === 'returned' || stLow === 'returned' || stLow.includes('مرتجع');
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn" dir="rtl">
@@ -120,13 +124,24 @@ function OrderDetailModal({
 
         {/* Actions Grid */}
         <div className="pt-2 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-          {rem > 0 && onOpenDelivery && (
+          {rem > 0 && !isReturned && onOpenDelivery && (
             <button
               onClick={() => { onClose(); onOpenDelivery(order); }}
               className="py-2.5 px-3 rounded-xl bg-gradient-to-r from-[#B0005A] to-[#8F2A87] text-white font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
             >
               <span>🛍️</span>
               <span>تسليم وتحصيل</span>
+            </button>
+          )}
+
+          {isPosOrder && !isReturned && onReturnPosOrder && (
+            <button
+              type="button"
+              onClick={() => { onClose(); onReturnPosOrder(order); }}
+              className="py-2.5 px-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-600 text-rose-700 dark:text-rose-300 hover:text-white border border-rose-200 dark:border-rose-800 font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <span>↩️</span>
+              <span>مرتجع مبيعات</span>
             </button>
           )}
 

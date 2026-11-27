@@ -55,14 +55,17 @@
     };
   }
 
-  function fromBase(baseAmount, targetCurr, customRate) {
+  function fromBase(baseAmount, targetCurr, customRate, keepPrecision) {
     var base = (window.CurrencyRates && window.CurrencyRates.BASE_CURRENCY) || 'YER';
     var num = parseFloat(baseAmount) || 0;
     var code = normalizeCode(targetCurr);
     var rate = customRate && Number(customRate) > 0 ? Number(customRate) : getRate(code);
     var converted = code === base ? num : (rate > 0 ? (num / rate) : 0);
+    if (keepPrecision) {
+      return Math.round(converted * 10000) / 10000;
+    }
     var def = getCurrencyDef(code);
-    var decimals = def ? def.decimals : 2;
+    var decimals = code === base ? Math.max(def ? def.decimals : 2, 2) : (def ? def.decimals : 2);
     var factor = Math.pow(10, decimals);
     return Math.round(converted * factor) / factor;
   }

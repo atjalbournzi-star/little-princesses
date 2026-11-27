@@ -131,10 +131,9 @@ function useSettingsActions({
 
     setIsWiping(true);
     try {
-      const res = await fetch('/api/gas', {
+      const res = await fetch('/api/system/clear-all-data', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'clearAllData', data: {} })
+        headers: { 'Content-Type': 'application/json' }
       }).then(r => r.json());
 
       if (res && res.success !== false) {

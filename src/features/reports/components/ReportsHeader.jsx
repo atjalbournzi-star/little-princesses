@@ -8,6 +8,7 @@ function ReportsHeader({ activeTab, setActiveTab, handleExportExcel, handlePrint
     { id: 'orders', label: 'المبيعات والطلبات' },
     { id: 'production', label: 'إنتاجية المعمل' },
     { id: 'inventory', label: 'حركة المخزون' },
+    { id: 'profitability', label: 'ربحية أوامر التشغيل والتفصيل' },
   ];
 
   return (

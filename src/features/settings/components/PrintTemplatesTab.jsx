@@ -14,7 +14,7 @@ function PrintTemplatesTab({
     paperSize: 'A4',
     showLogo: true,
     showQr: true,
-    footerText: 'شكراً لتعاملكم الراقي مع دار الأميرات الصغيرات 🎀',
+    footerText: 'شكراً لتعاملكم معنا 🎀',
     showTerms: true
   });
   const [selectedPreview, setSelectedPreview] = useState('thermal');
@@ -114,7 +114,7 @@ function PrintTemplatesTab({
           <span className="text-[10.5px] font-bold text-slate-600 dark:text-slate-400 mb-1.5">معاينة مباشرة للقالب ({selectedPreview.toUpperCase()})</span>
           <div className="w-full max-w-[240px] bg-white dark:bg-[#111C38] p-3 rounded-lg border border-slate-200 dark:border-slate-700 shadow-xs text-center text-xs space-y-2 font-mono">
             {config.showLogo && (
-              <div className="text-xs font-bold text-slate-900 dark:text-white">👑 {formData?.companyName || 'دار الأميرات الصغيرات'}</div>
+              <div className="text-xs font-bold text-slate-900 dark:text-white">👑 {formData?.companyName || 'نظام الإدارة المتكامل'}</div>
             )}
             <div className="text-[10px] text-slate-500 dark:text-slate-400">{formData?.tagline || 'أزياء فاخرة'} - {formData?.phone || '776773458'}</div>
             <div className="border-b border-dashed border-slate-200 dark:border-slate-700 pb-1.5 text-[10px]">فاتورة مبيعات #ORD-2026-001</div>

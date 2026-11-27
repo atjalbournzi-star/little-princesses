@@ -19,7 +19,10 @@ function ProductionBoard({
   handleOpenJobTicket,
   setModelPreviewData,
   loadIntoForm,
-  handleDeleteOrder
+  handleDeleteOrder,
+  custodyMap = {},
+  onOpenTailoringAction,
+  onPrintCmtSticker
 }) {
   const CardComponent = window.ProductionCard || (typeof ProductionCard !== 'undefined' ? ProductionCard : null);
   const safeList = Array.isArray(filteredFactory) ? filteredFactory.filter(Boolean) : [];
@@ -81,6 +84,9 @@ function ProductionBoard({
                   setModelPreviewData={setModelPreviewData}
                   loadIntoForm={loadIntoForm}
                   handleDeleteOrder={handleDeleteOrder}
+                  custodyRecord={custodyMap[f.id] || custodyMap[f.production_order_no] || custodyMap[f.order_id] || null}
+                  onOpenTailoringAction={onOpenTailoringAction}
+                  onPrintCmtSticker={onPrintCmtSticker}
                 />
               );
             }

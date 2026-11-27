@@ -1,16 +1,18 @@
 # services/pg/pg_orders.py
 # Sales orders management, status updating, pipeline sync, and safe order deletion
+# Architectural Standards: Strictly < 220 lines per file
 
 from .db_pool import get_db_cursor, clean_str, clean_num, generate_id, execute_query
 from .pg_orders_write import add_order
 from .pg_audit import log_audit_event, get_active_user_context
+from services.security import assert_period_open
 
 
 def get_orders(params=None):
     """استرجاع كافة فواتير وأوامر المبيعات مع بيانات العميل والطفلة وتوحيد الحالات المالية بسرعة فائقة"""
     query = """
         WITH latest_items AS (
-            SELECT DISTINCT ON (order_id) order_id, product_id, notes, measurement_id
+            SELECT DISTINCT ON (order_id) order_id, product_id, product_name, variant_id, age_size, color_name, notes, measurement_id
             FROM order_items ORDER BY order_id, id
         ),
         first_children AS (
@@ -27,9 +29,9 @@ def get_orders(params=None):
                o.paid_amount, o.remaining_amount, o.base_amount, o.payment_status, o.production_status,
                o.payment_method, o.status, o.notes, o.created_by, o.created_at, o.updated_at,
                o.delivery_fee, o.delivery_payment_mode, o.deposit_amount, o.fabrics_data, o.dress_color,
-               COALESCE(c.name, 'عميل') as customer_name, 
-               COALESCE(c.phone, '') as customer_phone,
-               COALESCE(p.model_name, oi.notes, 'موديل راقي') as product_name,
+               COALESCE(c.name, 'عميل') as customer_name, COALESCE(c.phone, '') as customer_phone,
+               COALESCE(p.model_name, NULLIF(oi.product_name, ''), oi.notes, 'موديل راقي') as product_name,
+               oi.age_size, oi.color_name as variant_color,
                CASE WHEN length(COALESCE(o.image_url, o.model_image, p.image_url, '')) > 500 THEN '' 
                     ELSE COALESCE(NULLIF(o.image_url, ''), NULLIF(o.model_image, ''), NULLIF(p.image_url, ''), '') 
                END as image_url,
@@ -54,7 +56,6 @@ def get_orders(params=None):
     for r in rows:
         for k in ('created_at', 'updated_at', 'order_date', 'delivery_date'):
             if r.get(k): r[k] = str(r[k])
-
         notes_str = clean_str(r.get('notes') or '')
         if 'للطفلة ' in notes_str:
             try:
@@ -62,10 +63,8 @@ def get_orders(params=None):
                 if extracted and (not r.get('child_name')): r['child_name'] = extracted
             except Exception: pass
 
-        tot = float(r.get('total_amount') or 0.0)
-        pd = float(r.get('paid_amount') or 0.0)
-        rem = float(r.get('remaining_amount') or max(0.0, tot - pd))
-        df = float(r.get('delivery_fee') or 0.0)
+        tot, pd = float(r.get('total_amount') or 0.0), float(r.get('paid_amount') or 0.0)
+        rem, df = float(r.get('remaining_amount') or max(0.0, tot - pd)), float(r.get('delivery_fee') or 0.0)
         img_val = r.get('image_url') or ''
         r['prod_image_url'], r['model_image'] = img_val, img_val
         r.update({'total': tot, 'paid': pd, 'remaining': rem, 'remaining_balance': rem, 'advance_paid': pd, 'subtotal': float(r.get('subtotal') or (tot - df)), 'qty': int(clean_num(r.get('quantity') or 1)), 'delivery_fee': df, 'delivery_payment_mode': clean_str(r.get('delivery_payment_mode') or 'DIRECT_TO_COURIER'), 'measurement_notes': clean_str(r.get('measurement_notes') or (notes_str if 'تنبيه' in notes_str else ''))})
@@ -76,6 +75,7 @@ def get_orders(params=None):
         elif 'embroid' in prod_st.lower() or 'تطريز' in prod_st: r['status'] = 'التطريز والشك ✨'
         elif 'inspect' in prod_st.lower() or 'فحص' in prod_st: r['status'] = 'الفحص والتشطيب 🔍'
         elif 'ready' in prod_st.lower() or 'جاهز' in prod_st: r['status'] = 'جاهز للتسليم 🛍️'
+        elif 'return' in prod_st.lower() or 'مرتجع' in prod_st: r['status'] = 'مرتجع ↩️'
         elif 'deliver' in prod_st.lower() or 'تسليم' in prod_st or prod_st == 'Completed': r['status'] = 'تم التسليم ✅'
         else: r['status'] = 'قيد الخياطة 🪡'
     return rows
@@ -91,6 +91,8 @@ def update_order(payload):
         cur.execute("SELECT * FROM orders WHERE id = %s LIMIT 1 FOR UPDATE;", (order_id,))
         existing = cur.fetchone()
         if not existing: return add_order(payload)
+
+        assert_period_open(cur, data.get('order_date') or existing.get('order_date'))
 
         updates, params = [], []
         status_raw = clean_str(data.get('status') or data.get('production_status')).lower()
@@ -123,8 +125,8 @@ def update_order(payload):
 
         if 'delivery_fee' in data or 'delivery' in data:
             df = clean_num(data.get('delivery_fee') if data.get('delivery_fee') is not None else data.get('delivery'))
-            updates.append("delivery_fee = %s")
-            params.append(df)
+            if df < 0: raise ValueError("رسوم التوصيل لا يمكن أن تكون سالبة")
+            updates.append("delivery_fee = %s"); params.append(df)
 
         if 'delivery_payment_mode' in data:
             dpm = clean_str(data.get('delivery_payment_mode'))
@@ -149,18 +151,18 @@ def update_order(payload):
             updates.extend(["model_id = %s", "product_id = %s"])
             params.extend([m_val, m_val])
 
+        is_deliv = 'deliver' in str(existing.get('status') or '').lower() or 'deliver' in str(existing.get('production_status') or '').lower()
         if 'subtotal' in data:
-            updates.append("subtotal = %s")
-            params.append(clean_num(data.get('subtotal')))
-
+            sub_v = clean_num(data.get('subtotal'))
+            if sub_v < 0 or is_deliv: raise ValueError("لا يمكن تعديل المبالغ المالية للطلب بعد التسليم أو بقيمة سالبة")
+            updates.append("subtotal = %s"); params.append(sub_v)
         if 'total' in data or 'total_amount' in data:
             tot = clean_num(data.get('total') or data.get('total_amount'))
             pd = clean_num(data.get('paid') or data.get('paid_amount') or existing.get('paid_amount'))
-            rem = max(0.0, tot - pd)
-            rate = float(existing.get('exchange_rate') or 1.0)
+            if tot < 0 or pd < 0 or is_deliv: raise ValueError("لا يمكن تعديل المبالغ المالية للطلب بعد التسليم أو بقيمة سالبة")
+            rem, rate = max(0.0, tot - pd), float(existing.get('exchange_rate') or 1.0)
             updates.extend(["total_amount = %s", "paid_amount = %s", "base_amount = %s", "payment_status = %s"])
             params.extend([tot, pd, (tot * rate), ('Paid' if rem == 0 and tot > 0 else ('Partial' if pd > 0 else 'Unpaid'))])
-
 
         if updates:
             updates.append("updated_at = CURRENT_TIMESTAMP")
@@ -182,12 +184,13 @@ def delete_order(payload):
     if not oid: return {"deleted": False, "error": "Missing order id"}
 
     with get_db_cursor(commit=True) as cur:
-        cur.execute("SELECT id, order_no, customer_id, total_amount, paid_amount, remaining_amount FROM orders WHERE id = %s OR order_no = %s LIMIT 1;", (oid, oid))
+        cur.execute("SELECT id, order_no, customer_id, order_date, total_amount, paid_amount, remaining_amount FROM orders WHERE id = %s OR order_no = %s LIMIT 1;", (oid, oid))
         row = cur.fetchone()
         if not row: return {"deleted": False, "status": "not_found", "id": oid}
 
-        actual_id = row['id']
-        cust_id = row['customer_id']
+        assert_period_open(cur, row.get('order_date'))
+
+        actual_id, cust_id = row['id'], row['customer_id']
         rem_amt = clean_num(row.get('remaining_amount') or 0.0)
         tot_amt = clean_num(row.get('total_amount') or 0.0)
         paid_amt = clean_num(row.get('paid_amount') or 0.0)
@@ -205,7 +208,7 @@ def delete_order(payload):
         cur.execute("DELETE FROM production_orders WHERE order_id = %s;", (actual_id,))
         cur.execute("DELETE FROM payments WHERE order_id = %s;", (actual_id,))
 
-        cur.execute("SELECT id FROM journal_entries WHERE ref_type = 'Order' AND ref_id = %s;", (actual_id,))
+        cur.execute("SELECT id FROM journal_entries WHERE ref_type IN ('Order', 'POSSale', 'POSCOGS') AND ref_id = %s;", (actual_id,))
         for jv in cur.fetchall():
             cur.execute("DELETE FROM journal_entry_lines WHERE entry_id = %s;", (jv['id'],))
             cur.execute("DELETE FROM journal_entries WHERE id = %s;", (jv['id'],))

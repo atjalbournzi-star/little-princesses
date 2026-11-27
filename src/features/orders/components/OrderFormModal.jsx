@@ -16,6 +16,9 @@ function OrderFormModal({
   const [selectedColor, setSelectedColor] = useState("");
   const [qty, setQty] = useState("1"), [deliveryFee, setDeliveryFee] = useState("0"), [deliveryPaymentMode, setDeliveryPaymentMode] = useState("DIRECT_TO_COURIER");
   const [total, setTotal] = useState(""), [paid, setPaid] = useState(""), [orderDate, setOrderDate] = useState(todayStr), [deliveryDate, setDeliveryDate] = useState(todayStr), [campaignId, setCampaignId] = useState(""), [isSubmitting, setIsSubmitting] = useState(false);
+  const [itemMode, setItemMode] = useState("CATALOG_MTO"), [materialSource, setMaterialSource] = useState("WORKSHOP_STOCK"), [sizingMode, setSizingMode] = useState("CUSTOM");
+  const [customDesignTitle, setCustomDesignTitle] = useState(""), [customDesignImage, setCustomDesignImage] = useState(""), [sizeMatrixId, setSizeMatrixId] = useState(""), [sizeAdjustments, setSizeAdjustments] = useState({});
+  const [custody, setCustody] = useState({ fabric_description: "", received_qty: "", unit: "meter", condition_notes: "", reference_image: "" });
 
   const selectedCustomer = (customers || []).find(c => (getCustName(c) || "").trim() === (customerName || "").trim());
   const availableChildren = selectedCustomer?.measurements || [];
@@ -46,6 +49,8 @@ function OrderFormModal({
     } else if (!isEditing) {
       setCustomerName(""); setChildName(""); setProductName(""); setSelectedColor(""); setQty("1"); setDeliveryFee("0");
       setDeliveryPaymentMode("DIRECT_TO_COURIER"); setTotal(""); setPaid(""); setOrderDate(todayStr); setDeliveryDate(todayStr); setCampaignId("");
+      setItemMode("CATALOG_MTO"); setMaterialSource("WORKSHOP_STOCK"); setSizingMode("CUSTOM"); setCustomDesignTitle(""); setCustomDesignImage(""); setSizeMatrixId(""); setSizeAdjustments({});
+      setCustody({ fabric_description: "", received_qty: "", unit: "meter", condition_notes: "", reference_image: "" });
     }
   }, [isEditing, editingOrder, todayStr]);
 
@@ -88,18 +93,25 @@ function OrderFormModal({
     const cId = selectedCustomer?.customer_id || selectedCustomer?.id || '';
     const chId = selChild?.child_id || selChild?.id || '';
     const mId = selChild?.id || selChild?.measurement_id || '';
-    const prId = selP?.id || selP?.product_id || '';
-    const mImg = selP?.image_url || selP?.image || '';
+    const prId = itemMode === "CUSTOM_BESPOKE" ? "" : (selP?.id || selP?.product_id || "");
+    const mImg = (itemMode === "CUSTOM_BESPOKE" && customDesignImage) ? customDesignImage : (selP?.image_url || selP?.image || "");
     const fbData = selChild?.fabrics_breakdown || selChild?.bom_items || selChild?.fabrics_data || [];
+    const finalProdName = itemMode === "CUSTOM_BESPOKE" ? (customDesignTitle || productName) : productName;
     try {
       await onSaveInvoice({
         isEditing, editingOrderId,
         payload: {
           customer_id: cId, customer_name: customerName, child_id: chId, child_name: childName,
-          measurement_id: mId, product_id: prId, model_id: prId, product_name: productName, model_image: mImg,
+          measurement_id: mId, product_id: prId, model_id: prId, product_name: finalProdName, model_image: mImg,
           selected_color: selectedColor, color: selectedColor, dress_color: selectedColor, qty, total, paid,
           delivery_fee: parseFloat(deliveryFee) || 0, delivery_payment_mode: deliveryPaymentMode,
-          fabrics_data: fbData, order_date: orderDate, delivery_date: deliveryDate, campaign_id: campaignId
+          fabrics_data: fbData, order_date: orderDate, delivery_date: deliveryDate, campaign_id: campaignId,
+          item_mode: itemMode, material_source: materialSource, sizing_mode: sizingMode,
+          custom_design_title: itemMode === "CUSTOM_BESPOKE" ? customDesignTitle : "",
+          size_matrix_id: sizingMode === "STANDARD_SIZE" ? sizeMatrixId : "",
+          size_adjustments_json: sizingMode === "STANDARD_SIZE" ? sizeAdjustments : {},
+          standard_size_disclaimer: sizingMode === "STANDARD_SIZE",
+          custody: materialSource === "CUSTOMER_CMT" ? custody : null
         },
         resetForm: onClose
       });
@@ -124,7 +136,15 @@ function OrderFormModal({
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="p-6 space-y-5">
+      <form onSubmit={handleSubmit} className="p-5 space-y-4">
+        {!isEditing && window.OrderTailoringAxesBar && (
+          <window.OrderTailoringAxesBar
+            itemMode={itemMode} setItemMode={setItemMode} materialSource={materialSource} setMaterialSource={setMaterialSource}
+            sizingMode={sizingMode} setSizingMode={setSizingMode} customDesignTitle={customDesignTitle} setCustomDesignTitle={setCustomDesignTitle}
+            customDesignImage={customDesignImage} setCustomDesignImage={setCustomDesignImage} custody={custody} setCustody={setCustody}
+            sizeMatrixId={sizeMatrixId} setSizeMatrixId={setSizeMatrixId} sizeAdjustments={sizeAdjustments} setSizeAdjustments={setSizeAdjustments}
+          />
+        )}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <div>
             <label className={labelCls}>اختر العميل من السجل <span className="text-[#D64545] font-bold">*</span></label>
@@ -135,22 +155,24 @@ function OrderFormModal({
           </div>
           <div>
             <label className={labelCls}>المستفيد / المقاس (اختياري)</label>
-            <select value={childName} onChange={e => setChildName(e.target.value)} disabled={!availableChildren.length && !isEditing} className={inputCls + " disabled:opacity-50"}>
+            <select value={childName} onChange={e => setChildName(e.target.value)} disabled={(!availableChildren.length && !isEditing) || sizingMode !== "CUSTOM"} className={inputCls + " disabled:opacity-50"}>
               <option value="">-- اختر المستفيد / المقاس --</option>
-              {availableChildren.map(ch => <option key={ch.child_name} value={ch.child_name}>{ch.child_name}{ch.estimated_age ? ` (${ch.estimated_age})` : ""}</option>)}
+              {availableChildren.map(ch => <option key={ch.id || ch.child_name} value={ch.child_name}>{ch.child_name} ({String(ch.wearer_type || "").toUpperCase() === "SELF" ? "شخصي" : (ch.estimated_age || "تابع")})</option>)}
               {isEditing && childName && !availableChildren.find(c => c.child_name === childName) && <option value={childName}>{childName}</option>}
             </select>
           </div>
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="text-xs font-semibold text-[#25232A] dark:text-slate-200">الصنف / الموديل <span className="text-[#D64545] font-bold">*</span></label>
-              {onOpenQuote && <button type="button" onClick={() => onOpenQuote(productName)} disabled={!productName} className="text-[10px] bg-[#E2F5F7] dark:bg-cyan-950/50 text-[#007F8C] dark:text-cyan-300 border border-[#C5ECF0] px-2 py-0.5 rounded-md hover:bg-[#C5ECF0] font-bold disabled:opacity-50 cursor-pointer">📋 عرض السعر</button>}
+          {itemMode !== "CUSTOM_BESPOKE" && (
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-semibold text-[#25232A] dark:text-slate-200">الصنف / الموديل <span className="text-[#D64545] font-bold">*</span></label>
+                {onOpenQuote && <button type="button" onClick={() => onOpenQuote(productName)} disabled={!productName} className="text-[10px] bg-[#E2F5F7] dark:bg-cyan-950/50 text-[#007F8C] dark:text-cyan-300 border border-[#C5ECF0] px-2 py-0.5 rounded-md hover:bg-[#C5ECF0] font-bold disabled:opacity-50 cursor-pointer">📋 عرض السعر</button>}
+              </div>
+              <select value={productName} onChange={e => { setProductName(e.target.value); setSelectedColor(""); }} className={inputCls} required={itemMode !== "CUSTOM_BESPOKE"}>
+                <option value="">-- اختر الصنف / الموديل --</option>
+                {(products || []).map(p => <option key={p.id} value={p.name}>{p.name} ({(parseFloat(p.sell_price) || 0).toLocaleString("en-US")} {currencyDisplay})</option>)}
+              </select>
             </div>
-            <select value={productName} onChange={e => { setProductName(e.target.value); setSelectedColor(""); }} className={inputCls} required>
-              <option value="">-- اختر الصنف / الموديل --</option>
-              {(products || []).map(p => <option key={p.id} value={p.name}>{p.name} ({(parseFloat(p.sell_price) || 0).toLocaleString("en-US")} {currencyDisplay})</option>)}
-            </select>
-          </div>
+          )}
           <div>
             <label className={labelCls}>اللون المعتمد للطلب</label>
             <select value={selectedColor} onChange={e => setSelectedColor(e.target.value)} className={inputCls}>
@@ -160,8 +182,7 @@ function OrderFormModal({
             </select>
           </div>
         </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4.5">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div><label className={labelCls}>تاريخ الفاتورة / الحجز 📅</label><input type="date" lang="en-GB" dir="ltr" value={orderDate} onChange={e => setOrderDate(e.target.value)} className={inputCls} /></div>
           <div><label className={labelCls}>موعد التسليم المتوقع 📅</label><input type="date" lang="en-GB" dir="ltr" value={deliveryDate} onChange={e => setDeliveryDate(e.target.value)} className={inputCls} /></div>
           <div><label className={labelCls}>مصدر الطلب / الحملة 📢</label>
@@ -171,19 +192,9 @@ function OrderFormModal({
             </select>
           </div>
         </div>
-
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3 rounded-xl bg-purple-50/50 dark:bg-slate-800/40 border border-[#E5CEE7] dark:border-slate-700">
-          <div>
-            <label className={labelCls}>طريقة دفع رسوم التوصيل 🚚</label>
-            <select value={deliveryPaymentMode} onChange={e => setDeliveryPaymentMode(e.target.value)} className={inputCls}>
-              <option value="DIRECT_TO_COURIER">🛵 دفع مباشر للسائق عند الاستلام (لا يضاف للفاتورة)</option>
-              <option value="PREPAID_VIA_ATELIER">🚚 مدفوع مسبقاً للأتيليه (يضاف لإجمالي الفاتورة)</option>
-            </select>
-          </div>
-          <div>
-            <label className={labelCls}>رسوم التوصيل ({currencyDisplay})</label>
-            <input type="number" step="0.01" min="0" value={deliveryFee} onChange={e => setDeliveryFee(e.target.value)} className={inputCls + " text-center font-mono font-bold"} />
-          </div>
+          <div><label className={labelCls}>طريقة دفع رسوم التوصيل 🚚</label><select value={deliveryPaymentMode} onChange={e => setDeliveryPaymentMode(e.target.value)} className={inputCls}><option value="DIRECT_TO_COURIER">🛵 دفع مباشر للسائق عند الاستلام (لا يضاف للفاتورة)</option><option value="PREPAID_VIA_ATELIER">🚚 مدفوع مسبقاً للأتيليه (يضاف لإجمالي الفاتورة)</option></select></div>
+          <div><label className={labelCls}>رسوم التوصيل ({currencyDisplay})</label><input type="number" step="0.01" min="0" value={deliveryFee} onChange={e => setDeliveryFee(e.target.value)} className={inputCls + " text-center font-mono font-bold"} /></div>
         </div>
 
         <div className="grid grid-cols-3 gap-4">
@@ -191,23 +202,18 @@ function OrderFormModal({
           <div><label className={labelCls}>الإجمالي الكلي ({currencyDisplay})</label><input type="number" step="0.01" min="0" value={total} onChange={e => setTotal(e.target.value)} className={inputCls + " text-center font-mono font-bold"} /></div>
           <div><label className={labelCls}>المدفوع / العربون ({currencyDisplay})</label><input type="number" step="0.01" min="0" value={paid} onChange={e => setPaid(e.target.value)} className={inputCls + " text-center font-mono font-bold text-[#007F8C]"} /></div>
         </div>
-
         {(totalNum > 0 || paidNum > 0) && (
           <div className={`flex items-center justify-between px-5 py-3 rounded-xl font-bold text-xs border ${remainingNum === 0 ? "bg-[#E2F5F7] border-[#C5ECF0] text-[#007F8C]" : "bg-[#FFF1DC] border-[#FFE4B9] text-[#C97300]"}`}>
             <span>المبلغ المتبقي المحسوب لحظياً ⚡</span>
             <span className="font-mono text-sm">{remainingNum === 0 ? "مسدد بالكامل ✅" : `${remainingNum.toLocaleString("en-US")} ${currencyDisplay}`}</span>
           </div>
         )}
-
         <div className="flex justify-end pt-2 gap-2">
           {onClose && <button type="button" onClick={onClose} className="px-6 py-3 rounded-xl font-bold text-xs bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:bg-gray-200 transition cursor-pointer">إلغاء</button>}
-          <button type="submit" disabled={isSubmitting} className="w-full sm:w-auto px-8 py-3 rounded-xl font-bold text-xs text-white bg-[#B0005A] hover:bg-[#8E0049] transition shadow-xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60">
-            <span>{isSubmitting ? "جاري الحفظ..." : (isEditing ? "حفظ تعديلات الفاتورة" : "حفظ الفاتورة وتوليد QR Code")}</span>
-          </button>
+          <button type="submit" disabled={isSubmitting} className="w-full sm:w-auto px-8 py-3 rounded-xl font-bold text-xs text-white bg-[#B0005A] hover:bg-[#8E0049] transition shadow-xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"><span>{isSubmitting ? "جاري الحفظ..." : (isEditing ? "حفظ تعديلات الفاتورة" : "حفظ الفاتورة وتوليد QR Code")}</span></button>
         </div>
       </form>
     </div>
   );
 }
-
 window.OrderFormModal = OrderFormModal;

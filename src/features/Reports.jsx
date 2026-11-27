@@ -8,7 +8,7 @@ function Reports({
   const brandProfile = (typeof window !== 'undefined' && window.BrandService)
     ? window.BrandService.getProfile()
     : {
-        name: 'مؤسسة الأميرات الصغيرات', shortName: 'الأميرات الصغيرات',
+        name: 'نظام الإدارة المتكامل', shortName: 'ERP Master',
         tagline: 'Enterprise Financial & Accounting System', commercialRegister: '1010-009283',
         phone: '776773458', systemIcon: '👑'
       };
@@ -148,6 +148,11 @@ function Reports({
           reportCurrency={reportCurrency}
           fmtMoney={fmtMoney}
         />
+      )}
+
+      {/* العرض 5: تقرير ربحية أوامر التشغيل والتفصيل */}
+      {activeTab === 'profitability' && window.OrderProfitabilityReportView && (
+        <window.OrderProfitabilityReportView dateRange={dateRange} fmtMoney={fmtMoney} />
       )}
 
       {/* صندوق الاعتماد والتدقيق المالي والتوقيعات الرسمية */}

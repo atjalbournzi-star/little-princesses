@@ -81,6 +81,37 @@
             direction: ltr;
             display: inline-block;
         }
+        @media print {
+            @page {
+                size: A4 portrait;
+                margin: 10mm;
+            }
+            html, body {
+                background: #ffffff !important;
+                color: #111827 !important;
+                height: auto !important;
+                overflow: visible !important;
+            }
+            header, button, input[type="range"], .no-print {
+                display: none !important;
+            }
+            table {
+                width: 100% !important;
+                border-collapse: collapse !important;
+            }
+            thead {
+                display: table-header-group !important;
+            }
+            tr {
+                break-inside: avoid !important;
+                page-break-inside: avoid !important;
+            }
+            th, td {
+                border: 1px solid #d1d5db !important;
+                color: #111827 !important;
+                background: #ffffff !important;
+            }
+        }
     </style>
 </head>
 <body class="min-h-screen lg:h-screen flex flex-col overflow-y-auto lg:overflow-hidden bg-studio-950 text-slate-100">

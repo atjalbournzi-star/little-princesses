@@ -21,25 +21,25 @@ function UnifiedCustomerModalLayout({
       dir="rtl"
     >
       {/* 1. Outer Dialog Box - محدد بأقصى ارتفاع لمنع تجاوز الشاشة */}
-      <div className="w-full max-w-4xl max-h-[calc(100vh-3.4rem)] flex flex-col bg-[#111C38] border border-slate-700 rounded-2xl shadow-2xl overflow-hidden shrink-0">
+      <div className="w-full max-w-4xl max-h-[calc(100vh-3.4rem)] flex flex-col bg-white dark:bg-[#111C38] border border-[#CBD5E1] dark:border-slate-700 rounded-2xl shadow-2xl overflow-hidden shrink-0">
         
         {/* Row 1 (Top Bar - h-9): شريط العنوان وزر الإغلاق والأدوات السياقية */}
-        <div className="h-9 px-4 border-b border-slate-800 flex items-center justify-between shrink-0 bg-[#0F172A]">
+        <div className="h-9 px-4 border-b border-[#CBD5E1] dark:border-slate-800 flex items-center justify-between shrink-0 bg-[#F8FAFC] dark:bg-[#0F172A]">
           {/* اليمين: زر الإغلاق X + عنوان النافذة + شارة الكود [CUST-XXXX] */}
           <div className="flex items-center gap-2 min-w-0">
             <button
               type="button"
               onClick={onClose}
-              className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white cursor-pointer transition-colors shrink-0 text-xs"
+              className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-[#0F172A] dark:hover:text-white cursor-pointer transition-colors shrink-0 text-xs"
               title="إغلاق النافذة"
             >
               ✕
             </button>
-            <div className="text-xs font-bold text-white truncate">
+            <div className="text-xs font-bold text-[#0F172A] dark:text-white truncate">
               {title}
             </div>
             {customerCode && (
-              <span className="text-[11px] font-mono font-bold text-pink-300 bg-slate-800/90 px-2 py-0.5 rounded border border-slate-700 shrink-0">
+              <span className="text-[11px] font-mono font-bold text-pink-700 dark:text-pink-300 bg-[#F1F5F9] dark:bg-slate-800/90 px-2 py-0.5 rounded border border-[#CBD5E1] dark:border-slate-700 shrink-0">
                 {String(customerCode).startsWith('[') ? customerCode : `[${customerCode}]`}
               </span>
             )}
@@ -51,34 +51,34 @@ function UnifiedCustomerModalLayout({
           </div>
         </div>
 
-        {/* Row 2 (Stepper Bar - h-9 py-1 bg-slate-900/50 border-y border-slate-800 flex justify-center): شريط التبويب المستقل */}
-        <div className="h-9 py-1 bg-slate-900/50 border-b border-slate-800 flex justify-center items-center shrink-0">
+        {/* Row 2 (Stepper Bar - h-9 py-1): شريط التبويب المستقل */}
+        <div className="h-9 py-1 bg-[#F1F5F9] dark:bg-slate-900/50 border-b border-[#CBD5E1] dark:border-slate-800 flex justify-center items-center shrink-0">
           <div dir="rtl" className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => onSwitchStep && onSwitchStep(1)}
               className={`text-xs px-3 py-1 rounded-md font-bold transition-all cursor-pointer ${
-                step === 1 ? 'bg-pink-600 text-white shadow' : 'text-slate-400 hover:text-white'
+                step === 1 ? 'bg-pink-600 text-white shadow' : 'text-[#334155] dark:text-slate-400 hover:text-[#0F172A] dark:hover:text-white'
               }`}
             >
               1. بيانات العميل
             </button>
-            <span className="text-slate-600 text-xs">←</span>
+            <span className="text-slate-400 dark:text-slate-600 text-xs">←</span>
             <button
               type="button"
               onClick={() => onSwitchStep && onSwitchStep(2)}
               className={`text-xs px-3 py-1 rounded-md font-bold transition-all cursor-pointer ${
-                step === 2 ? 'bg-pink-600 text-white shadow' : 'text-slate-400 hover:text-white'
+                step === 2 ? 'bg-pink-600 text-white shadow' : 'text-[#334155] dark:text-slate-400 hover:text-[#0F172A] dark:hover:text-white'
               }`}
             >
               2. المقاسات والتفصيل
             </button>
-            <span className="text-slate-600 text-xs">←</span>
+            <span className="text-slate-400 dark:text-slate-600 text-xs">←</span>
             <button
               type="button"
               onClick={() => onSwitchStep && onSwitchStep(3)}
               className={`text-xs px-3 py-1 rounded-md font-bold transition-all cursor-pointer ${
-                step === 3 ? 'bg-pink-600 text-white shadow' : 'text-slate-400 hover:text-white'
+                step === 3 ? 'bg-pink-600 text-white shadow' : 'text-[#334155] dark:text-slate-400 hover:text-[#0F172A] dark:hover:text-white'
               }`}
             >
               3. الحساب المالي
@@ -87,12 +87,12 @@ function UnifiedCustomerModalLayout({
         </div>
 
         {/* Content Area: مساحة المحتوى قابلة للتمرير مع شريط تمرير مخصص */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-2 text-white">
+        <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-2 text-[#0F172A] dark:text-white">
           {children}
         </div>
 
         {/* Footer: تذييل ثابت في الأسفل 100% بارتفاع 44px (h-11) */}
-        <div className="h-11 border-t border-slate-800 bg-[#0F172A] px-4 flex items-center justify-between shrink-0">
+        <div className="h-11 border-t border-[#CBD5E1] dark:border-slate-800 bg-[#F8FAFC] dark:bg-[#0F172A] px-4 flex items-center justify-between shrink-0">
           {/* الجانب الأيمن: أزرار الإلغاء أو الرجوع */}
           <div className="flex items-center gap-2">
             {footerRight}

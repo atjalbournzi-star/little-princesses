@@ -15,7 +15,7 @@ function usePurchaseActions({
   const refreshServerData = async () => {
     try {
       const [purRes, invRes, accRes, jvRes] = await Promise.all([
-        fetch('/api/purchases'), fetch('/api/inventory'), fetch('/api/accounts'), fetch('/api/accounting/journal')
+        fetch('/api/purchases'), fetch('/api/inventory'), fetch('/api/accounts'), fetch('/api/journal')
       ]);
       const [pJson, iJson, aJson, jJson] = await Promise.all([
         purRes.json().catch(() => ({})), invRes.json().catch(() => ({})),

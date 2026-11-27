@@ -8,6 +8,9 @@
 (function(window) {
   'use strict';
 
+  var ENABLE_PHASE2_MODULES = false;
+  window.ENABLE_PHASE2_MODULES = ENABLE_PHASE2_MODULES;
+
   var I = window.Icons || {};
 
   var ALL_TABS = [
@@ -16,7 +19,7 @@
     { id: 'orders', label: 'أوامر المبيعات ونقاط البيع (POS)', icon: I.ShoppingBag || (() => null) },
     { id: 'products', label: 'المنتجات ومواصفات التشغيل', icon: I.Calculator || (() => null) },
     { id: 'factory', label: 'خطوط التصنيع والتشغيل', icon: I.Factory || (() => null) },
-    { id: 'measurement', label: 'استوديو المقاسات (A4)', icon: I.Scissors || (() => null) },
+    { id: 'measurement', label: 'استوديو المقاسات (A4)', icon: I.Scissors || (() => null), phase2: true },
     { id: 'inventory', label: 'المخزون وسلاسل الإمداد', icon: I.Scissors || (() => null) },
     { id: 'purchases', label: 'المشتريات وإدارة الموردين', icon: I.Purchases || (() => null) },
     { id: 'accounts', label: 'شجرة الحسابات والدليل المالي', icon: I.Accounts || (() => null) },
@@ -24,11 +27,11 @@
     { id: 'expenses', label: 'المصروفات التشغيلية', icon: I.Expenses || (() => null) },
     { id: 'journal', label: 'القيود اليومية المحاسبية', icon: I.Journal || (() => null) },
     { id: 'reports', label: 'التقارير المالية والتشغيلية', icon: I.Reports || (() => null) },
-    { id: 'marketing', label: 'التسويق ونمو الأعمال', icon: I.Marketing || (() => null) },
+    { id: 'marketing', label: 'التسويق ونمو الأعمال', icon: I.Marketing || (() => null), phase2: true },
     { id: 'hr', label: 'الموارد البشرية والرواتب', icon: I.HR || (() => null) },
     { id: 'feedback', label: 'إدارة الجودة الشاملة (QA)', icon: I.Star || (() => null) },
     { id: 'settings', label: 'إعدادات النظام والحوكمة', icon: I.Settings || (() => null) }
-  ];
+  ].filter(function(tab) { return !tab.phase2 || ENABLE_PHASE2_MODULES; });
 
   window.ALL_TABS = ALL_TABS;
 

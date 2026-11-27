@@ -1,6 +1,7 @@
 # services/pg/pg_customers.py
 # Customer records management, querying, ledger aggregation, and deletion
 
+import json
 from .db_pool import get_db_cursor, clean_str, clean_num, logger
 from .pg_customer_save import add_customer
 from .pg_audit import log_audit_event, get_active_user_context
@@ -25,6 +26,7 @@ def get_customers(params=None):
             SELECT id, customer_id, child_id, child_name, date, measurement_date, unit,
                    total_len, dress_len, chest_len, skirt_len, sleeve_len,
                    chest_circ, waist_circ, shoulder_w, armpit_circ, neck_circ,
+                   wearer_type, target_segment, hip_circ, arm_circ, extra_measurements_json,
                    model_name, model_id, product_id,
                    selected_color, color, dress_color, comfort_profile, notes,
                    CASE WHEN length(COALESCE(image_url, model_image, model_img, '')) > 500 THEN ''
@@ -56,6 +58,15 @@ def get_customers(params=None):
             m['model_img'] = m['model_image']
             m['sewing_notes'] = m.get('notes')
             m['event_date'] = str(m.get('date') or '')
+            m['wearer_type'] = m.get('wearer_type') or 'DEPENDENT'
+            m['target_segment'] = m.get('target_segment') or 'GIRLS_DRESS'
+            if m.get('hip_circ') is not None: m['hip_circ'] = float(m['hip_circ'])
+            if m.get('arm_circ') is not None: m['arm_circ'] = float(m['arm_circ'])
+            if isinstance(m.get('extra_measurements_json'), str):
+                try: m['extra_measurements_json'] = json.loads(m['extra_measurements_json'])
+                except Exception: m['extra_measurements_json'] = {}
+            elif m.get('extra_measurements_json') is None:
+                m['extra_measurements_json'] = {}
 
             dress_l = clean_num(m.get('dress_len'))
             if dress_l > 0:

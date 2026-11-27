@@ -4,6 +4,7 @@
 
 from flask import Blueprint, request, jsonify
 import pg_service
+from services.security import translate_shield_error
 
 measurement_bp = Blueprint('measurement_bp', __name__)
 
@@ -20,7 +21,8 @@ def save_studio_session():
             'message': 'تم حفظ وتحديث جلسة المعايرة والمقاسات بنجاح 📐'
         }), 200
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        code, msg = translate_shield_error(e)
+        return jsonify({'success': False, 'error': msg}), code
 
 
 @measurement_bp.route('/api/measurements/studio/recent', methods=['GET'])
@@ -30,7 +32,8 @@ def get_recent_sessions():
         res = pg_service.get_recent_measurement_sessions(limit)
         return jsonify({'success': True, 'data': res, 'count': len(res)}), 200
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e), 'data': []}), 500
+        code, msg = translate_shield_error(e)
+        return jsonify({'success': False, 'error': msg, 'data': []}), code
 
 
 @measurement_bp.route('/api/measurements/studio/<order_id>', methods=['GET'])
@@ -41,7 +44,8 @@ def get_session_by_path(order_id):
             return jsonify({'success': True, 'data': res}), 200
         return jsonify({'success': False, 'error': f'لم يتم العثور على جلسة للطلب: {order_id}', 'data': None}), 404
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e), 'data': None}), 500
+        code, msg = translate_shield_error(e)
+        return jsonify({'success': False, 'error': msg, 'data': None}), code
 
 
 @measurement_bp.route('/api/measurements/studio', methods=['GET'])
@@ -55,7 +59,8 @@ def get_session_by_query():
             return jsonify({'success': True, 'data': res}), 200
         return jsonify({'success': False, 'error': 'لم يتم العثور على جلسة', 'data': None}), 404
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e), 'data': None}), 500
+        code, msg = translate_shield_error(e)
+        return jsonify({'success': False, 'error': msg, 'data': None}), code
 
 
 @measurement_bp.route('/api/measurements/studio/approve', methods=['POST'])
@@ -70,7 +75,8 @@ def approve_session():
             'message': 'تم اعتماد المقاسات وتمريرها للمعمل بنجاح 🚀'
         }), 200
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        code, msg = translate_shield_error(e)
+        return jsonify({'success': False, 'error': msg}), code
 
 
 @measurement_bp.route('/api/measurements/studio/detect-a4-subpixel', methods=['POST'])
@@ -87,5 +93,6 @@ def detect_a4_subpixel():
         status = 200 if result.get('success') else 422
         return jsonify(result), status
     except Exception as e:
-        return jsonify({'success': False, 'error': f'فشل الكشف بالدقة الفائقة: {str(e)}'}), 500
+        code, msg = translate_shield_error(e)
+        return jsonify({'success': False, 'error': msg}), code
 

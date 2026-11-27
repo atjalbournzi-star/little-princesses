@@ -1,12 +1,15 @@
 # routes/inventory_bp.py
 # Inventory, Purchases, Suppliers, and BOM Flask Blueprint
+# Architectural Standards: Strictly < 220 lines per file
 
 from flask import Blueprint, request, jsonify
 import pg_service
 from domains.system.db_connection import get_db
+from services.security import (
+    idempotent_op, require_roles, ROLE_ADMIN, ROLE_ACCOUNTANT, ROLE_WORKSHOP_MANAGER, translate_shield_error
+)
 
 inventory_bp = Blueprint('inventory_bp', __name__)
-
 
 @inventory_bp.route('/api/inventory', methods=['GET'])
 @inventory_bp.route('/api/inventory/list', methods=['GET'])
@@ -22,53 +25,66 @@ def list_inventory():
 
 @inventory_bp.route('/api/warehouses', methods=['GET'])
 def list_warehouses():
-    try:
-        data = pg_service.get_warehouses()
-    except Exception:
-        data = []
+    try: data = pg_service.get_warehouses()
+    except Exception: data = []
     return jsonify({'success': True, 'data': data, 'count': len(data)}), 200
 
 @inventory_bp.route('/api/warehouses', methods=['POST'])
 @inventory_bp.route('/api/warehouses/create', methods=['POST'])
+@require_roles(ROLE_ADMIN, ROLE_ACCOUNTANT)
 def create_warehouse():
     try:
         data = request.get_json(silent=True) or {}
         return jsonify(pg_service.add_warehouse(data)), 200
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        code, msg = translate_shield_error(e)
+        return jsonify({'success': False, 'error': msg, 'message': msg}), code
 
 @inventory_bp.route('/api/inventory/transfer', methods=['POST'])
+@inventory_bp.route('/api/inventory/transfers/post', methods=['POST'])
+@inventory_bp.route('/api/warehouse/transfer', methods=['POST'])
+@require_roles(ROLE_ADMIN, ROLE_ACCOUNTANT, ROLE_WORKSHOP_MANAGER)
+@idempotent_op('warehouse_transfer')
 def transfer_inventory():
     try:
         data = request.get_json(silent=True) or {}
         return jsonify(pg_service.transfer_warehouse_stock(data)), 200
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        code, msg = translate_shield_error(e)
+        return jsonify({'success': False, 'error': msg, 'message': msg}), code
 
 @inventory_bp.route('/api/inventory', methods=['POST'])
 @inventory_bp.route('/api/inventory/save', methods=['POST'])
+@idempotent_op('inventory_save')
+@require_roles(ROLE_ADMIN, ROLE_ACCOUNTANT, ROLE_WORKSHOP_MANAGER)
 def save_inventory():
     try:
         data = request.get_json(silent=True) or {}
         return jsonify({'success': True, 'data': pg_service.add_or_update_inventory(data)}), 200
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        code, msg = translate_shield_error(e)
+        return jsonify({'success': False, 'error': msg, 'message': msg}), code
 
 @inventory_bp.route('/api/inventory/adjust', methods=['POST'])
+@idempotent_op('inventory_adjust')
+@require_roles(ROLE_ADMIN, ROLE_ACCOUNTANT)
 def adjust_inventory():
     try:
         data = request.get_json(silent=True) or {}
         return jsonify({'success': True, 'data': pg_service.adjust_inventory(data)}), 200
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        code, msg = translate_shield_error(e)
+        return jsonify({'success': False, 'error': msg, 'message': msg}), code
 
 @inventory_bp.route('/api/inventory/delete', methods=['POST'])
+@require_roles(ROLE_ADMIN)
 def delete_inventory():
     try:
         data = request.get_json(silent=True) or {}
         return jsonify({'success': True, 'data': pg_service.delete_inventory(data)}), 200
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        code, msg = translate_shield_error(e)
+        return jsonify({'success': False, 'error': msg, 'message': msg}), code
 
 @inventory_bp.route('/api/inventory/transactions', methods=['GET'])
 def inventory_transactions():
@@ -90,9 +106,11 @@ def inventory_transactions():
             if tx.get('created_at'): tx['created_at'] = str(tx['created_at'])
         return jsonify({'success': True, 'data': txns, 'count': len(txns)}), 200
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e), 'data': []}), 500
+        code, msg = translate_shield_error(e)
+        return jsonify({'success': False, 'error': msg, 'message': msg, 'data': []}), code
 
 @inventory_bp.route('/api/inventory/issue', methods=['POST'])
+@idempotent_op('inventory_issue')
 def issue_inventory():
     try:
         data = request.get_json(silent=True) or {}
@@ -102,12 +120,12 @@ def issue_inventory():
             res = pg_service.adjust_inventory(data)
         return jsonify({'success': True, 'data': res}), 200
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        code, msg = translate_shield_error(e)
+        return jsonify({'success': False, 'error': msg, 'message': msg}), code
 
 @inventory_bp.route('/api/inventory/reconcile', methods=['POST'])
 def reconcile_inventory():
     return jsonify({'success': True, 'message': 'تم مطابقة المخزون بنجاح'}), 200
-
 
 @inventory_bp.route('/api/purchases', methods=['GET'])
 @inventory_bp.route('/api/purchases/<path:purchase_id>', methods=['GET'])
@@ -122,9 +140,12 @@ def list_purchases(purchase_id=None):
         purchases = []
     return jsonify({'success': True, 'data': purchases, 'count': len(purchases)}), 200
 
-
 @inventory_bp.route('/api/purchases', methods=['POST'])
 @inventory_bp.route('/api/purchases/create', methods=['POST'])
+@inventory_bp.route('/api/purchases/post', methods=['POST'])
+@inventory_bp.route('/api/purchases/save', methods=['POST'])
+@require_roles(ROLE_ADMIN, ROLE_ACCOUNTANT)
+@idempotent_op('purchase_create')
 def create_purchase():
     try:
         data = request.get_json(silent=True) or {}
@@ -133,14 +154,14 @@ def create_purchase():
             raise ValueError("فشلت عملية حفظ فاتورة المشتريات وتوريد المخزون في قاعدة البيانات")
         inv_no = res.get('invoice_no') or res.get('bill_no') or res.get('id') or ''
         return jsonify({'success': True, 'message': f"تم حفظ فاتورة المشتريات {inv_no} وتوريد الأصناف للمخزون وترحيل القيود بنجاح", 'data': res}), 200
-    except ValueError as ve:
-        return jsonify({'success': False, 'error': str(ve), 'message': str(ve)}), 400
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e), 'message': str(e)}), 500
-
+        code, msg = translate_shield_error(e)
+        return jsonify({'success': False, 'error': msg, 'message': msg}), code
 
 @inventory_bp.route('/api/purchases/update', methods=['POST', 'PUT'])
 @inventory_bp.route('/api/purchases/<path:purchase_id>', methods=['PUT', 'POST'])
+@idempotent_op('purchase_update')
+@require_roles(ROLE_ADMIN, ROLE_ACCOUNTANT)
 def update_purchase_route(purchase_id=None):
     try:
         data = request.get_json(silent=True) or {}
@@ -151,50 +172,48 @@ def update_purchase_route(purchase_id=None):
             raise ValueError("فشلت عملية تحديث فاتورة المشتريات في قاعدة البيانات")
         inv_no = res.get('invoice_no') or res.get('bill_no') or res.get('id') or ''
         return jsonify({'success': True, 'message': f"تم تحديث فاتورة المشتريات {inv_no} وتعديل المخزون والقيود المحاسبية بنجاح", 'data': res}), 200
-    except ValueError as ve:
-        return jsonify({'success': False, 'error': str(ve), 'message': str(ve)}), 400
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e), 'message': str(e)}), 500
-
+        code, msg = translate_shield_error(e)
+        return jsonify({'success': False, 'error': msg, 'message': msg}), code
 
 @inventory_bp.route('/api/purchases/delete', methods=['POST'])
+@require_roles(ROLE_ADMIN, ROLE_ACCOUNTANT)
 def delete_purchase():
     try:
         data = request.get_json(silent=True) or {}
         res = pg_service.delete_purchase(data)
         return jsonify({'success': True, 'data': res}), 200
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
-
+        code, msg = translate_shield_error(e)
+        return jsonify({'success': False, 'error': msg, 'message': msg}), code
 
 @inventory_bp.route('/api/suppliers', methods=['GET'])
 @inventory_bp.route('/api/suppliers/list', methods=['GET'])
 def list_suppliers():
-    try:
-        suppliers = pg_service.get_suppliers()
-    except Exception:
-        suppliers = []
+    try: suppliers = pg_service.get_suppliers()
+    except Exception: suppliers = []
     return jsonify({'success': True, 'data': suppliers, 'count': len(suppliers)}), 200
-
 
 @inventory_bp.route('/api/suppliers', methods=['POST'])
 @inventory_bp.route('/api/suppliers/create', methods=['POST'])
 @inventory_bp.route('/api/suppliers/save', methods=['POST'])
+@require_roles(ROLE_ADMIN, ROLE_ACCOUNTANT)
 def save_supplier():
     try:
         data = request.get_json(silent=True) or {}
         res = pg_service.add_supplier(data)
         return jsonify({'success': True, 'data': res}), 200
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
-
+        code, msg = translate_shield_error(e)
+        return jsonify({'success': False, 'error': msg, 'message': msg}), code
 
 @inventory_bp.route('/api/suppliers/delete', methods=['POST'])
+@require_roles(ROLE_ADMIN)
 def delete_supplier():
     try:
         data = request.get_json(silent=True) or {}
         res = pg_service.delete_supplier(data)
         return jsonify({'success': True, 'data': res}), 200
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
-
+        code, msg = translate_shield_error(e)
+        return jsonify({'success': False, 'error': msg, 'message': msg}), code

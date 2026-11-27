@@ -4,6 +4,9 @@
 from .db_pool import get_db_cursor, clean_str, clean_num, generate_id
 from .pg_financial_sync import sync_customer_order_from_voucher
 from .pg_audit import log_audit_event, get_active_user_context, resolve_active_user_id
+from .pg_delivery_cogs import refresh_chart_balances_atomic
+from .journal_lines_helper import insert_sorted_journal_lines
+from services.security import assert_period_open
 
 
 def reverse_voucher(payload):
@@ -16,6 +19,7 @@ def reverse_voucher(payload):
         return {"success": False, "error": "المعرف المطلوب للإلغاء غير محدد"}
 
     with get_db_cursor(commit=True) as cur:
+        assert_period_open(cur, None)
         resolved_user = resolve_active_user_id(cur, raw_uid)
         cur.execute("SELECT * FROM payments WHERE id = %s OR payment_no = %s LIMIT 1 FOR UPDATE;", (v_id, v_id))
         p_row = cur.fetchone()
@@ -71,10 +75,11 @@ def reverse_voucher(payload):
             ON CONFLICT (entry_no) DO UPDATE SET description = EXCLUDED.description;
         """, (rev_id, rev_entry_no, f"قيد عكسي لإلغاء السند {v_no}: {reason}", crd_acc, deb_acc, amt, amt, base_amt, v_id, curr, rate, f"إلغاء سند {v_no} - {reason}", resolved_user))
 
-        cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, %s, %s, %s, 0.0, %s, 0.0);",
-                    (generate_id("JVL"), rev_id, crd_acc, f"مدين - قيد عكسي لسند {v_no} ({reason})", amt, base_amt))
-        cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, %s, %s, 0.0, %s, 0.0, %s);",
-                    (generate_id("JVL"), rev_id, deb_acc, f"دائن - قيد عكسي لسند {v_no} ({reason})", amt, base_amt))
+        insert_sorted_journal_lines(cur, rev_id, [
+            (crd_acc, f"مدين - قيد عكسي لسند {v_no} ({reason})", amt, 0.0, base_amt, 0.0),
+            (deb_acc, f"دائن - قيد عكسي لسند {v_no} ({reason})", 0.0, amt, 0.0, base_amt),
+        ])
+        refresh_chart_balances_atomic(cur)
 
         log_audit_event(
             entity_type='payments', entity_id=v_no, action='REVERSE',

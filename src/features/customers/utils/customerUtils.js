@@ -55,12 +55,12 @@ function getSmartModelMatch(m, productsList = []) {
   if (m.unit === 'إنش' && length > 0) length = length * 2.54;
 
   let tier = 'toddler';
-  let ageLabel = '1-3 سنوات (الأميرات الصغيرات)';
+  let ageLabel = '1-3 سنوات (فئة الصغيرات)';
   let broadBracket = '1-2 سنة';
 
   if (length > 0) {
     if (length <= 55) {
-      tier = 'toddler'; ageLabel = '1-3 سنوات (الأميرات الصغيرات)'; broadBracket = '1-2 سنة';
+      tier = 'toddler'; ageLabel = '1-3 سنوات (فئة الصغيرات)'; broadBracket = '1-2 سنة';
     } else if (length <= 75) {
       tier = 'kids'; ageLabel = '4-7 سنوات (فئة الوسط)'; broadBracket = '3-5 سنوات';
     } else if (length <= 95) {

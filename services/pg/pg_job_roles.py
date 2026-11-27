@@ -89,29 +89,33 @@ def ensure_job_roles_schema(cur):
 
 def get_job_roles(params=None):
     """استرجاع كافة المسميات الوظيفية والتخصصات الفنية مع دعم الفلترة"""
+    from .ref_cache import get_cached_ref
     params = params or {}
     is_prod = params.get('is_production')
     active_only = params.get('active_only', True)
+    cache_key = f"job_roles:{bool(active_only)}:{is_prod}"
 
-    with get_db_cursor() as cur:
-        ensure_job_roles_schema(cur)
-        query = "SELECT * FROM job_roles WHERE 1=1"
-        args = []
-        if active_only:
-            query += " AND is_active = true"
-        if is_prod is not None:
-            bool_val = str(is_prod).lower() in ('true', '1', 'yes')
-            query += " AND is_production = %s"
-            args.append(bool_val)
-        query += " ORDER BY sort_order ASC, created_at ASC;"
-        cur.execute(query, tuple(args))
-        rows = cur.fetchall()
-        for r in rows:
-            if r.get('created_at'): r['created_at'] = str(r['created_at'])
-            if r.get('updated_at'): r['updated_at'] = str(r['updated_at'])
-            r['is_production'] = bool(r.get('is_production'))
-            r['is_active'] = bool(r.get('is_active'))
-        return rows
+    def _load():
+        with get_db_cursor() as cur:
+            ensure_job_roles_schema(cur)
+            query = "SELECT * FROM job_roles WHERE 1=1"
+            args = []
+            if active_only:
+                query += " AND is_active = true"
+            if is_prod is not None:
+                bool_val = str(is_prod).lower() in ('true', '1', 'yes')
+                query += " AND is_production = %s"
+                args.append(bool_val)
+            query += " ORDER BY sort_order ASC, created_at ASC;"
+            cur.execute(query, tuple(args))
+            rows = cur.fetchall()
+            for r in rows:
+                if r.get('created_at'): r['created_at'] = str(r['created_at'])
+                if r.get('updated_at'): r['updated_at'] = str(r['updated_at'])
+                r['is_production'] = bool(r.get('is_production'))
+                r['is_active'] = bool(r.get('is_active'))
+            return rows
+    return get_cached_ref(cache_key, _load, ttl=300)
 
 
 def add_job_role(payload):
@@ -169,6 +173,8 @@ def add_job_role(payload):
             cur=cur
         )
 
+        from .ref_cache import invalidate_ref
+        invalidate_ref('job_roles:')
         if res.get('created_at'): res['created_at'] = str(res['created_at'])
         if res.get('updated_at'): res['updated_at'] = str(res['updated_at'])
         res['is_production'] = bool(res.get('is_production'))

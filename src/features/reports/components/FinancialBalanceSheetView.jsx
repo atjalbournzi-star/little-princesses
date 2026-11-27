@@ -97,7 +97,7 @@ function FinancialBalanceSheetView({ subTab, balanceSheetData, trialBalanceData,
             <span className="font-mono tabular-nums">{fmtMoney(balanceSheetData.totalAssets)} {reportCurrency}</span>
           </div>
           <div className="p-2 space-y-2">
-            <div className="border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden bg-white dark:bg-[#111C38]">
+            <div className="border border-slate-200 dark:border-slate-800 rounded-lg overflow-x-auto bg-white dark:bg-[#111C38]">
               <div className="bg-slate-100 dark:bg-[#0F172A] px-2.5 py-1 font-bold text-[11px] text-slate-800 dark:text-slate-200 border-b border-slate-200 dark:border-slate-800 flex justify-between">
                 <span>الأصول المتداولة (Current Assets)</span>
                 <span className="font-mono text-sky-600 dark:text-sky-400 tabular-nums">{fmtMoney(balanceSheetData.totalCurrentAssets)}</span>
@@ -115,7 +115,7 @@ function FinancialBalanceSheetView({ subTab, balanceSheetData, trialBalanceData,
               </table>
             </div>
 
-            <div className="border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden bg-white dark:bg-[#111C38]">
+            <div className="border border-slate-200 dark:border-slate-800 rounded-lg overflow-x-auto bg-white dark:bg-[#111C38]">
               <div className="bg-slate-100 dark:bg-[#0F172A] px-2.5 py-1 font-bold text-[11px] text-slate-800 dark:text-slate-200 border-b border-slate-200 dark:border-slate-800 flex justify-between">
                 <span>الأصول الثابتة (Fixed Assets)</span>
                 <span className="font-mono text-sky-600 dark:text-sky-400 tabular-nums">{fmtMoney(balanceSheetData.totalFixedAssets)}</span>
@@ -147,7 +147,7 @@ function FinancialBalanceSheetView({ subTab, balanceSheetData, trialBalanceData,
             <span className="font-mono tabular-nums">{fmtMoney(balanceSheetData.totalLiabilitiesAndEquity)} {reportCurrency}</span>
           </div>
           <div className="p-2 space-y-2">
-            <div className="border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden bg-white dark:bg-[#111C38]">
+            <div className="border border-slate-200 dark:border-slate-800 rounded-lg overflow-x-auto bg-white dark:bg-[#111C38]">
               <div className="bg-slate-100 dark:bg-[#0F172A] px-2.5 py-1 font-bold text-[11px] text-rose-600 dark:text-rose-300 border-b border-slate-200 dark:border-slate-800 flex justify-between">
                 <span>الخصوم والالتزامات المتداولة (Liabilities)</span>
                 <span className="font-mono text-rose-600 dark:text-rose-400 tabular-nums">{fmtMoney(balanceSheetData.totalLiabilities)}</span>
@@ -165,7 +165,7 @@ function FinancialBalanceSheetView({ subTab, balanceSheetData, trialBalanceData,
               </table>
             </div>
 
-            <div className="border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden bg-white dark:bg-[#111C38]">
+            <div className="border border-slate-200 dark:border-slate-800 rounded-lg overflow-x-auto bg-white dark:bg-[#111C38]">
               <div className="bg-slate-100 dark:bg-[#0F172A] px-2.5 py-1 font-bold text-[11px] text-pink-600 dark:text-pink-300 border-b border-slate-200 dark:border-slate-800 flex justify-between">
                 <span>حقوق الملكية ورأس المال (Equity)</span>
                 <span className="font-mono text-pink-600 dark:text-pink-300 tabular-nums">{fmtMoney(balanceSheetData.totalEquity)}</span>

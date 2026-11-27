@@ -6,8 +6,6 @@ function PaymentVoucherModal({
   getCleanPartnerName, findPartnerAccount, onSaveVoucher,
   isSubmitting = false, showToast
 }) {
-  if (!isOpen) return null;
-
   const [party, setParty] = useState(editData?.party || '');
   const [currency, setCurrency] = useState(editData?.currency || 'YER ﷼');
   const [exchangeRate, setExchangeRate] = useState(String(editData?.exchange_rate || '1.0'));
@@ -61,8 +59,12 @@ function PaymentVoucherModal({
 
   const numAmount = parseFloat(amount) || 0;
 
+  const [localSubmitting, setLocalSubmitting] = useState(false);
+  const busy = Boolean(isSubmitting || localSubmitting);
+
   const handleSubmit = async (e) => {
     e?.preventDefault();
+    if (busy) return;
     if (!party.trim()) return showToast?.('يرجى اختيار أو كتابة اسم المستفيد ⚠️', 'error');
     if (numAmount <= 0) return showToast?.('يرجى إدخال مبلغ السند ⚠️', 'error');
 
@@ -106,15 +108,21 @@ function PaymentVoucherModal({
       notes: `سند صرف [${payMethod}]: ${party} - ${notes || ''}`, status: 'posted'
     };
 
-    const success = await onSaveVoucher({
-      newV, generatedEntries: [entry], newExp,
-      splitPayments: [{ id: 1, acc_code: cashAcc, amount: numAmount, method: payMethod }],
-      vRate, modalTargetAcc: targetAcc, isReceipt: false, vBaseAmt
-    });
-    if (success) onClose();
+    setLocalSubmitting(true);
+    try {
+      const success = await onSaveVoucher({
+        newV, generatedEntries: [entry], newExp,
+        splitPayments: [{ id: 1, acc_code: cashAcc, amount: numAmount, method: payMethod }],
+        vRate, modalTargetAcc: targetAcc, isReceipt: false, vBaseAmt
+      });
+      if (success) onClose();
+    } finally {
+      setLocalSubmitting(false);
+    }
   };
 
   const supplierNames = useMemo(() => [...new Set((purchases || []).map(p => p.supplier || p.vendor_name).filter(Boolean))], [purchases]);
+  if (!isOpen) return null;
   const createPortal = (typeof ReactDOM !== 'undefined' && ReactDOM.createPortal) ? ReactDOM.createPortal : null;
 
   const content = (
@@ -196,8 +204,8 @@ function PaymentVoucherModal({
 
           <div className="px-5 py-3 border-t border-[#2d3748] bg-[#181d2a] flex justify-between items-center shrink-0">
             <button type="button" onClick={onClose} className="px-4 py-2 rounded-xl border border-[#374151] text-gray-300 text-xs font-bold hover:bg-[#2d3748] cursor-pointer">إلغاء</button>
-            <button type="submit" disabled={isSubmitting || numAmount <= 0 || !party.trim()} className="px-5 py-2 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 transition shadow-lg cursor-pointer disabled:opacity-40">
-              {isSubmitting ? 'جاري الحفظ...' : 'اعتماد سند الصرف 💾'}
+            <button type="submit" disabled={busy || numAmount <= 0 || !party.trim()} className="px-5 py-2 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 transition shadow-lg cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
+              {busy ? 'جاري الحفظ...' : 'اعتماد سند الصرف 💾'}
             </button>
           </div>
         </form>

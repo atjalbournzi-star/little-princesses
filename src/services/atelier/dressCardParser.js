@@ -23,7 +23,7 @@
     const merged = Object.assign({}, apiBrand || {}, profile);
     const rawLogo = merged.logo_url || merged.logoUrl;
     return {
-      name: merged.company_name || merged.name || 'مؤسسة الأميرات الصغيرات',
+      name: merged.company_name || merged.name || 'نظام الإدارة المتكامل',
       tagline: merged.tagline || merged.tradeName || 'دار أزياء وتفصيل فساتين الأميرات الراقية | عراقة التصميم وأناقة الطفولة',
       phone: merged.phone || '776773458',
       address: merged.address || 'اليمن - صنعاء - شارع حدة',

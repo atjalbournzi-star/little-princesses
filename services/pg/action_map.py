@@ -37,6 +37,8 @@ ACTION_HANDLERS = {
     "saveQualityCheckpoint": pg_quality.save_quality_checkpoint,
     "getQualitySettings": pg_quality.get_quality_settings,
     "saveQualitySettings": pg_quality.save_quality_settings,
+    "getQualityIntelligence": pg_quality.get_quality_intelligence,
+    "getIntelligence": pg_quality.get_quality_intelligence,
 
     # المستخدمين والعملاء
     "getUsers": pg_auth.get_users_pg,

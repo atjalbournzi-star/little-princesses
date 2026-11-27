@@ -35,9 +35,11 @@ def dispatch_action(action: str, payload: dict = None) -> dict:
         return res
     except Exception as e:
         logger.error(f"❌ خطأ أثناء معالجة الإجراء ({action}): {e}", exc_info=True)
+        from services.security import translate_shield_error
+        _, safe_msg = translate_shield_error(e)
         return {
             "status": "error",
             "success": False,
-            "message": str(e),
-            "error": str(e)
+            "message": safe_msg,
+            "error": safe_msg
         }

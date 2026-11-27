@@ -62,7 +62,7 @@ function HeaderNotificationCenter({ watchdogData, totalAlerts, setActiveTab }) {
                     </div>
                     {item.phone && (
                       <a
-                        href={`https://wa.me/${String(item.phone).replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`أهلاً بكِ في مشغل الأميرات الصغيرات 👑\nنود تذكيركِ بموعد تسليم/بروفة فستانكِ الراقي (طلب #${item.order_no}) اليوم. يسعدنا تشريفكِ!`)}`}
+                        href={`https://wa.me/${String(item.phone).replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`أهلاً بكِ في ${(window.BrandService ? window.BrandService.getProfile().name : 'نظام الإدارة المتكامل')} 👑\nنود تذكيركِ بموعد تسليم/بروفة فستانكِ الراقي (طلب #${item.order_no}) اليوم. يسعدنا تشريفكِ!`)}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold flex items-center gap-1 shadow-2xs"

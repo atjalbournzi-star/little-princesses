@@ -1,8 +1,28 @@
 import datetime
 import logging
 from .db_pool import get_db_cursor, clean_num, clean_str, generate_id
+from .pg_audit import get_active_user_context, resolve_active_user_id
 
 logger = logging.getLogger("LittlePrincesses_PG_FactoryQC")
+
+
+def resolve_inspector_name(data, prefer_approved_by=False):
+    """استخراج اسم المفتش/المستخدم المسجّل فعلياً من سياق الجلسة أو الطلب دون قيم وهمية"""
+    ctx_user = None
+    try:
+        from flask import g, session, request, has_request_context
+        if has_request_context():
+            cu = getattr(g, 'current_user', None) or getattr(request, 'active_user', None) or getattr(g, 'user', None) or getattr(g, 'user_id', None)
+            if isinstance(cu, dict):
+                ctx_user = cu.get('full_name') or cu.get('username') or cu.get('id')
+            elif cu:
+                ctx_user = str(cu)
+            if not ctx_user and session:
+                ctx_user = session.get('full_name') or session.get('username') or session.get('user_id') or session.get('user')
+    except Exception:
+        pass
+    req_name = (data.get('approved_by') or data.get('inspector_name')) if prefer_approved_by else (data.get('inspector_name') or data.get('approved_by'))
+    return clean_str(ctx_user or req_name or get_active_user_context() or 'admin') or 'admin'
 
 
 def submit_tailor_stage_completion(payload):
@@ -74,7 +94,7 @@ def reject_tailor_job_and_rework(payload):
     severity = clean_str(data.get('severity') or 'Medium')
     root_cause = clean_str(data.get('root_cause') or 'عدم مطابقة مقاسات الأميرة أو عيب في خياطة الفستان')
     corrective_action = clean_str(data.get('corrective_action') or 'إعادة ضبط المقاسات والسحاب ومعالجة العيب المطلوب')
-    inspector_name = clean_str(data.get('inspector_name') or data.get('approved_by') or 'سارة مديرة الورشة ✂️')
+    inspector_name = resolve_inspector_name(data, prefer_approved_by=False)
     rework_cost = clean_num(data.get('rework_cost') or 0.0)
     rework_hours = clean_num(data.get('rework_hours') or 0.0)
     defect_notes = clean_str(data.get('defect_note') or data.get('notes') or data.get('quality_notes') or '')
@@ -103,9 +123,9 @@ def reject_tailor_job_and_rework(payload):
             if not cur.fetchone():
                 prod_id = None
 
-        cur.execute("SELECT id FROM users WHERE username = %s OR name = %s LIMIT 1;", (inspector_name, inspector_name))
+        cur.execute("SELECT id FROM users WHERE username = %s OR full_name = %s LIMIT 1;", (inspector_name, inspector_name))
         u_row = cur.fetchone()
-        insp_uid = u_row['id'] if u_row else 'admin'
+        insp_uid = u_row['id'] if u_row else resolve_active_user_id(cur, get_active_user_context() or inspector_name)
         po_clr = po.get('dress_color') or po.get('selected_color') or po.get('color') or ''
         po_sz = po.get('size_code') or ''
         po_sku = po.get('production_order_no') or po['id']

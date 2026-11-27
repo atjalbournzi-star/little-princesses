@@ -14,15 +14,16 @@ function PayoutModal({
   submittingPayout,
   currencyDisplay = "SAR",
 }) {
-  if (!selectedTailorForPayout) return null;
-
   React.useEffect(() => {
+    if (!selectedTailorForPayout) return;
     const handleKeyDown = (e) => {
       if (e.key === "Escape") onClose();
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
+  }, [selectedTailorForPayout, onClose]);
+
+  if (!selectedTailorForPayout) return null;
 
   const inputCls =
     "w-full h-7 px-2.5 rounded-lg border border-slate-700 bg-[#0F172A] text-white text-xs font-medium placeholder:text-slate-500 focus:border-pink-500 outline-none transition";

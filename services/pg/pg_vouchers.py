@@ -1,5 +1,6 @@
 # services/pg/pg_vouchers.py
 # Payment & Receipt vouchers, automated balanced journal entries, reversals & audit
+from decimal import Decimal, InvalidOperation
 from .db_pool import get_db_cursor, clean_str, clean_num, generate_id, today_str
 from .account_resolver import (
     resolve_exchange_rate, resolve_account_id, resolve_leaf_account,
@@ -13,6 +14,8 @@ from .pg_sequences import get_next_sequence_number
 from .pg_audit import log_audit_event, get_active_user_context, resolve_active_user_id
 from .pg_vouchers_reverse import reverse_voucher
 from .pg_delivery_cogs import refresh_chart_balances_atomic
+from .journal_lines_helper import insert_sorted_journal_lines
+from services.security import assert_period_open
 
 
 def normalize_payment_method(raw_m):
@@ -37,7 +40,14 @@ def add_voucher(payload):
     is_rcpt = ('قبض' in raw_type or raw_type.lower() in ('receipt', 'receipt_voucher', 'rv') or (pay_no and str(pay_no).upper().startswith('RV')))
     p_type = 'Receipt' if is_rcpt else 'Payment'
     v_type = 'سند قبض' if is_rcpt else 'سند صرف'
-    amt = clean_num(data.get('amount') or 0.0)
+    raw_amt = data.get('amount')
+    try:
+        amt_dec = Decimal(str(raw_amt if raw_amt not in (None, '') else 0))
+    except (InvalidOperation, ValueError, TypeError):
+        raise ValueError("مبلغ السند يجب أن يكون أكبر من الصفر")
+    if amt_dec <= Decimal('0'):
+        raise ValueError("مبلغ السند يجب أن يكون أكبر من الصفر")
+    amt = float(amt_dec)
     curr = clean_str(data.get('currency') or 'YER')
     rate = clean_num(data.get('exchange_rate') or 1.0)
     base_amt = clean_num(data.get('base_amount') or (amt * rate))
@@ -50,6 +60,7 @@ def add_voucher(payload):
     supp_id = clean_str(data.get('supplier_id') or '') or None
 
     with get_db_cursor(commit=True) as cur:
+        assert_period_open(cur, p_date)
         resolved_user = resolve_active_user_id(cur, raw_uid)
         rate = resolve_exchange_rate(cur, curr, rate)
         if curr != 'YER' and (base_amt <= 0 or base_amt == amt):
@@ -170,10 +181,10 @@ def add_voucher(payload):
             cur.execute("SELECT id FROM journal_entries WHERE entry_no = %s LIMIT 1;", (auto_jv_no,))
             actual_entry_id = cur.fetchone()['id']
             cur.execute("DELETE FROM journal_entry_lines WHERE entry_id = %s;", (actual_entry_id,))
-            cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, %s, %s, %s, 0.0, %s, 0.0);",
-                        (generate_id("JVL"), actual_entry_id, deb_acc, f"مدين - {v_type} {pay_no} ({party_val or 'طرف عام'})", amt, base_amt))
-            cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, %s, %s, 0.0, %s, 0.0, %s);",
-                        (generate_id("JVL"), actual_entry_id, crd_acc, f"دائن - {v_type} {pay_no} ({party_val or 'طرف عام'})", amt, base_amt))
+            insert_sorted_journal_lines(cur, actual_entry_id, [
+                (deb_acc, f"مدين - {v_type} {pay_no} ({party_val or 'طرف عام'})", amt, 0.0, base_amt, 0.0),
+                (crd_acc, f"دائن - {v_type} {pay_no} ({party_val or 'طرف عام'})", 0.0, amt, 0.0, base_amt),
+            ])
             refresh_chart_balances_atomic(cur)
 
         # توثيق الحدث في سجل التدقيق الآلي المركزي

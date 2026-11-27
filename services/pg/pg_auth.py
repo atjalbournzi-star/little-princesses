@@ -22,7 +22,7 @@ def sync_user_to_pg(payload):
     uname = clean_str(data.get('username'))
     if not uname:
         return {"error": "Username required"}
-    pwd_hash = clean_str(data.get('password_hash') or data.get('password') or 'hashed_default')
+    pwd_hash = clean_str(data.get('password_hash') or '')
     full_name = clean_str(data.get('full_name') or uname)
     role = clean_str(data.get('role') or 'data_entry')
     email = clean_str(data.get('email') or f"{uname}@littleprincesses.com")
@@ -34,6 +34,7 @@ def sync_user_to_pg(payload):
             INSERT INTO users (id, username, password_hash, full_name, role, email, phone, is_active)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (username) DO UPDATE SET
+                password_hash = CASE WHEN EXCLUDED.password_hash != '' THEN EXCLUDED.password_hash ELSE users.password_hash END,
                 full_name = EXCLUDED.full_name,
                 role = EXCLUDED.role,
                 is_active = EXCLUDED.is_active,

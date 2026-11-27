@@ -4,6 +4,7 @@
 function InventoryHeader({
   stats = {},
   onOpenAdd,
+  onOpenAddReadyProduct,
   onReconcile,
   onOpenTransfer,
   onOpenAddWarehouse,
@@ -28,14 +29,26 @@ function InventoryHeader({
 
         {/* Left: أزرار العمليات الخمس المصغرة في صف أفقي واحد مدمج */}
         <div className="flex items-center gap-1 shrink-0 flex-wrap sm:flex-nowrap">
+          {onOpenAddReadyProduct && (
+            <button
+              type="button"
+              onClick={onOpenAddReadyProduct}
+              className="h-6 px-2.5 text-[10.5px] font-bold bg-gradient-to-r from-pink-600 to-fuchsia-700 hover:from-pink-500 hover:to-fuchsia-600 text-white rounded-md shadow-xs flex items-center gap-1 transition cursor-pointer"
+              title="إضافة فستان أو منتج جاهز بمصفوفة المقاسات"
+            >
+              <span>👗</span>
+              <span>+ إضافة فستان / منتج جاهز</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={onOpenAdd}
             className="h-6 px-2 text-[10.5px] font-medium bg-teal-600 hover:bg-teal-700 text-white rounded-md shadow-xs flex items-center gap-1 transition cursor-pointer"
-            title="إضافة صنف مخزني جديد"
+            title="إضافة خامة أو قماش جديد للمخزون"
           >
             <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" /></svg>
-            <span>إضافة صنف</span>
+            <span>+ إضافة خامة / قماش</span>
           </button>
 
           <button
@@ -105,7 +118,7 @@ function InventoryHeader({
 
         <div className="py-1 px-2.5 rounded-lg bg-white dark:bg-[#111C38] border border-slate-200 dark:border-slate-800 flex items-center justify-between whitespace-nowrap transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xs cursor-default">
           <span className="text-[11px] font-medium text-slate-600 dark:text-slate-300">إجمالي قيمة المخزون</span>
-          <span dir="ltr" className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 font-mono tracking-tight">
+          <span dir="ltr" className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 font-mono tracking-tight tabular-nums">
             {(stats.totalInventoryValue || 0).toLocaleString('en-US', { minimumFractionDigits: isBaseCurrency ? 0 : 2, maximumFractionDigits: 2 })} {currencyDisplay}
           </span>
         </div>

@@ -5,6 +5,28 @@ from .db_pool import get_db_cursor, clean_str, generate_id, logger
 from .pg_audit import log_audit_event
 
 
+def _reverse_journal_entry(cur, orig_jv, auto_rev_no, actual_id, desc_prefix):
+    """ترحيل قيد عكسي متوازن لقيد فاتورة أو سداد ملغى وتحديث حالته إلى Reversed"""
+    if not orig_jv or orig_jv.get('status') == 'Reversed':
+        return
+    orig_jv_id = orig_jv['id']
+    cur.execute("SELECT * FROM journal_entry_lines WHERE entry_id = %s;", (orig_jv_id,))
+    orig_lines = cur.fetchall()
+    if orig_lines:
+        cur.execute("""
+            INSERT INTO journal_entries (id, entry_no, entry_date, description, debit_account_id, credit_account_id, amount, total_amount, base_amount, ref_type, ref_id, currency, exchange_rate, status, notes)
+            VALUES (%s, %s, CURRENT_DATE, %s, %s, %s, %s, %s, %s, 'Purchase_Reversal', %s, %s, %s, 'Posted', %s)
+            ON CONFLICT (entry_no) DO NOTHING;
+        """, (generate_id("JV"), auto_rev_no, desc_prefix, orig_jv.get('credit_account_id'), orig_jv.get('debit_account_id'), orig_jv.get('amount'), orig_jv.get('total_amount'), orig_jv.get('base_amount'), actual_id, orig_jv.get('currency'), orig_jv.get('exchange_rate'), desc_prefix))
+        cur.execute("SELECT id FROM journal_entries WHERE entry_no = %s LIMIT 1;", (auto_rev_no,))
+        rev_jv = cur.fetchone()
+        if rev_jv:
+            for ol in orig_lines:
+                cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, %s, %s, %s, %s, %s, %s);",
+                            (generate_id("JVL"), rev_jv['id'], ol.get('account_id'), f"عكس قيد - {ol.get('line_description') or ''}", float(ol.get('credit') or 0.0), float(ol.get('debit') or 0.0), float(ol.get('credit_base') or 0.0), float(ol.get('debit_base') or 0.0)))
+    cur.execute("UPDATE journal_entries SET status = 'Reversed', notes = COALESCE(notes, '') || ' | [تم إنشاء قيد عكسي]' WHERE id = %s;", (orig_jv_id,))
+
+
 def cancel_purchase(payload):
     """إلغاء فاتورة مشتريات مع عكس حركات المخزون وترحيل قيد عكسي متوازن (حظر الحذف النهائي)"""
     data = payload.get('data') or payload
@@ -55,7 +77,8 @@ def cancel_purchase(payload):
         pay_no = f"PAY-{clean_ref}"
         auto_rev_no = f"REV-JV-PUR-{clean_ref}"
 
-        # 1. Reverse stock quantities
+        # 1. Reverse stock quantities (inventory + warehouse_stock + inventory_transactions)
+        wh_id = p_row.get('warehouse_id') or 'WH-MAIN'
         cur.execute("SELECT * FROM purchase_items WHERE purchase_id = %s;", (actual_id,))
         for itm in cur.fetchall():
             inv_id = itm.get('inventory_id')
@@ -63,30 +86,15 @@ def cancel_purchase(payload):
             it_price = float(itm.get('unit_price') or 0.0)
             if inv_id and it_qty > 0:
                 cur.execute("UPDATE inventory SET quantity = GREATEST(0, quantity - %s), status = CASE WHEN (quantity - %s) <= 0 THEN 'OutOfStock' ELSE status END, updated_at = CURRENT_TIMESTAMP WHERE id = %s;", (it_qty, it_qty, inv_id))
-                cur.execute("INSERT INTO inventory_transactions (id, inventory_id, transaction_type, quantity, unit_cost, reference_type, reference_id, notes) VALUES (%s, %s, 'PURCHASE_CANCEL', %s, %s, 'purchases', %s, %s);",
-                            (generate_id("ITXN"), inv_id, -it_qty, it_price, actual_id, f"إلغاء توريد فاتورة {actual_inv}"))
+                cur.execute("UPDATE warehouse_stock SET quantity = GREATEST(0, quantity - %s), updated_at = CURRENT_TIMESTAMP WHERE warehouse_id = %s AND inventory_id = %s;", (it_qty, wh_id, inv_id))
+                cur.execute("INSERT INTO inventory_transactions (id, inventory_id, warehouse_id, transaction_type, quantity, unit_cost, reference_type, reference_id, notes) VALUES (%s, %s, %s, 'PURCHASE_CANCEL', %s, %s, 'purchases', %s, %s);",
+                            (generate_id("ITXN"), inv_id, wh_id, -it_qty, it_price, actual_id, f"إلغاء توريد فاتورة {actual_inv}"))
 
-        # 2. Reverse journal entry
-        cur.execute("SELECT * FROM journal_entries WHERE entry_no = %s OR entry_no = %s OR ref_id = %s OR ref_id = %s LIMIT 1;", (jv_no, f"JV-PUR-{actual_inv}", actual_id, actual_inv))
-        orig_jv = cur.fetchone()
-        if orig_jv:
-            orig_jv_id = orig_jv['id']
-            cur.execute("SELECT * FROM journal_entry_lines WHERE entry_id = %s;", (orig_jv_id,))
-            orig_lines = cur.fetchall()
-            if orig_lines:
-                cur.execute("""
-                    INSERT INTO journal_entries (id, entry_no, entry_date, description, debit_account_id, credit_account_id, amount, total_amount, base_amount, ref_type, ref_id, currency, exchange_rate, status, notes)
-                    VALUES (%s, %s, CURRENT_DATE, %s, %s, %s, %s, %s, %s, 'Purchase_Reversal', %s, %s, %s, 'Posted', %s)
-                    ON CONFLICT (entry_no) DO NOTHING;
-                """, (generate_id("JV"), auto_rev_no, f"قيد عكسي لإلغاء فاتورة المشتريات {actual_inv}", orig_jv.get('credit_account_id'), orig_jv.get('debit_account_id'), orig_jv.get('amount'), orig_jv.get('total_amount'), orig_jv.get('base_amount'), actual_id, orig_jv.get('currency'), orig_jv.get('exchange_rate'), f"قيد عكسي نظامي لإلغاء فاتورة المشتريات {actual_inv}"))
-
-                cur.execute("SELECT id FROM journal_entries WHERE entry_no = %s LIMIT 1;", (auto_rev_no,))
-                rev_jv = cur.fetchone()
-                if rev_jv:
-                    for ol in orig_lines:
-                        cur.execute("INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base) VALUES (%s, %s, %s, %s, %s, %s, %s, %s);",
-                                    (generate_id("JVL"), rev_jv['id'], ol.get('account_id'), f"عكس قيد - {ol.get('line_description') or ''}", float(ol.get('credit') or 0.0), float(ol.get('debit') or 0.0), float(ol.get('credit_base') or 0.0), float(ol.get('debit_base') or 0.0)))
-            cur.execute("UPDATE journal_entries SET status = 'Reversed', notes = COALESCE(notes, '') || ' | [تم إنشاء قيد عكسي]' WHERE id = %s;", (orig_jv_id,))
+        # 2. Reverse purchase journal entry and any associated payment journal entry
+        cur.execute("SELECT * FROM journal_entries WHERE id = %s OR entry_no = %s OR (ref_id IN (%s, %s) AND ref_type = 'Purchase') LIMIT 1;", (f"JV-{actual_id}", jv_no, actual_id, actual_inv))
+        _reverse_journal_entry(cur, cur.fetchone(), auto_rev_no, actual_id, f"قيد عكسي لإلغاء فاتورة المشتريات {actual_inv}")
+        cur.execute("SELECT * FROM journal_entries WHERE id = %s OR (ref_id IN (%s, %s) AND ref_type = 'Payment') LIMIT 1;", (f"JV-PAY-{actual_id}", actual_id, actual_inv))
+        _reverse_journal_entry(cur, cur.fetchone(), f"REV-JV-PAY-{clean_ref}", actual_id, f"قيد عكسي لإلغاء سداد فاتورة المشتريات {actual_inv}")
 
         # 3. Cancel payment
         cur.execute("UPDATE payments SET status = 'Cancelled', notes = COALESCE(notes, '') || ' | [ملغى بحكم إلغاء الفاتورة]' WHERE invoice_id = %s OR invoice_id = %s OR payment_no = %s OR payment_no = %s;", (actual_id, actual_inv, pay_no, f"PAY-{actual_inv}"))
@@ -94,7 +102,8 @@ def cancel_purchase(payload):
         # 4. Supplier ledger adjustment
         supp_id = p_row.get('supplier_id')
         net_paid = max(0.0, (float(p_row.get('original_amount') or 0) + float(p_row.get('shipping_cost') or 0) + float(p_row.get('transfer_fee') or 0)) - float(p_row.get('discount') or 0))
-        if p_row.get('payment_method') == 'آجل' and supp_id and supp_id != 'SUPP-GENERAL':
+        is_credit = ('آجل' in str(p_row.get('payment_method') or '')) or ('credit' in str(p_row.get('payment_method') or '').lower())
+        if is_credit and supp_id and supp_id != 'SUPP-GENERAL':
             cur.execute("UPDATE suppliers SET current_balance = GREATEST(0, current_balance - %s), updated_at = CURRENT_TIMESTAMP WHERE id = %s;", (net_paid, supp_id))
 
         # 5. Soft-cancel purchase (No Hard Delete)

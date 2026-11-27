@@ -1,4 +1,4 @@
-const { useState, useEffect, useMemo, useCallback } = React;
+const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
 function useFactoryData({
   factory = [], setFactory, employees = [], setEmployees, orders = [], setOrders,
@@ -120,9 +120,21 @@ function useFactoryData({
     if (typeof setFactory === 'function') fetch('/api/factory').then(r => r.json()).then(d => { const l = (d && Array.isArray(d.data)) ? d.data : (Array.isArray(d) ? d : []); if (l.length > 0) setFactory(l); }).catch(() => {});
   }, [setFactory]);
 
+  const syncTimerRef = useRef(null);
+  const fallbackFetchedRef = useRef(false);
+
+  const scheduleSync = useCallback(() => {
+    if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+    syncTimerRef.current = setTimeout(() => {
+      syncTimerRef.current = null;
+      syncOrders();
+      syncFactory();
+    }, 180);
+  }, [syncOrders, syncFactory]);
+
   useEffect(() => {
-    syncOrders();
-    syncFactory();
+    if (!orders || orders.length === 0) syncOrders();
+    if (!factory || factory.length === 0) syncFactory();
     const handleQcSync = (e) => {
       const detail = e?.detail || {};
       const targetClean = String(detail.orderId || detail.order_no || '').replace(/^#/, '').trim().toLowerCase();
@@ -147,15 +159,20 @@ function useFactoryData({
           }));
         }
       }
-      syncOrders();
-      syncFactory();
+      scheduleSync();
     };
 
-    ['order_status_changed', 'order_qc_updated', 'erp:ordersChanged', 'erp:factoryChanged', 'orders-updated'].forEach(ev => window.addEventListener(ev, handleQcSync));
-    return () => ['order_status_changed', 'order_qc_updated', 'erp:ordersChanged', 'erp:factoryChanged', 'orders-updated'].forEach(ev => window.removeEventListener(ev, handleQcSync));
-  }, [syncOrders, syncFactory, setFactory, setOrders]);
+    const events = ['order_status_changed', 'order_qc_updated', 'erp:ordersChanged', 'erp:factoryChanged', 'orders-updated'];
+    events.forEach(ev => window.addEventListener(ev, handleQcSync));
+    return () => {
+      if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+      events.forEach(ev => window.removeEventListener(ev, handleQcSync));
+    };
+  }, [syncOrders, syncFactory, scheduleSync, setFactory, setOrders]);
 
   useEffect(() => {
+    if (fallbackFetchedRef.current) return;
+    fallbackFetchedRef.current = true;
     if ((!customers || customers.length === 0) && typeof setCustomers === 'function') fetch('/api/customers').then(r => r.json()).then(d => { const l = (d && Array.isArray(d.data)) ? d.data : (Array.isArray(d) ? d : []); if (l.length > 0) setCustomers(l); }).catch(() => {});
     if ((!products || products.length === 0) && typeof setProducts === 'function') fetch('/api/products').then(r => r.json()).then(d => { const l = (d && Array.isArray(d.data)) ? d.data : (Array.isArray(d) ? d : []); if (l.length > 0) setProducts(l); }).catch(() => {});
     if ((!employees || employees.length === 0) && typeof setEmployees === 'function') fetch('/api/hr/employees').then(r => r.json()).then(d => { const l = (d && Array.isArray(d.data)) ? d.data : (Array.isArray(d) ? d : []); if (l.length > 0) setEmployees(l); }).catch(() => {});

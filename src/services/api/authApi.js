@@ -32,19 +32,22 @@
     getCurrentUser: async () => {
       try {
         const token = localStorage.getItem('erp_auth_token');
-        const res = await fetch('/api/auth/me', {
-          headers: token ? { 'Authorization': `Bearer ${token}` } : {}
-        }).then(r => r.json());
+        if (!token) return null;
+        const resp = await fetch('/api/auth/me', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!resp.ok) {
+          localStorage.removeItem('erp_active_user');
+          localStorage.removeItem('erp_auth_token');
+          return null;
+        }
+        const res = await resp.json();
         if (res && res.success && res.user) {
           localStorage.setItem('erp_active_user', JSON.stringify(res.user));
           return res.user;
         }
       } catch (e) {}
-      try {
-        const cached = localStorage.getItem('erp_active_user');
-        if (cached) return JSON.parse(cached);
-      } catch (e) {}
-      return { id: 1, username: 'admin', role: 'admin', full_name: 'المدير العام', role_label: 'المدير العام', is_active: 1 };
+      return null;
     },
     logout: () => {
       localStorage.removeItem('erp_active_user');

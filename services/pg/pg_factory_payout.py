@@ -5,7 +5,8 @@ import uuid
 from .db_pool import get_db_cursor, clean_num, clean_str, generate_id, today_str
 from .account_resolver import resolve_exchange_rate, resolve_account_id, resolve_labor_liability_account
 from .pg_sequences import get_next_sequence_number
-from .pg_delivery_cogs import cascade_account_balances
+from .pg_delivery_cogs import refresh_chart_balances_atomic
+from .journal_lines_helper import insert_sorted_journal_lines
 
 logger = logging.getLogger("LittlePrincesses_PG_FactoryPayout")
 
@@ -36,7 +37,8 @@ def post_tailor_payout_voucher(payload):
                 WHERE prl.id = ANY(%s)
                   AND prl.paid_at IS NULL
                   AND (prl.payment_status IN ('Accrued', 'pending', 'معلق') OR prl.payment_status IS NULL)
-                  AND (prl.qa_status ILIKE '%%pass%%' OR prl.qa_status ILIKE '%%approv%%');
+                  AND (prl.qa_status ILIKE '%%pass%%' OR prl.qa_status ILIKE '%%approv%%')
+                FOR UPDATE OF prl;
             """, (commission_ids,))
         else:
             cur.execute("""
@@ -51,7 +53,8 @@ def post_tailor_payout_voucher(payload):
                 WHERE (prl.worker_name = %s OR prl.worker_id = %s)
                   AND prl.paid_at IS NULL
                   AND (prl.payment_status IN ('Accrued', 'pending', 'معلق') OR prl.payment_status IS NULL)
-                  AND (prl.qa_status ILIKE '%%pass%%' OR prl.qa_status ILIKE '%%approv%%');
+                  AND (prl.qa_status ILIKE '%%pass%%' OR prl.qa_status ILIKE '%%approv%%')
+                FOR UPDATE OF prl;
             """, (emp_name, emp_id))
 
         unpaid_pieces = cur.fetchall()
@@ -100,26 +103,14 @@ def post_tailor_payout_voucher(payload):
             ) VALUES (%s, %s, CURRENT_DATE, %s, %s, %s, %s, %s, %s, %s, %s, 'TailorPayout', %s, 'Posted', %s, CURRENT_TIMESTAMP);
         """, (jv_id, jv_no, f"قيد صرف وإقفال مستحقات الخياط: {actual_emp_name} بموجب سند {pay_no}", payable_acc, credit_acc, gross, gross, base_gross, currency, rate, pay_id, pay_notes))
 
-        cur.execute("""
-            INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base)
-            VALUES (%s, %s, %s, %s, %s, 0.0, %s, 0.0);
-        """, (generate_id("JVL"), jv_id, payable_acc, f"إقفال مستحقات ({total_pieces}) قطعة للخياط {actual_emp_name}", gross, base_gross))
-
+        jv_lines = [
+            (payable_acc, f"إقفال مستحقات ({total_pieces}) قطعة للخياط {actual_emp_name}", gross, 0.0, base_gross, 0.0),
+            (credit_acc, f"صرف نقدي للخياط {actual_emp_name} سند {pay_no}", 0.0, net, 0.0, base_net),
+        ]
         if deductions > 0:
-            cur.execute("""
-                INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base)
-                VALUES (%s, %s, %s, %s, 0.0, %s, 0.0, %s);
-            """, (generate_id("JVL"), jv_id, advance_acc, f"خصم سلفة/جزاءات للخياط {actual_emp_name}", deductions, base_deductions))
-            cur.execute("UPDATE chart_of_accounts SET current_balance = GREATEST(0.0, COALESCE(current_balance, 0.0) - %s) WHERE id = %s;", (base_deductions, advance_acc))
-
-        cur.execute("""
-            INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base)
-            VALUES (%s, %s, %s, %s, 0.0, %s, 0.0, %s);
-        """, (generate_id("JVL"), jv_id, credit_acc, f"صرف نقدي للخياط {actual_emp_name} سند {pay_no}", net, base_net))
-
-        cur.execute("UPDATE chart_of_accounts SET current_balance = GREATEST(0.0, COALESCE(current_balance, 0.0) - %s) WHERE id = %s;", (base_gross, payable_acc))
-        cur.execute("UPDATE chart_of_accounts SET current_balance = GREATEST(0.0, COALESCE(current_balance, 0.0) - %s) WHERE id = %s;", (base_net, credit_acc))
-        cascade_account_balances(cur)
+            jv_lines.append((advance_acc, f"خصم سلفة/جزاءات للخياط {actual_emp_name}", 0.0, deductions, 0.0, base_deductions))
+        insert_sorted_journal_lines(cur, jv_id, jv_lines)
+        refresh_chart_balances_atomic(cur)
 
         cur.execute("""
             UPDATE piece_rate_logs

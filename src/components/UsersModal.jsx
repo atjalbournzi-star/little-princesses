@@ -8,8 +8,6 @@
 const { useState, useEffect, useMemo, useCallback } = React;
 
 function UsersModal({ isOpen, onClose, showToast, currentRole }) {
-  if (!isOpen) return null;
-
   const FormComp = window.UserFormModal || (() => null);
   const TableComp = window.UserPermissionsTable || (() => null);
 
@@ -109,6 +107,8 @@ function UsersModal({ isOpen, onClose, showToast, currentRole }) {
       (u.role_label && u.role_label.toLowerCase().includes(q))
     );
   }, [users, search]);
+
+  if (!isOpen) return null;
 
   const getRoleBadge = (role) => {
     const r = rolesList.find(item => item.value === role);

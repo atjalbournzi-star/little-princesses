@@ -9,30 +9,30 @@ function DeliveryModal({
   accounts = [],
   onClose
 }) {
-  if (!deliveryModalData) return null;
   const utils = window.FactoryUtils || {};
   const deliveryForm = rawDeliveryForm || {};
   const setDeliveryForm = typeof rawSetDeliveryForm === 'function' ? rawSetDeliveryForm : (() => {});
   const inputCls = "w-full h-11 px-3.5 py-2.5 rounded-xl border border-[#E8E5EA] bg-white text-[#25232A] text-xs font-medium focus:bg-white focus:border-[#8F2A87] focus:ring-2 focus:ring-[#F2E7F3] transition-all outline-none";
   const labelCls = "block text-xs font-semibold text-[#25232A] mb-1.5";
-  const delFee = parseFloat(deliveryModalData.delivery_fee || deliveryModalData.order?.delivery_fee || 0);
-  const delMode = deliveryModalData.delivery_payment_mode || deliveryModalData.order?.delivery_payment_mode || 'DIRECT_TO_COURIER';
+  const delFee = parseFloat(deliveryModalData?.delivery_fee || deliveryModalData?.order?.delivery_fee || 0);
+  const delMode = deliveryModalData?.delivery_payment_mode || deliveryModalData?.order?.delivery_payment_mode || 'DIRECT_TO_COURIER';
 
-  const ord = deliveryModalData.order || deliveryModalData || {};
-  const tot = parseFloat(ord.total_amount ?? ord.total_price ?? ord.grand_total ?? ord.total ?? ord.price ?? ord.final_total ?? deliveryModalData.resolvedTotal ?? 0) || 0;
-  const pd = parseFloat(ord.paid_amount ?? ord.advance_paid ?? ord.paid ?? ord.deposit ?? ord.deposit_amount ?? ord.paid_total ?? deliveryModalData.resolvedPaid ?? 0) || 0;
+  const ord = deliveryModalData?.order || deliveryModalData || {};
+  const tot = parseFloat(ord.total_amount ?? ord.total_price ?? ord.grand_total ?? ord.total ?? ord.price ?? ord.final_total ?? deliveryModalData?.resolvedTotal ?? 0) || 0;
+  const pd = parseFloat(ord.paid_amount ?? ord.advance_paid ?? ord.paid ?? ord.deposit ?? ord.deposit_amount ?? ord.paid_total ?? deliveryModalData?.resolvedPaid ?? 0) || 0;
   const rem = Math.max(0, tot - pd);
 
   const [fetchedAccounts, setFetchedAccounts] = React.useState([]);
 
   React.useEffect(() => {
+    if (!deliveryModalData) return;
     if ((!accounts || !accounts.length) && (!window.accounts || !window.accounts.length)) {
       fetch('/api/accounts/list').then(r => r.json()).then(d => {
         const list = (d && Array.isArray(d.data)) ? d.data : (Array.isArray(d) ? d : []);
         if (list.length) setFetchedAccounts(list);
       }).catch(() => {});
     }
-  }, [accounts]);
+  }, [deliveryModalData, accounts]);
 
   const rawAccs = (accounts && accounts.length) ? accounts : (window.accounts || window.chartOfAccounts || fetchedAccounts);
   const treasuryAccounts = React.useMemo(() => {
@@ -60,28 +60,23 @@ function DeliveryModal({
     }
   }, [deliveryModalData, rem, treasuryAccounts]);
 
+  if (!deliveryModalData) return null;
+
   const closeModal = () => {
     if (typeof setDeliveryModalData === 'function') setDeliveryModalData(null);
     if (typeof onClose === 'function') onClose();
   };
-
   const onConfirm = async () => {
     try {
       const orderId = ord?.id || ord?.order_id || ord?.order_no || deliveryModalData?.id || deliveryModalData?.order_id;
       const orderNo = ord?.order_no || deliveryModalData?.order_no || orderId;
-      if (typeof handleConfirmDelivery === 'function') {
-        await handleConfirmDelivery();
-      }
+      if (typeof handleConfirmDelivery === 'function') await handleConfirmDelivery();
       window.dispatchEvent(new CustomEvent('order_status_changed', { detail: { orderId, order_no: orderNo, status: 'delivered', stage: 'تم التسليم' } }));
       window.dispatchEvent(new CustomEvent('erp:factoryChanged', { detail: { orderNo, orderId, status: 'delivered' } }));
       window.dispatchEvent(new CustomEvent('erp:ordersChanged', { detail: { orderNo, orderId, status: 'delivered' } }));
       window.dispatchEvent(new CustomEvent('erp:vouchersChanged', { detail: { orderNo, orderId } }));
       window.dispatchEvent(new CustomEvent('erp:accountsChanged', { detail: { orderNo, orderId } }));
-    } catch (err) {
-      console.error('Error confirming delivery modal:', err);
-    } finally {
-      closeModal();
-    }
+    } catch (err) { console.error('Error confirming delivery modal:', err); } finally { closeModal(); }
   };
 
   return (
@@ -196,6 +191,12 @@ function DeliveryModal({
               <label className={labelCls}>ملاحظات التسليم والتسوية</label>
               <input type="text" className={inputCls} value={deliveryForm.notes} onChange={e => setDeliveryForm({ ...deliveryForm, notes: e.target.value })} />
             </div>
+            {(deliveryModalData?.material_source === 'CUSTOMER_CMT' || ord?.material_source === 'CUSTOMER_CMT' || deliveryModalData?.hasCmtCustody) && (
+              <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-between gap-2">
+                <span className="text-[11px] font-bold text-amber-900">إغلاق عهدة قماش العميل (CMT) • المتبقي المُعاد:</span>
+                <input type="number" step="0.1" min="0" placeholder="0" className="w-24 h-8 px-2 rounded-lg border border-amber-300 bg-white text-center font-mono text-xs font-bold" value={deliveryForm.leftover_returned_qty ?? ''} onChange={e => setDeliveryForm({ ...deliveryForm, leftover_returned_qty: e.target.value })} />
+              </div>
+            )}
 
             <div className="pt-2 flex items-center gap-2">
               <button

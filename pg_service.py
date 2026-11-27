@@ -33,6 +33,11 @@ from services.pg.pg_warehouse_transfer_post import (
     reconcile_past_journal_lines_to_warehouses, post_warehouse_transfer_journal
 )
 from services.pg.pg_orders import get_orders, add_order, update_order, delete_order
+from services.pg.pg_pos import is_pos_payload, process_pos_sale_atomic
+from services.pg.pg_pos_exchange import exchange_pos_size_atomic
+from services.pg.pg_pos_return import return_pos_order_atomic
+from services.pg.pg_ready_products import create_ready_product_with_variants
+from services.pg.pg_ready_queries import get_pos_catalog, lookup_pos_barcode, get_pos_order_items
 from services.pg.pg_order_stages import create_order_stages, resolve_product_stages, get_order_stages_by_order
 from services.pg.pg_purchases import (
     get_purchases, get_purchase_by_id, add_purchase, update_purchase, delete_purchase,
@@ -79,6 +84,7 @@ from services.pg.pg_payroll import (
     get_worker_piece_rate_logs,
     liquidate_worker_pieces_atomic
 )
+from services.pg.pg_piece_rates import accrue_piece_rate_to_wip
 from services.pg.pg_quality import (
     get_quality_inspections, add_quality_inspection,
     get_quality_defects, add_quality_defect,
@@ -89,7 +95,7 @@ from services.pg.pg_quality import (
     get_quality_checkpoints, save_quality_checkpoint,
     get_quality_settings, save_quality_settings,
     ensure_quality_seed_data, get_quality_dashboard_pg,
-    get_quality_summary
+    get_quality_summary, get_quality_intelligence
 )
 from services.pg.pg_auth import get_users_pg, sync_user_to_pg
 from services.pg.pg_audit import (
@@ -101,6 +107,9 @@ from services.pg.pg_sequences import (
     preview_next_sequence, preview_next_sequence_number
 )
 from services.pg.pg_backup import get_backup_status, create_backup_snapshot, restore_backup_data
+from services.pg.pg_backup_service import (
+    get_backups_list, get_backup_file_for_export, verify_and_restore_backup
+)
 from services.pg.pg_system import (
     get_system_settings, save_system_settings, clear_all_transactional_data
 )
@@ -112,6 +121,19 @@ from services.pg.pg_measurement_studio import (
     get_measurement_session_by_order,
     get_recent_measurement_sessions,
     approve_measurement_session
+)
+from services.pg.pg_size_matrices import (
+    get_size_matrices, save_size_matrix, delete_size_matrix
+)
+from services.pg.pg_material_custody import (
+    get_material_custody, receive_material_custody, update_material_custody
+)
+from services.pg.pg_tailoring_engine import confirm_production_sizing
+from services.pg.pg_bto_purchase import (
+    record_bto_purchase, return_bto_leftover, issue_production_materials
+)
+from services.pg.pg_tailoring_reports import (
+    get_order_profitability_report, promote_bespoke_to_catalog
 )
 from services.pg.dispatcher import dispatch_action
 from services.pg.action_map import ACTION_HANDLERS

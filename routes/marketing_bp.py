@@ -3,6 +3,7 @@
 
 from flask import Blueprint, request, jsonify
 from db_client import get_db_cursor
+from services.security import translate_shield_error
 import pg_service
 
 marketing_bp = Blueprint('marketing_bp', __name__)
@@ -16,7 +17,8 @@ def marketing_platforms():
             rows = cur.fetchall()
         return jsonify({'success': True, 'data': rows}), 200
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e), 'data': []}), 500
+        code, msg = translate_shield_error(e)
+        return jsonify({'success': False, 'error': msg, 'data': []}), code
 
 
 @marketing_bp.route('/api/marketing/capability-matrix', methods=['GET'])
@@ -27,7 +29,8 @@ def capability_matrix():
             rows = cur.fetchall()
         return jsonify({'success': True, 'data': rows}), 200
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e), 'data': []}), 500
+        code, msg = translate_shield_error(e)
+        return jsonify({'success': False, 'error': msg, 'data': []}), code
 
 
 @marketing_bp.route('/api/marketing/campaigns', methods=['GET'])
@@ -44,7 +47,8 @@ def list_campaigns():
             rows = cur.fetchall()
         return jsonify({'success': True, 'data': rows}), 200
     except Exception as e:
-        return jsonify({'success': True, 'data': [], 'error': str(e)}), 200
+        _, msg = translate_shield_error(e)
+        return jsonify({'success': True, 'data': [], 'error': msg}), 200
 
 
 @marketing_bp.route('/api/marketing/campaigns', methods=['POST'])
@@ -69,7 +73,8 @@ def save_campaign():
             row = cur.fetchone()
         return jsonify({'success': True, 'data': row}), 200
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        code, msg = translate_shield_error(e)
+        return jsonify({'success': False, 'error': msg}), code
 
 
 @marketing_bp.route('/api/marketing/content', methods=['GET'])
@@ -86,7 +91,8 @@ def list_content():
             content_rows = cur.fetchall()
         return jsonify({'success': True, 'data': content_rows}), 200
     except Exception as e:
-        return jsonify({'success': True, 'data': [], 'error': str(e)}), 200
+        _, msg = translate_shield_error(e)
+        return jsonify({'success': True, 'data': [], 'error': msg}), 200
 
 
 @marketing_bp.route('/api/marketing/dashboard', methods=['GET'])
@@ -98,7 +104,8 @@ def marketing_dashboard():
             stats = cur.fetchone() or {}
         return jsonify({'success': True, 'data': stats}), 200
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        code, msg = translate_shield_error(e)
+        return jsonify({'success': False, 'error': msg}), code
 
 
 @marketing_bp.route('/api/social/webhook', methods=['POST'])

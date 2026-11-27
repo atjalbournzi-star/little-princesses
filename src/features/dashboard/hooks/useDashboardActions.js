@@ -8,9 +8,12 @@ function useDashboardActions({ setActiveTab } = {}) {
   const [hoveredPoint, setHoveredPoint] = useState(null);
   const [watchdogData, setWatchdogData] = useState(null);
 
-  // جلب بيانات رادار المشغل والتحديث التلقائي عند تغير الطلبيات
+  // جلب بيانات رادار المشغل ومشاركتها مع الهيدر لتفادي الطلب المكرر
   useEffect(() => {
     let isMounted = true;
+    const handleWatchdogEvent = (e) => {
+      if (isMounted && e?.detail) setWatchdogData(e.detail);
+    };
     const fetchWatchdog = async () => {
       try {
         const res = await fetch('/api/atelier/watchdog');
@@ -20,18 +23,19 @@ function useDashboardActions({ setActiveTab } = {}) {
             setWatchdogData(data.data);
           }
         }
-      } catch (e) {
-        // تجاهل أخطاء الشبكة المؤقتة في وضع عدم الاتصال
-      }
+      } catch (e) {}
     };
 
-    fetchWatchdog();
+    window.addEventListener('lp:watchdogData', handleWatchdogEvent);
+    const t = setTimeout(fetchWatchdog, 60);
     const handleRefresh = () => fetchWatchdog();
     window.addEventListener('erp:ordersChanged', handleRefresh);
     window.addEventListener('erp:alterationChanged', handleRefresh);
 
     return () => {
       isMounted = false;
+      clearTimeout(t);
+      window.removeEventListener('lp:watchdogData', handleWatchdogEvent);
       window.removeEventListener('erp:ordersChanged', handleRefresh);
       window.removeEventListener('erp:alterationChanged', handleRefresh);
     };
@@ -41,7 +45,8 @@ function useDashboardActions({ setActiveTab } = {}) {
   const handleSendWhatsApp = useCallback((phone, orderNo) => {
     if (!phone) return;
     const cleanPhone = String(phone).replace(/[^0-9]/g, '');
-    const msg = `أهلاً بكِ في مشغل الأميرات الصغيرات 👑\nنود تذكيركِ بموعد تسليم/بروفة فستانكِ الراقي (طلب #${orderNo || ''}) اليوم. يسعدنا تشريفكِ!`;
+    const brandName = (typeof window !== 'undefined' && window.BrandService) ? window.BrandService.getProfile().name : 'نظام الإدارة المتكامل';
+    const msg = `أهلاً بكِ في ${brandName} 👑\nنود تذكيركِ بموعد تسليم/بروفة فستانكِ الراقي (طلب #${orderNo || ''}) اليوم. يسعدنا تشريفكِ!`;
     const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`;
     window.open(url, '_blank', 'noopener,noreferrer');
   }, []);

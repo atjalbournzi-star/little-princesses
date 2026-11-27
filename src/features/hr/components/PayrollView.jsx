@@ -9,6 +9,21 @@ function PayrollView({
   const [filterRole, setFilterRole] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
   const [isSubmittingBulk, setIsSubmittingBulk] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [payingEmpId, setPayingEmpId] = useState(null);
+
+  const onGenerateClick = async () => {
+    if (isGenerating || !handleGeneratePayroll) return;
+    setIsGenerating(true);
+    try { await handleGeneratePayroll(); } finally { setIsGenerating(false); }
+  };
+
+  const onPayEmpClick = async (r) => {
+    const key = r.id || r.empId;
+    if (payingEmpId || !handlePaySalary) return;
+    setPayingEmpId(key);
+    try { await handlePaySalary(r); } finally { setPayingEmpId(null); }
+  };
 
   const FilterBarComp = window.PayrollFilterBar || (typeof PayrollFilterBar !== 'undefined' ? PayrollFilterBar : null);
 
@@ -44,9 +59,9 @@ function PayrollView({
           <input type="month" lang="en-GB" dir="ltr" value={payrollMonth} onChange={(e) => setPayrollMonth(e.target.value)}
             className="h-7 px-2 border border-slate-700 rounded-lg font-bold bg-[#0F172A] text-white text-xs outline-none cursor-pointer" />
         </div>
-        <button type="button" onClick={handleGeneratePayroll}
-          className="h-7 px-3 bg-pink-600 hover:bg-pink-500 text-white font-bold text-xs rounded-lg shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer">
-          <span>⚙️</span><span>احتساب وإصدار المسير ({payrollMonth})</span>
+        <button type="button" onClick={onGenerateClick} disabled={isGenerating}
+          className="h-7 px-3 bg-pink-600 hover:bg-pink-500 text-white font-bold text-xs rounded-lg shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+          <span>{isGenerating ? '⏳' : '⚙️'}</span><span>{isGenerating ? 'جاري الاحتساب...' : `احتساب وإصدار المسير (${payrollMonth})`}</span>
         </button>
       </div>
 
@@ -141,12 +156,14 @@ function PayrollView({
                           (() => {
                             const bVal = bonus[r.empId] ? parseFloat(bonus[r.empId]) : 0;
                             const netVal = (r.netSalary || 0) + bVal;
-                            const canPay = netVal > 0;
+                            const rowKey = r.id || r.empId;
+                            const isPayingThis = payingEmpId === rowKey;
+                            const canPay = netVal > 0 && !payingEmpId;
                             return (
                               <button
                                 type="button"
                                 disabled={!canPay}
-                                onClick={() => canPay && handlePaySalary(r)}
+                                onClick={() => canPay && onPayEmpClick(r)}
                                 title={canPay ? "صرف الراتب" : "لا يوجد صافي مستحق للصرف"}
                                 className={`h-5.5 px-2 rounded shadow-xs transition text-[10px] font-bold mx-auto flex items-center justify-center gap-1 ${
                                   canPay
@@ -154,7 +171,7 @@ function PayrollView({
                                     : "bg-slate-700 text-slate-400 cursor-not-allowed opacity-50"
                                 }`}
                               >
-                                <span>صرف الراتب 💸</span>
+                                <span>{isPayingThis ? 'جاري الصرف... ⏳' : 'صرف الراتب 💸'}</span>
                               </button>
                             );
                           })()

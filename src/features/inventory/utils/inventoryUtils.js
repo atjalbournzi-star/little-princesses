@@ -42,18 +42,42 @@ function getWarehouseName(whId) {
 
 function getItemWarehouseStock(item, whId) {
   if (!item) return 0;
-  if (item.warehouse_stocks && item.warehouse_stocks[whId] !== undefined) {
-    return parseFloat(item.warehouse_stocks[whId]) || 0;
+  if (!whId || whId === 'الكل' || whId === 'ALL') return getItemQty(item);
+  if (Array.isArray(item.warehouse_details) && item.warehouse_details.length > 0) {
+    const match = item.warehouse_details.find(wd => wd.warehouse_id === whId || wd.warehouse_code === whId || wd.warehouse_name === whId);
+    return match ? (parseFloat(match.available_qty ?? match.quantity ?? 0) || 0) : 0;
   }
-  if (!whId || whId === 'الكل' || whId === 'ALL') {
-    return getItemQty(item);
+  if (item.warehouse_stocks && typeof item.warehouse_stocks === 'object' && Object.keys(item.warehouse_stocks).length > 0) {
+    return parseFloat(item.warehouse_stocks[whId] ?? 0) || 0;
   }
   const normLoc = String(item.location || '').trim();
   const whName = getWarehouseName(whId);
-  if (normLoc === whId || normLoc === whName) {
-    return getItemQty(item);
+  return (normLoc === whId || normLoc === whName) ? getItemQty(item) : 0;
+}
+
+function getItemAvailableTotal(item) {
+  if (!item) return 0;
+  const parsed = parseFloat(item.available_qty);
+  return (item.available_qty !== undefined && item.available_qty !== null && !isNaN(parsed)) ? parsed : getItemQty(item);
+}
+
+function resolveTransferDefaults(item, inventory = [], warehouses = WAREHOUSES) {
+  const list = Array.isArray(inventory) ? inventory : [];
+  const whs = Array.isArray(warehouses) ? warehouses : [];
+  let target = item ? (list.find(x => String(x.id) === String(item.id)) || item) : (list.find(i => getItemAvailableTotal(i) > 0) || list[0] || null);
+  if (!target) return { item: null, fromId: '', toId: '' };
+  let fromId = '', bestQty = -1;
+  whs.forEach(w => {
+    const wid = w.id || w.code, q = getItemWarehouseStock(target, wid);
+    if (q > 0 && q > bestQty) { bestQty = q; fromId = wid; }
+  });
+  if (!fromId && Array.isArray(target.warehouse_details)) {
+    const pos = target.warehouse_details.find(wd => (parseFloat(wd.available_qty ?? wd.quantity ?? 0) || 0) > 0);
+    if (pos) fromId = pos.warehouse_id;
   }
-  return 0;
+  if (!fromId) fromId = target.warehouse_id || (whs[0]?.id || whs[0]?.code || '');
+  const toWh = whs.find(w => (w.id || w.code) !== fromId);
+  return { item: target, fromId, toId: toWh ? (toWh.id || toWh.code) : '' };
 }
 
 function getItemName(item) {
@@ -124,7 +148,7 @@ function isItemLowStock(item) {
 function getItemUnit(item) {
   if (item && item.unit) return item.unit;
   const cat = (item && item.category) || '';
-  if (cat.includes('فساتين') || (item && item.item_type === 'product')) return 'قطعة';
+  if (cat.includes('فساتين') || (item && (item.item_type === 'product' || item.item_type === 'finished_product'))) return 'قطعة';
   return 'متر';
 }
 
@@ -157,6 +181,8 @@ const inventoryUtils = {
   refreshWarehouses,
   getWarehouseName,
   getItemWarehouseStock,
+  getItemAvailableTotal,
+  resolveTransferDefaults,
   getItemName,
   getItemQty,
   getItemCost,

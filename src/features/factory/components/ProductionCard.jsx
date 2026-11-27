@@ -7,7 +7,7 @@ function ProductionCard({
   f, products = [], stockInflowLoading = {}, setQcModalData, advanceToNextStage, handleFastTrackQc,
   actionLoadingId, handleStockInflow, handleReverseStockInflow, handleOpenDeliveryModal,
   handleReverseDelivery, handleOpenPrintModal, handleOpenJobTicket, setModelPreviewData,
-  loadIntoForm, handleDeleteOrder
+  loadIntoForm, handleDeleteOrder, custodyRecord, onOpenTailoringAction, onPrintCmtSticker
 }) {
   if (!f) return null;
   const orderLabel = f?.order_no || f?.production_order_no || f?.id || '—';
@@ -45,7 +45,7 @@ function ProductionCard({
   );
 
   return (
-    <tr className="group hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors border-b border-slate-200 dark:border-slate-800/60 text-xs">
+    <tr className="group hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-all duration-150 hover:-translate-y-0.5 border-b border-slate-200 dark:border-slate-800/60 text-xs">
       {/* 1. نوع الأمر والهوية - كود الطلب بسطر واحد دون اقتصاص */}
       <td className="w-[155px] py-1.5 px-2 text-right">
         <div className="flex items-center gap-1.5 whitespace-nowrap overflow-hidden">
@@ -61,6 +61,7 @@ function ProductionCard({
           </div>
         )}
         <div className="text-[9.5px] text-slate-600 dark:text-slate-300 font-mono truncate">بدء: {f.start_date ? String(f.start_date).slice(0, 10) : '—'}</div>
+        {window.FactoryTailoringBadges && <window.FactoryTailoringBadges job={f} custodyRecord={custodyRecord} onOpenAction={onOpenTailoringAction} onPrintCmtSticker={onPrintCmtSticker} />}
       </td>
 
       {/* 2. الموديل والتفاصيل مع دعم جلب الصورة التلقائي */}
@@ -124,7 +125,7 @@ function ProductionCard({
           <span className="text-teal-600 dark:text-teal-400 font-mono font-bold shrink-0">{displayProgress}%</span>
         </div>
         <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-1 overflow-hidden" dir="ltr">
-          <div className={`h-1 rounded-full transition-all duration-500 ${displayProgress >= 100 || isDone ? 'bg-gradient-to-r from-emerald-500 via-teal-200 to-emerald-500 shimmer-bar' : 'bg-gradient-to-r from-teal-500 to-emerald-400'}`} style={{ width: `${displayProgress}%` }}></div>
+          <div className={`h-1 rounded-full transition-all duration-500 ease-out ${displayProgress >= 100 || isDone ? 'bg-gradient-to-r from-emerald-500 via-teal-200 to-emerald-500 shimmer-bar' : 'bg-gradient-to-r from-teal-500 to-emerald-400'}`} style={{ width: `${displayProgress}%` }}></div>
         </div>
 
         <div className="flex items-center gap-1 mt-1 flex-wrap">

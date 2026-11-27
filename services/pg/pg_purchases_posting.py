@@ -4,12 +4,15 @@
 from .pg_sequences import get_next_sequence_number
 from .db_pool import clean_str, clean_num
 from .pg_audit import resolve_active_user_id
+from .journal_lines_helper import insert_sorted_journal_lines
+from services.security import assert_period_open
 
 
 def post_purchase_journal(cur, pur_id, inv_no, inv_date, supp_id, supp_name, net_paid_orig, net_paid_yer, curr, rate, inv_acc, supp_acc, user_id):
     """ترحيل قيد استحقاق فاتورة المشتريات (مدين: المخزون / دائن: ذمم الموردين)"""
     if net_paid_orig <= 0 and net_paid_yer <= 0:
         return None
+    assert_period_open(cur, inv_date)
     active_user = resolve_active_user_id(cur, user_id)
     jv_no = get_next_sequence_number(cur, 'JV', fallback_prefix='JV-')
     cur.execute("""
@@ -32,21 +35,19 @@ def post_purchase_journal(cur, pur_id, inv_no, inv_date, supp_id, supp_name, net
     entry_row = cur.fetchone()
     entry_id = entry_row['id'] if entry_row else f"JV-{pur_id}"
     cur.execute("DELETE FROM journal_entry_lines WHERE entry_id = %s;", (entry_id,))
-    cur.execute("""
-        INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base)
-        VALUES (%s, %s, %s, %s, %s, 0.0, %s, 0.0);
-    """, (f"JVL-{pur_id}-D", entry_id, inv_acc, f"مخزون الأقمشة والخامات - فاتورة {inv_no}", net_paid_orig, net_paid_yer))
-    cur.execute("""
-        INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base)
-        VALUES (%s, %s, %s, %s, 0.0, %s, 0.0, %s);
-    """, (f"JVL-{pur_id}-C", entry_id, supp_acc, f"استحقاق فاتورة {inv_no} - {supp_name}", net_paid_orig, net_paid_yer))
+    insert_sorted_journal_lines(cur, entry_id, [
+        (inv_acc, f"مخزون الأقمشة والخامات - فاتورة {inv_no}", net_paid_orig, 0.0, net_paid_yer, 0.0),
+        (supp_acc, f"استحقاق فاتورة {inv_no} - {supp_name}", 0.0, net_paid_orig, 0.0, net_paid_yer),
+    ])
     return jv_no
 
 
 def post_purchase_payment(cur, pur_id, inv_no, inv_date, supp_id, supp_name, net_paid_orig, net_paid_yer, curr, rate, pay_method, cash_acc, supp_acc, transfer_no, user_id):
     """توثيق سند الصرف وقيد السداد النمطي (مدين: ذمم الموردين / دائن: الصندوق/البنك)"""
-    if pay_method == 'آجل' or net_paid_orig <= 0:
+    is_credit = ('آجل' in str(pay_method or '')) or ('credit' in str(pay_method or '').lower())
+    if is_credit or net_paid_orig <= 0:
         return None
+    assert_period_open(cur, inv_date)
     active_user = resolve_active_user_id(cur, user_id)
     pay_no = get_next_sequence_number(cur, 'PV', fallback_prefix='PV-')
     cur.execute("""
@@ -87,12 +88,8 @@ def post_purchase_payment(cur, pur_id, inv_no, inv_date, supp_id, supp_name, net
     pay_jv_row = cur.fetchone()
     pay_entry_id = pay_jv_row['id'] if pay_jv_row else f"JV-PAY-{pur_id}"
     cur.execute("DELETE FROM journal_entry_lines WHERE entry_id = %s;", (pay_entry_id,))
-    cur.execute("""
-        INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base)
-        VALUES (%s, %s, %s, %s, %s, 0.0, %s, 0.0);
-    """, (f"JVL-PAY-{pur_id}-D", pay_entry_id, supp_acc, f"مدين - سداد فاتورة {inv_no} ({supp_name})", net_paid_orig, net_paid_yer))
-    cur.execute("""
-        INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base)
-        VALUES (%s, %s, %s, %s, 0.0, %s, 0.0, %s);
-    """, (f"JVL-PAY-{pur_id}-C", pay_entry_id, cash_acc, f"دائن - سداد فاتورة {inv_no} ({supp_name})", net_paid_orig, net_paid_yer))
+    insert_sorted_journal_lines(cur, pay_entry_id, [
+        (supp_acc, f"مدين - سداد فاتورة {inv_no} ({supp_name})", net_paid_orig, 0.0, net_paid_yer, 0.0),
+        (cash_acc, f"دائن - سداد فاتورة {inv_no} ({supp_name})", 0.0, net_paid_orig, 0.0, net_paid_yer),
+    ])
     return pay_no

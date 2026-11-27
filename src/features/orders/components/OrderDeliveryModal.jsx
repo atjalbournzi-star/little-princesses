@@ -10,24 +10,23 @@ function OrderDeliveryModal({
   submittingDelivery,
   accounts = []
 }) {
-  if (!order) return null;
-
-  const tot = parseFloat(order.total ?? order.total_amount ?? 0);
-  const pd = parseFloat(order.paid ?? order.paid_amount ?? 0);
+  const tot = parseFloat(order?.total ?? order?.total_amount ?? 0);
+  const pd = parseFloat(order?.paid ?? order?.paid_amount ?? 0);
   const rem = Math.max(0, tot - pd);
-  const delFee = parseFloat(order.delivery_fee || order.delivery || 0);
-  const delMode = order.delivery_payment_mode || 'DIRECT_TO_COURIER';
+  const delFee = parseFloat(order?.delivery_fee || order?.delivery || 0);
+  const delMode = order?.delivery_payment_mode || 'DIRECT_TO_COURIER';
 
   const [fetchedAccounts, setFetchedAccounts] = useState([]);
 
   React.useEffect(() => {
+    if (!order) return;
     if ((!accounts || !accounts.length) && (!window.accounts || !window.accounts.length)) {
       fetch('/api/accounts/list').then(r => r.json()).then(d => {
         const list = (d && Array.isArray(d.data)) ? d.data : (Array.isArray(d) ? d : []);
         if (list.length) setFetchedAccounts(list);
       }).catch(() => {});
     }
-  }, [accounts]);
+  }, [order, accounts]);
 
   const rawAccs = (accounts && accounts.length) ? accounts : (window.accounts || window.chartOfAccounts || fetchedAccounts);
   const treasuryAccounts = React.useMemo(() => {
@@ -53,6 +52,7 @@ function OrderDeliveryModal({
     notes: ''
   });
   const [successData, setSuccessData] = useState(null);
+  if (!order) return null;
 
   const handleConfirm = () => {
     onConfirmDelivery({

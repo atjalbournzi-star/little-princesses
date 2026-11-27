@@ -13,6 +13,13 @@ function ProductCard({
   const curr = rawCurr.includes('SAR') ? 'SAR' : (rawCurr.includes('USD') || rawCurr.includes('$') ? 'USD' : 'YER');
   const seg = p.target_segment || 'kids';
   const segLabel = seg === 'women_adults' ? '👗 نسائي وكبار' : (seg === 'custom_free' ? '✂️ تفصيل حر' : '👧 أطفال');
+  const fMode = String(p.fulfillment_mode || 'CATALOG_MTO').toUpperCase();
+  const fModeLabel = fMode === 'READY_STOCK' ? 'جاهز من المخزن' : (fMode === 'BOTH' ? 'جاهز + تفصيل' : 'تفصيل حسب الطلب');
+  const fModeCls = fMode === 'READY_STOCK'
+    ? 'bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800/60'
+    : (fMode === 'BOTH'
+      ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800/60'
+      : 'bg-pink-50 dark:bg-pink-950/60 text-pink-700 dark:text-pink-300 border-pink-200 dark:border-pink-800/60');
 
   const pm = typeof p.price_matrix === 'string' ? (() => { try { return JSON.parse(p.price_matrix); } catch(e) { return {}; } })() : (p.price_matrix || {});
   const tierPrices = Object.values(pm).map(v => parseFloat(v)).filter(v => !isNaN(v) && v > 0);
@@ -38,6 +45,9 @@ function ProductCard({
             )}
           </div>
           <div className="flex items-center gap-1 flex-wrap justify-end">
+            <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${fModeCls}`}>
+              {fModeLabel}
+            </span>
             <span className="bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800/60 px-2 py-0.5 rounded text-[10px] font-bold">
               {segLabel}
             </span>

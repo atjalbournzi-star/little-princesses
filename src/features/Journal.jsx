@@ -28,7 +28,7 @@ function Journal({
   })))({ journal, accounts });
 
   const {
-    formData, setFormData, currencyCode, isBaseCurrency,
+    formData, setFormData, currencyCode, isBaseCurrency, isSubmitting,
     showCompoundModal, setShowCompoundModal,
     compoundForm, setCompoundForm,
     compoundLines, compoundTotals, compoundCurrCode,
@@ -74,6 +74,7 @@ function Journal({
           setFormData={setFormData}
           currencyCode={currencyCode}
           isBaseCurrency={isBaseCurrency}
+          isSubmitting={isSubmitting}
           handleSubmit={handleSubmit}
           handleOpenEdit={handleOpenEdit}
           handleDeleteEntry={handleDeleteEntry}

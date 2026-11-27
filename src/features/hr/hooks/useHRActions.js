@@ -39,15 +39,15 @@ function useHRActions({
       } else if (typeof window.callGAS === 'function') {
         res = await window.callGAS(id ? 'updateEmployee' : 'addEmployee', empData);
       }
+      if (res && res.success === false) throw new Error(res.error || res.message || 'تعذر حفظ بيانات الموظف');
       const saved = (res && res.data) ? res.data : res;
       const record = (saved && saved.id) ? { ...empData, ...saved } : empData;
       setEmployees(id ? employees.map(emp => emp.id === id ? { ...emp, ...record } : emp) : [record, ...employees]);
       showToast(id ? "تم تحديث بيانات الموظف بنجاح ✅" : "تم تسجيل الموظف بنجاح 👤");
+      if (resetForm) resetForm();
     } catch (err) {
-      if (id) setEmployees(employees.map(emp => emp.id === id ? { ...emp, ...empData } : emp));
-      showToast("تعذر حفظ بيانات الموظف بالخادم ⚠️", "error");
+      showToast(window.formatApiError ? window.formatApiError(err) : "تعذر حفظ بيانات الموظف بالخادم ⚠️", "error");
     }
-    if (resetForm) resetForm();
   };
 
   const toggleEmpStatus = async (id) => {

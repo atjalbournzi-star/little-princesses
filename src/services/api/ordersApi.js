@@ -54,6 +54,18 @@
         if (res && res.success) return res;
       } catch (e) {}
       return await callGAS('deleteOrder', { id });
+    },
+    returnPosOrder: async (orderId, payload = {}) => {
+      const res = await fetch(`/api/pos/orders/${encodeURIComponent(orderId)}/return`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || json.message || 'تعذر تنفيذ مرتجع المبيعات');
+      }
+      return json;
     }
   };
 

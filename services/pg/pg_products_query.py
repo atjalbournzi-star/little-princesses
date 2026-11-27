@@ -9,7 +9,8 @@ def get_products(params=None):
     query = """SELECT id, sku, model_name, model_name as name, model_no, category, subcategory, collection, design_code,
                base_price, base_price as price, base_price as sell_price, cost_price, cost_price as cost, cost_price as total_cost,
                labor_cost, packaging_cost, fabric_cost, bom, price_matrix, age_chart, target_segment, barcode, currency,
-               image_url, colors, description, min_stock, status, created_by,
+               CASE WHEN image_url LIKE 'data:%%' AND LENGTH(image_url) > 2000 THEN '' ELSE image_url END as image_url,
+               colors, description, min_stock, status, created_by,
                (status = 'Active') as is_active, created_at, updated_at FROM products ORDER BY created_at DESC;"""
     rows = execute_query(query, fetch_all=True) or []
     for r in rows:

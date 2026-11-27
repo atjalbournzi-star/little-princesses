@@ -1,6 +1,6 @@
 // src/features/dashboard/hooks/useDashboardData.js
 // خطاف استخراج وتجميع مؤشرات الأداء الرئيسية والبيانات المالية والتشغيلية للوحة التحكم
-const { useMemo } = React;
+const { useMemo, useState, useEffect } = React;
 
 function useDashboardData({
   orders = [], accounts = [], journal = [], vouchers = [],
@@ -14,6 +14,23 @@ function useDashboardData({
   const fmt = utils.fmt || ((n) => String(n));
 
   const targetCode = window.CurrencyService ? window.CurrencyService.normalizeCode(currency?.code || currency?.display || 'YER') : 'YER';
+  const toTargetExact = (baseAmt) => (window.CurrencyService && targetCode !== 'YER')
+    ? window.CurrencyService.fromBase(baseAmt, targetCode, null, true)
+    : (parseFloat(baseAmt) || 0);
+
+  const [serverIS, setServerIS] = useState(null);
+  useEffect(() => {
+    let active = true;
+    const now = new Date();
+    const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    let qs = '';
+    if (timeHorizon === 'today') { const t = ymd(now); qs = `?start_date=${t}&end_date=${t}`; }
+    else if (timeHorizon === 'week') { const s = new Date(now.getTime() - 7 * 86400000); qs = `?start_date=${ymd(s)}&end_date=${ymd(now)}`; }
+    else if (timeHorizon === 'month') { qs = `?start_date=${ymd(new Date(now.getFullYear(), now.getMonth(), 1))}&end_date=${ymd(new Date(now.getFullYear(), now.getMonth() + 1, 0))}`; }
+    fetch(`/api/reports/income-statement${qs}`).then(r => r.json()).then(res => { if (active && res?.success && res.data) setServerIS(res.data); }).catch(() => {});
+    return () => { active = false; };
+  }, [timeHorizon, journal.length]);
+
   const TODAY_STR_DISPLAY = (typeof window.TODAY_STR_DISPLAY !== 'undefined')
     ? window.TODAY_STR_DISPLAY
     : new Date().toLocaleDateString('ar-YE-u-nu-latn', { year: 'numeric', month: 'long', day: 'numeric' });
@@ -39,26 +56,46 @@ function useDashboardData({
     };
   }, [accounts, journal, targetCode, utils]);
 
-  // 3. التجميعات المالية (مبيعات، مصاريف، أرباح)
-  const ordersSales = filteredOrders.reduce((sum, o) => sum + toCurr(o.total || o.total_amount || 0, o.currency, o.exchange_rate, targetCode), 0);
+  // 3. التجميعات المالية (مبيعات، مصاريف وتكلفة مبيعات COGS، وصافي أرباح مطابق لقائمة الدخل)
+  const activeOrders = useMemo(() => (filteredOrders || []).filter(o => {
+    const st = String(o?.production_status || o?.status || '').toLowerCase();
+    return !st.includes('return') && !st.includes('مرتجع') && !st.includes('cancel') && !st.includes('ملغي');
+  }), [filteredOrders]);
 
-  const pnlRevenue = useMemo(() => {
-    return (filteredJournal || []).reduce((sum, j) => {
-      const cStr = String(j.credit || j.credit_account_id || '');
-      if (cStr.startsWith('4') || cStr.includes('ACC-4')) {
+  const ordersSales = activeOrders.reduce((sum, o) => sum + toCurr(o.total || o.total_amount || 0, o.currency, o.exchange_rate, targetCode), 0);
+
+  const { pnlRevenue, journalExpenses } = useMemo(() => {
+    let rev = 0, exp = 0;
+    const isRev = (s) => { const c = String(s || '').replace(/^ACC[-_]?/i, '').trim(); return c.startsWith('4'); };
+    const isExp = (s) => { const c = String(s || '').replace(/^ACC[-_]?/i, '').trim(); return c.startsWith('5'); };
+    (filteredJournal || []).forEach(j => {
+      const st = String(j.status || 'Posted').toLowerCase();
+      if (st === 'draft' || st === 'cancelled') return;
+      const rate = parseFloat(j.exchange_rate) || 1.0;
+      if (Array.isArray(j.lines) && j.lines.length > 0) {
+        j.lines.forEach(l => {
+          const acc = l.account_id || l.account_code || '';
+          const dBase = l.debit_base !== undefined ? (parseFloat(l.debit_base) || 0) : ((parseFloat(l.debit) || 0) * rate);
+          const cBase = l.credit_base !== undefined ? (parseFloat(l.credit_base) || 0) : ((parseFloat(l.credit) || 0) * rate);
+          if (isRev(acc)) rev += toTargetExact(cBase - dBase);
+          if (isExp(acc)) exp += toTargetExact(dBase - cBase);
+        });
+      } else {
         const baseAmt = (j.base_amount !== undefined && j.base_amount !== null && !isNaN(parseFloat(j.base_amount)) && parseFloat(j.base_amount) > 0)
-          ? parseFloat(j.base_amount)
-          : ((parseFloat(j.amount) || 0) * (parseFloat(j.exchange_rate) || 1.0));
-        const amt = (window.CurrencyService && targetCode !== 'YER') ? window.CurrencyService.fromBase(baseAmt, targetCode) : baseAmt;
-        return sum + amt;
+          ? parseFloat(j.base_amount) : ((parseFloat(j.amount) || 0) * rate);
+        const amt = toTargetExact(baseAmt);
+        if (isRev(j.credit || j.credit_account_id)) rev += amt;
+        if (isRev(j.debit || j.debit_account_id)) rev -= amt;
+        if (isExp(j.debit || j.debit_account_id)) exp += amt;
+        if (isExp(j.credit || j.credit_account_id)) exp -= amt;
       }
-      return sum;
-    }, 0);
+    });
+    return { pnlRevenue: rev, journalExpenses: exp };
   }, [filteredJournal, targetCode]);
 
   const totalSales = ordersSales > 0 ? ordersSales : pnlRevenue;
-  const totalPaid = filteredOrders.reduce((sum, o) => sum + toCurr(o.paid || o.paid_amount || 0, o.currency, o.exchange_rate, targetCode), 0);
-  const totalRemaining = filteredOrders.reduce((sum, o) => {
+  const totalPaid = activeOrders.reduce((sum, o) => sum + toCurr(o.paid || o.paid_amount || 0, o.currency, o.exchange_rate, targetCode), 0);
+  const totalRemaining = activeOrders.reduce((sum, o) => {
     const rem = o.remaining !== undefined && o.remaining !== null ? parseFloat(o.remaining) :
       (o.remaining_amount !== undefined && o.remaining_amount !== null ? parseFloat(o.remaining_amount) :
       (parseFloat(o.total || o.total_amount || 0) - parseFloat(o.paid || o.paid_amount || 0)));
@@ -66,23 +103,11 @@ function useDashboardData({
   }, 0);
 
   const totalExpensesAmount = (filteredExpenses || []).reduce((sum, e) => sum + toCurr(e.amount || 0, e.currency, e.exchange_rate, targetCode), 0);
-  const journalExpenses = useMemo(() => {
-    return (filteredJournal || []).reduce((sum, j) => {
-      const dStr = String(j.debit || j.debit_account_id || '');
-      if (dStr.startsWith('5') || dStr.includes('ACC-5')) {
-        const baseAmt = (j.base_amount !== undefined && j.base_amount !== null && !isNaN(parseFloat(j.base_amount)) && parseFloat(j.base_amount) > 0)
-          ? parseFloat(j.base_amount)
-          : ((parseFloat(j.amount) || 0) * (parseFloat(j.exchange_rate) || 1.0));
-        const amt = (window.CurrencyService && targetCode !== 'YER') ? window.CurrencyService.fromBase(baseAmt, targetCode) : baseAmt;
-        return sum + amt;
-      }
-      return sum;
-    }, 0);
-  }, [filteredJournal, targetCode]);
-
-  const effectiveExpenses = Math.max(totalExpensesAmount, journalExpenses);
-  const totalProfit = Math.max(0, totalSales - effectiveExpenses);
-  const profitMarginPct = totalSales > 0 ? (((totalSales - effectiveExpenses) / totalSales) * 100).toFixed(1) : '0.0';
+  const hasServerIS = serverIS && typeof serverIS.netProfit === 'number';
+  const effectiveExpenses = hasServerIS ? toTargetExact(serverIS.totalExpenses) : Math.max(totalExpensesAmount, journalExpenses);
+  const profitBaseRev = hasServerIS ? toTargetExact(serverIS.totalRevenue) : (pnlRevenue > 0 ? pnlRevenue : totalSales);
+  const totalProfit = hasServerIS ? toTargetExact(serverIS.netProfit) : (profitBaseRev - effectiveExpenses);
+  const profitMarginPct = profitBaseRev > 0 ? ((totalProfit / profitBaseRev) * 100).toFixed(1) : '0.0';
 
   // 4. حركة السيولة والتدفق النقدي الفعلي للخزينة
   const cashFlow = useMemo(() => {
@@ -139,7 +164,7 @@ function useDashboardData({
   // 5. مراحل خط التصنيع والتشغيل
   const atelierStages = useMemo(() => {
     if (utils.calculateAtelierStages) return utils.calculateAtelierStages(filteredOrders, filteredFactory, timeHorizon);
-    return { cutting: 0, tailoring: 0, embroidery: 0, qualityCheck: 0, readyToDeliver: 0, delivered: 0, totalActive: 0, completionRate: 100, onTimeRate: 98.5 };
+    return { cutting: 0, tailoring: 0, embroidery: 0, qualityCheck: 0, readyToDeliver: 0, delivered: 0, totalActive: 0, completionRate: 0, onTimeRate: 0 };
   }, [filteredOrders, filteredFactory, timeHorizon, utils]);
 
   // 6. مؤشرات الجودة الشاملة (OQS)
@@ -175,7 +200,7 @@ function useDashboardData({
       .slice(0, 5);
   }, [orders]);
 
-  const avgOrderValue = filteredOrders.length > 0 ? (totalSales / filteredOrders.length) : 0;
+  const avgOrderValue = activeOrders.length > 0 ? (totalSales / activeOrders.length) : 0;
 
   return {
     targetCode, TODAY_STR_DISPLAY, filteredOrders, treasury,

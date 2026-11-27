@@ -1,6 +1,6 @@
 """
 Little Princesses ERP - Quality Assurance & Control Facade
-Re-exports all inspection, defect, feedback, complaint, return, CAPA, checkpoint, and dashboard functions.
+Re-exports all inspection, defect, feedback, complaint, return, CAPA, checkpoint, dashboard, and intelligence functions.
 """
 
 from .pg_quality_inspections import (
@@ -32,6 +32,9 @@ from .pg_quality_dashboard import (
     get_quality_dashboard_pg,
     get_quality_summary
 )
+from .pg_quality_intelligence import (
+    get_quality_intelligence
+)
 
 __all__ = [
     "get_quality_inspections",
@@ -52,5 +55,6 @@ __all__ = [
     "save_quality_settings",
     "ensure_quality_seed_data",
     "get_quality_dashboard_pg",
-    "get_quality_summary"
+    "get_quality_summary",
+    "get_quality_intelligence"
 ]

@@ -1,5 +1,6 @@
 # services/pg/pg_orders_write.py
-# Order creation, items attachment, inventory deduction, and atomic sequence numbering
+# Order creation, items attachment, POS atomic routing, and atomic sequence numbering
+# Architectural Standards: Strictly < 220 lines per file
 
 import json
 from .db_pool import get_db_cursor, clean_str, clean_num, generate_id, today_str
@@ -8,6 +9,12 @@ from .pg_order_stages import create_order_stages
 from .pg_sequences import get_next_sequence_number
 from .pg_audit import log_audit_event, get_active_user_context
 from .account_resolver import resolve_receiving_account
+from .pg_pos import is_pos_payload, process_pos_sale_atomic
+from .pg_tailoring_engine import (
+    resolve_tailoring_axes, build_standard_size_spec,
+    determine_initial_po_state, attach_cmt_custody_atomic, is_catalog_mto_product
+)
+from services.security import assert_period_open
 
 
 def add_order(payload):
@@ -21,6 +28,15 @@ def add_order(payload):
     c_name = clean_str(data.get('customer_name'))
 
     with get_db_cursor(commit=True) as cur:
+        order_date = clean_str(data.get('order_date') or data.get('date')) or today_str()
+        assert_period_open(cur, order_date)
+
+        # Immediate POS Sale Branch (Shields 1 & 4) — blocked for CATALOG_MTO / CUSTOM_BESPOKE
+        req_pid = clean_str(data.get('product_id') or data.get('model_id')) or None
+        req_mode = clean_str(data.get('item_mode')).upper()
+        if is_pos_payload(data) and req_mode not in ('CATALOG_MTO', 'CUSTOM_BESPOKE') and not is_catalog_mto_product(cur, req_pid):
+            return process_pos_sale_atomic(cur, data, resolved_user)
+
         if not cust_id or cust_id == 'CUST-GENERAL':
             if c_name:
                 cur.execute("SELECT id FROM customers WHERE name = %s LIMIT 1;", (c_name,))
@@ -30,7 +46,6 @@ def add_order(payload):
                 cur.execute("INSERT INTO customers (id, name, phone, category, status, notes) VALUES ('CUST-GENERAL', 'عميل عامة (POS)', '967000000000', 'عام', 'Active', 'عميل افتراضي للمبيعات المباشرة') ON CONFLICT (id) DO NOTHING;")
                 cust_id = 'CUST-GENERAL'
 
-        order_date = clean_str(data.get('order_date') or data.get('date')) or today_str()
         del_date = clean_str(data.get('delivery_date')) or None
         curr = clean_str(data.get('currency') or 'YER')
         rate = clean_num(data.get('exchange_rate') or 1.0)
@@ -38,10 +53,12 @@ def add_order(payload):
         paid_amt = clean_num(data.get('paid_amount') or data.get('paid') or 0.0)
         base_amt = clean_num(data.get('base_amount') or (tot_amt * rate))
         subtotal, discount, tax = clean_num(data.get('subtotal') or tot_amt), clean_num(data.get('discount') or 0.0), clean_num(data.get('tax') or 0.0)
+        delivery_fee = clean_num(data.get('delivery_fee') or data.get('delivery') or 0.0)
+        if any(v < 0 for v in (tot_amt, paid_amt, subtotal, discount, tax, delivery_fee)) or discount > max(subtotal, tot_amt):
+            raise ValueError("قيم الطلب المالية غير صالحة (لا يُسمح بقيم سالبة أو خصم يتجاوز الإجمالي)")
         pay_status = 'Paid' if paid_amt >= tot_amt and tot_amt > 0 else ('Partial' if paid_amt > 0 else 'Unpaid')
         prod_status = clean_str(data.get('production_status') or data.get('status') or 'Pending')
         pay_method = clean_str(data.get('payment_method') or 'نقد (كاش)')
-        delivery_fee = clean_num(data.get('delivery_fee') or data.get('delivery') or 0.0)
         del_mode = clean_str(data.get('delivery_payment_mode') or 'DIRECT_TO_COURIER')
         notes, color_val = clean_str(data.get('notes') or ''), clean_str(data.get('dress_color') or data.get('selected_color') or data.get('color') or '')
         raw_img = clean_str(data.get('model_image') or data.get('image_url') or '')
@@ -99,36 +116,30 @@ def add_order(payload):
         cur.execute(query, (order_id, order_no, cust_id, ch_id, prod_id, prod_id, color_val, color_val, color_val, model_img, img_url, order_date, del_date, curr, rate, subtotal, discount, tax, tot_amt, paid_amt, base_amt, pay_status, prod_status, pay_method, delivery_fee, del_mode, ord_fb_json, notes, resolved_user))
         res = dict(cur.fetchone())
 
+        axes = resolve_tailoring_axes(cur, data, prod_id=prod_id)
+        if not p_name and axes['custom_design_title']: p_name = axes['custom_design_title']
         items = data.get('items') or []
-        if not items and prod_id:
+        if not items and (prod_id or axes['item_mode'] == 'CUSTOM_BESPOKE' or axes['custom_design_title']):
             items = [{'product_id': prod_id, 'product_name': p_name, 'quantity': clean_num(data.get('qty') or 1.0), 'unit_price': tot_amt, 'total_price': tot_amt, 'selected_color': color_val, 'measurement_id': data.get('measurement_id'), 'fabrics_data': raw_ord_fb}]
 
+        first_itm_id = None
         for itm in items:
             itm_id = itm.get('id') or itm.get('order_item_id') or generate_id("OITM")
+            if not first_itm_id: first_itm_id = itm_id
             p_id = itm.get('product_id') or prod_id
-            if p_id:
+            i_ax = resolve_tailoring_axes(cur, data, itm=itm, prod_id=p_id)
+            i_name = clean_str(itm.get('product_name') or p_name or i_ax['custom_design_title'])
+            if p_id or i_ax['item_mode'] == 'CUSTOM_BESPOKE' or i_name:
                 qty, u_price = clean_num(itm.get('quantity') or 1.0), clean_num(itm.get('unit_price') or itm.get('price') or (tot_amt / max(1.0, clean_num(itm.get('quantity') or 1.0))))
                 t_price = clean_num(itm.get('total_price') or (qty * u_price))
                 cur.execute("""
-                    INSERT INTO order_items (id, order_id, product_id, measurement_id, model_id, product_name, selected_color, color, model_image, image_url, quantity, unit_price, total_price, total_amount, paid_amount, remaining_amount, fabrics_data, notes)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s)
+                    INSERT INTO order_items (id, order_id, product_id, measurement_id, model_id, product_name, selected_color, color, model_image, image_url, quantity, unit_price, total_price, total_amount, paid_amount, remaining_amount, fabrics_data, notes, item_mode, material_source, sizing_mode, size_matrix_id, size_adjustments_json, custom_design_title, standard_size_disclaimer)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s, %s, %s, %s::jsonb, %s, %s)
                     ON CONFLICT (id) DO UPDATE SET total_price = EXCLUDED.total_price, total_amount = EXCLUDED.total_amount, paid_amount = EXCLUDED.paid_amount, remaining_amount = EXCLUDED.remaining_amount;
-                """, (itm_id, order_id, p_id, itm.get('measurement_id') or data.get('measurement_id'), p_id, clean_str(itm.get('product_name') or p_name), color_val, color_val, model_img, img_url, qty, u_price, t_price, t_price, paid_amt, max(0.0, t_price - paid_amt), json.dumps(itm.get('fabrics_data') or raw_ord_fb, ensure_ascii=False), clean_str(itm.get('notes') or '')))
-                create_order_stages(cur, order_id, itm_id, p_id, clean_str(itm.get('product_name') or p_name), f"PO-{order_no}")
+                """, (itm_id, order_id, p_id, itm.get('measurement_id') or data.get('measurement_id'), p_id, i_name, color_val, color_val, model_img, img_url, qty, u_price, t_price, t_price, paid_amt, max(0.0, t_price - paid_amt), json.dumps(itm.get('fabrics_data') or raw_ord_fb, ensure_ascii=False), clean_str(itm.get('notes') or ''), i_ax['item_mode'], i_ax['material_source'], i_ax['sizing_mode'], i_ax['size_matrix_id'], i_ax['size_adjustments_json'], i_ax['custom_design_title'], i_ax['standard_size_disclaimer']))
+                create_order_stages(cur, order_id, itm_id, p_id, i_name, f"PO-{order_no}")
 
-        # Stock deduction
-        deduct_candidates = [(itm.get('product_id') or prod_id, clean_str(itm.get('product_name') or p_name), clean_num(itm.get('quantity') or 1.0)) for itm in items] if items else [(prod_id, p_name, 1.0)]
-        for p_id_ref, p_name_ref, q_deduct in deduct_candidates:
-            if not p_id_ref and not p_name_ref: continue
-            cur.execute("SELECT id, quantity, unit_cost FROM inventory WHERE id = %s OR item_code = %s OR name = %s LIMIT 1 FOR UPDATE;", (p_id_ref, p_id_ref, p_name_ref))
-            inv_row = cur.fetchone()
-            if inv_row:
-                new_qty = max(0.0, float(inv_row['quantity']) - q_deduct)
-                cur.execute("UPDATE inventory SET quantity = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s;", (new_qty, inv_row['id']))
-                inv_tx_no = get_next_sequence_number(cur, 'INV-TXN', fallback_prefix='INV-TXN-')
-                cur.execute("INSERT INTO inventory_transactions (id, inventory_id, transaction_type, quantity, unit_cost, reference_type, reference_id, notes, created_by) VALUES (%s, %s, 'SALE_OUT', %s, %s, 'orders', %s, %s, %s);",
-                            (inv_tx_no, inv_row['id'], -abs(q_deduct), inv_row['unit_cost'], order_id, f"خصم مبيعات للطلب {order_no}", resolved_user))
-
+        # Bespoke deposit advance sync (IAS 2: Customer Advance liability - No finished stock deduction)
         cash_acc = resolve_receiving_account(cur, pay_method, curr)
         if paid_amt > 0:
             sync_advance_receipt(cur, {'id': f"PAY-{order_id}", 'order_id': order_id, 'order_no': order_no, 'customer_id': cust_id, 'party_name': c_name or 'العميل', 'amount': paid_amt, 'currency': curr, 'exchange_rate': rate, 'base_amount': (paid_amt * rate), 'payment_method': pay_method, 'account_id': cash_acc, 'date': order_date, 'notes': f"دفعة عربون طلب {order_no} ({c_name or 'العميل'})", 'created_by': resolved_user})
@@ -167,17 +178,24 @@ def add_order(payload):
                 raw_sz = clean_str(data.get('size_code') or data.get('age_tier') or '6-9Y')
                 po_sz = None if raw_sz in ('EMPTY', '', 'null', 'None') else raw_sz
                 p_type = clean_str(data.get('production_type') or 'custom')
+                po_st, po_stg = determine_initial_po_state(axes['sizing_mode'], axes['material_source'])
+                meas_d = build_standard_size_spec(cur, axes['size_matrix_id'], axes['size_adjustments']) if axes['sizing_mode'] == 'STANDARD_SIZE' else (data.get('measurements_spec') if isinstance(data.get('measurements_spec'), dict) else None)
+                meas_j = json.dumps(meas_d, ensure_ascii=False) if meas_d else None
                 cur.execute("""
                     INSERT INTO production_orders (
                         id, production_order_no, order_id, customer_id, customer_name, product_id, model_id, product_name, child_name,
                         selected_color, color, dress_color, model_image, product_image, stage, start_date, due_date, progress, status, notes,
                         cutter_wage, tailor_wage, embroiderer_wage, finisher_wage, packager_wage,
-                        size_code, fabrics_data, total_amount, deposit_amount, remaining_amount, production_type
+                        size_code, fabrics_data, total_amount, deposit_amount, remaining_amount, production_type,
+                        item_mode, material_source, sizing_mode, size_matrix_id, size_adjustments_json, custom_design_title, standard_size_disclaimer, measurements_spec
                     ) VALUES (
-                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'القص والتحضير', %s, %s, 0.0, 'In Progress', %s,
-                        %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s, %s
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 0.0, %s, %s,
+                        %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s::jsonb
                     );
-                """, (po_no, po_no, order_id, cust_id, c_name or '', prod_id, prod_id, p_name or '', ch_name or '', color_val, color_val, color_val, model_img, img_url, order_date, del_date, notes, c_w, t_w, e_w, f_w, p_w, po_sz, ord_fb_json, tot_amt, paid_amt, max(0.0, tot_amt - paid_amt), p_type))
+                """, (po_no, po_no, order_id, cust_id, c_name or '', prod_id, prod_id, p_name or '', ch_name or '', color_val, color_val, color_val, model_img, img_url, po_stg, order_date, del_date, po_st, notes, c_w, t_w, e_w, f_w, p_w, po_sz, ord_fb_json, tot_amt, paid_amt, max(0.0, tot_amt - paid_amt), p_type, axes['item_mode'], axes['material_source'], axes['sizing_mode'], axes['size_matrix_id'], axes['size_adjustments_json'], axes['custom_design_title'], axes['standard_size_disclaimer'], meas_j))
+                if axes['material_source'] == 'CUSTOMER_CMT':
+                    custody_in = data.get('custody') or (items[0].get('custody') if items and isinstance(items[0], dict) else None)
+                    if custody_in: attach_cmt_custody_atomic(cur, order_id, first_itm_id, po_no, cust_id, custody_in, resolved_user)
                 log_audit_event(cur=cur, entity_type='production_orders', entity_id=po_no, action='INSERT',
                                 new_values={'production_order_no': po_no, 'order_id': order_id, 'size_code': po_sz, 'due_date': del_date},
                                 document_no=po_no, details=f"إنشاء أمر تشغيل {po_no} للطلب {order_no}")

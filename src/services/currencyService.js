@@ -70,9 +70,9 @@
         : { original_amount: Number(amount) || 0, base_amount: Number(amount) || 0, exchange_rate: 1.0 };
     },
 
-    fromBase: function(baseAmount, targetCurr, customRate) {
+    fromBase: function(baseAmount, targetCurr, customRate, keepPrecision) {
       return (window.CurrencyConverter && window.CurrencyConverter.fromBase)
-        ? window.CurrencyConverter.fromBase(baseAmount, targetCurr, customRate)
+        ? window.CurrencyConverter.fromBase(baseAmount, targetCurr, customRate, keepPrecision)
         : (Number(baseAmount) || 0);
     },
 

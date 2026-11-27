@@ -39,76 +39,76 @@ function ProductModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[48px] pb-2 px-3 bg-black/70 backdrop-blur-sm select-none" dir="rtl">
-      <div className="w-full max-w-4xl max-h-[calc(100vh-3.4rem)] h-[425px] flex flex-col justify-between bg-[#111C38] border border-slate-700 rounded-2xl shadow-2xl overflow-hidden shrink-0">
+    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[48px] pb-2 px-3 bg-black/70 backdrop-blur-sm select-none erp-modal-backdrop" dir="rtl">
+      <div className="w-full max-w-4xl max-h-[calc(100vh-3.4rem)] h-[425px] flex flex-col justify-between bg-white dark:bg-[#111C38] border border-[#CBD5E1] dark:border-slate-700 rounded-2xl shadow-2xl overflow-hidden shrink-0 erp-modal-enter">
         
         {/* Row 1 (Top Bar - h-9): شريط العنوان وزر الإغلاق والأدوات السياقية */}
-        <div className="h-9 px-4 border-b border-slate-800 flex items-center justify-between shrink-0 bg-[#0F172A]">
+        <div className="h-9 px-4 border-b border-[#CBD5E1] dark:border-slate-800 flex items-center justify-between shrink-0 bg-[#F8FAFC] dark:bg-[#0F172A]">
           <div className="flex items-center gap-2 min-w-0">
             <button
               type="button"
               onClick={onClose}
-              className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white cursor-pointer transition-colors shrink-0 text-xs font-bold"
+              className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-[#0F172A] dark:hover:text-white cursor-pointer transition-colors shrink-0 text-xs font-bold"
               title="إغلاق النافذة"
             >
               ✕
             </button>
-            <div className="text-xs font-bold text-white flex items-center gap-1.5 truncate">
-              <span className="text-purple-400 text-xs">🧮</span>
+            <div className="text-xs font-bold text-[#0F172A] dark:text-white flex items-center gap-1.5 truncate">
+              <span className="text-purple-600 dark:text-purple-400 text-xs">🧮</span>
               <span>{editId ? `تعديل الموديل: ${modelName || ''}` : "تسجيل موديل جديد وهندسة التكاليف (BOM)"}</span>
             </div>
             {actions.smartCode && (
-              <span className="text-[11px] font-mono font-bold text-pink-300 bg-slate-800/90 px-2 py-0.5 rounded border border-slate-700 shrink-0">
+              <span className="text-[11px] font-mono font-bold text-pink-700 dark:text-pink-300 bg-[#F1F5F9] dark:bg-slate-800/90 px-2 py-0.5 rounded border border-[#CBD5E1] dark:border-slate-700 shrink-0">
                 [{actions.smartCode}]
               </span>
             )}
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            <span className="text-[10.5px] font-mono font-bold text-pink-400 bg-pink-950/40 px-2 py-0.5 rounded border border-pink-800/40">
+            <span className="text-[10.5px] font-mono font-bold text-pink-700 dark:text-pink-400 bg-pink-50 dark:bg-pink-950/40 px-2 py-0.5 rounded border border-pink-200 dark:border-pink-800/40">
               {activeModelCurrencyLabel}
             </span>
           </div>
         </div>
 
         {/* Row 2 (Stepper Bar - h-9 py-1): شريط التبويب المستقل بمسافات وهوامش فاخرة تفصل الكلمات عن خط الترويسة */}
-        <div className="h-9 py-1 bg-slate-900/60 border-b border-slate-800 flex justify-center items-center shrink-0">
+        <div className="h-9 py-1 bg-[#F1F5F9] dark:bg-slate-900/60 border-b border-[#CBD5E1] dark:border-slate-800 flex justify-center items-center shrink-0">
           <div dir="rtl" className="flex items-center gap-1.5 sm:gap-2">
             <button
               type="button"
               onClick={() => setStep(1)}
               className={`text-xs px-3 py-1 rounded-md font-bold transition-all cursor-pointer ${
-                step === 1 ? 'bg-pink-600 text-white shadow' : 'text-slate-400 hover:text-white'
+                step === 1 ? 'bg-pink-600 text-white shadow' : 'text-[#334155] dark:text-slate-400 hover:text-[#0F172A] dark:hover:text-white'
               }`}
             >
               1. البيانات والمواصفات
             </button>
-            <span className="text-slate-600 text-xs">←</span>
+            <span className="text-slate-400 dark:text-slate-600 text-xs">←</span>
             <button
               type="button"
               onClick={() => setStep(2)}
               className={`text-xs px-3 py-1 rounded-md font-bold transition-all cursor-pointer ${
-                step === 2 ? 'bg-pink-600 text-white shadow' : 'text-slate-400 hover:text-white'
+                step === 2 ? 'bg-pink-600 text-white shadow' : 'text-[#334155] dark:text-slate-400 hover:text-[#0F172A] dark:hover:text-white'
               }`}
             >
               2. شجرة الخامات (BOM)
             </button>
-            <span className="text-slate-600 text-xs">←</span>
+            <span className="text-slate-400 dark:text-slate-600 text-xs">←</span>
             <button
               type="button"
               onClick={() => setStep(3)}
               className={`text-xs px-3 py-1 rounded-md font-bold transition-all cursor-pointer ${
-                step === 3 ? 'bg-pink-600 text-white shadow' : 'text-slate-400 hover:text-white'
+                step === 3 ? 'bg-pink-600 text-white shadow' : 'text-[#334155] dark:text-slate-400 hover:text-[#0F172A] dark:hover:text-white'
               }`}
             >
               3. مراحل التشغيل والتكلفة
             </button>
-            <span className="text-slate-600 text-xs">←</span>
+            <span className="text-slate-400 dark:text-slate-600 text-xs">←</span>
             <button
               type="button"
               onClick={() => setStep(4)}
               className={`text-xs px-3 py-1 rounded-md font-bold transition-all cursor-pointer ${
-                step === 4 ? 'bg-pink-600 text-white shadow' : 'text-slate-400 hover:text-white'
+                step === 4 ? 'bg-pink-600 text-white shadow' : 'text-[#334155] dark:text-slate-400 hover:text-[#0F172A] dark:hover:text-white'
               }`}
             >
               4. التسعير والأرباح
@@ -118,7 +118,7 @@ function ProductModal({
 
         {/* جسم النافذة والفوتر المرتفع الثابت */}
         <form onSubmit={handleSaveProduct} className="flex-1 flex flex-col justify-between overflow-hidden min-h-0">
-          <div className="flex-1 flex flex-col overflow-hidden min-h-0 p-1.5">
+          <div key={step} className="flex-1 flex flex-col overflow-hidden min-h-0 p-1.5 erp-step-fade">
             {step === 1 && BasicInfoComp && (
               <BasicInfoComp
                 actions={actions}

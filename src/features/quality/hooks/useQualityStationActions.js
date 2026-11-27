@@ -31,21 +31,29 @@ function useQualityStationActions({
     setShowReworkDrawer(false);
   }, [setSelectedInspection]);
 
+  const resolveActiveInspector = useCallback(() => {
+    try {
+      const u = window.currentUser || JSON.parse(localStorage.getItem('erp_active_user') || 'null');
+      return (u && (u.full_name || u.username)) ? String(u.full_name || u.username).trim() : '';
+    } catch (_e) { return ''; }
+  }, []);
+
   // اعتماد ومطابقة المواصفات
   const handleApproveInspection = useCallback(async (e) => {
     if (e && typeof e.preventDefault === 'function') e.preventDefault();
     if (isSubmitting || !selectedInspection) return;
 
     const cleanOrderNo = String(selectedInspection.order_no || '').replace(/^#/, '').trim();
+    const activeInspector = resolveActiveInspector();
     const payload = {
       order_no: cleanOrderNo,
       order_id: selectedInspection.order_no,
       quality_status: 'passed',
-      inspector_name: 'سارة مديرة الجودة',
+      inspector_name: activeInspector,
       tailor_name: selectedInspection.tailor_name || '',
       quality_score: 5.0,
       quality_notes: 'معتمد ومطابق لمواصفات الكوتور الملكية بالكامل',
-      approved_by: 'سارة مديرة الجودة',
+      approved_by: activeInspector,
       status: 'ready_for_delivery',
       stage: 'جاهز للتسليم 📦'
     };
@@ -141,7 +149,7 @@ function useQualityStationActions({
     } finally {
       setIsSubmitting(false);
     }
-  }, [isSubmitting, selectedInspection, notify, setQueue, setFactory, setOrders, refreshStats, handleCloseInspection]);
+  }, [isSubmitting, selectedInspection, notify, setQueue, setFactory, setOrders, refreshStats, handleCloseInspection, resolveActiveInspector]);
 
   // إصدار تذكرة تعديل وإرجاع للخياط
   const handleReworkInspection = useCallback(async (e) => {
@@ -149,9 +157,10 @@ function useQualityStationActions({
     if (isSubmitting || !selectedInspection) return;
 
     const cleanOrderNo = String(selectedInspection.order_no || '').replace(/^#/, '');
+    const activeInspector = resolveActiveInspector();
     const payload = {
       order_id: cleanOrderNo, order_no: cleanOrderNo, defect_type: defectReason,
-      severity: 'Medium', corrective_action: reworkAction, rework_hours: reworkHours, inspector_name: 'سارة مديرة الجودة'
+      severity: 'Medium', corrective_action: reworkAction, rework_hours: reworkHours, inspector_name: activeInspector
     };
 
     setIsSubmitting(true);
@@ -182,7 +191,7 @@ function useQualityStationActions({
     } finally {
       setIsSubmitting(false);
     }
-  }, [isSubmitting, selectedInspection, defectReason, reworkAction, reworkHours, notify, setQueue, setFactory, refreshStats, handleCloseInspection]);
+  }, [isSubmitting, selectedInspection, defectReason, reworkAction, reworkHours, notify, setQueue, setFactory, refreshStats, handleCloseInspection, resolveActiveInspector]);
 
   return {
     isSubmitting, showReworkDrawer, setShowReworkDrawer, defectReason, setDefectReason,

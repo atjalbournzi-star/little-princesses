@@ -4,12 +4,7 @@ const { useState, useEffect, useMemo, useCallback } = React;
 function useReportsData({ orders = [], expenses = [], vouchers = [], journal = [], accounts = [], purchases = [], customers = [], inventory = [], products = [], currency }) {
   const u = (typeof window !== 'undefined' && window.reportUtils) ? window.reportUtils : {};
   const cleanCode = u.cleanCode || ((v) => String(v || '').replace(/^ACC[-_]?/i, '').trim());
-  const cleanCurrencyName = u.cleanCurrencyName || ((v) => {
-    const s = String(v?.display || v?.label || v || '').trim();
-    if (s.includes('سعودي') || s.includes('SAR')) return 'ريال سعودي';
-    if (s.includes('دولار') || s.includes('USD') || s.includes('$')) return 'دولار أمريكي';
-    return 'ريال يمني';
-  });
+  const cleanCurrencyName = u.cleanCurrencyName || ((v) => { const s = String(v?.display || v?.label || v || '').trim(); return s.includes('سعودي') || s.includes('SAR') ? 'ريال سعودي' : (s.includes('دولار') || s.includes('USD') || s.includes('$') ? 'دولار أمريكي' : 'ريال يمني'); });
   const getAccountCategory = u.getAccountCategory || (() => 'Assets');
   const isInDateRange = (dStr) => (u.isInDateRange ? u.isInDateRange(dStr, dateRange) : true);
 
@@ -56,14 +51,9 @@ function useReportsData({ orders = [], expenses = [], vouchers = [], journal = [
     let active = true;
     if (activeTab === 'financial') {
       const qStart = dateRange.start ? `?start_date=${encodeURIComponent(dateRange.start)}` : '';
-      const qEnd = dateRange.end ? `${qStart ? '&' : '?'}end_date=${encodeURIComponent(dateRange.end)}` : '';
-      const qs = `${qStart}${qEnd}`;
-      if (financialSubTab === 'pnl' || financialSubTab === 'balance_sheet') {
-        fetch(`/api/reports/income-statement${qs}`).then(r => r.json()).then(res => { if (active && res?.success && res.data) setServerIS(res.data); }).catch(e => console.warn(e));
-      }
-      if (financialSubTab === 'balance_sheet') {
-        fetch(`/api/reports/balance-sheet${qs}`).then(r => r.json()).then(res => { if (active && res?.success && res.data) setServerBS(res.data); }).catch(e => console.warn(e));
-      }
+      const qs = `${qStart}${dateRange.end ? `${qStart ? '&' : '?'}end_date=${encodeURIComponent(dateRange.end)}` : ''}`;
+      if (financialSubTab === 'pnl' || financialSubTab === 'balance_sheet') fetch(`/api/reports/income-statement${qs}`).then(r => r.json()).then(res => { if (active && res?.success && res.data) setServerIS(res.data); }).catch(e => console.warn(e));
+      if (financialSubTab === 'balance_sheet') fetch(`/api/reports/balance-sheet${qs}`).then(r => r.json()).then(res => { if (active && res?.success && res.data) setServerBS(res.data); }).catch(e => console.warn(e));
       if (financialSubTab === 'trial_balance' || financialSubTab === 'balance_sheet') {
         setIsTBLoading(true);
         fetch(`/api/reports/trial-balance${qs}`).then(r => r.json()).then(res => { if (active && res?.success && res.data) setServerTB(res.data); }).catch(e => console.warn(e)).finally(() => { if (active) setIsTBLoading(false); });
@@ -78,17 +68,21 @@ function useReportsData({ orders = [], expenses = [], vouchers = [], journal = [
       setIsGLLoading(true);
       const qAcc = encodeURIComponent(selectedLedgerAcc), qStart = dateRange.start ? `&start_date=${encodeURIComponent(dateRange.start)}` : '', qEnd = dateRange.end ? `&end_date=${encodeURIComponent(dateRange.end)}` : '';
       fetch(`/api/reports/general-ledger?account=${qAcc}${qStart}${qEnd}`).then(r => r.json()).then(res => { if (active && res?.success && res.data) setServerGL(Array.isArray(res.data.rows) ? res.data.rows : []); }).catch(e => console.warn(e)).finally(() => setIsGLLoading(false));
-    } else { setIsGLLoading(false); }
+    } else setIsGLLoading(false);
     return () => { active = false; setIsGLLoading(false); };
   }, [activeTab, financialSubTab, selectedLedgerAcc, dateRange]);
 
+  const toTgtExact = useCallback((amt) => (window.CurrencyService ? window.CurrencyService.fromBase(amt, targetCode, null, true) : (parseFloat(amt) || 0)), [targetCode]);
+
   const pnlData = useMemo(() => {
-    const toTgt = (amt) => (window.CurrencyService ? window.CurrencyService.fromBase(amt, targetCode) : (parseFloat(amt) || 0));
     if (serverIS && Array.isArray(serverIS.revAccounts)) {
-      const revAccounts = serverIS.revAccounts.map(r => ({ ...r, amount: toTgt(r.amount) }));
-      const cogsAccounts = (serverIS.cogsAccounts || []).map(c => ({ ...c, amount: toTgt(c.amount) })), opexAccounts = (serverIS.opexAccounts || []).map(o => ({ ...o, amount: toTgt(o.amount) }));
-      const totalRevenue = toTgt(serverIS.totalRevenue), totalCOGS = toTgt(serverIS.totalCOGS), grossProfit = totalRevenue - totalCOGS;
-      const totalOPEX = toTgt(serverIS.totalOPEX), totalExpenses = totalCOGS + totalOPEX, netProfit = grossProfit - totalOPEX;
+      const revAccounts = serverIS.revAccounts.map(r => ({ ...r, amount: toTgtExact(r.amount) }));
+      const cogsAccounts = (serverIS.cogsAccounts || []).map(c => ({ ...c, amount: toTgtExact(c.amount) })), opexAccounts = (serverIS.opexAccounts || []).map(o => ({ ...o, amount: toTgtExact(o.amount) }));
+      const totalRevenue = toTgtExact(serverIS.totalRevenue), totalCOGS = toTgtExact(serverIS.totalCOGS);
+      const grossProfit = serverIS.grossProfit !== undefined ? toTgtExact(serverIS.grossProfit) : (totalRevenue - totalCOGS);
+      const totalOPEX = toTgtExact(serverIS.totalOPEX);
+      const totalExpenses = serverIS.totalExpenses !== undefined ? toTgtExact(serverIS.totalExpenses) : (totalCOGS + totalOPEX);
+      const netProfit = serverIS.netProfit !== undefined ? toTgtExact(serverIS.netProfit) : (grossProfit - totalOPEX);
       return { revAccounts, totalRevenue, cogsAccounts, totalCOGS, grossProfit, grossMarginPct: totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0, opexAccounts, totalOPEX, totalExpenses, netProfit, netMarginPct: totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0 };
     }
     const accs = liveAccountsMap.list || [], hasJ = filteredJournal.length > 0;
@@ -105,17 +99,22 @@ function useReportsData({ orders = [], expenses = [], vouchers = [], journal = [
     if (!hasJ && totalOPEX === 0 && dirExp > 0 && opexAccounts.length > 0) { opexAccounts[0].amount = dirExp; totalOPEX = dirExp; }
     const totalExpenses = totalCOGS + totalOPEX, netProfit = totalRevenue - totalExpenses, netMarginPct = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
     return { revAccounts, totalRevenue, cogsAccounts, totalCOGS, grossProfit, grossMarginPct, opexAccounts, totalOPEX, totalExpenses, netProfit, netMarginPct };
-  }, [serverIS, liveAccountsMap, filteredJournal, orders, expenses, dateRange, toReportAmount, getAccountCategory, targetCode]);
+  }, [serverIS, liveAccountsMap, filteredJournal, orders, expenses, dateRange, toReportAmount, getAccountCategory, toTgtExact]);
 
   const balanceSheetData = useMemo(() => {
-    const toTgt = (amt) => (window.CurrencyService ? window.CurrencyService.fromBase(amt, targetCode) : (parseFloat(amt) || 0));
     if (serverBS && Array.isArray(serverBS.currentAssets)) {
-      const currentAssets = serverBS.currentAssets.map(a => ({ ...a, amount: toTgt(a.amount) })), fixedAssets = (serverBS.fixedAssets || []).map(f => ({ ...f, amount: toTgt(f.amount) }));
-      const totalCurrentAssets = currentAssets.reduce((s, a) => s + a.amount, 0), totalFixedAssets = fixedAssets.reduce((s, a) => s + a.amount, 0), totalAssets = totalCurrentAssets + totalFixedAssets;
-      const currentLiabilities = (serverBS.currentLiabilities || []).map(l => ({ ...l, amount: toTgt(l.amount) })), totalLiabilities = currentLiabilities.reduce((s, l) => s + l.amount, 0);
-      const equityAccounts = (serverBS.equityAccounts || []).map(e => ({ ...e, amount: toTgt(e.amount) })), totalEquityAccounts = equityAccounts.reduce((s, e) => s + e.amount, 0);
-      const periodProfit = pnlData.netProfit, totalEquity = totalEquityAccounts + periodProfit, totalLiabilitiesAndEquity = totalLiabilities + totalEquity;
-      const diff = Math.abs(totalAssets - totalLiabilitiesAndEquity);
+      const currentAssets = serverBS.currentAssets.map(a => ({ ...a, amount: toTgtExact(a.amount) })), fixedAssets = (serverBS.fixedAssets || []).map(f => ({ ...f, amount: toTgtExact(f.amount) }));
+      const totalCurrentAssets = serverBS.totalCurrentAssets !== undefined ? toTgtExact(serverBS.totalCurrentAssets) : currentAssets.reduce((s, a) => s + a.amount, 0);
+      const totalFixedAssets = serverBS.totalFixedAssets !== undefined ? toTgtExact(serverBS.totalFixedAssets) : fixedAssets.reduce((s, a) => s + a.amount, 0);
+      const totalAssets = serverBS.totalAssets !== undefined ? toTgtExact(serverBS.totalAssets) : (totalCurrentAssets + totalFixedAssets);
+      const currentLiabilities = (serverBS.currentLiabilities || []).map(l => ({ ...l, amount: toTgtExact(l.amount) }));
+      const totalLiabilities = serverBS.totalLiabilities !== undefined ? toTgtExact(serverBS.totalLiabilities) : currentLiabilities.reduce((s, l) => s + l.amount, 0);
+      const equityAccounts = (serverBS.equityAccounts || []).map(e => ({ ...e, amount: toTgtExact(e.amount) }));
+      const totalEquityAccounts = serverBS.totalEquityAccounts !== undefined ? toTgtExact(serverBS.totalEquityAccounts) : equityAccounts.reduce((s, e) => s + e.amount, 0);
+      const periodProfit = serverBS.periodProfit !== undefined ? toTgtExact(serverBS.periodProfit) : pnlData.netProfit;
+      const totalEquity = serverBS.totalEquity !== undefined ? toTgtExact(serverBS.totalEquity) : (totalEquityAccounts + periodProfit);
+      const totalLiabilitiesAndEquity = serverBS.totalLiabilitiesAndEquity !== undefined ? toTgtExact(serverBS.totalLiabilitiesAndEquity) : (totalLiabilities + totalEquity);
+      const diff = Math.round(Math.abs(totalAssets - totalLiabilitiesAndEquity) * 100) / 100;
       return { currentAssets, totalCurrentAssets, fixedAssets, totalFixedAssets, totalAssets, currentLiabilities, totalLiabilities, equityAccounts, totalEquityAccounts, periodProfit, totalEquity, totalLiabilitiesAndEquity, isBalanced: diff < 0.05, diff };
     }
     const accs = liveAccountsMap.list || [];
@@ -127,44 +126,48 @@ function useReportsData({ orders = [], expenses = [], vouchers = [], journal = [
     const totalLiabilities = currentLiabilities.reduce((s, l) => s + l.amount, 0);
     const equityAccounts = accs.filter(a => !a.is_group && getAccountCategory(a) === 'Equity').map(e => ({ id: e.id, code: e.code || e.id, name: e.name, amount: Math.max(0, e.balance_target || 0) }));
     const periodProfit = pnlData.netProfit, totalEquityAccounts = equityAccounts.reduce((s, e) => s + e.amount, 0), totalEquity = totalEquityAccounts + periodProfit, totalLiabilitiesAndEquity = totalLiabilities + totalEquity;
-    const diff = Math.abs(totalAssets - totalLiabilitiesAndEquity);
+    const diff = Math.round(Math.abs(totalAssets - totalLiabilitiesAndEquity) * 100) / 100;
     return { currentAssets, totalCurrentAssets, fixedAssets, totalFixedAssets, totalAssets, currentLiabilities, totalLiabilities, equityAccounts, totalEquityAccounts, periodProfit, totalEquity, totalLiabilitiesAndEquity, isBalanced: diff < 0.05, diff };
-  }, [serverBS, liveAccountsMap, pnlData.netProfit, getAccountCategory, targetCode]);
+  }, [serverBS, liveAccountsMap, pnlData.netProfit, getAccountCategory, toTgtExact]);
 
   const trialBalanceData = useMemo(() => {
     const rawTB = serverTB || (window.AccountingEngine?.generateTrialBalance ? window.AccountingEngine.generateTrialBalance(journal, accounts, dateRange) : { rows: [] });
     const rows = (rawTB.rows || []).map(r => ({
       ...r,
-      opening_target: window.CurrencyService ? window.CurrencyService.fromBase(r.opening_balance_base || 0, targetCode) : (r.opening_balance_base || 0),
-      total_debit_target: window.CurrencyService ? window.CurrencyService.fromBase(r.total_debit_base || 0, targetCode) : (r.total_debit_base || 0),
-      total_credit_target: window.CurrencyService ? window.CurrencyService.fromBase(r.total_credit_base || 0, targetCode) : (r.total_credit_base || 0),
-      debit_balance_target: window.CurrencyService ? window.CurrencyService.fromBase(r.debit_balance_base || 0, targetCode) : (r.debit_balance_base || 0),
-      credit_balance_target: window.CurrencyService ? window.CurrencyService.fromBase(r.credit_balance_base || 0, targetCode) : (r.credit_balance_base || 0)
+      opening_target: toTgtExact(r.opening_balance_base || 0),
+      total_debit_target: toTgtExact(r.total_debit_base || 0),
+      total_credit_target: toTgtExact(r.total_credit_base || 0),
+      debit_balance_target: toTgtExact(r.debit_balance_base || 0),
+      credit_balance_target: toTgtExact(r.credit_balance_base || 0)
     }));
-    const grandOpening = rows.reduce((s, r) => s + r.opening_target, 0), grandDebit = rows.reduce((s, r) => s + r.total_debit_target, 0), grandCredit = rows.reduce((s, r) => s + r.total_credit_target, 0);
-    const grandDebitBal = rows.reduce((s, r) => s + r.debit_balance_target, 0), grandCreditBal = rows.reduce((s, r) => s + r.credit_balance_target, 0);
+    const hasSrvTotals = rawTB.grand_total_debit !== undefined && rawTB.grand_total_credit !== undefined;
+    const grandOpening = hasSrvTotals ? toTgtExact(rawTB.grand_total_opening || 0) : rows.reduce((s, r) => s + r.opening_target, 0);
+    const grandDebit = hasSrvTotals ? toTgtExact(rawTB.grand_total_debit || 0) : rows.reduce((s, r) => s + r.total_debit_target, 0);
+    const grandCredit = hasSrvTotals ? toTgtExact(rawTB.grand_total_credit || 0) : rows.reduce((s, r) => s + r.total_credit_target, 0);
+    const grandDebitBal = hasSrvTotals ? toTgtExact(rawTB.grand_total_debit_balance || 0) : rows.reduce((s, r) => s + r.debit_balance_target, 0);
+    const grandCreditBal = hasSrvTotals ? toTgtExact(rawTB.grand_total_credit_balance || 0) : rows.reduce((s, r) => s + r.credit_balance_target, 0);
     return { rows, grandOpening, grandDebit, grandCredit, grandDebitBal, grandCreditBal, isBalanced: Math.abs(grandDebit - grandCredit) < 0.05 && Math.abs(grandDebitBal - grandCreditBal) < 0.05 };
-  }, [serverTB, journal, accounts, dateRange, targetCode]);
+  }, [serverTB, journal, accounts, dateRange, toTgtExact]);
 
   const generalLedgerRows = useMemo(() => {
     if (serverGL !== null) {
       return serverGL.map(r => ({
         ...r,
-        debit_target: window.CurrencyService ? window.CurrencyService.fromBase(r.debit_base || 0, targetCode) : (r.debit_base || 0),
-        credit_target: window.CurrencyService ? window.CurrencyService.fromBase(r.credit_base || 0, targetCode) : (r.credit_base || 0),
-        running_target: window.CurrencyService ? window.CurrencyService.fromBase(r.running_balance_base !== undefined ? r.running_balance_base : (r.running_target || 0), targetCode) : (r.running_balance_base || 0)
+        debit_target: toTgtExact(r.debit_base || 0),
+        credit_target: toTgtExact(r.credit_base || 0),
+        running_target: toTgtExact(r.running_balance_base !== undefined ? r.running_balance_base : (r.running_target || 0))
       }));
     }
     if (typeof window !== 'undefined' && window.AccountingEngine?.generateGeneralLedger) {
       return window.AccountingEngine.generateGeneralLedger(journal, accounts, selectedLedgerAcc, dateRange).map(r => ({
         ...r,
-        debit_target: window.CurrencyService ? window.CurrencyService.fromBase(r.debit_base, targetCode) : r.debit_base,
-        credit_target: window.CurrencyService ? window.CurrencyService.fromBase(r.credit_base, targetCode) : r.credit_base,
-        running_target: window.CurrencyService ? window.CurrencyService.fromBase(r.running_balance_base, targetCode) : r.running_balance_base
+        debit_target: toTgtExact(r.debit_base),
+        credit_target: toTgtExact(r.credit_base),
+        running_target: toTgtExact(r.running_balance_base)
       }));
     }
     return [];
-  }, [serverGL, journal, accounts, selectedLedgerAcc, dateRange, targetCode]);
+  }, [serverGL, journal, accounts, selectedLedgerAcc, dateRange, toTgtExact]);
 
   const cashBankReconciliation = useMemo(() => {
     if (u.buildCashBankReconciliation && u.filterCashBankAccounts) {
@@ -205,11 +208,7 @@ function useReportsData({ orders = [], expenses = [], vouchers = [], journal = [
     activeTab, setActiveTab, financialSubTab, setFinancialSubTab, periodPreset, setPeriodPreset, dateRange, setDateRange,
     reportCurrency, setReportCurrency, selectedLedgerAcc, setSelectedLedgerAcc, statementType, setStatementType, selectedPartyId, setSelectedPartyId,
     targetCode, toReportAmount, fmtMoney, filteredJournal, liveAccountsMap, pnlData, balanceSheetData, trialBalanceData,
-    generalLedgerRows, cashBankReconciliation, statementData, dailySalesData, modelProfitabilityData, productionStats, inventoryStats,
-    isTBLoading, isGLLoading
+    generalLedgerRows, cashBankReconciliation, statementData, dailySalesData, modelProfitabilityData, productionStats, inventoryStats, isTBLoading, isGLLoading
   };
 }
-
-if (typeof window !== 'undefined') {
-  window.useReportsData = useReportsData;
-}
+if (typeof window !== 'undefined') window.useReportsData = useReportsData;

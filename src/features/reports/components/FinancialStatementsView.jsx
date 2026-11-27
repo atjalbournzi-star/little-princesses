@@ -31,7 +31,7 @@ function FinancialStatementsView({
             <span>جاري جلب كشف دفتر الأستاذ العام من السيرفر...</span>
           </div>
         )}
-        <div className="rounded-lg border border-slate-200 dark:border-slate-800 overflow-hidden">
+        <div className="rounded-lg border border-slate-200 dark:border-slate-800 overflow-x-auto custom-scrollbar">
           {!isGLLoading && generalLedgerRows.length === 0 ? (
             <div className="text-center py-5 text-slate-500 dark:text-slate-400 text-[11px] font-medium bg-slate-50 dark:bg-[#0F172A]">لا توجد حركات مسجلة لهذا الحساب خلال الفترة المحددة 🧾</div>
           ) : (
@@ -90,7 +90,7 @@ function FinancialStatementsView({
       </div>
 
       {statementType === 'treasury' && (
-        <div className="rounded-lg border border-slate-200 dark:border-slate-800 overflow-hidden">
+        <div className="rounded-lg border border-slate-200 dark:border-slate-800 overflow-x-auto custom-scrollbar">
           <table className="w-full text-[11px] text-right border-collapse">
             <thead>
               <tr className="h-7.5 bg-slate-50 dark:bg-[#0F172A] text-slate-700 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-800">
@@ -147,7 +147,7 @@ function FinancialStatementsView({
       )}
 
       {statementType === 'supplier' && (
-        <div className="rounded-lg border border-slate-200 dark:border-slate-800 overflow-hidden">
+        <div className="rounded-lg border border-slate-200 dark:border-slate-800 overflow-x-auto custom-scrollbar">
           <table className="w-full text-[11px] text-right border-collapse">
             <thead>
               <tr className="h-7.5 bg-slate-50 dark:bg-[#0F172A] text-slate-700 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-800">
@@ -177,7 +177,7 @@ function FinancialStatementsView({
       )}
 
       {statementType === 'customer' && (
-        <div className="rounded-lg border border-slate-200 dark:border-slate-800 overflow-hidden">
+        <div className="rounded-lg border border-slate-200 dark:border-slate-800 overflow-x-auto custom-scrollbar">
           <table className="w-full text-[11px] text-right border-collapse">
             <thead>
               <tr className="h-7.5 bg-slate-50 dark:bg-[#0F172A] text-slate-700 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-800">

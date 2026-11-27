@@ -3,6 +3,7 @@ import logging
 from .db_pool import get_db_cursor, clean_num, clean_str, generate_id, today_str
 from .pg_factory_fabric import deduct_fabric, deduct_fabrics_batch, ensure_valid_product
 from .pg_factory_stage_sync import sync_production_order_commissions
+from .pg_tailoring_engine import guard_production_order_ready_for_work
 
 logger = logging.getLogger("LittlePrincesses_PG_FactoryUpdate")
 
@@ -56,6 +57,8 @@ def update_factory(payload):
             if ord_ctx: order_no_in = ord_ctx['order_no']
         if prod_type not in ('ready_to_wear', 'stock') and not ord_ctx:
             raise ValueError(f"في وضع التفصيل الخاص، يجب ربط أمر التشغيل برقم طلب رسمي معتمد وموجود في جدول الطلبات ({target_ord or 'فارغ'}).")
+        cur.execute("SELECT id, status, sizing_mode FROM production_orders WHERE id = %s OR production_order_no = %s OR order_id = %s LIMIT 1 FOR UPDATE;", (po_id, po_id, (ord_ctx['ord_id'] if ord_ctx else order_no_in)))
+        guard_production_order_ready_for_work(cur.fetchone())
         if ord_ctx:
             c_name, ch_name, c_id = ord_ctx.get('real_cname') or c_name, ord_ctx.get('real_chname') or ch_name, ord_ctx.get('customer_id') or c_id
             due_date = str(ord_ctx['ord_due']) if ord_ctx.get('ord_due') and not due_date else due_date

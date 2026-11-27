@@ -84,7 +84,7 @@ const getSmartSuggestedAccountCode = (parentVal, accountsList = []) => {
   return candidateCode;
 };
 
-// ARABIC_STANDARD_NAMES: أسماء الحسابات القياسية المعتمدة لمؤسسة الأميرات الصغيرات
+// ARABIC_STANDARD_NAMES: أسماء الحسابات القياسية المعتمدة للمنشأة
 const ARABIC_STANDARD_NAMES = {
   '1': 'الأصول', '1111': 'الصندوق الرئيسي', '1112': 'البنك / الشبكة وPOS',
   '1121': 'عهد الورشة والمشغل', '1131': 'ذمم العملاء', '1141': 'سلف الخياطين والعاملين',

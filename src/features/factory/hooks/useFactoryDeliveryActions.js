@@ -77,7 +77,8 @@ function useFactoryDeliveryActions(props) {
     try {
       const res = await (service.deliverAndSettle ? service.deliverAndSettle({
         order_id: orderId, amount_collected: amt, discount: disc, account_id: formObj.account_id || 'ACC-101',
-        payment_method: formObj.payment_method || 'نقد (كاش)', notes: formObj.notes || '', payment_type: 'Final_Receipt'
+        payment_method: formObj.payment_method || 'نقد (كاش)', notes: formObj.notes || '', payment_type: 'Final_Receipt',
+        leftover_returned_qty: formObj.leftover_returned_qty !== undefined && formObj.leftover_returned_qty !== '' ? parseFloat(formObj.leftover_returned_qty) : undefined
       }) : { success: true });
       if (res && (res.success || res.status === 'success' || res.status === 200)) {
         showToast(res.message || 'تم تسليم الفستان للأميرة وتقييد التحصيل المالي بنجاح 👑🎉', 'success');

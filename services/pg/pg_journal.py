@@ -2,6 +2,7 @@
 # Journal entries management, multi-line double entry posting, and atomic sequence numbering
 
 import logging
+from decimal import Decimal, ROUND_HALF_UP
 from .db_pool import (
     get_db_cursor, execute_query, clean_num,
     clean_str, generate_id, today_str
@@ -10,38 +11,43 @@ from .account_resolver import resolve_exchange_rate, resolve_account_id, resolve
 from .pg_sequences import get_next_sequence_number
 from .pg_audit import log_audit_event, get_active_user_context, resolve_active_user_id
 from .pg_delivery_cogs import refresh_chart_balances_atomic
+from .journal_lines_helper import insert_sorted_journal_lines
+from services.security import assert_period_open
 
 logger = logging.getLogger("LittlePrincesses_PG_Journal")
 
 
 def get_journal_entries(params=None):
-    query = """
+    params = params or {}
+    try: limit = min(max(int(params.get('limit') or 500), 1), 2000)
+    except Exception: limit = 500
+    try: offset = max(int(params.get('offset') or 0), 0)
+    except Exception: offset = 0
+    where_parts, sql_params = [], []
+    if params.get('start_date'): where_parts.append("j.entry_date::date >= %s::date"); sql_params.append(clean_str(params.get('start_date')))
+    if params.get('end_date'): where_parts.append("j.entry_date::date <= %s::date"); sql_params.append(clean_str(params.get('end_date')))
+    where_sql = f"WHERE {' AND '.join(where_parts)}" if where_parts else ""
+    sql_params.extend([limit, offset])
+    query = f"""
         SELECT j.id, j.entry_no, j.entry_date, j.description, j.debit_account_id,
                j.credit_account_id, j.amount, j.total_amount, j.base_amount, j.ref_type,
                j.ref_id, j.currency, j.exchange_rate, j.status, j.notes, j.created_by, j.created_at,
-               COALESCE(
-                   json_agg(
-                       json_build_object(
-                           'id', l.id,
-                           'entry_id', l.entry_id,
-                           'account_id', l.account_id,
-                           'line_description', l.line_description,
-                           'debit', COALESCE(l.debit, 0.0),
-                           'credit', COALESCE(l.credit, 0.0),
-                           'debit_base', COALESCE(l.debit_base, 0.0),
-                           'credit_base', COALESCE(l.credit_base, 0.0)
-                       ) ORDER BY l.id ASC
-                   ) FILTER (WHERE l.id IS NOT NULL),
-                   '[]'::json
-               ) AS lines
+               COALESCE(json_agg(json_build_object(
+                   'id', l.id, 'entry_id', l.entry_id, 'account_id', l.account_id,
+                   'line_description', l.line_description, 'debit', COALESCE(l.debit, 0.0),
+                   'credit', COALESCE(l.credit, 0.0), 'debit_base', COALESCE(l.debit_base, 0.0),
+                   'credit_base', COALESCE(l.credit_base, 0.0)
+               ) ORDER BY l.id ASC) FILTER (WHERE l.id IS NOT NULL), '[]'::json) AS lines
         FROM journal_entries j
         LEFT JOIN journal_entry_lines l ON l.entry_id = j.id
+        {where_sql}
         GROUP BY j.id, j.entry_no, j.entry_date, j.description, j.debit_account_id,
                  j.credit_account_id, j.amount, j.total_amount, j.base_amount, j.ref_type,
                  j.ref_id, j.currency, j.exchange_rate, j.status, j.notes, j.created_by, j.created_at
-        ORDER BY j.created_at DESC;
+        ORDER BY j.created_at DESC
+        LIMIT %s OFFSET %s;
     """
-    rows = execute_query(query, fetch_all=True) or []
+    rows = execute_query(query, params=tuple(sql_params), fetch_all=True) or []
     for r in rows:
         if r.get('created_at'): r['created_at'] = str(r['created_at'])
         if r.get('entry_date'): r['entry_date'] = str(r['entry_date'])
@@ -97,38 +103,65 @@ def add_journal_entry(payload):
     notes = clean_str(data.get('notes') or data.get('general_notes') or '')
 
     with get_db_cursor(commit=True) as cur:
+        assert_period_open(cur, j_date)
         resolved_user = resolve_active_user_id(cur, raw_uid)
         rate = resolve_exchange_rate(cur, curr, rate)
-        if curr != 'YER' and (base_amt <= 0 or base_amt == amt):
-            base_amt = amt * rate
+        rate_dec = Decimal(str(rate))
+
+        lines_data = data.get('lines')
+        parsed_lines = []
+        if isinstance(lines_data, list) and len(lines_data) > 0:
+            tot_deb, tot_crd = Decimal('0'), Decimal('0')
+            for l in lines_data:
+                d_val = Decimal(str(clean_num(l.get('debit'))))
+                c_val = Decimal(str(clean_num(l.get('credit'))))
+                if d_val < 0 or c_val < 0 or (d_val > 0 and c_val > 0):
+                    raise ValueError("خطأ محاسبي: لا يمكن أن يكون السطر سالباً أو مديناً ودائناً في آنٍ واحد")
+                if d_val == 0 and c_val == 0:
+                    continue
+                raw_acc = l.get('account_id') or l.get('account_code') or l.get('code')
+                if not raw_acc:
+                    raise ValueError("يرجى تحديد حساب لكل سطر مالي")
+                l_acc = resolve_leaf_account(cur, resolve_account_id(cur, raw_acc, None, curr), curr)
+                d_base = Decimal(str(clean_num(l.get('debit_base')))) if clean_num(l.get('debit_base')) > 0 else (d_val * rate_dec).quantize(Decimal('0.0001'), rounding=ROUND_HALF_UP)
+                c_base = Decimal(str(clean_num(l.get('credit_base')))) if clean_num(l.get('credit_base')) > 0 else (c_val * rate_dec).quantize(Decimal('0.0001'), rounding=ROUND_HALF_UP)
+                tot_deb += d_val
+                tot_crd += c_val
+                parsed_lines.append((l_acc, float(d_val), float(c_val), float(d_base), float(c_base), clean_str(l.get('line_description') or l.get('description') or desc)))
+            if len(parsed_lines) < 2 or tot_deb <= 0 or abs(tot_deb - tot_crd) >= Decimal('0.01'):
+                raise ValueError("القيد غير متوازن! يجب أن يحتوي القيد على سطرين على الأقل وأن يتساوى مجموع المدين والدائن (> 0)")
+            if amt <= 0:
+                amt = float(tot_deb)
+            base_amt = sum(p[3] for p in parsed_lines)
+        else:
+            if amt <= 0:
+                raise ValueError("مبلغ القيد المحاسبي يجب أن يكون أكبر من الصفر")
+            if curr != 'YER' and (base_amt <= 0 or base_amt == amt):
+                base_amt = float((Decimal(str(amt)) * rate_dec).quantize(Decimal('0.0001'), rounding=ROUND_HALF_UP))
 
         existing_j = None
         if j_id or j_no:
             cur.execute("SELECT id, entry_no FROM journal_entries WHERE id = %s OR entry_no = %s LIMIT 1 FOR UPDATE;", (j_id or '', j_no or ''))
             existing_j = cur.fetchone()
-
         if existing_j:
-            j_id = existing_j['id']
-            j_no = existing_j.get('entry_no') or j_no
+            j_id, j_no = existing_j['id'], existing_j.get('entry_no') or j_no
         else:
             j_no = get_next_sequence_number(cur, 'JV', fallback_prefix='JV-')
             j_id = j_no
-
-        deb_acc = resolve_leaf_account(cur, resolve_account_id(cur, data.get('debit_account_id') or data.get('debit') or data.get('debit_code') or 'ACC-101-1', 'ACC-101-1', curr), curr)
-        crd_acc = resolve_leaf_account(cur, resolve_account_id(cur, data.get('credit_account_id') or data.get('credit') or data.get('credit_code') or 'ACC-401', 'ACC-401', curr), curr)
-
+        first_deb = next((p[0] for p in parsed_lines if p[1] > 0), None)
+        first_crd = next((p[0] for p in parsed_lines if p[2] > 0), None)
+        deb_acc = resolve_leaf_account(cur, resolve_account_id(cur, data.get('debit_account_id') or data.get('debit') or data.get('debit_code') or first_deb, first_deb, curr), curr)
+        crd_acc = resolve_leaf_account(cur, resolve_account_id(cur, data.get('credit_account_id') or data.get('credit') or data.get('credit_code') or first_crd, first_crd, curr), curr)
+        if not deb_acc or not crd_acc:
+            raise ValueError("يرجى تحديد حسابات صحيحة للطرف المدين والطرف الدائن")
         query = """
             INSERT INTO journal_entries (
-                id, entry_no, entry_date, description, debit_account_id,
-                credit_account_id, amount, total_amount, base_amount, ref_type,
-                ref_id, currency, exchange_rate, status, notes, created_by
-            ) VALUES (
-                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'Posted', %s, %s
-            )
+                id, entry_no, entry_date, description, debit_account_id, credit_account_id,
+                amount, total_amount, base_amount, ref_type, ref_id, currency, exchange_rate, status, notes, created_by
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'Posted', %s, %s)
             ON CONFLICT (entry_no) DO UPDATE SET
-                description = EXCLUDED.description, amount = EXCLUDED.amount,
-                total_amount = EXCLUDED.total_amount, base_amount = EXCLUDED.base_amount,
-                debit_account_id = EXCLUDED.debit_account_id, credit_account_id = EXCLUDED.credit_account_id,
+                description = EXCLUDED.description, amount = EXCLUDED.amount, total_amount = EXCLUDED.total_amount,
+                base_amount = EXCLUDED.base_amount, debit_account_id = EXCLUDED.debit_account_id, credit_account_id = EXCLUDED.credit_account_id,
                 currency = EXCLUDED.currency, exchange_rate = EXCLUDED.exchange_rate, notes = EXCLUDED.notes,
                 created_by = COALESCE(journal_entries.created_by, EXCLUDED.created_by)
             RETURNING *;
@@ -136,30 +169,17 @@ def add_journal_entry(payload):
         cur.execute(query, (j_id, j_no, j_date, desc, deb_acc, crd_acc, amt, amt, base_amt, ref_type, ref_id, curr, rate, notes, resolved_user))
         res = dict(cur.fetchone())
 
-        lines_data = data.get('lines')
-        if isinstance(lines_data, list) and len(lines_data) > 0:
-            cur.execute("DELETE FROM journal_entry_lines WHERE entry_id = %s;", (res['id'],))
-            for l in lines_data:
-                l_acc = resolve_leaf_account(cur, resolve_account_id(cur, l.get('account_id'), 'ACC-101-1', curr), curr)
-                l_deb = clean_num(l.get('debit'))
-                l_crd = clean_num(l.get('credit'))
-                l_deb_b = clean_num(l.get('debit_base')) or (l_deb * rate)
-                l_crd_b = clean_num(l.get('credit_base')) or (l_crd * rate)
-                l_desc = clean_str(l.get('line_description') or l.get('description') or desc)
-                cur.execute("""
-                    INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
-                """, (generate_id("JVL"), res['id'], l_acc, l_desc, l_deb, l_crd, l_deb_b, l_crd_b))
-        elif amt > 0:
-            cur.execute("DELETE FROM journal_entry_lines WHERE entry_id = %s;", (res['id'],))
-            cur.execute("""
-                INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base)
-                VALUES (%s, %s, %s, %s, %s, 0.0, %s, 0.0);
-            """, (generate_id("JVL"), res['id'], deb_acc, f"مدين - {desc}", amt, base_amt))
-            cur.execute("""
-                INSERT INTO journal_entry_lines (id, entry_id, account_id, line_description, debit, credit, debit_base, credit_base)
-                VALUES (%s, %s, %s, %s, 0.0, %s, 0.0, %s);
-            """, (generate_id("JVL"), res['id'], crd_acc, f"دائن - {desc}", amt, base_amt))
+        cur.execute("DELETE FROM journal_entry_lines WHERE entry_id = %s;", (res['id'],))
+        if parsed_lines:
+            insert_sorted_journal_lines(cur, res['id'], [
+                (l_acc, l_desc, l_deb, l_crd, l_deb_b, l_crd_b)
+                for l_acc, l_deb, l_crd, l_deb_b, l_crd_b, l_desc in parsed_lines
+            ])
+        else:
+            insert_sorted_journal_lines(cur, res['id'], [
+                (deb_acc, f"مدين - {desc}", amt, 0.0, base_amt, 0.0),
+                (crd_acc, f"دائن - {desc}", 0.0, amt, 0.0, base_amt),
+            ])
 
         refresh_chart_balances_atomic(cur)
 

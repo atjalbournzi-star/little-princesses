@@ -12,8 +12,8 @@ from .pg_products_delete import delete_product, delete_bom_model
 def get_next_product_sku(segment='kids', category=None):
     """معاينة حية للكود التسلسلي التالي للموديل حسب الفئة دون زيادة العداد الفعلي"""
     seg = clean_str(segment or 'kids').lower()
-    pfx_map = {'women_adults': ('PROD-WMN', 'LP-WMN-'), 'custom_free': ('PROD-CST', 'LP-CST-'), 'kids': ('PROD-KID', 'LP-KID-')}
-    seq_key, pfx = pfx_map.get(seg, ('PROD-KID', 'LP-KID-'))
+    pfx_map = {'women_adults': ('PROD-WMN', 'PRD-WMN-'), 'custom_free': ('PROD-CST', 'PRD-GEN-'), 'school_uniform': ('PROD-UNI', 'PRD-UNI-'), 'kids': ('PROD-KID', 'PRD-GRL-')}
+    seq_key, pfx = pfx_map.get(seg, ('PROD-KID', 'PRD-GRL-'))
     with get_db_cursor() as cur:
         ensure_number_sequences_schema(cur)
         next_sku = preview_next_sequence_number(cur, seq_key, fallback_prefix=pfx, fallback_padding=4)
@@ -91,8 +91,8 @@ def add_product(payload):
     profit = round(sell_price - total_cost, 2)
     margin_pct = round((profit / sell_price * 100), 2) if sell_price > 0 else 0.0
 
-    pfx_map = {'women_adults': ('PROD-WMN', 'LP-WMN-'), 'custom_free': ('PROD-CST', 'LP-CST-'), 'kids': ('PROD-KID', 'LP-KID-')}
-    seq_key, pfx = pfx_map.get(target_segment, ('PROD-KID', 'LP-KID-'))
+    pfx_map = {'women_adults': ('PROD-WMN', 'PRD-WMN-'), 'custom_free': ('PROD-CST', 'PRD-GEN-'), 'school_uniform': ('PROD-UNI', 'PRD-UNI-'), 'kids': ('PROD-KID', 'PRD-GRL-')}
+    seq_key, pfx = pfx_map.get(target_segment, ('PROD-KID', 'PRD-GRL-'))
 
     with get_db_cursor(commit=True) as cur:
         ensure_number_sequences_schema(cur)
@@ -108,7 +108,7 @@ def add_product(payload):
         else:
             prod_id = get_next_sequence_number(cur, 'PROD', fallback_prefix='PROD-', fallback_padding=6)
             preview_sku = sku
-            is_generic_pfx = not sku or sku in ('LP-KID', 'LP-WMN', 'LP-CST') or sku.endswith('-')
+            is_generic_pfx = not sku or sku in ('LP-KID', 'LP-WMN', 'LP-CST', 'PRD-GRL', 'PRD-WMN', 'PRD-UNI', 'PRD-GEN') or sku.endswith('-')
             if is_generic_pfx:
                 sku = get_next_sequence_number(cur, seq_key, fallback_prefix=pfx, fallback_padding=4)
             cur.execute("SELECT id FROM products WHERE sku = %s AND id != %s LIMIT 1;", (sku, prod_id))
@@ -122,7 +122,7 @@ def add_product(payload):
                 except Exception: pass
             model_no, design_code = sku, sku
             raw_barcode = clean_str(data.get('barcode') or '')
-            is_custom = bool(raw_barcode and raw_barcode != preview_sku and not raw_barcode.startswith(('LP-KID', 'LP-WMN', 'LP-CST', 'PROD-')))
+            is_custom = bool(raw_barcode and raw_barcode != preview_sku and not raw_barcode.startswith(('LP-KID', 'LP-WMN', 'LP-CST', 'PRD-GRL', 'PRD-WMN', 'PRD-UNI', 'PRD-GEN', 'PROD-')))
             barcode = raw_barcode if is_custom else sku
             bm_meta['barcode'] = barcode
             bm_json = json.dumps({"items": bm_items if isinstance(bm_items, list) else [], "meta": bm_meta}, ensure_ascii=False)

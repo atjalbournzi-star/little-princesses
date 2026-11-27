@@ -11,9 +11,11 @@ function Toast({ toast, onClose }) {
   const msgText = typeof toast === 'object' ? (toast.message || String(toast)) : String(toast);
 
   return (
-    <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[9999] max-w-lg w-[92%] p-4 rounded-2xl shadow-2xl bg-slate-900 text-amber-300 border border-purple-500/40 flex items-center justify-between text-xs font-bold animate-fadeIn">
-      <span className="flex items-center gap-2">✨ {msgText}</span>
-      <button onClick={onClose} className="text-white hover:text-amber-400 font-black px-2 text-sm">✕</button>
+    <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[9999] max-w-lg w-[92%] pointer-events-none">
+      <div className="p-4 rounded-2xl shadow-2xl bg-slate-900 text-amber-300 border border-purple-500/40 flex items-center justify-between text-xs font-bold erp-toast-in pointer-events-auto">
+        <span className="flex items-center gap-2">✨ {msgText}</span>
+        <button onClick={onClose} className="text-white hover:text-amber-400 font-black px-2 text-sm">✕</button>
+      </div>
     </div>
   );
 }
